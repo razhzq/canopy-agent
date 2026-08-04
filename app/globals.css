@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* Register sources explicitly rather than relying on automatic detection, which
+   skips gitignored paths. This repo's .gitignore is careful not to ignore
+   `build` (app/build/ is a route), but the explicit @source lines mean a stray
+   ignore rule can never again silently swallow a directory's utility classes. */
+@source "../app";
+@source "../components";
+@source "../lib";
+
+@theme {
+  /* Surfaces — lifted verbatim from canopy-agent-stack.pen variables */
+  --color-bg: #080b0a;
+  --color-panel: #0b0f0e;
+  --color-surface: #0e1412;
+  --color-surface-2: #141c19;
+
+  /* Lines */
+  --color-border: #1e2a25;
+  --color-border-soft: #16201c;
+  --color-grid: #161e1b;
+  --color-grid-strong: #212c28;
+
+  /* Accents */
+  --color-accent: #3ddc91;
+  --color-accent-wash: #0f241b;
+  --color-accent-dim: #16302459;
+
+  /* Semantic */
+  --color-positive: #3ddc91;
+  --color-negative: #f2705f;
+  --color-warning: #e8b54a;
+  --color-simulated: #6e7c75;
+
+  /* Type */
+  --color-text-primary: #e9efec;
+  --color-text-secondary: #8b9992;
+  --color-text-dim: #68746d;
+  --color-text-muted: #5a665f;
+
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The design sets every label, number and identifier in Plex Mono.
+     Prose paragraphs are the exception and opt back into Inter. */
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-bg);
+  }
+}
+
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}

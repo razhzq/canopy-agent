@@ -1,0 +1,35 @@
+# dependencies
+node_modules
+.pnp
+.pnp.*
+
+# next.js
+.next/
+out/
+
+# NOTE: do NOT add a bare `build` entry here. `app/build/` is a route directory;
+# ignoring it hides the files from git *and* from Tailwind's source scanner
+# (which skips gitignored paths), so its utility classes silently go ungenerated.
+
+# testing
+coverage
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
