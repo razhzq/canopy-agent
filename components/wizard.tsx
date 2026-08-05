@@ -2,11 +2,16 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CheckIcon, LockIcon, RailRow, RailSection } from "@/components/ui";
 
-export type Step = { index: string; label: string; href: string };
+export type Step = { index: string; label: string; href?: string };
 
 /**
- * The five-segment progress bar across the top of both wizards. Completed
- * steps trade their number for a check; the current step is washed in accent.
+ * The progress bar across the top of a flow. Completed steps trade their
+ * number for a check; the current step is washed in accent.
+ *
+ * A step with no `href` renders as plain text rather than a link. The build
+ * flow uses that: its stages are lifecycle states a strategy moves THROUGH
+ * (draft, paper run, published), not pages you can click between. The deploy
+ * flow is a genuine five-page wizard and keeps its links.
  */
 export function StepBar({
   steps,
@@ -21,14 +26,11 @@ export function StepBar({
       {steps.map((step, i) => {
         const done = i < current;
         const active = i === current;
-        return (
-          <Link
-            key={step.index}
-            href={step.href}
-            className={`flex flex-1 items-center gap-3 border-r border-grid px-8 py-4.5 last:border-r-0 ${
-              active ? "bg-accent-wash" : ""
-            }`}
-          >
+        const className = `flex flex-1 items-center gap-3 border-r border-grid px-8 py-4.5 last:border-r-0 ${
+          active ? "bg-accent-wash" : ""
+        }`;
+        const content = (
+          <>
             <span
               className={`tnum font-mono text-[11px] ${
                 active ? "text-accent" : done ? "text-accent" : "text-text-muted"
@@ -47,7 +49,16 @@ export function StepBar({
             >
               {step.label}
             </span>
+          </>
+        );
+        return step.href ? (
+          <Link key={step.index} href={step.href} className={className}>
+            {content}
           </Link>
+        ) : (
+          <div key={step.index} className={className}>
+            {content}
+          </div>
         );
       })}
     </div>

@@ -1085,15 +1085,22 @@ export const DISCUSSION: {
 
 /* --------------------------------------------------------------- build ---- */
 
-export const BUILD_STEPS = [
-  { index: "01", label: "Strategy", href: "/build/new" },
-  { index: "02", label: "Rules", href: "/build/new" },
-  { index: "03", label: "Safety", href: "/build/new" },
-  // Step 04 was "Backtest". There is no backtest: a strategy earns publication
-  // by running live in paper mode for 30 days, which cannot be overfit the way
-  // a historical backtest can.
-  { index: "04", label: "Paper run", href: "/build/new" },
-  { index: "05", label: "Publish", href: "/build/new/publish" },
+/**
+ * The build flow's stages.
+ *
+ * These are LIFECYCLE STATES a strategy moves through, mirroring the database
+ * (draft → verifying → published), not steps in a wizard. The previous version
+ * listed Strategy / Rules / Safety / Paper run / Publish, which implied a
+ * five-page flow that never existed — every entry linked back to the same page,
+ * and Safety is read-only in any case. Configuration is one page; the paper run
+ * is 30 days of the agent actually trading; publishing is the gate at the end.
+ *
+ * No hrefs: you cannot click into a state, you transition into it.
+ */
+export const BUILD_STAGES = [
+  { index: "01", label: "Draft · configure" },
+  { index: "02", label: "Paper run · 30 days" },
+  { index: "03", label: "Published" },
 ];
 
 export const BUILD = {

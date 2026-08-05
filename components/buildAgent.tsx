@@ -6,7 +6,7 @@ import { Badge, Callout, LockIcon, SectionHead, WarnIcon } from "@/components/ui
 import { ChoiceCard, ChoiceRow, StepBar } from "@/components/wizard";
 import { usePrivy } from "@privy-io/react-auth";
 import { createStrategy, startPaperRun, type DetectionRule } from "@/lib/api";
-import { BUILD_STEPS } from "@/lib/data";
+import { BUILD_STAGES } from "@/lib/data";
 
 /* --------------------------------------------------------------- classes -- */
 
@@ -180,7 +180,7 @@ export function BuildAgent() {
 
   return (
     <main>
-      <StepBar steps={BUILD_STEPS} current={0} />
+      <StepBar steps={BUILD_STAGES} current={0} />
 
       {/* --------------------------------------------------------- header */}
       <section className="flex items-end justify-between border-b border-grid px-8 pt-6 pb-6">
@@ -346,12 +346,35 @@ export function BuildAgent() {
           </Callout>
         ) : null}
 
-        <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-          Starting the paper run freezes these rules for 30 days. The agent trades live
-          data on Canopy's infrastructure and the record accrues in public. Editing any
-          rule forks a new agent and restarts the clock — the run you abandon stays on
-          your profile.
-        </p>
+        {/* The step bar shows lifecycle states, not pages. Spelling out the
+            transition here removes the obvious question: why is there one
+            button, and what is on the other side of it. */}
+        <div className="border border-grid px-6 py-5">
+          <p className="pb-3 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+            What happens when you click
+          </p>
+          <ol className="space-y-2.5 font-ui text-[13px] leading-relaxed text-text-secondary">
+            <li>
+              <span className="font-mono text-[11px] text-accent">01</span> The strategy
+              is created and these rules are <span className="text-text-primary">frozen</span>.
+            </li>
+            <li>
+              <span className="font-mono text-[11px] text-accent">02</span> It starts
+              trading live data in paper mode, one cycle an hour, for 30 days. Nothing is
+              funded and no order reaches a venue.
+            </li>
+            <li>
+              <span className="font-mono text-[11px] text-accent">03</span> When the
+              record is complete you can publish it, and others can deploy it with their
+              own capital and their own limits.
+            </li>
+          </ol>
+          <p className="pt-4 font-ui text-[13px] leading-relaxed text-text-dim">
+            There is no backtest, and no further configuration screens — a forward record
+            cannot be fitted to a window that flattered it. Editing a rule later forks a
+            new agent and restarts the clock; the run you abandon stays on your profile.
+          </p>
+        </div>
       </section>
     </main>
   );

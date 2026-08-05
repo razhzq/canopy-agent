@@ -4,7 +4,7 @@ import {
   EquityBars,
   TickScale,
 } from "@/components/charts";
-import { BUILD_STEPS, PUBLISH as P, equitySeries } from "@/lib/data";
+import { BUILD_STAGES, PUBLISH as P, equitySeries } from "@/lib/data";
 import {
   Badge,
   CheckIcon,
@@ -22,7 +22,7 @@ export default function PublishPage() {
 
   return (
     <main>
-      <StepBar steps={BUILD_STEPS} current={4} />
+      <StepBar steps={BUILD_STAGES} current={1} />
 
       {/* ---------------------------------------------------------- header */}
       <section className="flex items-end justify-between border-b border-grid px-8 pt-6 pb-6">
