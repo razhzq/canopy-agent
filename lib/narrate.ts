@@ -137,13 +137,26 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
 
     if (o.stage === "reason") {
       const props = Array.isArray(o.proposals) ? o.proposals : [];
+
+      // An outage reads very differently from an opinion, and conflating them
+      // makes a broken agent look like a picky one.
+      if (o.modelError) {
+        lines.push({
+          outcome: "drop",
+          detail: `Could not reach the model, so nothing was proposed this cycle — ${str(
+            o.modelError,
+          )}`,
+        });
+        return lines;
+      }
+
       lines.push({
         outcome: "work",
         detail: `Asked the model to choose${d.model ? ` (${d.model})` : ""}.`,
         source: d.latency_ms ? `${(d.latency_ms / 1000).toFixed(1)}s` : undefined,
       });
       if (props.length === 0) {
-        lines.push({ outcome: "info", detail: "The model proposed nothing." });
+        lines.push({ outcome: "info", detail: "The model looked and proposed nothing." });
       }
       for (const p of props as Record<string, unknown>[]) {
         lines.push({
