@@ -126,6 +126,28 @@ export interface VerificationStatus {
   remaining: string[];
 }
 
+/** A rule the SME evaluates. `key` must match a fact the SME actually gathers. */
+export interface DetectionRule {
+  key: string;
+  op: "gte" | "lte" | "eq";
+  value: number;
+}
+
+export const createStrategy = (
+  token: string,
+  body: {
+    name: string;
+    strategyClass: string;
+    rules: DetectionRule[];
+    safetyFloor?: Record<string, unknown>;
+    feePct?: number;
+  },
+) =>
+  request<{ strategy: StrategyRow }>("/agents/strategies", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
 export const getVerification = (token: string, strategyId: number) =>
   request<{ verification: VerificationStatus }>(
     `/agents/strategies/${strategyId}/verification`,
