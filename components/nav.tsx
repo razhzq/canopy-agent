@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -213,10 +214,20 @@ export function TopNav() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface px-8">
       <div className="flex items-center gap-6">
+        {/* The brand wordmark, not set type: it is a specific blocky face with
+            its own mint fill and offset shadow, taken from canopy-fe's
+            /canopy.png. That source is 2000x1555 and ~83% transparent padding,
+            which is why canopy-fe has to render it at h-[120px]; this copy is
+            cropped to the ink so it sits correctly at navbar height. */}
         <Link href="/agents" className="flex items-center">
-          <span className="font-ui text-[19px] font-semibold tracking-tight text-text-primary">
-            Canopy
-          </span>
+          <Image
+            src="/canopy-wordmark.png"
+            alt="Canopy"
+            width={1298}
+            height={303}
+            priority
+            className="h-[21px] w-auto"
+          />
         </Link>
         <nav className="flex items-center gap-1">
           {NAV.map((item) => {
