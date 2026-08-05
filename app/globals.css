@@ -74,3 +74,72 @@
 @utility tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------- motion -- */
+
+/*
+ * Motion here is informational, not decorative: a cycle that arrives while you
+ * are watching should announce itself, because the alternative is a list that
+ * silently grows and leaves you unsure whether anything happened.
+ *
+ * Only NEW rows animate. Re-running the animation on every poll would make the
+ * whole log twitch every 15 seconds and turn the signal into noise.
+ */
+@keyframes log-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* A brief accent wash along the leading edge, so a new cycle is findable in
+   peripheral vision without the row itself changing colour. */
+@keyframes log-flash {
+  0% {
+    border-left-color: var(--color-accent);
+  }
+  100% {
+    border-left-color: transparent;
+  }
+}
+
+@keyframes line-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Pulses while a cycle is mid-flight. */
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/*
+ * Honour the OS setting. Someone who has asked for less motion is often asking
+ * because motion makes the interface unusable for them, so this removes it
+ * rather than merely shortening it — the log is fully legible without it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

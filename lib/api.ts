@@ -74,6 +74,8 @@ export interface StrategyRow {
   winning_positions: string;
   /** True while no agent under this strategy has ever traded real funds. */
   all_paper: boolean;
+  /** Authored by the signed-in user. Decides the row's action, not its visibility. */
+  is_mine: boolean;
 }
 
 /** Realised return against mandate capital, or null when nothing has closed. */
@@ -133,6 +135,76 @@ export interface DetectionRule {
   value: number;
 }
 
+/**
+ * One asset an author may pick, as the backend resolved it.
+ *
+ * No mint. The picker chooses intent — "Apple, via Backed" — and the address is
+ * resolved fresh server-side at every boot, so a stored address can never start
+ * pointing somewhere else.
+ */
+export interface UniverseAsset {
+  underlying: string;
+  issuer: string;
+  symbol: string;
+  assetClass: "equity" | "etf" | "commodity";
+  calendar: string;
+  hasFilings: boolean;
+}
+
+/**
+ * When the agent closes. Percentages are MAGNITUDES: stopLossPct 20 means close
+ * 20% down. A signed convention would eventually be read the wrong way round,
+ * and backwards inverts a stop into a target.
+ */
+export interface ExitRules {
+  takeProfitPct: number;
+  stopLossPct: number;
+  /** Zero or absent means never on time alone. */
+  maxHoldDays?: number;
+}
+
+/** What a strategy may trade. An empty array means the whole class — "Auto". */
+export interface UniverseSelection {
+  underlying: string;
+  issuer?: string;
+}
+
+/**
+ * The assets a strategy of this class could trade right now.
+ *
+ * This is the resolved universe, not the seed list: an asset that failed
+ * registry/research/chain agreement is absent here rather than selectable and
+ * then permanently silent.
+ */
+export const getUniverse = (token: string, strategyClass = "rwa") =>
+  request<{ assets: UniverseAsset[]; note?: string }>(
+    `/agents/universe?class=${encodeURIComponent(strategyClass)}`,
+    token,
+  );
+
+/**
+ * A strategy draft composed from a sentence.
+ *
+ * The model selects; the backend decides. It cannot return an asset that failed
+ * universe resolution, a rule the SME does not gather, an inverted comparator,
+ * or a value outside the builder's own ranges — so a draft is always something
+ * the manual path could also have produced.
+ */
+export interface ComposedDraft {
+  strategyClass: string;
+  universe: UniverseSelection[];
+  rules: DetectionRule[];
+  exits: ExitRules;
+  /** One sentence on how the request was read. */
+  reading: string;
+}
+
+export const composeAgent = (token: string, prompt: string) =>
+  request<{ draft: ComposedDraft | null; notes: string[] }>("/agents/compose", token, {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+
 export const createStrategy = (
   token: string,
   body: {
@@ -141,6 +213,10 @@ export const createStrategy = (
     rules: DetectionRule[];
     safetyFloor?: Record<string, unknown>;
     feePct?: number;
+    /** Empty or omitted means every asset in the class. */
+    universe?: UniverseSelection[];
+    /** Omitted falls back to the platform defaults for the agent's posture. */
+    exits?: ExitRules;
   },
 ) =>
   request<{ strategy: StrategyRow }>("/agents/strategies", token, {
@@ -350,6 +426,33 @@ export const getActivity = (token: string, agentId: number, limit = 5) =>
     `/agents/${agentId}/activity?limit=${limit}`,
     token,
   );
+
+/* ----------------------------------------------------------------- equity -- */
+
+/**
+ * One point on the equity curve — what the desk saw at the top of that cycle,
+ * before the agent acted. `cashUsd` is null on cycles the desk skipped without
+ * marking the book (a drawdown breach records equity but not cash).
+ */
+export interface EquityPoint {
+  tickSeq: number;
+  at: string;
+  equityUsd: number;
+  cashUsd: number | null;
+  highWaterMarkUsd: number;
+}
+
+export interface EquitySeries {
+  capitalUsd: number;
+  isPaper: boolean;
+  realizedPnlUsd: number;
+  closedPositions: number;
+  winningPositions: number;
+  points: EquityPoint[];
+}
+
+export const getEquity = (token: string, agentId: number) =>
+  request<EquitySeries>(`/agents/${agentId}/equity`, token);
 
 /* -------------------------------------------------------------- proposals -- */
 

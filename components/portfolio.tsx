@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "@/components/ui";
+import { useState } from "react";
+import { Badge, Breadcrumb } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
 import {
   getAgent,
@@ -16,6 +17,14 @@ import {
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { ActivityLog } from "@/components/activity";
+import { EquityPanel } from "@/components/equity";
+import {
+  narrateDecision,
+  SEAT_LABEL,
+  SEAT_PURPOSE,
+  SOURCE_LABEL,
+  type NarratedLine,
+} from "@/lib/narrate";
 
 /* ------------------------------------------------------------- helpers ---- */
 
@@ -37,9 +46,22 @@ function when(iso: string | null): string {
 
 const STATUS_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> = {
   active: "accent",
+  // Winding down after a drawdown breach: still running, but only to close.
+  // Negative rather than warning — it is the outcome of a breached limit, not a
+  // caution, and it should not read as an ordinary pause.
+  liquidating: "negative",
   paused: "warning",
   stopped: "negative",
   draft: "muted",
+};
+
+/** The raw status is a state name; these are what it means to an owner. */
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  liquidating: "Closing out",
+  paused: "Paused",
+  stopped: "Stopped",
+  draft: "Draft",
 };
 
 /* ------------------------------------------------------------ agent list -- */
@@ -77,7 +99,9 @@ export function AgentList() {
               <span className="truncate font-mono text-[15px] text-text-primary">
                 {a.strategy_name}
               </span>
-              <Badge tone={STATUS_TONE[a.status] ?? "muted"}>{a.status}</Badge>
+              <Badge tone={STATUS_TONE[a.status] ?? "muted"}>
+                {STATUS_LABEL[a.status] ?? a.status}
+              </Badge>
               {/* Nothing here has traded real funds. Say so on every row. */}
               {a.is_paper ? <Badge tone="muted">Paper</Badge> : null}
             </div>
@@ -131,7 +155,9 @@ export function AgentMonitor({ agentId }: { agentId: number }) {
             <h1 className="font-mono text-[30px] leading-none text-text-primary">
               {agent.strategy_name}
             </h1>
-            <Badge tone={STATUS_TONE[agent.status] ?? "muted"}>{agent.status}</Badge>
+            <Badge tone={STATUS_TONE[agent.status] ?? "muted"}>
+              {STATUS_LABEL[agent.status] ?? agent.status}
+            </Badge>
             {agent.is_paper ? <Badge tone="muted">Paper</Badge> : null}
           </div>
         </div>
@@ -155,38 +181,58 @@ export function AgentMonitor({ agentId }: { agentId: number }) {
         </div>
       </section>
 
-      {/* -------------------------------------------------------- custody */}
-      <section className="px-8">
-        <h2 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          Custody
-        </h2>
-        {wallet ? (
-          <div className="grid grid-cols-4 border border-grid">
-            {[
-              { k: "Address", v: `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` },
-              { k: "Model", v: wallet.ownerModel.replace(/_/g, " ") },
-              { k: "Remaining", v: money(wallet.remainingUsd) },
-              { k: "Status", v: wallet.status },
-            ].map((c, i) => (
-              <div key={c.k} className={`space-y-3 p-5 ${i > 0 ? "border-l border-grid" : ""}`}>
-                <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  {c.k}
-                </p>
-                <p className="font-mono text-[13px] text-text-primary uppercase">{c.v}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Honest: no wallet is the correct state for a paper agent, and
-          // saying so beats an empty panel that looks like a loading failure.
-          <div className="border border-grid px-6 py-5">
-            <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-              No wallet. This agent runs in paper mode, so nothing is funded and nothing can
-              be signed. A wallet is provisioned only when a published strategy is deployed
-              against real capital.
-            </p>
-          </div>
-        )}
+      {/* --------------------------------------- performance beside custody */}
+      {/* Two thirds / one third rather than stacked full-width blocks.
+          Performance is what the page is for; custody is a fact you check
+          once. Giving them equal width made them read as equal in weight, and
+          pushed the activity log a whole screen further down. */}
+      <section className="grid gap-6 px-8 lg:grid-cols-[2fr_1fr]">
+        <div className="min-w-0">
+          <h2 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+            Performance
+          </h2>
+          <EquityPanel agentId={agentId} />
+        </div>
+
+        <div className="min-w-0">
+          <h2 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+            Custody
+          </h2>
+          {wallet ? (
+            // Stacked rows, not four columns: at a third of the width the old
+            // 4-up grid gave each value about sixty pixels.
+            <div className="border border-grid">
+              {[
+                { k: "Address", v: `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` },
+                { k: "Model", v: wallet.ownerModel.replace(/_/g, " ") },
+                { k: "Remaining", v: money(wallet.remainingUsd) },
+                { k: "Status", v: wallet.status },
+              ].map((c) => (
+                <div
+                  key={c.k}
+                  className="flex items-baseline justify-between gap-4 border-b border-grid px-4 py-3 last:border-b-0"
+                >
+                  <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                    {c.k}
+                  </span>
+                  <span className="truncate font-mono text-[12.5px] text-text-primary uppercase">
+                    {c.v}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Honest: no wallet is the correct state for a paper agent, and
+            // saying so beats an empty panel that looks like a loading failure.
+            <div className="border border-grid px-5 py-5">
+              <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
+                No wallet. This agent runs in paper mode, so nothing is funded and nothing can
+                be signed. A wallet is provisioned only when a published strategy is deployed
+                against real capital.
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ------------------------------------------------------ proposals */}
@@ -379,22 +425,6 @@ export function CycleList({ agentId }: { agentId: number }) {
 
 /* ---------------------------------------------------------- cycle trace -- */
 
-const SEAT_LABEL: Record<string, string> = {
-  desk: "The Desk",
-  analyst: "The Analyst",
-  risk: "The Risk Officer",
-  trader: "The Trader",
-  pm: "The Portfolio Manager",
-};
-
-const SEAT_ROLE: Record<string, string> = {
-  desk: "Opens the cycle",
-  analyst: "Finds candidates",
-  risk: "Approves or blocks",
-  trader: "Executes the fill",
-  pm: "Watches the book",
-};
-
 /**
  * The council transcript — a direct rendering of trading_agent_decisions.
  *
@@ -408,65 +438,207 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
     [agentId, runId],
   );
 
-  if (state.phase === "loading") return <LoadingState label="Loading the trace" />;
-  if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
+  // The trail renders in every phase, not just the happy one. Three levels
+  // deep, a failed or slow fetch would otherwise leave the browser's back
+  // button as the only way out of the page.
+  const crumbs = (tickSeq?: string) => (
+    <div className="px-8 pt-6">
+      <Breadcrumb
+        parts={[
+          { label: "Portfolio", href: "/portfolio" },
+          { label: `Agent ${agentId}`, href: `/portfolio/${agentId}` },
+          { label: "Cycles", href: `/portfolio/${agentId}/cycles` },
+          tickSeq ? `Cycle #${tickSeq}` : "Cycle",
+        ]}
+      />
+    </div>
+  );
+
+  if (state.phase === "loading")
+    return (
+      <>
+        {crumbs()}
+        <LoadingState label="Loading the trace" />
+      </>
+    );
+  if (state.phase === "signed-out")
+    return (
+      <>
+        {crumbs()}
+        <SignedOutState />
+      </>
+    );
+  if (state.phase === "error")
+    return (
+      <>
+        {crumbs()}
+        <ErrorState message={state.message} onRetry={state.reload} />
+      </>
+    );
 
   const { run, decisions } = state.data;
 
   return (
-    <div className="space-y-8 px-8 pb-10">
-      <section className="flex items-end justify-between border-b border-grid pb-6">
-        <div className="space-y-2">
-          <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Cycle #{run.tick_seq}
-          </p>
+    <div className="space-y-6 px-8 pb-10">
+      <section className="flex flex-wrap items-end justify-between gap-4 border-b border-grid pt-6 pb-6">
+        <div className="space-y-2.5">
+          <Breadcrumb
+            parts={[
+              { label: "Portfolio", href: "/portfolio" },
+              { label: `Agent ${agentId}`, href: `/portfolio/${agentId}` },
+              { label: "Cycles", href: `/portfolio/${agentId}/cycles` },
+              `Cycle #${run.tick_seq}`,
+            ]}
+          />
           <h1 className="font-mono text-[26px] leading-none text-text-primary">
-            Council transcript
+            What the agent did
           </h1>
-          <p className="font-ui text-[13px] text-text-secondary">
-            Every seat's reasoning, in the order it was recorded — written before the agent
-            acted, not reconstructed afterwards.
+          <p className="max-w-[64ch] font-ui text-[13px] text-text-secondary">
+            Each seat in the order it spoke, written before the agent acted rather than
+            reconstructed afterwards. Every line restates something that was recorded — open
+            the record on any seat to see it verbatim.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge tone={OUTCOME_TONE[run.status] ?? "muted"}>{run.status}</Badge>
-          {run.skip_reason ? <Badge tone="muted">{run.skip_reason.replace(/_/g, " ")}</Badge> : null}
+          {run.skip_reason ? (
+            <Badge tone="muted">{run.skip_reason.replace(/_/g, " ")}</Badge>
+          ) : null}
         </div>
       </section>
 
       {decisions.map((d, i) => (
-        <section key={i} className="border border-grid">
-          <div className="flex items-center justify-between border-b border-grid px-6 py-4">
-            <div className="flex items-baseline gap-3">
-              <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="font-mono text-[14px] tracking-[0.06em] text-text-primary uppercase">
-                {SEAT_LABEL[d.role] ?? d.role}
-              </span>
-              <span className="font-ui text-[12px] text-text-dim">{SEAT_ROLE[d.role] ?? ""}</span>
-            </div>
-            <div className="flex items-center gap-3 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-              {d.model ? <span>{d.model}</span> : null}
-              {d.latency_ms ? <span>{d.latency_ms}ms</span> : null}
-              {d.cost_usd ? <span>${Number(d.cost_usd).toFixed(5)}</span> : null}
-            </div>
-          </div>
-
-          <pre className="overflow-x-auto px-6 py-5 font-mono text-[12px] leading-relaxed text-text-secondary">
-            {JSON.stringify(d.output, null, 2)}
-          </pre>
-
-          {d.adapter_ids?.length ? (
-            <div className="border-t border-grid px-6 py-3">
-              <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                Data from {d.adapter_ids.join(" · ")}
-              </span>
-            </div>
-          ) : null}
-        </section>
+        <Seat key={i} index={i} decision={d} />
       ))}
     </div>
+  );
+}
+
+/** One council seat: what it did, in English, over the record it wrote. */
+function Seat({
+  index,
+  decision: d,
+}: {
+  index: number;
+  decision: Awaited<ReturnType<typeof getCycle>>["decisions"][number];
+}) {
+  const [raw, setRaw] = useState(false);
+  const lines = narrateDecision(d);
+
+  return (
+    <section className="border border-grid">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-grid px-5 py-3.5">
+        <div className="flex min-w-0 items-baseline gap-3">
+          <span className="tnum font-mono text-[10px] text-text-dim">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <span className="font-mono text-[12.5px] tracking-[0.08em] text-text-primary uppercase">
+            {SEAT_LABEL[d.role] ?? d.role}
+          </span>
+          <span className="truncate font-ui text-[12px] text-text-dim">
+            {SEAT_PURPOSE[d.role] ?? ""}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-3 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+          {d.model ? <span>{d.model}</span> : null}
+          {d.latency_ms ? <span>{(d.latency_ms / 1000).toFixed(1)}s</span> : null}
+          {d.cost_usd && Number(d.cost_usd) > 0 ? (
+            <span>${Number(d.cost_usd).toFixed(5)}</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setRaw((r) => !r)}
+            aria-expanded={raw}
+            className="tracking-[0.1em] transition-colors hover:text-accent"
+          >
+            {raw ? "Hide record" : "Record"}
+          </button>
+        </div>
+      </div>
+
+      {lines.length > 0 ? (
+        <ol>
+          {lines.map((line, i) => (
+            <li
+              key={i}
+              className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-3 border-b border-grid px-5 py-2.5 last:border-b-0"
+            >
+              <span className="mt-0.5">
+                <TraceMark outcome={line.outcome} />
+              </span>
+              <span className="min-w-0">
+                <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
+                  {line.symbol ? (
+                    <span className="font-mono text-[12px] text-text-primary">
+                      {line.symbol}{" "}
+                    </span>
+                  ) : null}
+                  {line.detail}
+                </span>
+                {line.source ? (
+                  <span className="ml-2 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
+                    {line.source}
+                  </span>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        // No narration for this shape. Show the record rather than nothing —
+        // an unrecognised output is still evidence.
+        <pre className="overflow-x-auto px-5 py-4 font-mono text-[11.5px] leading-relaxed text-text-dim">
+          {JSON.stringify(d.output, null, 2)}
+        </pre>
+      )}
+
+      {raw ? (
+        <div className="border-t border-grid bg-panel">
+          <p className="px-5 pt-3 font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
+            Recorded verbatim
+          </p>
+          <pre className="overflow-x-auto px-5 pb-4 font-mono text-[11.5px] leading-relaxed text-text-dim">
+            {JSON.stringify(d.output, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+
+      {d.adapter_ids?.length ? (
+        <div className="border-t border-grid px-5 py-2.5">
+          <span className="font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
+            Data from {d.adapter_ids.map((a) => SOURCE_LABEL[a] ?? a).join(" · ")}
+          </span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function TraceMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
+  if (outcome === "pass") {
+    return (
+      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="passed">
+        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (outcome === "drop") {
+    return (
+      <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="stopped">
+        <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (outcome === "work") {
+    return (
+      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="step">
+        <circle cx="8" cy="8" r="3" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="note">
+      <circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
   );
 }

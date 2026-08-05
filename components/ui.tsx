@@ -344,16 +344,46 @@ export function AgentTile({ size = 34 }: { size?: number }) {
   );
 }
 
-export function Breadcrumb({ parts }: { parts: string[] }) {
+/** A crumb: plain text, or somewhere to go back to. */
+export type Crumb = string | { label: string; href: string };
+
+/**
+ * The trail back up.
+ *
+ * Crumbs with an `href` are links; the last one never is, because it names the
+ * page you are already on. This used to render every part as plain text, which
+ * looked like navigation and did nothing — on the cycle transcript, three
+ * levels deep, that left the browser's back button as the only way out.
+ */
+export function Breadcrumb({ parts }: { parts: Crumb[] }) {
   return (
-    <div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-      {parts.map((part, i) => (
-        <span key={part} className="flex items-center gap-2">
-          {i > 0 ? <span className="text-grid-strong">/</span> : null}
-          {part}
-        </span>
-      ))}
-    </div>
+    <nav
+      aria-label="Breadcrumb"
+      className="flex flex-wrap items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase"
+    >
+      {parts.map((part, i) => {
+        const label = typeof part === "string" ? part : part.label;
+        const href = typeof part === "string" ? undefined : part.href;
+        const last = i === parts.length - 1;
+        return (
+          <span key={`${label}-${i}`} className="flex items-center gap-2">
+            {i > 0 ? <span className="text-grid-strong">/</span> : null}
+            {href && !last ? (
+              <Link
+                href={href}
+                className="transition-colors hover:text-accent hover:underline underline-offset-4"
+              >
+                {label}
+              </Link>
+            ) : (
+              <span aria-current={last ? "page" : undefined} className={last ? "text-text-secondary" : undefined}>
+                {label}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
   );
 }
 

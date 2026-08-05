@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkline } from "@/components/charts";
+import { useState } from "react";
 import { AgentTile, Badge, ToolButton } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
 import { listStrategies, hitRatePct, realizedReturnPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { sparkSeries } from "@/lib/data";
 
 /**
  * The marketplace: header stats, tabs and table, all from ONE fetch.
@@ -18,7 +17,7 @@ import { sparkSeries } from "@/lib/data";
  */
 
 const COLS =
-  "grid grid-cols-[46px_minmax(0,1fr)_92px_84px_60px_56px_190px_84px_68px_56px_92px] items-center gap-x-4";
+  "grid grid-cols-[46px_minmax(0,1fr)_96px_64px_88px_72px_64px_96px] items-center gap-x-4";
 
 function signed(n: number, suffix = "%") {
   return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}${suffix}`;
@@ -52,10 +51,6 @@ function recordLength(row: StrategyRow): { label: string; thin: boolean } {
   };
 }
 
-/** Stable per-strategy seed, so a row's sparkline does not reshuffle each render. */
-function seedFor(id: number): number {
-  return (id * 2654435761) % 100000;
-}
 
 function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   const listed = rows?.filter((r) => r.status === "published").length;
@@ -89,14 +84,35 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   );
 }
 
+type Tab = "all" | "published" | "verifying" | "delisted";
+
+const TAB_NOUN: Record<Tab, string> = {
+  all: "here",
+  published: "listed",
+  verifying: "on paper",
+  delisted: "delisted",
+};
+
+function count(rows: StrategyRow[] | null, status: string): number | undefined {
+  return rows?.filter((r) => r.status === status).length;
+}
+
 export function Marketplace() {
   const state = useApi<{ strategies: StrategyRow[] }>((token) => listStrategies(token));
   const rows = state.phase === "ready" ? state.data.strategies : null;
 
-  const tabs = [
-    { label: "Listed", count: rows?.filter((r) => r.status === "published").length },
-    { label: "Delisted", count: rows?.filter((r) => r.status === "delisted").length },
+  // These were counters with a hardcoded active state and no click handler —
+  // they looked like filters and did nothing.
+  const [tab, setTab] = useState<Tab>("all");
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: "all", label: "All", count: rows?.length },
+    { key: "published", label: "Listed", count: count(rows, "published") },
+    { key: "verifying", label: "Paper run", count: count(rows, "verifying") },
+    { key: "delisted", label: "Delisted", count: count(rows, "delisted") },
   ];
+
+  const visible = rows?.filter((r) => tab === "all" || r.status === tab) ?? [];
 
   return (
     <>
@@ -108,8 +124,8 @@ export function Marketplace() {
           </p>
           <h1 className="font-mono text-[38px] leading-none text-text-primary">Agents</h1>
           <p className="font-ui text-[14px] text-text-secondary">
-            Deploy a strategy as your own agent. You keep custody. You set every
-            limit.
+            Every strategy with a live record — published, and still on paper. Deploy a
+            listed one as your own agent: you keep custody, you set every limit.
           </p>
         </div>
         <StatRail rows={rows} />
@@ -118,22 +134,29 @@ export function Marketplace() {
       {/* --------------------------------------------------------- tabs */}
       <section className="flex items-center justify-between border-b border-grid px-8">
         <div className="flex">
-          {tabs.map((tab, i) => (
-            <button
-              key={tab.label}
-              type="button"
-              className={`flex items-center gap-2 border-b-2 px-5 py-5 font-mono text-[12px] tracking-[0.1em] uppercase transition-colors ${
-                i === 0
-                  ? "border-accent text-text-primary"
-                  : "border-transparent text-text-dim hover:text-text-secondary"
-              }`}
-            >
-              {tab.label}
-              <span className={i === 0 ? "text-accent" : "text-text-muted"}>
-                {tab.count ?? "—"}
-              </span>
-            </button>
-          ))}
+          {tabs.map((t) => {
+            const active = t.key === tab;
+            // An empty bucket stays clickable: seeing "Delisted 0" and being
+            // told so beats a dead control that looks broken.
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                aria-pressed={active}
+                className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[12px] tracking-[0.1em] uppercase transition-colors ${
+                  active
+                    ? "border-accent text-text-primary"
+                    : "border-transparent text-text-dim hover:text-text-secondary"
+                }`}
+              >
+                {t.label}
+                <span className={active ? "text-accent" : "text-text-muted"}>
+                  {t.count ?? "—"}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="flex items-center gap-3">
           <ToolButton>Return</ToolButton>
@@ -150,10 +173,30 @@ export function Marketplace() {
           <ErrorState message={state.message} onRetry={state.reload} />
         ) : rows!.length === 0 ? (
           <EmptyState
-            title="No agents listed yet"
-            body="A strategy appears here once it has completed its 30-day live paper record and been published. Nothing is listed on a backtest."
+            title="Nothing here yet"
+            body="Every strategy with a live record appears here — published, and still on paper. Nothing has started one yet."
             action={{ label: "Build an agent", href: "/build/new" }}
           />
+        ) : visible.length === 0 ? (
+          // A filter that matched nothing is a different situation from an
+          // empty marketplace, and offering "build an agent" would be an odd
+          // answer to "show me the delisted ones".
+          <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-8 py-12 text-center">
+            <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+              Nothing {TAB_NOUN[tab]}
+            </p>
+            <p className="max-w-[46ch] font-ui text-[13px] leading-relaxed text-text-secondary">
+              {rows!.length} other {rows!.length === 1 ? "strategy" : "strategies"} in the
+              other tabs.
+            </p>
+            <button
+              type="button"
+              onClick={() => setTab("all")}
+              className="font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
+            >
+              Show all
+            </button>
+          </div>
         ) : (
           <>
             <div
@@ -162,17 +205,14 @@ export function Marketplace() {
               <span>Rank</span>
               <span>Name</span>
               <span className="text-right">Return</span>
-              <span className="text-right">Max DD</span>
               <span className="text-right">Hit</span>
-              <span className="text-right">PF</span>
-              <span className="pl-3">Equity</span>
               <span className="text-right">AUM</span>
               <span className="text-right">Users</span>
               <span className="text-right">Record</span>
               <span />
             </div>
 
-            {rows!.map((row, i) => {
+            {visible.map((row, i) => {
               const ret = realizedReturnPct(row);
               const hit = hitRatePct(row);
 
@@ -195,6 +235,10 @@ export function Marketplace() {
                         {/* Every agent is paper until a signing rail exists.
                             Saying so is the difference between a record and a claim. */}
                         {row.all_paper ? <Badge tone="muted">Paper</Badge> : null}
+                        {row.status === "verifying" ? (
+                          <Badge tone="accent">Paper run</Badge>
+                        ) : null}
+                        {row.is_mine ? <Badge tone="muted">Yours</Badge> : null}
                         {row.status === "delisted" ? (
                           <Badge tone="warning">Delisted</Badge>
                         ) : null}
@@ -220,22 +264,9 @@ export function Marketplace() {
                     {ret === null ? "—" : signed(ret)}
                   </span>
 
-                  <span className="tnum text-right font-mono text-[13px] text-text-dim">
-                    —
-                  </span>
                   <span className="tnum text-right font-mono text-[13px] text-text-primary">
                     {hit === null ? "—" : `${hit.toFixed(0)}%`}
                   </span>
-                  <span className="tnum text-right font-mono text-[13px] text-text-dim">
-                    —
-                  </span>
-
-                  <div className="pl-3">
-                    <Sparkline
-                      values={sparkSeries(24, seedFor(row.id), ret === null || ret < 0)}
-                      tone={ret !== null && ret >= 0 ? "accent" : "muted"}
-                    />
-                  </div>
 
                   <span className="tnum text-right font-mono text-[13px] text-text-primary">
                     {money(Number(row.aum_usd))}
@@ -252,18 +283,36 @@ export function Marketplace() {
                     {recordLength(row).label}
                   </span>
 
-                  <Link
-                    href={`/deploy/describe?strategy=${row.id}`}
-                    className="flex h-8 items-center justify-center border border-border font-mono text-[10px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
-                  >
-                    Deploy
-                  </Link>
+                  {/* Visibility and deployability are different things. Anyone
+                      can read a paper run and judge it; nobody can put money
+                      behind one. The author gets a link to publish it, everyone
+                      else gets a link to study it. */}
+                  {row.status === "verifying" ? (
+                    <Link
+                      href={
+                        row.is_mine
+                          ? `/build/new/publish?strategy=${row.id}`
+                          : `/agents/${row.id}`
+                      }
+                      className="flex h-8 items-center justify-center border border-grid font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent"
+                    >
+                      {row.is_mine ? "Publish" : "Record"}
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/deploy/describe?strategy=${row.id}`}
+                      className="flex h-8 items-center justify-center border border-border font-mono text-[10px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
+                    >
+                      Deploy
+                    </Link>
+                  )}
                 </div>
               );
             })}
 
             <p className="py-5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-              Showing {rows!.length} · Returns are realised only, against mandate capital
+              Showing {visible.length} of {rows!.length} · Returns are realised only, against
+              mandate capital
             </p>
           </>
         )}

@@ -445,3 +445,114 @@ export function EarningsBars({
     </div>
   );
 }
+
+/* ----------------------------------------------------------- equity curve -- */
+
+/**
+ * An equity curve.
+ *
+ * Deliberately NOT EquityBars, which scales bars from zero to the maximum. An
+ * account moving between $9,990 and $10,004 would render as a row of identical
+ * full-height bars — every real move invisible, and the flatness reading as a
+ * design choice rather than as missing resolution.
+ *
+ * This scales to the data's own range plus the baseline, so a 0.1% move is
+ * visible as a 0.1% move against the capital line rather than lost in the axis.
+ *
+ * `preserveAspectRatio="none"` stretches the viewBox to whatever width the
+ * container has; `vector-effect="non-scaling-stroke"` stops that stretch from
+ * making the line thicker horizontally than vertically.
+ */
+export function EquityCurve({
+  values,
+  baseline,
+  height = 200,
+}: {
+  values: number[];
+  /** Starting capital. Drawn as a dashed rule so gains and losses read against it. */
+  baseline?: number;
+  height?: number;
+}) {
+  const W = 1000;
+  const H = 300;
+
+  if (values.length === 0) return <div style={{ height }} />;
+
+  const all = baseline === undefined ? values : [...values, baseline];
+  let lo = Math.min(...all);
+  let hi = Math.max(...all);
+  // A perfectly flat series has no range to scale into; give it one so the
+  // line lands mid-panel instead of on an edge or dividing by zero.
+  if (hi - lo < 1e-9) {
+    lo -= Math.max(Math.abs(lo) * 0.01, 1);
+    hi += Math.max(Math.abs(hi) * 0.01, 1);
+  } else {
+    const pad = (hi - lo) * 0.12;
+    lo -= pad;
+    hi += pad;
+  }
+
+  const x = (i: number) => (values.length === 1 ? W / 2 : (i / (values.length - 1)) * W);
+  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
+
+  // One point is a flat line across the panel, not a dot in the middle: the
+  // account existed for that whole cycle at that value.
+  const pts =
+    values.length === 1
+      ? [
+          [0, y(values[0])],
+          [W, y(values[0])],
+        ]
+      : values.map((v, i) => [x(i), y(v)]);
+
+  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px} ${py}`).join(" ");
+  const area = `${line} L${pts[pts.length - 1][0]} ${H} L${pts[0][0]} ${H} Z`;
+
+  const last = values[values.length - 1];
+  const up = baseline === undefined || last >= baseline;
+  const stroke = up ? "var(--color-accent)" : "var(--color-negative)";
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ height, width: "100%" }}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      <path d={area} fill="url(#equityFill)" />
+
+      {baseline !== undefined ? (
+        <line
+          x1="0"
+          x2={W}
+          y1={y(baseline)}
+          y2={y(baseline)}
+          stroke="var(--color-grid-strong)"
+          strokeWidth="1"
+          strokeDasharray="4 4"
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
+
+      <path
+        d={line}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+
+      {/* The latest point, marked — it is the number in the headline. */}
+      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="3.5" fill={stroke} />
+    </svg>
+  );
+}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getActivity, type ActivityCycle, type ActivityDecision, type ScreenStep } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { getActivity, type ActivityCycle } from "@/lib/api";
+import { narrateCycle, type NarratedLine } from "@/lib/narrate";
 import { useApi } from "@/lib/useApi";
 import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
 import { Badge } from "@/components/ui";
@@ -22,12 +23,55 @@ export function ActivityLog({ agentId }: { agentId: number }) {
   const [tick, setTick] = useState(0);
   const state = useApi((t) => getActivity(t, agentId, 5), [agentId, tick]);
 
-  // 30s: the tick interval is an hour, so this is about catching a run that
-  // lands while the page is open, not about smoothness.
+  // Which cycle ids we have already shown. A cycle animates in only the first
+  // time it appears — without this the whole list would re-animate on every
+  // poll, which turns "something arrived" into visual noise.
+  const seen = useRef<Set<string> | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
+
+  // Joined into a string so the dependency is stable by value. Depending on the
+  // array itself would re-run this on every render — and because React clears
+  // the previous effect's timeout before re-running, a render that found no new
+  // cycles would cancel the pending reset and strand `fresh` permanently.
+  const cycleKey =
+    state.phase === "ready" ? state.data.cycles.map((c) => c.id).join(",") : "";
+
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 30_000);
+    if (!cycleKey) return;
+    const ids = cycleKey.split(",");
+
+    // First successful load populates the baseline silently: everything is new
+    // to the component, but none of it is new to the user.
+    if (seen.current === null) {
+      seen.current = new Set(ids);
+      return;
+    }
+
+    const added = ids.filter((id) => !seen.current!.has(id));
+    if (added.length === 0) return;
+    added.forEach((id) => seen.current!.add(id));
+    setFresh(new Set(added));
+
+    // Drop the marker once the animation has played, so a later re-render does
+    // not leave the row flagged as new forever.
+    const t = setTimeout(() => setFresh(new Set()), 1400);
+    return () => clearTimeout(t);
+  }, [cycleKey]);
+
+  // Poll rate tracks what is actually in flight.
+  //
+  // A running cycle writes its decision rows as it goes, so its steps only
+  // reach the page when we refetch — at the idle 45s that meant watching two
+  // lines for most of a minute while the cycle had long since finished.
+  const empty = state.phase === "ready" && state.data.cycles.length === 0;
+  const anyRunning =
+    state.phase === "ready" && state.data.cycles.some((c) => c.status === "running");
+  const pollMs = anyRunning ? 4_000 : empty ? 15_000 : 45_000;
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), pollMs);
     return () => clearInterval(id);
-  }, []);
+  }, [pollMs]);
 
   if (state.phase === "loading") return <LoadingState label="Loading activity" />;
   if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
@@ -41,9 +85,12 @@ export function ActivityLog({ agentId }: { agentId: number }) {
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           Nothing yet
         </p>
-        <p className="max-w-[46ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-          The agent has not woken up for the first time. It runs once an hour — the first
-          cycle appears here within the hour, whether or not it finds anything to do.
+        <p className="max-w-[48ch] font-ui text-[13px] leading-relaxed text-text-secondary">
+          The first cycle is starting now and appears here within a minute or two — it runs
+          whether or not the agent finds anything to buy. After that it wakes once an hour.
+        </p>
+        <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+          Checking every 15s
         </p>
       </div>
     );
@@ -52,18 +99,97 @@ export function ActivityLog({ agentId }: { agentId: number }) {
   return (
     <div className="space-y-4">
       {cycles.map((c, i) => (
-        <Cycle key={c.id} cycle={c} defaultOpen={i === 0} />
+        <Cycle key={c.id} cycle={c} defaultOpen={i === 0} isNew={fresh.has(c.id)} />
       ))}
     </div>
   );
 }
 
-function Cycle({ cycle, defaultOpen }: { cycle: ActivityCycle; defaultOpen: boolean }) {
+/**
+ * Reveals a completed cycle's steps one at a time.
+ *
+ * The steps were all recorded before the agent acted — this replays them in the
+ * order they happened, the way a terminal prints output it already has. It is
+ * presentation, not a live feed, so nothing here claims present-tense activity:
+ * the affordance is a caret, never "the agent is thinking".
+ *
+ * Only a cycle that arrived while you were watching replays. Scrolling back
+ * through history should not make you wait for it.
+ */
+function useSequentialReveal(total: number, active: boolean): number {
+  const [shown, setShown] = useState(active ? 0 : total);
+
+  // Read inside the effect without making it a dependency: the effect must
+  // re-run when the total GROWS, but must not restart from wherever it had
+  // reached when it does.
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+
+  useEffect(() => {
+    if (!active) {
+      setShown(total);
+      return;
+    }
+    // Someone who asked for less motion gets the whole thing at once.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setShown(total);
+      return;
+    }
+    // Already caught up. A running cycle re-enters here on every poll, and
+    // resetting to zero would replay the whole thing each time.
+    if (shownRef.current >= total) return;
+
+    // Paced to feel deliberate, but the whole sequence stays under ~5s however
+    // long the trace is — a 40-step screen must not take half a minute.
+    const step = Math.max(55, Math.min(240, 4500 / Math.max(total, 1)));
+    const id = setInterval(() => {
+      setShown((prev) => {
+        const next = prev + 1;
+        if (next >= total) clearInterval(id);
+        return Math.min(next, total);
+      });
+    }, step);
+    return () => clearInterval(id);
+  }, [total, active]);
+
+  // Guard against a total that shrank (a cycle re-fetched mid-write).
+  return Math.min(shown, total);
+}
+
+function Cycle({
+  cycle,
+  defaultOpen,
+  isNew,
+}: {
+  cycle: ActivityCycle;
+  defaultOpen: boolean;
+  isNew: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
-  const lines = toLines(cycle);
+  const lines = narrateCycle(cycle);
+  const running = cycle.status === "running";
+
+  // Captured at mount and never updated. `isNew` is cleared by the parent after
+  // its border flash, and `running` becomes false when the cycle finishes —
+  // either flipping mid-replay would cut it short and snap the rest in at once.
+  //
+  // `running` is here because the first page load after creating an agent
+  // usually ALREADY contains cycle #1, still in flight. The parent treats a
+  // first load as a silent baseline (correct when you return to the page later,
+  // wrong when you are watching the thing you just made), so without this the
+  // one cycle you actually want to watch is the one that never replays.
+  const [replay] = useState(isNew || running);
+  const shown = useSequentialReveal(lines.length, replay && defaultOpen);
+  const revealing = shown < lines.length;
 
   return (
-    <div className="border border-grid">
+    <div
+      className={`border border-l-2 border-grid transition-colors ${
+        isNew
+          ? "animate-[log-enter_320ms_ease-out,log-flash_1400ms_ease-out_forwards] border-l-accent"
+          : "border-l-transparent"
+      }`}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -73,6 +199,12 @@ function Cycle({ cycle, defaultOpen }: { cycle: ActivityCycle; defaultOpen: bool
           <span className="tnum shrink-0 font-mono text-[11px] text-text-dim">
             #{cycle.tick_seq}
           </span>
+          {running ? (
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 animate-[live-pulse_1.4s_ease-in-out_infinite] rounded-full bg-accent"
+            />
+          ) : null}
           <span className="truncate font-ui text-[13.5px] text-text-primary">
             {headline(cycle)}
           </span>
@@ -87,10 +219,10 @@ function Cycle({ cycle, defaultOpen }: { cycle: ActivityCycle; defaultOpen: bool
 
       {open ? (
         <ol className="border-t border-grid">
-          {lines.map((line, i) => (
+          {lines.slice(0, shown).map((line, i) => (
             <li
               key={i}
-              className="grid grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5 border-b border-grid px-5 py-3 last:border-b-0"
+              className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5 border-b border-grid px-5 py-3 last:border-b-0"
             >
               <span className="mt-0.5">
                 <Mark outcome={line.outcome} />
@@ -112,173 +244,24 @@ function Cycle({ cycle, defaultOpen }: { cycle: ActivityCycle; defaultOpen: bool
               </span>
             </li>
           ))}
+
+          {/* Where the replay has reached. A caret, not a claim — the cycle has
+              already finished; this is the reading of it catching up. */}
+          {revealing || running ? (
+            <li className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 px-5 py-3">
+              <span
+                aria-hidden
+                className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
+              />
+              <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
+                {revealing ? `${shown} of ${lines.length}` : "still running"}
+              </span>
+            </li>
+          ) : null}
         </ol>
       ) : null}
     </div>
   );
-}
-
-/* ----------------------------------------------------------------- lines -- */
-
-interface Line {
-  outcome: "pass" | "drop" | "info" | "work";
-  detail: string;
-  symbol?: string;
-  source?: string;
-}
-
-/**
- * Flattens one cycle's decision rows into an ordered account.
- *
- * The `output` shapes come from runTick — each council seat writes a different
- * one, so this reads them seat by seat rather than trying to be generic. An
- * unrecognised shape falls through to a plain statement that the seat ran,
- * which is still true and still ordered correctly.
- */
-function toLines(cycle: ActivityCycle): Line[] {
-  const lines: Line[] = [];
-
-  for (const d of cycle.decisions) {
-    const o = d.output ?? {};
-
-    if (d.role === "desk") {
-      if (o.skipped === "not_active") {
-        lines.push({ outcome: "drop", detail: `Did not run — the agent is ${str(o.status)}.` });
-      } else if (o.skipped === "expired") {
-        lines.push({ outcome: "drop", detail: "Did not run — the mandate reached its time limit." });
-      } else if (o.skipped === "drawdown_breach") {
-        lines.push({ outcome: "drop", detail: str(o.reason) || "Paused on a drawdown breach." });
-      } else if (o.opened) {
-        lines.push({
-          outcome: "work",
-          detail:
-            `Woke up. Book is ${money(o.equityUsd)} equity, ${money(o.cashUsd)} uninvested, ` +
-            `${num(o.openPositions)} open ${num(o.openPositions) === 1 ? "position" : "positions"}.`,
-        });
-        if (num(o.unmarked) > 0) {
-          lines.push({
-            outcome: "info",
-            detail: `${num(o.unmarked)} position(s) had no readable price and were left unmarked.`,
-          });
-        }
-      }
-      continue;
-    }
-
-    if (d.role === "analyst") {
-      if (o.skipped === "market_closed") {
-        lines.push({ outcome: "drop", detail: "Every market this mandate can touch is shut." });
-        continue;
-      }
-      if (o.skipped === "budget_exhausted") {
-        lines.push({ outcome: "drop", detail: "No model budget left this cycle — nothing reasoned." });
-        continue;
-      }
-
-      if (o.stage === "screen") {
-        for (const s of steps(o.steps)) {
-          lines.push({
-            outcome: s.outcome,
-            detail: s.detail,
-            symbol: s.symbol,
-            source: SOURCE_LABEL[s.sourceId ?? ""] ?? s.sourceId,
-          });
-        }
-        const found = Array.isArray(o.candidates) ? o.candidates.length : 0;
-        lines.push({
-          outcome: found > 0 ? "pass" : "info",
-          detail:
-            found > 0
-              ? `${found} candidate${found === 1 ? "" : "s"} survived screening.`
-              : "Nothing survived screening this cycle.",
-        });
-        continue;
-      }
-
-      if (o.stage === "reason") {
-        const props = Array.isArray(o.proposals) ? o.proposals : [];
-        lines.push({
-          outcome: "work",
-          detail: `Asked the model to choose${d.model ? ` (${d.model})` : ""}.`,
-          source: d.latency_ms ? `${(d.latency_ms / 1000).toFixed(1)}s` : undefined,
-        });
-        if (props.length === 0) {
-          lines.push({ outcome: "info", detail: "The model proposed nothing." });
-        }
-        for (const p of props as Record<string, unknown>[]) {
-          lines.push({
-            outcome: "pass",
-            symbol: str(p.symbol),
-            detail: `Proposed — ${str(p.rationale) || "no rationale given"}`,
-          });
-        }
-        continue;
-      }
-      continue;
-    }
-
-    if (d.role === "risk") {
-      const flags = Array.isArray(o.hardFlags) ? o.hardFlags : [];
-      lines.push({
-        outcome: o.decision === "reject" ? "drop" : "pass",
-        symbol: str(o.symbol),
-        detail:
-          o.decision === "reject"
-            ? `Risk gate rejected it${flags.length > 0 ? ` — ${flags.join(", ")}` : ""}.`
-            : `Risk gate approved ${money(o.approvedSizeUsd)}` +
-              (o.stopLossPct ? `, stop at ${num(o.stopLossPct)}%` : "") +
-              ".",
-      });
-      continue;
-    }
-
-    if (d.role === "trader") {
-      if (o.autonomy === "propose_only") {
-        lines.push({
-          outcome: "info",
-          detail: `${num(o.parked)} plan(s) parked for your approval. Nothing executed.`,
-        });
-      } else if (o.executed === false) {
-        lines.push({
-          outcome: "drop",
-          symbol: str(o.symbol),
-          detail: `Execution failed — ${str(o.error)}`,
-        });
-      } else if (o.filledUsd !== undefined) {
-        lines.push({
-          outcome: "pass",
-          symbol: str(o.symbol),
-          detail:
-            `${o.isPaper ? "Paper " : ""}filled ${money(o.filledUsd)} at ` +
-            `$${num(o.priceUsd).toFixed(2)}${o.deduped ? " (already filled — deduped)" : ""}.`,
-          source: str(o.venue),
-        });
-      }
-      continue;
-    }
-
-    if (d.role === "pm") {
-      lines.push({
-        outcome: "work",
-        detail:
-          `Marked the book: ${money(o.marketValueUsd)} value against ${money(o.costBasisUsd)} cost, ` +
-          `${signed(num(o.unrealizedPnlUsd))} unrealised.`,
-      });
-      const directives = Array.isArray(o.directives) ? o.directives : [];
-      if (directives.length > 0) {
-        lines.push({
-          outcome: "info",
-          detail: `${directives.length} directive(s) queued for the next cycle's risk gate.`,
-        });
-      }
-    }
-  }
-
-  if (cycle.status === "error" && cycle.error) {
-    lines.push({ outcome: "drop", detail: `Cycle failed — ${cycle.error}` });
-  }
-
-  return lines;
 }
 
 /** A one-line summary of the cycle, for the collapsed header. */
@@ -287,7 +270,15 @@ function headline(c: ActivityCycle): string {
   if (c.status === "error") return "Cycle failed";
   if (c.status === "skipped") return SKIP_LABEL[c.skip_reason ?? ""] ?? "Skipped";
 
-  const fills = c.decisions.filter((d) => d.role === "trader" && d.output?.filledUsd !== undefined);
+  const closes = c.decisions.filter(
+    (d) => d.role === "trader" && d.output?.exit === true && d.output?.filledUsd !== undefined,
+  );
+  const fills = c.decisions.filter(
+    (d) => d.role === "trader" && d.output?.exit !== true && d.output?.filledUsd !== undefined,
+  );
+  if (closes.length > 0 && fills.length > 0)
+    return `${closes.length} closed, ${fills.length} opened`;
+  if (closes.length > 0) return `${closes.length} position${closes.length === 1 ? "" : "s"} closed`;
   if (fills.length > 0) return `${fills.length} fill${fills.length === 1 ? "" : "s"}`;
 
   const approved = c.decisions.filter(
@@ -327,16 +318,9 @@ const SKIP_LABEL: Record<string, string> = {
   not_active: "Agent is not active",
 };
 
-/** Adapter ids are internal; these are what they mean to an owner. */
-const SOURCE_LABEL: Record<string, string> = {
-  "wintel.rwa": "Wintel",
-  "canopy.onchain": "On-chain",
-  "canopy.compliance": "Policy",
-};
-
 /* --------------------------------------------------------------- fragments -- */
 
-function Mark({ outcome }: { outcome: Line["outcome"] }) {
+function Mark({ outcome }: { outcome: NarratedLine["outcome"] }) {
   if (outcome === "pass") {
     return (
       <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="passed">
@@ -366,27 +350,6 @@ function Mark({ outcome }: { outcome: Line["outcome"] }) {
 }
 
 /* ---------------------------------------------------------------- helpers -- */
-
-function steps(v: unknown): ScreenStep[] {
-  return Array.isArray(v) ? (v as ScreenStep[]) : [];
-}
-
-function str(v: unknown): string {
-  return typeof v === "string" ? v : "";
-}
-
-function num(v: unknown): number {
-  return typeof v === "number" ? v : Number(v) || 0;
-}
-
-function money(v: unknown): string {
-  return `$${num(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-}
-
-function signed(n: number): string {
-  const s = `$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  return n < 0 ? `−${s}` : `+${s}`;
-}
 
 function clock(iso: string): string {
   const d = new Date(iso);

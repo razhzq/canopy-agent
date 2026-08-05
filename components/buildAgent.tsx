@@ -2,132 +2,71 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Badge, Callout, Columns, LockIcon, SectionHead, WarnIcon } from "@/components/ui";
-import { ChoiceCard, ChoiceRow, StepBar } from "@/components/wizard";
 import { usePrivy } from "@privy-io/react-auth";
-import { createStrategy, startPaperRun, type DetectionRule } from "@/lib/api";
+import { Callout, Columns, WarnIcon } from "@/components/ui";
+import { StepBar } from "@/components/wizard";
+import { createStrategy, startPaperRun } from "@/lib/api";
 import { BUILD_STAGES } from "@/lib/data";
-
-/* --------------------------------------------------------------- classes -- */
+import { AssetPicker, MarketStep, type MarketChoice } from "@/components/buildMarket";
+import { NameAgentModal } from "@/components/nameAgent";
+import { DescribeAgent } from "@/components/describeAgent";
+import {
+  RWA_RULES,
+  StrategyStep,
+  TEMPLATES,
+  fmt,
+  toPayload,
+  type RuleSpec,
+} from "@/components/buildStrategy";
+import type { ExitRules } from "@/lib/api";
 
 /**
- * Strategy classes.
+ * The agent builder, in two steps.
  *
- * `available` reflects what the BACKEND can actually run. Only the RWA
- * specialist exists; the others are in the schema because they are planned.
- * Showing them as selectable would let a creator build a strategy the runner
- * then refuses to tick, an hour later, with the reason buried in a log.
+ *   01 Market   — what it may trade
+ *   02 Strategy — what makes it buy
+ *
+ * The order is not cosmetic: step 2's rule vocabulary is a function of step 1's
+ * answer. A commodity has no net margin, a meme coin has no filings, a perp has
+ * a funding rate. One shared rule list only survives while RWA is the single
+ * shipped class, and it stops being true the moment Meme lands.
+ *
+ * Both steps are explorable signed out. Only starting the run needs identity.
  */
-const CLASSES = [
-  {
-    key: "rwa",
-    name: "Tokenized RWA",
-    body: "Tokenized equities and gold. Screened on SEC filings and the underlying's own volatility; the underlying's market hours apply.",
-    runsAs: "The RWA Analyst",
-    available: true,
-  },
-  { key: "spot", name: "Spot momentum", available: false },
-  { key: "lp", name: "Liquidity provision", available: false },
-  { key: "meme", name: "Meme discovery", available: false },
-] as const;
 
-/* ----------------------------------------------------------------- rules -- */
-
-/**
- * Every rule key here is a fact the RWA specialist actually gathers, so a rule
- * you set is a rule that runs. A key the SME never produces would silently
- * never apply — the asset would simply never qualify, with nothing explaining
- * why.
- */
-interface RuleSpec {
-  key: string;
-  label: string;
-  help: string;
-  op: "gte" | "lte";
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-}
-
-const RWA_RULES: RuleSpec[] = [
-  {
-    key: "liquidityUsd",
-    label: "Liquidity floor",
-    help: "Pool depth on Solana. Applies to every asset, including gold.",
-    op: "gte",
-    value: 50_000,
-    min: 0,
-    max: 500_000,
-    step: 10_000,
-    unit: "$",
-  },
-  {
-    key: "dailyVolPct",
-    label: "Max daily volatility",
-    help: "Trailing realized volatility of the underlying, from Wintel.",
-    op: "lte",
-    value: 5,
-    min: 1,
-    max: 15,
-    step: 0.5,
-    unit: "%",
-  },
-  {
-    key: "maxEventScore",
-    label: "Max recent event severity",
-    help: "Skip anything that has had a serious abnormal-activity event this week.",
-    op: "lte",
-    value: 70,
-    min: 0,
-    max: 100,
-    step: 5,
-    unit: "",
-  },
-  {
-    key: "netMarginPct",
-    label: "Min net margin",
-    help: "From SEC filings. Applies to equities; skipped for commodities.",
-    op: "gte",
-    value: 5,
-    min: -20,
-    max: 50,
-    step: 1,
-    unit: "%",
-  },
+const STEPS = [
+  { index: "01", label: "Market" },
+  { index: "02", label: "Strategy" },
 ];
-
-function fmt(v: number, unit: string): string {
-  if (unit === "$") return v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`;
-  return `${v}${unit}`;
-}
-
-const SAFETY = [
-  ["Mint verified against the issuer", "Every tokenized mint is checked against the issuer's published list."],
-  ["Priced and tradable on Jupiter", "An asset with no live quote is excluded from the universe."],
-  ["Market session respected", "No new position while the underlying's market is closed."],
-  ["Simulated before execution", "A fill is simulated and refused on slippage divergence."],
-];
-
-/* ------------------------------------------------------------- component -- */
 
 export function BuildAgent() {
   const router = useRouter();
   const { ready, authenticated, getAccessToken, login } = usePrivy();
 
-  const [name, setName] = useState("rwa_value_v1");
-  const [strategyClass, setStrategyClass] = useState<string>("rwa");
+  const [step, setStep] = useState(0);
+  // Empty until the naming modal is answered. `rwa_value_v1` as a default was
+  // how three strategies ended up sharing that name — a prefilled field is a
+  // field nobody edits.
+  //
+  // `named` latches separately from `name`. Gating the modal on `name` alone
+  // meant clearing the header input to retype it emptied the state, re-opened
+  // the modal and threw away the whole draft.
+  const [name, setName] = useState("");
+  const [named, setNamed] = useState(false);
+  // `selection: null` means not chosen yet — deliberately not the same as "all".
+  // Step 1 cannot be completed until the author picks something.
+  const [market, setMarket] = useState<MarketChoice>({ strategyClass: "rwa", selection: null });
   const [rules, setRules] = useState<RuleSpec[]>(RWA_RULES);
-  const [feePct, setFeePct] = useState(10);
+  const [template, setTemplate] = useState<string | null>(TEMPLATES[0].key);
+  // Seeded from the default template so the two always agree on first paint.
+  const [exits, setExits] = useState<ExitRules>({ ...TEMPLATES[0].exits });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Configuring is exploratory — someone should be able to see the classes and
-  // rules before committing to an account. Only saving requires identity.
-
-  const setRule = (key: string, value: number) =>
-    setRules((rs) => rs.map((r) => (r.key === key ? { ...r, value } : r)));
+  // "describe" is the fast path and the default; "build" is the two-step form.
+  // Skipping straight to build must leave every value at its manual default.
+  const [phase, setPhase] = useState<"describe" | "build">("describe");
+  const [composed, setComposed] = useState<{ reading: string; notes: string[] } | null>(null);
 
   async function submit() {
     setBusy(true);
@@ -136,26 +75,26 @@ export function BuildAgent() {
       const token = await getAccessToken();
       if (!token) throw new Error("not signed in");
 
-      const payload: DetectionRule[] = rules.map((r) => ({
-        key: r.key,
-        op: r.op,
-        value: r.value,
-      }));
-
       const { strategy } = await createStrategy(token, {
         name: name.trim(),
-        strategyClass,
-        rules: payload,
+        strategyClass: market.strategyClass,
+        rules: toPayload(rules),
         safetyFloor: { minLiquidityUsd: 25_000, maxSlippagePct: 1.5, requireSafetyScreen: false },
-        feePct,
+        feePct: 10,
+        // Empty means Auto — the whole class, including assets added later.
+        // Non-null by here: the Continue button gates on it, and submit() is
+        // only reachable from the last step.
+        universe: market.selection ?? [],
+        // maxHoldDays 0 means "never on time alone"; the API treats it as absent.
+        exits,
       });
 
       // Creating leaves it a draft. Starting the paper run is what freezes the
       // rules and deploys the paper agent — done here so the button does what
       // it says rather than leaving a half-made thing behind.
       //
-      // Straight to the agent, not back to the strategy list: the creator just
-      // started something running and the next thing they want is to watch it.
+      // Straight to the agent: the creator just started something running and
+      // the next thing they want is to watch it.
       const { agentId } = await startPaperRun(token, strategy.id);
       router.push(`/portfolio/${agentId}`);
     } catch (err) {
@@ -165,166 +104,251 @@ export function BuildAgent() {
     }
   }
 
-  const unavailable = CLASSES.filter((c) => !c.available);
-  const selected = CLASSES.find((c) => c.key === strategyClass);
+  const chosen = market.selection;
+  const auto = chosen !== null && chosen.length === 0;
+  // The one thing step 1 requires. Without it the agent would be committed to
+  // assets its author never looked at.
+  const marketReady = chosen !== null;
+  const last = step === STEPS.length - 1;
+
+  // The name is asked for before anything else. Rendered here rather than by
+  // each button that links to /build/new, so direct navigation is covered too.
+  if (!named) {
+    return (
+      <NameAgentModal
+        onConfirm={(n) => {
+          setName(n);
+          setNamed(true);
+        }}
+        onCancel={() => router.push("/build")}
+      />
+    );
+  }
+
+  if (phase === "describe") {
+    return (
+      <DescribeAgent
+        name={name}
+        onSkip={() => setPhase("build")}
+        onDraft={(draft, notes) => {
+          // Applied to the SAME state the form edits, so everything below is
+          // immediately reviewable and editable. Nothing is submitted here.
+          setMarket({ strategyClass: draft.strategyClass, selection: draft.universe });
+          setRules((rs) =>
+            rs.map((r) => {
+              const hit = draft.rules.find((d) => d.key === r.key);
+              return hit ? { ...r, value: hit.value } : r;
+            }),
+          );
+          setExits(draft.exits);
+          // No template describes these values, so the label must not claim one.
+          setTemplate(null);
+          setComposed({ reading: draft.reading, notes });
+          setPhase("build");
+        }}
+      />
+    );
+  }
 
   return (
     <main>
       <StepBar steps={BUILD_STAGES} current={0} />
 
-      {/* ---------------------------------------------------------- header */}
-      {/* The name is metadata, not a headline. It sits on the eyebrow line at
-          label size — a bordered 520px box at 24px was the loudest element on
-          the page for the least consequential field. */}
-      <section className="flex items-center gap-3 border-b border-grid px-8 py-4">
-        <span className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-          New agent · Draft ·
-        </span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          spellCheck={false}
-          aria-label="Agent name"
-          className="w-[260px] border-b border-transparent bg-transparent pb-0.5 font-mono text-[15px] text-text-primary outline-none transition-colors hover:border-grid-strong focus:border-accent"
-        />
+      {/* Name and position on one line.
+          These were two stacked full-width bars — an eyebrow row and a
+          segmented nav — under the lifecycle bar above, so three horizontal
+          slabs ran across the top before any content. The step control is a
+          compact segment group instead: it is orientation, not a destination,
+          and it does not need the width of the page to say "you are on 1 of 2".
+      */}
+      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-8 py-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            New agent · Draft ·
+          </span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            // A name is required, so leaving it blank has to resolve to
+            // something rather than submitting an empty string.
+            onBlur={() => {
+              if (!name.trim()) setName("untitled agent");
+            }}
+            spellCheck={false}
+            aria-label="Agent name"
+            className="w-[220px] border-b border-transparent bg-transparent pb-0.5 font-mono text-[14px] text-text-primary outline-none transition-colors hover:border-grid-strong focus:border-accent"
+          />
+        </div>
+
+        <nav
+          aria-label="Builder steps"
+          className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+        >
+          {STEPS.map((s, i) => {
+            const current = i === step;
+            const done = i < step;
+            return (
+              <button
+                key={s.index}
+                type="button"
+                aria-current={current ? "step" : undefined}
+                // Back is always allowed — reconsidering the market should never
+                // cost the rules you set. Forward only via Continue, which is
+                // where the completeness check lives.
+                onClick={() => done && setStep(i)}
+                disabled={!done && !current}
+                className={`flex h-7 items-center gap-2 rounded-full px-3.5 transition-colors ${
+                  current
+                    ? "bg-accent-wash text-accent"
+                    : done
+                      ? "text-text-secondary hover:text-text-primary"
+                      : "cursor-default text-text-muted"
+                }`}
+              >
+                <span className="tnum font-mono text-[9.5px] opacity-70">{s.index}</span>
+                <span className="font-mono text-[11.5px] tracking-[0.04em]">{s.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </section>
+
+      {composed ? (
+        <section className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-b border-grid bg-accent-wash px-8 py-4">
+          <div className="min-w-0 space-y-1.5">
+            <p className="font-mono text-[10px] tracking-[0.12em] text-accent uppercase">
+              Filled in from your description
+            </p>
+            {composed.reading ? (
+              <p className="max-w-[78ch] font-ui text-[13px] leading-relaxed text-text-secondary">
+                {composed.reading}
+              </p>
+            ) : null}
+            {/* Refusals are shown, never swallowed: a silently narrowed draft
+                is worse than none, because you would believe it was followed. */}
+            {composed.notes.length > 0 ? (
+              <ul className="max-w-[78ch] space-y-0.5 pt-1">
+                {composed.notes.map((n) => (
+                  <li key={n} className="font-ui text-[12px] leading-relaxed text-warning">
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPhase("describe")}
+              className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+            >
+              Describe again
+            </button>
+            <button
+              type="button"
+              onClick={() => setComposed(null)}
+              className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-text-primary"
+            >
+              Dismiss
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <Columns
         main={
-          <>
-            {/* ------------------------------------------------ 01 class */}
-            <section className="border-b border-grid px-8 py-7">
-              <SectionHead
-                index="01"
-                title="STRATEGY CLASS"
-                note="Determines which specialist runs your rules"
+          <div className="px-8 py-8">
+            {step === 0 ? (
+              <MarketStep value={market} onChange={setMarket} />
+            ) : (
+              <StrategyStep
+                rules={rules}
+                onChange={setRules}
+                template={template}
+                onTemplate={(k) => setTemplate(k || null)}
+                exits={exits}
+                onExits={setExits}
               />
-              <ChoiceRow>
-                <ChoiceCard
-                  title={selected?.name ?? "Tokenized RWA"}
-                  body={CLASSES[0].body}
-                  active
-                  meta={`Runs as ${CLASSES[0].runsAs}`}
-                />
-              </ChoiceRow>
-              {/* One muted line instead of three greyed cards. Same
-                  information, a fraction of the space, and it stops giving
-                  unavailable options equal billing with the live one. */}
-              <p className="pt-3.5 font-ui text-[12.5px] text-text-dim">
-                {unavailable.map((c) => c.name).join(", ")} — specialists not built yet.
-                An agent on those would be refused at its first cycle.
-              </p>
-            </section>
-
-            {/* ------------------------------------------------ 02 rules */}
-            <section className="border-b border-grid px-8 py-7">
-              <SectionHead
-                index="02"
-                title="DETECTION RULES"
-                note="Deterministic · The model cannot override these"
-              />
-              <div className="divide-y divide-grid">
-                {rules.map((r) => (
-                  // Three columns when there is room; stacked below that, with
-                  // the value moving up beside its label. The design targets a
-                  // 1440 viewport where the main column is ~1004px, but a
-                  // three-column row squeezed into a laptop window wraps every
-                  // label onto two lines and the help text onto four.
-                  <div
-                    key={r.key}
-                    className="space-y-2.5 py-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(140px,220px)_72px] lg:items-center lg:gap-5 lg:space-y-0"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="font-mono text-[13px] text-text-primary">
-                          {r.label}{" "}
-                          <span className="text-text-dim">{r.op === "gte" ? "≥" : "≤"}</span>
-                        </p>
-                        <span className="tnum shrink-0 font-mono text-[14px] text-accent lg:hidden">
-                          {fmt(r.value, r.unit)}
-                        </span>
-                      </div>
-                      <p className="font-ui text-[12px] text-text-dim">{r.help}</p>
-                    </div>
-                    <input
-                      type="range"
-                      min={r.min}
-                      max={r.max}
-                      step={r.step}
-                      value={r.value}
-                      onChange={(e) => setRule(r.key, Number(e.target.value))}
-                      className="w-full accent-accent"
-                    />
-                    <span className="tnum hidden text-right font-mono text-[14px] text-accent lg:block">
-                      {fmt(r.value, r.unit)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="pt-3.5 font-ui text-[12px] text-text-dim">
-                A rule only applies to assets that have the fact it names — net margin is
-                skipped for gold, which has no filings.
-              </p>
-            </section>
-
-            {/* ----------------------------------------------- 03 safety */}
-            <section className="px-8 py-7">
-              <SectionHead
-                index="03"
-                title="SAFETY SCREEN"
-                note="Mandatory · You cannot disable these"
-              />
-              <div className="divide-y divide-grid">
-                {SAFETY.map(([n, b]) => (
-                  <div key={n} className="flex items-start justify-between gap-6 py-4">
-                    <div className="flex gap-3.5">
-                      <LockIcon className="mt-0.5 shrink-0 text-accent" />
-                      <div className="space-y-1">
-                        <p className="font-mono text-[13px] text-text-primary">{n}</p>
-                        <p className="font-ui text-[12px] text-text-dim">{b}</p>
-                      </div>
-                    </div>
-                    <Badge tone="accent">Locked on</Badge>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </>
+            )}
+          </div>
         }
         rail={
           <>
-            {/* The primary action sits in the rail, in view without scrolling,
-                matching every other screen in the product. */}
-            <div className="border-b border-grid px-8 py-7">
-              <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                Your fee
-              </h3>
-              <div className="flex items-center justify-between gap-4">
-                <input
-                  type="range"
-                  min={0}
-                  max={30}
-                  step={1}
-                  value={feePct}
-                  onChange={(e) => setFeePct(Number(e.target.value))}
-                  className="w-full accent-accent"
-                />
-                <span className="tnum shrink-0 font-mono text-[15px] text-accent">
-                  {feePct}%
-                </span>
-              </div>
-              <p className="pt-3 font-ui text-[12px] leading-relaxed text-text-dim">
-                Your cut of a deployer's profit. Raising it later applies only to new
-                deployments.
-              </p>
-            </div>
+            {/* Assets are a refinement of the class chosen on the left, so the
+                picker sits beside it rather than below it — and only on the step
+                where it applies. */}
+            {step === 0 ? <AssetPicker value={market} onChange={setMarket} /> : null}
 
             <div className="border-b border-grid px-8 py-7">
-              {ready && !authenticated ? (
+              <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+                This agent
+              </h3>
+              <Row label="Class" value={market.strategyClass === "rwa" ? "Tokenized RWA" : market.strategyClass} />
+              <Row
+                label="Assets"
+                value={
+                  chosen === null ? "Not selected" : auto ? "Auto · all" : `${chosen.length} selected`
+                }
+                tone={chosen === null ? "warning" : "accent"}
+              />
+              <Row
+                label="Starting point"
+                value={TEMPLATES.find((t) => t.key === template)?.title ?? "Custom"}
+              />
+              {rules.map((r) => (
+                <Row
+                  key={r.key}
+                  label={r.label}
+                  value={`${r.op === "gte" ? "≥" : "≤"} ${fmt(r.value, r.unit)}`}
+                />
+              ))}
+              <Row label="Take profit" value={`+${exits.takeProfitPct}%`} tone="accent" />
+              <Row label="Stop loss" value={`−${exits.stopLossPct}%`} />
+              <Row
+                label="Time limit"
+                value={exits.maxHoldDays ? `${exits.maxHoldDays}d` : "Never"}
+              />
+            </div>
+
+            <div className="px-8 py-7">
+              <div className="flex items-center justify-between pb-4">
+                <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+                  Proceed
+                </h3>
+                <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                  Step {step + 1} of {STEPS.length}
+                </span>
+              </div>
+
+              {error ? (
+                <div className="mb-4">
+                  <Callout tone="negative" icon={<WarnIcon />}>
+                    {error}
+                  </Callout>
+                </div>
+              ) : null}
+
+              {!last ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStep(step + 1)}
+                    disabled={!marketReady}
+                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  >
+                    Continue to strategy
+                  </button>
+                  {!marketReady ? (
+                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
+                      Choose the assets first
+                    </p>
+                  ) : null}
+                </>
+              ) : ready && !authenticated ? (
                 <button
                   type="button"
-                  onClick={() => login()}
-                  className="flex h-11 w-full items-center justify-center border border-accent font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent-wash"
+                  onClick={login}
+                  className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
                 >
                   Sign in to start
                 </button>
@@ -332,51 +356,56 @@ export function BuildAgent() {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={busy || !ready || !selected?.available || !name.trim()}
-                  className="flex h-11 w-full items-center justify-center border border-accent font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent-wash disabled:opacity-40"
+                  disabled={busy || !ready}
+                  className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                 >
                   {busy ? "Starting…" : "Start paper run"}
                 </button>
               )}
 
-              {error ? (
-                <div className="pt-4">
-                  <Callout tone="negative" icon={<WarnIcon />}>
-                    {error}
-                  </Callout>
-                </div>
+              {step > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(step - 1)}
+                  className="mt-3 flex h-11 w-full items-center justify-center border border-border font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
+                >
+                  Back to market
+                </button>
               ) : null}
-            </div>
 
-            <div className="px-8 py-7">
-              <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                What happens next
-              </h3>
-              <ol className="space-y-3 font-ui text-[13px] leading-relaxed text-text-secondary">
-                <li>
-                  <span className="font-mono text-[11px] text-accent">01</span> These rules
-                  are <span className="text-text-primary">frozen</span>.
-                </li>
-                <li>
-                  <span className="font-mono text-[11px] text-accent">02</span> It trades
-                  live data in paper mode, one cycle an hour, building a record. Nothing
-                  is funded and no order reaches a venue.
-                </li>
-                <li>
-                  <span className="font-mono text-[11px] text-accent">03</span> Publish
-                  whenever the record convinces you — there is no waiting period. How long
-                  it ran is shown on the listing, so a thin record reads as one.
-                </li>
-              </ol>
-              <p className="pt-4 font-ui text-[12px] leading-relaxed text-text-dim">
-                There is no backtest — a forward record cannot be fitted to a window that
-                flattered it. Editing a rule later forks a new agent and restarts the
-                clock; the run you abandon stays on your profile.
+              <p className="pt-5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+                Nothing is funded. The agent trades live data in paper mode, one cycle an hour,
+                building a record you can publish whenever it convinces you.
               </p>
             </div>
           </>
         }
       />
     </main>
+  );
+}
+
+function Row({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "accent" | "warning";
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-grid py-3 last:border-b-0">
+      <span className="font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
+        {label}
+      </span>
+      <span
+        className={`truncate text-right font-mono text-[12.5px] ${
+          tone === "accent" ? "text-accent" : tone === "warning" ? "text-warning" : "text-text-primary"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
