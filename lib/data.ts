@@ -1089,7 +1089,10 @@ export const BUILD_STEPS = [
   { index: "01", label: "Strategy", href: "/build/new" },
   { index: "02", label: "Rules", href: "/build/new" },
   { index: "03", label: "Safety", href: "/build/new" },
-  { index: "04", label: "Backtest", href: "/build/new" },
+  // Step 04 was "Backtest". There is no backtest: a strategy earns publication
+  // by running live in paper mode for 30 days, which cannot be overfit the way
+  // a historical backtest can.
+  { index: "04", label: "Paper run", href: "/build/new" },
   { index: "05", label: "Publish", href: "/build/new/publish" },
 ];
 
@@ -1104,6 +1107,12 @@ export const BUILD = {
       body: "Volume and breakout signals on established pairs.",
       runsAs: "The Analyst",
       active: true,
+    },
+    {
+      name: "Tokenized RWA",
+      body: "Tokenized equities and gold. The underlying's market hours apply.",
+      runsAs: "The RWA Analyst",
+      active: false,
     },
     {
       name: "Liquidity provision",
@@ -1191,26 +1200,23 @@ export const BUILD = {
     count: 34,
     note: "Roughly one candidate a day. Loosen a rule if you want more flow; tighten it if the backtest shows too many marginal entries.",
   },
-  backtestNote:
-    "Canopy runs the backtest, on Canopy's data, over fixed windows that always include a drawdown period. You cannot upload results or choose the window.",
+  paperNote:
+    "Starting the paper run freezes these rules for 30 days. The agent trades live data on Canopy's infrastructure and the record accrues in public. Editing any rule forks a new agent and restarts the clock — the run you abandon stays on your profile.",
 };
 
 export const PUBLISH = {
   name: "solana_breakout_v1",
   day: 12,
   totalDays: 30,
+  // The headline is the live paper record. There is no backtest row, because
+  // there is no backtest — see paperNote below.
   headline: [
-    { label: "Backtest", value: "+41.2%", tone: "accent" as const },
-    { label: "Stress window", value: "−12.4%", tone: "negative" as const },
+    { label: "Paper return", value: "+3.8%", tone: "accent" as const },
+    { label: "Max drawdown", value: "−2.1%", tone: "negative" as const },
     { label: "Verification", value: "40%", tone: "warning" as const },
   ],
-  windows: [
-    ["Full period", "Aug 2024 – Jul 2026", "+41.2%", "−18.4%", "57%", "1.38"],
-    ["Favourable window", "Jan – Jun 2026", "+38.1%", "−9.2%", "64%", "1.71"],
-    ["Stress window", "Apr – May 2025", "−12.4%", "−22.6%", "38%", "0.81"],
-  ] as [string, string, string, string, string, string][],
-  backtestNote:
-    "Modelled with venue fees, network fees and realistic fills at the liquidity available at the time. No perfect fills. The stress window is not optional — every backtest on Canopy includes a period the strategy would have hated, and it is shown at the same size as the rest.",
+  paperNote:
+    "This record is a live forward run, not a backtest. The agent traded on Canopy's data, in real time, with venue fees, network fees and realistic fills at the liquidity available at the moment. Nothing here was selected after the fact — a forward record cannot be fitted to a window that flattered it.",
   checks: [
     {
       name: "30 days of live paper execution",

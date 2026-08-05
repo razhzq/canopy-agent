@@ -17,8 +17,8 @@ import {
 import { StepBar } from "@/components/wizard";
 
 export default function PublishPage() {
-  /* 24 months of backtest; the stress window is the shaded run in the middle. */
-  const backtest = equitySeries(40, 3311, { start: 0.4, end: 0.95, jitter: 0.1 });
+  /* The live paper run so far — one point per day of the verification window. */
+  const paperEquity = equitySeries(P.day, 3311, { start: 0.5, end: 0.72, jitter: 0.08 });
 
   return (
     <main>
@@ -39,8 +39,8 @@ export default function PublishPage() {
             </Badge>
           </div>
           <p className="font-ui text-[14px] text-text-secondary">
-            Backtest is complete. The agent is now paper-trading live data in
-            public before it can be listed.
+            The agent is paper-trading live data in public. It can be listed
+            once the record below is complete.
           </p>
         </div>
 
@@ -74,62 +74,45 @@ export default function PublishPage() {
       <Columns
         main={
           <>
-            {/* ------------------------------------------------- backtest */}
+            {/* ------------------------------------------------ paper run */}
             <section className="border-b border-grid px-8 py-8">
               <SectionHead
                 index="01"
-                title="BACKTEST RESULT"
-                note="Run by Canopy · 24 months · Fixed windows"
+                title="LIVE PAPER RECORD"
+                note={`Run by Canopy · Day ${P.day} of ${P.totalDays} · Forward only`}
               />
 
               <ChartGrid height={210}>
-                <EquityBars values={backtest} height={210} stressRange={[13, 21]} />
+                <EquityBars values={paperEquity} height={210} />
               </ChartGrid>
 
-              <div className="flex items-center justify-between pt-4 font-mono text-[10px] tracking-[0.1em] uppercase">
-                <span className="text-text-dim">Aug 2024</span>
-                <span className="text-negative">
-                  Shaded red = mandatory stress window
-                </span>
-                <span className="text-text-dim">Jul 2026</span>
+              <div className="flex items-center justify-between gap-6 pt-4 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                <span className="shrink-0">Day 1</span>
+                <span className="truncate">Accrued in real time</span>
+                <span className="shrink-0">Day {P.totalDays}</span>
               </div>
 
-              <div className="mt-7">
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_90px_90px_70px_70px] items-center gap-5 border-b border-grid pb-3.5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  <span>Window</span>
-                  <span>Period</span>
-                  <span className="text-right">Return</span>
-                  <span className="text-right">Max DD</span>
-                  <span className="text-right">Hit</span>
-                  <span className="text-right">PF</span>
-                </div>
-
-                {P.windows.map(([name, period, ret, dd, hit, pf]) => (
+              <div className="mt-7 flex border border-grid">
+                {P.paperStats.map((s, i) => (
                   <div
-                    key={name}
-                    className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_90px_90px_70px_70px] items-center gap-5 border-b border-grid py-4"
+                    key={s.label}
+                    className={`flex flex-1 flex-col gap-2.5 p-5 ${
+                      i > 0 ? "border-l border-grid" : ""
+                    }`}
                   >
-                    <span className="font-mono text-[13px] text-text-primary">
-                      {name}
-                    </span>
-                    <span className="font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
-                      {period}
+                    <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                      {s.label}
                     </span>
                     <span
-                      className={`tnum text-right font-mono text-[13px] ${
-                        ret.startsWith("+") ? "text-accent" : "text-negative"
+                      className={`tnum font-mono text-[19px] leading-none ${
+                        s.tone === "accent"
+                          ? "text-accent"
+                          : s.tone === "negative"
+                            ? "text-negative"
+                            : "text-text-primary"
                       }`}
                     >
-                      {ret}
-                    </span>
-                    <span className="tnum text-right font-mono text-[13px] text-negative">
-                      {dd}
-                    </span>
-                    <span className="tnum text-right font-mono text-[13px] text-text-primary">
-                      {hit}
-                    </span>
-                    <span className="tnum text-right font-mono text-[13px] text-text-primary">
-                      {pf}
+                      {s.value}
                     </span>
                   </div>
                 ))}
@@ -140,7 +123,7 @@ export default function PublishPage() {
                 <div className="flex gap-3">
                   <InfoIcon className="mt-0.5 shrink-0 text-text-dim" />
                   <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                    {P.backtestNote}
+                    {P.paperNote}
                   </p>
                 </div>
               </div>

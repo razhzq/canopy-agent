@@ -34,7 +34,7 @@ export default function BuildAgentPage() {
             </button>
           </div>
           <p className="font-ui text-[14px] text-text-secondary">
-            Define the rules. Canopy runs the backtest and the verification period,
+            Define the rules. Canopy runs the 30-day paper record on live data,
             then it lists.
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function BuildAgentPage() {
                 title="STRATEGY CLASS"
                 note="Determines which specialist runs your rules"
               />
-              <ChoiceRow>
+              <ChoiceRow cols={2}>
                 {BUILD.classes.map((c) => (
                   <ChoiceCard
                     key={c.name}
@@ -268,7 +268,7 @@ export default function BuildAgentPage() {
                 Next
               </h3>
               <PrimaryButton href="/build/new/publish">
-                <PlayGlyph /> Run backtest
+                <PlayGlyph /> Start paper run
               </PrimaryButton>
 
               <div className="mt-5 flex gap-4">
@@ -276,7 +276,7 @@ export default function BuildAgentPage() {
                 <div className="flex gap-3 pl-1">
                   <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                   <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                    {BUILD.backtestNote}
+                    {BUILD.paperNote}
                   </p>
                 </div>
               </div>

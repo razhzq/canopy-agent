@@ -220,7 +220,7 @@ export function ChoiceCard({
 }) {
   return (
     <div
-      className={`flex flex-1 flex-col gap-3 border-r border-grid p-6 last:border-r-0 ${
+      className={`flex flex-1 flex-col gap-3 p-6 ${
         active ? "bg-accent-wash" : ""
       } ${className}`}
     >
@@ -265,7 +265,30 @@ export function ChoiceCard({
   );
 }
 
-/** A row of ChoiceCards enclosed by a hairline box. */
-export function ChoiceRow({ children }: { children: ReactNode }) {
-  return <div className="flex border border-grid">{children}</div>;
+/**
+ * A hairline box enclosing ChoiceCards. Dividers live here rather than on the
+ * cards so the two-column variant doesn't need per-card border arithmetic.
+ *
+ * Default is one row. `cols={2}` lays the cards out 2-up — use it past three
+ * cards, where a single row squeezes the body copy to four-plus lines. It
+ * assumes an even count; an odd one leaves a gap in the final row.
+ */
+export function ChoiceRow({
+  children,
+  cols,
+}: {
+  children: ReactNode;
+  cols?: 2;
+}) {
+  return (
+    <div
+      className={
+        cols === 2
+          ? "grid grid-cols-2 border border-grid [&>*]:border-grid [&>*:nth-child(odd)]:border-r [&>*:not(:nth-last-child(-n+2))]:border-b"
+          : "flex border border-grid [&>*]:border-grid [&>*:not(:last-child)]:border-r"
+      }
+    >
+      {children}
+    </div>
+  );
 }
