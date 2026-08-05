@@ -30,13 +30,26 @@ function money(n: number): string {
   return `$${n.toFixed(0)}`;
 }
 
-function age(row: StrategyRow): string {
-  const from = row.published_at ?? row.verification_started_at;
-  if (!from) return "—";
-  const days = Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000);
-  if (days < 1) return "TODAY";
-  if (days < 30) return `${days}D`;
-  return `${Math.floor(days / 30)}MO`;
+/**
+ * How much paper record backs this listing: the run from when it started to
+ * when it published (or to now, if still running).
+ *
+ * This is the disclosure that replaces the old 30-day publish gate. A creator
+ * may list a three-day record; a deployer should be able to see that it is
+ * three days without opening the strategy.
+ */
+function recordLength(row: StrategyRow): { label: string; thin: boolean } {
+  if (!row.verification_started_at) return { label: "—", thin: false };
+  const end = row.published_at ? new Date(row.published_at) : new Date();
+  const days = Math.floor(
+    (end.getTime() - new Date(row.verification_started_at).getTime()) / 86_400_000,
+  );
+  return {
+    label: days < 1 ? "<1D" : days < 30 ? `${days}D` : `${Math.floor(days / 30)}MO`,
+    // Under a fortnight is little to judge a strategy on. Flagged rather than
+    // hidden or blocked.
+    thin: days < 14,
+  };
 }
 
 /** Stable per-strategy seed, so a row's sparkline does not reshuffle each render. */
@@ -155,7 +168,7 @@ export function Marketplace() {
               <span className="pl-3">Equity</span>
               <span className="text-right">AUM</span>
               <span className="text-right">Users</span>
-              <span className="text-right">Age</span>
+              <span className="text-right">Record</span>
               <span />
             </div>
 
@@ -230,8 +243,13 @@ export function Marketplace() {
                   <span className="tnum text-right font-mono text-[13px] text-text-secondary">
                     {row.deployments}
                   </span>
-                  <span className="text-right font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
-                    {age(row)}
+                  <span
+                    className={`text-right font-mono text-[11px] tracking-[0.06em] uppercase ${
+                      recordLength(row).thin ? "text-warning" : "text-text-dim"
+                    }`}
+                    title={recordLength(row).thin ? "Short paper record" : undefined}
+                  >
+                    {recordLength(row).label}
                   </span>
 
                   <Link

@@ -1089,7 +1089,7 @@ export const DISCUSSION: {
  * The build flow's stages.
  *
  * These are LIFECYCLE STATES a strategy moves through, mirroring the database
- * (draft → verifying → published), not steps in a wizard. The previous version
+ * (draft → paper run → published), not steps in a wizard. The previous version
  * listed Strategy / Rules / Safety / Paper run / Publish, which implied a
  * five-page flow that never existed — every entry linked back to the same page,
  * and Safety is read-only in any case. Configuration is one page; the paper run
@@ -1099,7 +1099,7 @@ export const DISCUSSION: {
  */
 export const BUILD_STAGES = [
   { index: "01", label: "Draft · configure" },
-  { index: "02", label: "Paper run · 30 days" },
+  { index: "02", label: "Paper run" },
   { index: "03", label: "Published" },
 ];
 

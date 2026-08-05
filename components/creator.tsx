@@ -6,6 +6,22 @@ import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/componen
 import { getCreatorDashboard, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 
+/**
+ * How a strategy's state is shown to its creator.
+ *
+ * The database still calls the running state "verifying", from when a 30-day
+ * record was a gate on publishing. It is not: a creator publishes whenever
+ * they judge the record good enough. So the state is a PAPER RUN — what is
+ * actually happening — and the label says so.
+ */
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  verifying: "Paper run",
+  published: "Live",
+  delisted: "Delisted",
+  superseded: "Superseded",
+};
+
 const STATUS_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> = {
   published: "accent",
   verifying: "warning",
@@ -14,13 +30,10 @@ const STATUS_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> =
   draft: "muted",
 };
 
-/** Days elapsed in the 30-day paper record, for a verifying strategy. */
-function verificationDay(s: StrategyRow): number | null {
+/** How long a paper run has been going. No cap — it is a record, not a countdown. */
+function paperRunDays(s: StrategyRow): number | null {
   if (s.status !== "verifying" || !s.verification_started_at) return null;
-  const days = Math.floor(
-    (Date.now() - new Date(s.verification_started_at).getTime()) / 86_400_000,
-  );
-  return Math.min(days, 30);
+  return Math.floor((Date.now() - new Date(s.verification_started_at).getTime()) / 86_400_000);
 }
 
 export function CreatorDashboard() {
@@ -46,13 +59,14 @@ export function CreatorDashboard() {
             Your strategies
           </h1>
           <p className="font-ui text-[14px] text-text-secondary">
-            Each one earns its listing with a 30-day live paper record. There is no backtest.
+Each one runs a live paper record before it can be listed. Publish whenever the
+            record convinces you — its length travels with the listing. There is no backtest.
           </p>
         </div>
         <div className="flex shrink-0">
           {[
             { label: "Live", value: counts.live, tone: "accent" as const },
-            { label: "Verifying", value: counts.verifying, tone: "warning" as const },
+            { label: "Paper run", value: counts.verifying, tone: "warning" as const },
             { label: "Delisted", value: counts.delisted, tone: "negative" as const },
             // A superseded strategy is one whose rules were edited mid-run. It
             // stays visible on purpose — that is the append-only promise.
@@ -92,7 +106,7 @@ export function CreatorDashboard() {
         ) : (
           <div className="border border-grid">
             {strategies.map((s, i) => {
-              const day = verificationDay(s);
+              const day = paperRunDays(s);
               return (
                 <div
                   key={s.id}
@@ -105,7 +119,9 @@ export function CreatorDashboard() {
                       <span className="truncate font-mono text-[15px] text-text-primary">
                         {s.name}
                       </span>
-                      <Badge tone={STATUS_TONE[s.status] ?? "muted"}>{s.status}</Badge>
+                      <Badge tone={STATUS_TONE[s.status] ?? "muted"}>
+                        {STATUS_LABEL[s.status] ?? s.status}
+                      </Badge>
                     </div>
                     <p className="font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
                       {s.strategy_class} · {s.fee_pct}% fee
@@ -115,8 +131,10 @@ export function CreatorDashboard() {
 
                   <div className="text-right">
                     {day !== null ? (
+                      // Elapsed, not "day N of 30" — there is no finish line to
+                      // count down to. The number is how much record exists.
                       <span className="font-mono text-[12px] text-warning">
-                        Day {day} of 30
+                        {day === 0 ? "Started today" : `${day} day${day === 1 ? "" : "s"} of record`}
                       </span>
                     ) : (
                       <span className="font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
@@ -132,10 +150,10 @@ export function CreatorDashboard() {
                   <div className="text-right">
                     {s.status === "verifying" ? (
                       <Link
-                        href="/build/new/publish"
+                        href={`/build/new/publish?strategy=${s.id}`}
                         className="font-mono text-[10px] tracking-[0.1em] text-accent uppercase"
                       >
-                        Record
+                        Record · publish
                       </Link>
                     ) : null}
                   </div>

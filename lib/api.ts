@@ -154,8 +154,12 @@ export const getVerification = (token: string, strategyId: number) =>
     token,
   );
 
+/**
+ * Starts the paper run and returns the agent that will run it — the caller
+ * navigates there. A paper run the creator cannot find is not much of one.
+ */
 export const startPaperRun = (token: string, strategyId: number) =>
-  request<{ verification: VerificationStatus }>(
+  request<{ agentId: number; verification: VerificationStatus }>(
     `/agents/strategies/${strategyId}/verify`,
     token,
     { method: "POST" },
@@ -288,6 +292,64 @@ export const getCycle = (token: string, agentId: number, runId: string) =>
       cost_usd: string | null;
     }[];
   }>(`/agents/${agentId}/cycles/${runId}`, token);
+
+/* --------------------------------------------------------------- activity -- */
+
+/**
+ * One step the agent took while screening. Emitted by the SME, recorded on the
+ * analyst's decision row — see ScreenTrace in @canopy/agent-contracts.
+ *
+ * `detail` is already-formed prose from the backend. Render it verbatim: the
+ * reason an asset was dropped belongs next to the branch that dropped it, not
+ * reassembled here from codes.
+ */
+export interface ScreenStep {
+  stage:
+    | "universe"
+    | "session"
+    | "held"
+    | "compliance"
+    | "fundamentals"
+    | "activity"
+    | "events"
+    | "market"
+    | "rules"
+    | "selected";
+  outcome: "pass" | "drop" | "info";
+  detail: string;
+  symbol?: string;
+  underlying?: string;
+  sourceId?: string;
+}
+
+export interface ActivityDecision {
+  run_id: string;
+  role: "desk" | "analyst" | "risk" | "trader" | "pm";
+  seq: number;
+  output: Record<string, unknown>;
+  created_at: string;
+  model: string | null;
+  latency_ms: number | null;
+  cost_usd: string | null;
+}
+
+export interface ActivityCycle {
+  id: string;
+  tick_seq: string;
+  status: "running" | "ok" | "error" | "skipped";
+  skip_reason: string | null;
+  started_at: string;
+  ended_at: string | null;
+  error: string | null;
+  decisions: ActivityDecision[];
+}
+
+/** The last few cycles with their full transcript — the agent's activity log. */
+export const getActivity = (token: string, agentId: number, limit = 5) =>
+  request<{ cycles: ActivityCycle[] }>(
+    `/agents/${agentId}/activity?limit=${limit}`,
+    token,
+  );
 
 /* -------------------------------------------------------------- proposals -- */
 

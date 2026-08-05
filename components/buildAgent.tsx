@@ -151,10 +151,13 @@ export function BuildAgent() {
       });
 
       // Creating leaves it a draft. Starting the paper run is what freezes the
-      // rules and begins the 30 days — done here so the button does what it
-      // says rather than leaving a half-made thing behind.
-      await startPaperRun(token, strategy.id);
-      router.push("/build");
+      // rules and deploys the paper agent — done here so the button does what
+      // it says rather than leaving a half-made thing behind.
+      //
+      // Straight to the agent, not back to the strategy list: the creator just
+      // started something running and the next thing they want is to watch it.
+      const { agentId } = await startPaperRun(token, strategy.id);
+      router.push(`/portfolio/${agentId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -356,13 +359,13 @@ export function BuildAgent() {
                 </li>
                 <li>
                   <span className="font-mono text-[11px] text-accent">02</span> It trades
-                  live data in paper mode, one cycle an hour, for 30 days. Nothing is
-                  funded and no order reaches a venue.
+                  live data in paper mode, one cycle an hour, building a record. Nothing
+                  is funded and no order reaches a venue.
                 </li>
                 <li>
-                  <span className="font-mono text-[11px] text-accent">03</span> When the
-                  record is complete you can publish, and others can deploy it with their
-                  own capital and limits.
+                  <span className="font-mono text-[11px] text-accent">03</span> Publish
+                  whenever the record convinces you — there is no waiting period. How long
+                  it ran is shown on the listing, so a thin record reads as one.
                 </li>
               </ol>
               <p className="pt-4 font-ui text-[12px] leading-relaxed text-text-dim">

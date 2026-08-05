@@ -15,6 +15,7 @@ import {
   type ProposalRow,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { ActivityLog } from "@/components/activity";
 
 /* ------------------------------------------------------------- helpers ---- */
 
@@ -287,6 +288,28 @@ export function AgentMonitor({ agentId }: { agentId: number }) {
             ))}
           </div>
         )}
+      </section>
+
+      {/* --------------------------------------------------------- activity */}
+      <section className="px-8 pb-10">
+        <div className="flex items-end justify-between pb-5">
+          <div className="space-y-2">
+            <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+              Activity
+            </h2>
+            <p className="font-ui text-[13px] text-text-secondary">
+              What the agent did, cycle by cycle — including the cycles where it looked at
+              everything and bought nothing.
+            </p>
+          </div>
+          <Link
+            href={`/portfolio/${agentId}/cycles`}
+            className="shrink-0 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+          >
+            All cycles →
+          </Link>
+        </div>
+        <ActivityLog agentId={agentId} />
       </section>
     </div>
   );
