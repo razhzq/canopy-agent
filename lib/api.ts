@@ -76,27 +76,82 @@ export interface StrategyRow {
   all_paper: boolean;
   /** Authored by the signed-in user. Decides the row's action, not its visibility. */
   is_mine: boolean;
+  /** Live exposure right now. */
+  open_positions: string;
+  /** Positions opened in the trailing 30 days. */
+  trades_30d: string;
+  /** Realised in the trailing 30 days only — old wins stop advertising themselves. */
+  realized_30d_usd: string;
+  /**
+   * The record agent's equity readings, oldest last. Real: taken from the desk
+   * decision rows, not generated from the row id.
+   */
+  spark: string[] | null;
+
+  /* ---- present only on `getStrategy`, which selects s.* --------------------
+   *
+   * The marketplace list endpoint selects a narrow column set and an aggregate
+   * `spark`, so none of these arrive there. They are optional for that reason,
+   * NOT because the backend sometimes omits them on the detail route. */
+
+  /** The rules the SME evaluates. The recipe — withheld from the public page. */
+  rules?: DetectionRule[];
+  /** What the strategy may trade. Empty means the whole class. */
+  universe?: UniverseSelection[];
+  exits?: ExitRules | null;
+  safety_floor?: Record<string, unknown> | null;
+  /** Seconds between cycles. Copied on fork; never editable. */
+  tick_interval_sec?: number;
+  created_at?: string;
+}
+
+/**
+ * A usable number from the wire, or null.
+ *
+ * Fields added to the API arrive as `undefined` from an older build, not null —
+ * so `x === null` misses them and the value flows into arithmetic as NaN. That
+ * renders as "$NaN" or "+NaN%", which is worse than a crash because it looks
+ * like a figure. Every optional number off the wire goes through here.
+ */
+export function num(v: unknown): number | null {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Realised return against mandate capital, or null when nothing has closed. */
 export function realizedReturnPct(s: StrategyRow): number | null {
-  const capital = Number(s.mandate_capital_usd);
-  if (!capital || Number(s.closed_positions) === 0) return null;
-  return (Number(s.realized_pnl_usd) / capital) * 100;
+  const capital = num(s.mandate_capital_usd);
+  const pnl = num(s.realized_pnl_usd);
+  if (!capital || pnl === null || num(s.closed_positions) === 0) return null;
+  return (pnl / capital) * 100;
+}
+
+/**
+ * Realised return over the trailing 30 days, against mandate capital.
+ *
+ * Null when nothing closed in the window — distinct from 0%, which would claim
+ * it traded and broke even.
+ */
+export function return30dPct(s: StrategyRow): number | null {
+  const capital = num(s.mandate_capital_usd);
+  const pnl = num(s.realized_30d_usd);
+  if (!capital || pnl === null || pnl === 0) return null;
+  return (pnl / capital) * 100;
 }
 
 /** Hit rate across closed positions, or null before there are any. */
 export function hitRatePct(s: StrategyRow): number | null {
-  const closed = Number(s.closed_positions);
-  if (!closed) return null;
-  return (Number(s.winning_positions) / closed) * 100;
+  const closed = num(s.closed_positions);
+  const won = num(s.winning_positions);
+  if (!closed || won === null) return null;
+  return (won / closed) * 100;
 }
 
 export const listStrategies = (token: string) =>
   request<{ strategies: StrategyRow[] }>("/agents/strategies", token);
 
 export const getStrategy = (token: string, id: number) =>
-  request<{ strategy: StrategyRow; verification: VerificationStatus }>(
+  request<{ strategy: StrategyRow; verification: VerificationStatus; isMine: boolean }>(
     `/agents/strategies/${id}`,
     token,
   );
@@ -149,6 +204,12 @@ export interface UniverseAsset {
   assetClass: "equity" | "etf" | "commodity";
   calendar: string;
   hasFilings: boolean;
+  /** Jupiter mark. Null when the pool could not be priced. */
+  priceUsd: number | null;
+  /** Pool depth, not traded volume — nothing here measures volume. */
+  liquidityUsd: number | null;
+  /** Daily close-to-close from research, NOT a rolling 24 hours. */
+  changePct: number | null;
 }
 
 /**
@@ -217,6 +278,8 @@ export const createStrategy = (
     universe?: UniverseSelection[];
     /** Omitted falls back to the platform defaults for the agent's posture. */
     exits?: ExitRules;
+    /** Seconds between cycles. 300–86400; refused outside that, not clamped. */
+    tickIntervalSec?: number;
   },
 ) =>
   request<{ strategy: StrategyRow }>("/agents/strategies", token, {
@@ -275,19 +338,112 @@ export const getCreatorDashboard = (token: string) =>
 
 /* ------------------------------------------------------------- deployment -- */
 
+/**
+ * The mandate an agent was deployed under. Stored as JSONB and returned whole.
+ *
+ * Every field is optional: it is a document written at deploy time, not a
+ * schema, and older agents were deployed before some of the keys existed.
+ */
+export interface AgentMandate {
+  capitalUsd?: number;
+  riskPosture?: string;
+  horizon?: string;
+  autonomy?: string;
+  tickIntervalSec?: number;
+  expiresAt?: string | null;
+  constraints?: {
+    /** Ceiling on one position, as a percentage of mandate capital. */
+    maxPositionPct?: number;
+    /** The breaker: past this fall from the high-water mark the agent liquidates. */
+    maxDrawdownPct?: number;
+    maxTradesPerTick?: number;
+    allow?: string[];
+    deny?: string[];
+    complianceProfile?: string;
+  };
+}
+
+/**
+ * A deployed agent, as `GET /agents` returns it.
+ *
+ * The handler selects `a.*`, so every column of trading_agents is on the wire.
+ * The fields below the original block were always arriving and simply were not
+ * typed — `created_at` in particular is the only deploy timestamp there is.
+ */
 export interface AgentRow {
   id: number;
   strategy_id: number;
   strategy_name: string;
   strategy_class: string;
-  status: "draft" | "active" | "paused" | "stopped";
+  /** `liquidating` is winding down after a drawdown breach — still ticking, but only to close. */
+  status: "draft" | "active" | "paused" | "stopped" | "liquidating";
   capital_usd: string;
   autonomy: "propose_only" | "execute_with_caps";
   is_paper: boolean;
   high_water_mark_usd: string | null;
   next_tick_at: string | null;
   last_tick_at: string | null;
+  /** Deploy time. There is no separate started_at — this is it. */
+  created_at: string;
+  updated_at?: string;
+  /** Why it stopped ticking. Written by the breaker, not by a human pause. */
+  paused_reason?: string | null;
+  /** Opaque provider ref. The wallet ADDRESS only comes back from `getAgent`. */
+  wallet_ref?: string | null;
+  mandate?: AgentMandate;
+  /** Unsettled messages needing a human. Drives the rail count. */
+  needs_you?: string;
 }
+
+/** One turn in an agent's thread. */
+export interface AgentMessage {
+  id: string;
+  role: "user" | "agent";
+  kind: "message" | "event" | "proposal";
+  body: string;
+  payload: Record<string, unknown>;
+  run_id: string | null;
+  requires_action: boolean;
+  acted_at: string | null;
+  created_at: string;
+}
+
+export const getMessages = (token: string, agentId: number, limit = 100) =>
+  request<{ messages: AgentMessage[] }>(
+    `/agents/${agentId}/messages?limit=${limit}`,
+    token,
+  );
+
+export const sendMessage = (token: string, agentId: number, body: string) =>
+  request<{ messages: AgentMessage[] }>(`/agents/${agentId}/messages`, token, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+
+/** One field an agent proposes to change, ready to render as a diff. */
+export interface ProposedChange {
+  field: string;
+  label: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * Applies a proposed change. Forks the strategy exactly as editing by hand
+ * does, so the record stays append-only — and returns the agent that continues.
+ */
+export const applyProposal = (token: string, agentId: number, messageId: string) =>
+  request<{ newStrategyId: number; newAgentId: number }>(
+    `/agents/${agentId}/messages/${messageId}/apply`,
+    token,
+    { method: "POST" },
+  );
+
+/** Settles an actionable message so it drops out of the rail count. */
+export const ackMessage = (token: string, agentId: number, messageId: string) =>
+  request<{ ok: boolean }>(`/agents/${agentId}/messages/${messageId}/ack`, token, {
+    method: "POST",
+  });
 
 export const listAgents = (token: string) =>
   request<{ agents: AgentRow[] }>("/agents", token);
@@ -450,6 +606,44 @@ export interface EquitySeries {
   winningPositions: number;
   points: EquityPoint[];
 }
+
+/**
+ * One day of a public record.
+ *
+ * Aggregated by day and never per trade: a list of individual positions names
+ * exactly what an agent trades, which for a focused strategy is the strategy.
+ * Performance is public; the recipe is not.
+ */
+export interface RecordDay {
+  day: string;
+  realizedUsd: number;
+  /** Equity change across the day — realised and unrealised together. */
+  returnPct: number;
+  trades: number;
+  /** Null on days with too few equity readings to measure one. */
+  maxDrawdownPct: number | null;
+  /** Cycles run that day. Zero means the agent was not alive yet. */
+  cycles: number;
+}
+
+/**
+ * A strategy's public record — the AUTHOR's agent, not the sum of every
+ * deployment. Averaging deployers in would move a creator's track record
+ * because a stranger deployed badly.
+ */
+export interface StrategyRecord {
+  agentId: number | null;
+  capitalUsd: number;
+  isPaper?: boolean;
+  points: EquityPoint[];
+  openPositions: number;
+  closedPositions: number;
+  winRatePct: number | null;
+  daily: RecordDay[];
+}
+
+export const getStrategyRecord = (token: string, strategyId: number) =>
+  request<StrategyRecord>(`/agents/strategies/${strategyId}/record`, token);
 
 export const getEquity = (token: string, agentId: number) =>
   request<EquitySeries>(`/agents/${agentId}/equity`, token);

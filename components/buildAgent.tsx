@@ -5,68 +5,75 @@ import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Callout, Columns, WarnIcon } from "@/components/ui";
 import { StepBar } from "@/components/wizard";
-import { createStrategy, startPaperRun } from "@/lib/api";
-import { BUILD_STAGES } from "@/lib/data";
-import { AssetPicker, MarketStep, type MarketChoice } from "@/components/buildMarket";
-import { NameAgentModal } from "@/components/nameAgent";
-import { DescribeAgent } from "@/components/describeAgent";
 import {
-  RWA_RULES,
-  StrategyStep,
-  TEMPLATES,
-  fmt,
-  toPayload,
-  type RuleSpec,
-} from "@/components/buildStrategy";
-import type { ExitRules } from "@/lib/api";
+  createStrategy,
+  startPaperRun,
+  type UniverseAsset,
+  type UniverseSelection,
+} from "@/lib/api";
+import { BUILD_STAGES } from "@/lib/data";
+import { NameAgentModal } from "@/components/nameAgent";
+import { PickMarket } from "@/components/pickMarket";
+import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
+import { toPayload } from "@/components/buildStrategy";
+import {
+  DEFAULT_ROUTE,
+  PickRoute,
+  describeRoute,
+  type RouteChoice,
+} from "@/components/pickRoute";
 
 /**
- * The agent builder, in two steps.
+ * The agent builder — wireframes 1d, 1e and 1f, after the naming modal.
  *
- *   01 Market   — what it may trade
- *   02 Strategy — what makes it buy
+ *   name → 01 Market → 02 Limits → 03 Route → paper run
  *
- * The order is not cosmetic: step 2's rule vocabulary is a function of step 1's
- * answer. A commodity has no net margin, a meme coin has no filings, a perp has
- * a funding rate. One shared rule list only survives while RWA is the single
- * shipped class, and it stops being true the moment Meme lands.
+ * ROUTE IS A STEP AGAIN
  *
- * Both steps are explorable signed out. Only starting the run needs identity.
+ * It was skipped on the wireframe's own rule — "markets with only one live
+ * venue skip this step entirely" — back when paper was the only thing that
+ * executed. Two venues are live for these pairs now, so 1f takes its place
+ * between the limits and the paper test the last button starts.
+ *
+ * The separate "describe" screen is gone. Compiling a sentence into editable
+ * rules now happens inside step 2, beside the chips it produced — which is the
+ * thing the old flow missed: it read a description, filled two pages elsewhere,
+ * and never showed its working.
  */
 
 const STEPS = [
   { index: "01", label: "Market" },
-  { index: "02", label: "Strategy" },
+  { index: "02", label: "Limits" },
+  { index: "03", label: "Route" },
 ];
+
+const DEFAULT_LIMITS: Limits = {
+  // Everything off until the compiler or the author turns something on. A
+  // builder that arrives pre-armed teaches nobody what it is doing, and a
+  // default threshold is still a threshold that excludes things.
+  rules: RWA_RULES.map((r) => ({ ...r, enabled: false })),
+  exits: { takeProfitPct: 25, stopLossPct: 12, maxHoldDays: 0 },
+  positionUsd: 2_500,
+  tradesPerCycle: 2,
+};
 
 export function BuildAgent() {
   const router = useRouter();
   const { ready, authenticated, getAccessToken, login } = usePrivy();
 
-  const [step, setStep] = useState(0);
-  // Empty until the naming modal is answered. `rwa_value_v1` as a default was
-  // how three strategies ended up sharing that name — a prefilled field is a
-  // field nobody edits.
-  //
-  // `named` latches separately from `name`. Gating the modal on `name` alone
-  // meant clearing the header input to retype it emptied the state, re-opened
-  // the modal and threw away the whole draft.
   const [name, setName] = useState("");
   const [named, setNamed] = useState(false);
-  // `selection: null` means not chosen yet — deliberately not the same as "all".
-  // Step 1 cannot be completed until the author picks something.
-  const [market, setMarket] = useState<MarketChoice>({ strategyClass: "rwa", selection: null });
-  const [rules, setRules] = useState<RuleSpec[]>(RWA_RULES);
-  const [template, setTemplate] = useState<string | null>(TEMPLATES[0].key);
-  // Seeded from the default template so the two always agree on first paint.
-  const [exits, setExits] = useState<ExitRules>({ ...TEMPLATES[0].exits });
+  const [step, setStep] = useState(0);
+  const [market, setMarket] = useState<UniverseSelection | null>(null);
+  const [asset, setAsset] = useState<UniverseAsset | null>(null);
+  const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  // Builder state only — no strategy or deploy payload carries a venue yet.
+  // See the note at the top of pickRoute.tsx.
+  const [route, setRoute] = useState<RouteChoice>(DEFAULT_ROUTE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // "describe" is the fast path and the default; "build" is the two-step form.
-  // Skipping straight to build must leave every value at its manual default.
-  const [phase, setPhase] = useState<"describe" | "build">("describe");
-  const [composed, setComposed] = useState<{ reading: string; notes: string[] } | null>(null);
+  const activeRules = limits.rules.filter((r) => r.enabled !== false);
 
   async function submit() {
     setBusy(true);
@@ -74,29 +81,30 @@ export function BuildAgent() {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("not signed in");
+      if (!market) throw new Error("pick a market first");
 
       const { strategy } = await createStrategy(token, {
         name: name.trim(),
-        strategyClass: market.strategyClass,
-        rules: toPayload(rules),
-        safetyFloor: { minLiquidityUsd: 25_000, maxSlippagePct: 1.5, requireSafetyScreen: false },
+        strategyClass: "rwa",
+        // Only rules left on. An off rule is absent, not zeroed — a zeroed
+        // threshold still applies and still excludes things.
+        rules: toPayload(activeRules),
+        safetyFloor: {
+          minLiquidityUsd: 25_000,
+          maxSlippagePct: 1.5,
+          requireSafetyScreen: false,
+        },
         feePct: 10,
-        // Empty means Auto — the whole class, including assets added later.
-        // Non-null by here: the Continue button gates on it, and submit() is
-        // only reachable from the last step.
-        universe: market.selection ?? [],
-        // maxHoldDays 0 means "never on time alone"; the API treats it as absent.
-        exits,
+        // One market: the universe is a list of exactly one.
+        universe: [market],
+        exits: limits.exits,
       });
 
-      // Creating leaves it a draft. Starting the paper run is what freezes the
-      // rules and deploys the paper agent — done here so the button does what
-      // it says rather than leaving a half-made thing behind.
-      //
-      // Straight to the agent: the creator just started something running and
-      // the next thing they want is to watch it.
+      // Creating leaves it a draft. Starting the paper run freezes the rules
+      // and deploys the agent, so the button does what it says rather than
+      // leaving a half-made thing behind.
       const { agentId } = await startPaperRun(token, strategy.id);
-      router.push(`/portfolio/${agentId}`);
+      router.push(`/workspace/${agentId}?tab=cycles`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -104,15 +112,6 @@ export function BuildAgent() {
     }
   }
 
-  const chosen = market.selection;
-  const auto = chosen !== null && chosen.length === 0;
-  // The one thing step 1 requires. Without it the agent would be committed to
-  // assets its author never looked at.
-  const marketReady = chosen !== null;
-  const last = step === STEPS.length - 1;
-
-  // The name is asked for before anything else. Rendered here rather than by
-  // each button that links to /build/new, so direct navigation is covered too.
   if (!named) {
     return (
       <NameAgentModal
@@ -125,42 +124,10 @@ export function BuildAgent() {
     );
   }
 
-  if (phase === "describe") {
-    return (
-      <DescribeAgent
-        name={name}
-        onSkip={() => setPhase("build")}
-        onDraft={(draft, notes) => {
-          // Applied to the SAME state the form edits, so everything below is
-          // immediately reviewable and editable. Nothing is submitted here.
-          setMarket({ strategyClass: draft.strategyClass, selection: draft.universe });
-          setRules((rs) =>
-            rs.map((r) => {
-              const hit = draft.rules.find((d) => d.key === r.key);
-              return hit ? { ...r, value: hit.value } : r;
-            }),
-          );
-          setExits(draft.exits);
-          // No template describes these values, so the label must not claim one.
-          setTemplate(null);
-          setComposed({ reading: draft.reading, notes });
-          setPhase("build");
-        }}
-      />
-    );
-  }
-
   return (
     <main>
       <StepBar steps={BUILD_STAGES} current={0} />
 
-      {/* Name and position on one line.
-          These were two stacked full-width bars — an eyebrow row and a
-          segmented nav — under the lifecycle bar above, so three horizontal
-          slabs ran across the top before any content. The step control is a
-          compact segment group instead: it is orientation, not a destination,
-          and it does not need the width of the page to say "you are on 1 of 2".
-      */}
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-8 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
@@ -169,8 +136,6 @@ export function BuildAgent() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            // A name is required, so leaving it blank has to resolve to
-            // something rather than submitting an empty string.
             onBlur={() => {
               if (!name.trim()) setName("untitled agent");
             }}
@@ -184,130 +149,103 @@ export function BuildAgent() {
           aria-label="Builder steps"
           className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
         >
-          {STEPS.map((s, i) => {
-            const current = i === step;
-            const done = i < step;
-            return (
-              <button
-                key={s.index}
-                type="button"
-                aria-current={current ? "step" : undefined}
-                // Back is always allowed — reconsidering the market should never
-                // cost the rules you set. Forward only via Continue, which is
-                // where the completeness check lives.
-                onClick={() => done && setStep(i)}
-                disabled={!done && !current}
-                className={`flex h-7 items-center gap-2 rounded-full px-3.5 transition-colors ${
-                  current
-                    ? "bg-accent-wash text-accent"
-                    : done
-                      ? "text-text-secondary hover:text-text-primary"
-                      : "cursor-default text-text-muted"
-                }`}
-              >
-                <span className="tnum font-mono text-[9.5px] opacity-70">{s.index}</span>
-                <span className="font-mono text-[11.5px] tracking-[0.04em]">{s.label}</span>
-              </button>
-            );
-          })}
+          {STEPS.map((s, i) => (
+            <button
+              key={s.index}
+              type="button"
+              aria-current={i === step ? "step" : undefined}
+              onClick={() => i < step && setStep(i)}
+              disabled={i > step}
+              className={`flex h-7 items-center gap-2 rounded-full px-3.5 transition-colors ${
+                i === step
+                  ? "bg-accent-wash text-accent"
+                  : i < step
+                    ? "text-text-secondary hover:text-text-primary"
+                    : "cursor-default text-text-muted"
+              }`}
+            >
+              <span className="tnum font-mono text-[9.5px] opacity-70">{s.index}</span>
+              <span className="font-mono text-[11.5px] tracking-[0.04em]">{s.label}</span>
+            </button>
+          ))}
         </nav>
       </section>
-
-      {composed ? (
-        <section className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-b border-grid bg-accent-wash px-8 py-4">
-          <div className="min-w-0 space-y-1.5">
-            <p className="font-mono text-[10px] tracking-[0.12em] text-accent uppercase">
-              Filled in from your description
-            </p>
-            {composed.reading ? (
-              <p className="max-w-[78ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-                {composed.reading}
-              </p>
-            ) : null}
-            {/* Refusals are shown, never swallowed: a silently narrowed draft
-                is worse than none, because you would believe it was followed. */}
-            {composed.notes.length > 0 ? (
-              <ul className="max-w-[78ch] space-y-0.5 pt-1">
-                {composed.notes.map((n) => (
-                  <li key={n} className="font-ui text-[12px] leading-relaxed text-warning">
-                    {n}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setPhase("describe")}
-              className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
-            >
-              Describe again
-            </button>
-            <button
-              type="button"
-              onClick={() => setComposed(null)}
-              className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-text-primary"
-            >
-              Dismiss
-            </button>
-          </div>
-        </section>
-      ) : null}
 
       <Columns
         main={
           <div className="px-8 py-8">
-            {step === 0 ? (
-              <MarketStep value={market} onChange={setMarket} />
+            {step === 0 || !asset ? (
+              <PickMarket
+                value={market}
+                onChange={(sel, a) => {
+                  setMarket(sel);
+                  setAsset(a);
+                }}
+                onNext={() => setStep(1)}
+              />
+            ) : step === 1 ? (
+              <SetLimits
+                market={asset}
+                value={limits}
+                onChange={setLimits}
+                onBack={() => setStep(0)}
+              />
             ) : (
-              <StrategyStep
-                rules={rules}
-                onChange={setRules}
-                template={template}
-                onTemplate={(k) => setTemplate(k || null)}
-                exits={exits}
-                onExits={setExits}
+              <PickRoute
+                market={asset}
+                value={route}
+                onChange={setRoute}
+                onBack={() => setStep(1)}
               />
             )}
           </div>
         }
         rail={
           <>
-            {/* Assets are a refinement of the class chosen on the left, so the
-                picker sits beside it rather than below it — and only on the step
-                where it applies. */}
-            {step === 0 ? <AssetPicker value={market} onChange={setMarket} /> : null}
-
+            {/* "Your agent so far", per the wireframe: what has been decided
+                stays visible while the next thing is being decided. */}
             <div className="border-b border-grid px-8 py-7">
               <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                This agent
+                Your agent so far
               </h3>
-              <Row label="Class" value={market.strategyClass === "rwa" ? "Tokenized RWA" : market.strategyClass} />
-              <Row
-                label="Assets"
+              <Trail
+                done={step > 0 && !!asset}
+                here={step === 0}
+                label="Market"
+                value={asset ? `${asset.symbol}/USDC` : "this step"}
+              />
+              <Trail
+                done={step > 1}
+                here={step === 1}
+                label="Strategy & budget"
                 value={
-                  chosen === null ? "Not selected" : auto ? "Auto · all" : `${chosen.length} selected`
+                  step === 0
+                    ? "next"
+                    : `${activeRules.length} ${activeRules.length === 1 ? "rule" : "rules"}${
+                        step === 1 ? " · this step" : ""
+                      }`
                 }
-                tone={chosen === null ? "warning" : "accent"}
               />
-              <Row
-                label="Starting point"
-                value={TEMPLATES.find((t) => t.key === template)?.title ?? "Custom"}
+              <Trail
+                done={false}
+                here={step === 2}
+                label="Route"
+                value={step === 2 ? describeRoute(route) : "2 venues live · choose next"}
               />
-              {rules.map((r) => (
-                <Row
-                  key={r.key}
-                  label={r.label}
-                  value={`${r.op === "gte" ? "≥" : "≤"} ${fmt(r.value, r.unit)}`}
-                />
-              ))}
-              <Row label="Take profit" value={`+${exits.takeProfitPct}%`} tone="accent" />
-              <Row label="Stop loss" value={`−${exits.stopLossPct}%`} />
-              <Row
-                label="Time limit"
-                value={exits.maxHoldDays ? `${exits.maxHoldDays}d` : "Never"}
-              />
+              <Trail done={false} label="Paper run" value="free, no time limit" />
+              <Trail done={false} label="Publish" value="whenever you like" />
+
+              {step >= 1 ? (
+                <div className="mt-5 space-y-1.5 border-t border-grid pt-4">
+                  <Row label="Position cap" value={money(limits.positionUsd)} tone="accent" />
+                  <Row label="Per cycle" value={`${limits.tradesPerCycle} trades`} />
+                  <Row
+                    label="Exits"
+                    value={`+${limits.exits.takeProfitPct}% / −${limits.exits.stopLossPct}%`}
+                  />
+                  <Row label="Paper book" value={money(CAPITAL_USD)} />
+                </div>
+              ) : null}
             </div>
 
             <div className="px-8 py-7">
@@ -328,19 +266,38 @@ export function BuildAgent() {
                 </div>
               ) : null}
 
-              {!last ? (
+              {step === 0 ? (
                 <>
                   <button
                     type="button"
-                    onClick={() => setStep(step + 1)}
-                    disabled={!marketReady}
+                    onClick={() => setStep(1)}
+                    disabled={!market}
                     className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                   >
-                    Continue to strategy
+                    Continue to limits
                   </button>
-                  {!marketReady ? (
+                  {!market ? (
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      Choose the assets first
+                      Pick a market first
+                    </p>
+                  ) : null}
+                </>
+              ) : step === 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    disabled={activeRules.length === 0}
+                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  >
+                    Continue to route
+                  </button>
+                  {activeRules.length === 0 ? (
+                    // A strategy with no active rule buys nothing, ever — so
+                    // the gate sits here, one step before the run it would
+                    // have made pointless.
+                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
+                      Turn on at least one rule
                     </p>
                   ) : null}
                 </>
@@ -353,14 +310,22 @@ export function BuildAgent() {
                   Sign in to start
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={busy || !ready}
-                  className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-                >
-                  {busy ? "Starting…" : "Start paper run"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={submit}
+                    disabled={busy || !ready || activeRules.length === 0}
+                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  >
+                    {busy ? "Starting…" : "Run paper test"}
+                  </button>
+                  {activeRules.length === 0 ? (
+                    // A strategy with no active rule buys nothing, ever.
+                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
+                      Turn on at least one rule
+                    </p>
+                  ) : null}
+                </>
               )}
 
               {step > 0 ? (
@@ -369,13 +334,13 @@ export function BuildAgent() {
                   onClick={() => setStep(step - 1)}
                   className="mt-3 flex h-11 w-full items-center justify-center border border-border font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                 >
-                  Back to market
+                  Back to {STEPS[step - 1].label}
                 </button>
               ) : null}
 
               <p className="pt-5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-                Nothing is funded. The agent trades live data in paper mode, one cycle an hour,
-                building a record you can publish whenever it convinces you.
+                Paper runs are free and have no time limit. Nothing is funded, and you publish
+                whenever the record convinces you.
               </p>
             </div>
           </>
@@ -385,27 +350,59 @@ export function BuildAgent() {
   );
 }
 
-function Row({
+/* -------------------------------------------------------------------- bits -- */
+
+function Trail({
+  done,
+  here,
   label,
   value,
-  tone,
 }: {
+  done: boolean;
+  here?: boolean;
   label: string;
   value: string;
-  tone?: "accent" | "warning";
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-grid py-3 last:border-b-0">
-      <span className="font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
+    <div className="flex items-baseline gap-3 border-b border-grid py-2.5 last:border-b-0">
+      <span
+        className={`w-3 shrink-0 text-center font-mono text-[11px] ${
+          done || here ? "text-accent" : "text-text-muted"
+        }`}
+      >
+        {done ? "✓" : here ? "→" : "○"}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className={`block truncate font-mono text-[11.5px] ${
+            here || done ? "text-text-primary" : "text-text-dim"
+          }`}
+        >
+          {label}
+        </span>
+        <span className="block truncate font-ui text-[11px] text-text-dim">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function Row({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
         {label}
       </span>
       <span
-        className={`truncate text-right font-mono text-[12.5px] ${
-          tone === "accent" ? "text-accent" : tone === "warning" ? "text-warning" : "text-text-primary"
+        className={`truncate font-mono text-[12px] ${
+          tone === "accent" ? "text-accent" : "text-text-primary"
         }`}
       >
         {value}
       </span>
     </div>
   );
+}
+
+function money(n: number): string {
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }

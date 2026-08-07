@@ -1,9 +1,7 @@
 "use client";
 
 import { EquityCurve } from "@/components/charts";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
-import { getEquity, type EquityPoint, type EquitySeries } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
 
 /**
  * The performance panel on the agent page: equity curve plus the figures a
@@ -16,17 +14,36 @@ import { useApi } from "@/lib/useApi";
  * It renders for paper agents exactly as it does for funded ones. A paper
  * record is the thing being judged, and giving it a lesser presentation would
  * be a strange way to ask someone to trust it.
+ *
+ * IT DOES NOT FETCH
+ *
+ * The only caller — the agent's Overview — already loads this series for its
+ * Return · 30d cell, so a self-fetching panel would ask the API for the same
+ * rows twice on one screen. There was a fetching wrapper here for the old
+ * Performance tab; that tab is gone and so is the wrapper.
+ *
+ * `null` is a real input, not a defensive check: Overview fetches with
+ * allSettled so one failed request cannot blank the whole agent, which means it
+ * can legitimately hand this a missing series. That reads as a note here rather
+ * than as an empty frame that looks like a curve which failed to draw.
  */
-export function EquityPanel({ agentId }: { agentId: number }) {
-  const state = useApi<EquitySeries>((t) => getEquity(t, agentId), [agentId]);
-
-  if (state.phase === "loading") return <LoadingState label="Loading performance" />;
-  if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "error")
-    return <ErrorState message={state.message} onRetry={state.reload} />;
+export function EquityView({ series }: { series: EquitySeries | null }) {
+  if (series === null) {
+    return (
+      <div className="border border-grid bg-panel px-8 py-10 text-center">
+        <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+          Performance unavailable
+        </p>
+        <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
+          The equity readings did not load. Everything else on this page is current — reload to
+          try again.
+        </p>
+      </div>
+    );
+  }
 
   const { points, capitalUsd, realizedPnlUsd, closedPositions, winningPositions, isPaper } =
-    state.data;
+    series;
 
   if (points.length === 0) {
     return (
@@ -127,8 +144,12 @@ function maxDrawdownPct(values: number[]): number {
 
 /** Capital minus uninvested cash. Null when the cycle recorded no cash figure. */
 function deployedUsd(p: EquityPoint): number | null {
-  if (p.cashUsd === null || Number.isNaN(p.cashUsd)) return null;
-  return Math.max(p.equityUsd - p.cashUsd, 0);
+  // `=== null` missed an absent field, and `equity - undefined` is NaN, which
+  // rendered as "$NaN" rather than as the unknown it actually is.
+  const cash = num(p.cashUsd);
+  const equity = num(p.equityUsd);
+  if (cash === null || equity === null) return null;
+  return Math.max(equity - cash, 0);
 }
 
 function toneOf(n: number): "accent" | "negative" | "neutral" {

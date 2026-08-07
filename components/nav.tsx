@@ -7,8 +7,11 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
 
 const NAV = [
-  { label: "Agents", href: "/agents", match: ["/agents", "/deploy"] },
-  { label: "Portfolio", href: "/portfolio", match: ["/portfolio"] },
+  // "My agents" is the workspace — the rail plus one agent open beside it. It
+  // matches /portfolio too, which still serves older deep links into the same
+  // agents.
+  { label: "My agents", href: "/workspace", match: ["/workspace", "/portfolio"] },
+  { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
   { label: "Build", href: "/build", match: ["/build"] },
 ];
 

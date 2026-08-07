@@ -29,6 +29,14 @@ export interface RuleSpec {
   max: number;
   step: number;
   unit: string;
+  /**
+   * Whether this rule applies. Undefined means on, so the older two-step
+   * builder keeps working unchanged.
+   *
+   * The compile step needs the distinction: a rule the sentence never mentioned
+   * must not quietly apply a default the author did not ask for.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -81,6 +89,70 @@ export const RWA_RULES: RuleSpec[] = [
     step: 1,
     unit: "%",
   },
+  {
+    key: "changePct",
+    label: "Max change on the day",
+    help: "Buy only after a fall. −4 means it must already be down 4% or more today.",
+    op: "lte",
+    value: -4,
+    min: -20,
+    max: 20,
+    step: 0.5,
+    unit: "%",
+  },
+  // Technical, computed from daily closes. Windows fit the 120-day history.
+  {
+    key: "rsi14",
+    label: "Max RSI (14d)",
+    help: "Daily RSI. 70+ is conventionally overbought — lower this to avoid buying into a run.",
+    op: "lte",
+    value: 70,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "smaSpreadPct",
+    label: "Min trend (20d vs 50d)",
+    help: "Gap between the 20- and 50-day averages. Above 0 means the short average leads — an uptrend.",
+    op: "gte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 1,
+    unit: "%",
+  },
+  {
+    key: "belowHigh60dPct",
+    label: "Min below 60d high",
+    help: "How far under the 60-day high it must sit. Above 0 buys pullbacks rather than breakouts.",
+    op: "gte",
+    value: 0,
+    min: 0,
+    max: 60,
+    step: 1,
+    unit: "%",
+  },
+];
+
+/**
+ * How often the agent wakes.
+ *
+ * Cadence is NOT chart timeframe, and the copy says so on every option:
+ * research bars are daily, so between two close-together cycles only the
+ * on-chain mark and pool liquidity have changed. A faster cadence buys tighter
+ * stops, not more insight.
+ *
+ * The 5-minute floor is the sweep cron's own period — anything faster is a
+ * promise the scheduler cannot keep.
+ */
+export const CADENCES: { sec: number; label: string; detail: string }[] = [
+  { sec: 300, label: "5 min", detail: "Fastest stops. ~288 model calls a day." },
+  { sec: 900, label: "15 min", detail: "Reacts within the session. ~96 a day." },
+  { sec: 3600, label: "1 hour", detail: "The default. ~24 a day." },
+  { sec: 14_400, label: "4 hours", detail: "Quiet. ~6 a day." },
+  { sec: 86_400, label: "1 day", detail: "Matches the data — bars are daily." },
 ];
 
 /**
@@ -124,7 +196,7 @@ export const TEMPLATES = [
 const SOURCES = [
   { name: "Fundamentals", detail: "Margins, filings, balance sheet", via: "Wintel", ready: true },
   { name: "News & events", detail: "Abnormal activity, filings search", via: "Wintel", ready: true },
-  { name: "Technical", detail: "Indicators over price history", via: "Needs a bars feed", ready: false },
+  { name: "Technical", detail: "RSI, trend, distance from high — daily", via: "Wintel", ready: true },
   { name: "Sentiment", detail: "X and social", via: "Elfa.ai", ready: false },
   { name: "Smart money", detail: "Wallet flow", via: "Nansen", ready: false },
 ];
@@ -144,6 +216,8 @@ export function StrategyStep({
   onTemplate,
   exits,
   onExits,
+  cadenceSec,
+  onCadence,
 }: {
   rules: RuleSpec[];
   onChange: (next: RuleSpec[]) => void;
@@ -151,6 +225,8 @@ export function StrategyStep({
   onTemplate: (key: string) => void;
   exits: ExitRules;
   onExits: (next: ExitRules) => void;
+  cadenceSec: number;
+  onCadence: (sec: number) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -285,7 +361,30 @@ export function StrategyStep({
       </section>
 
       <section>
-        <StepHead index="04" title="Signal sources" note="What these rules draw on today." />
+        <StepHead
+          index="04"
+          title="Cycle"
+          note="How often it wakes — not the chart timeframe."
+        />
+        <PillRow>
+          {CADENCES.map((c) => (
+            <Pill key={c.sec} active={cadenceSec === c.sec} onClick={() => onCadence(c.sec)}>
+              {c.label}
+            </Pill>
+          ))}
+        </PillRow>
+        <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+          {CADENCES.find((c) => c.sec === cadenceSec)?.detail}{" "}
+          <span className="text-text-dim">
+            Research data is daily, so between two close-together cycles only the on-chain
+            price and pool depth have changed. A faster cycle tightens your stops; it does not
+            reveal more about the underlying.
+          </span>
+        </p>
+      </section>
+
+      <section>
+        <StepHead index="05" title="Signal sources" note="What these rules draw on today." />
         <PillRow>
           {SOURCES.map((s) => (
             <PillTag key={s.name} tone={s.ready ? "accent" : "dim"} suffix={s.via}>

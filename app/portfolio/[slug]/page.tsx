@@ -1,10 +1,9 @@
-import { notFound } from "next/navigation";
-import { AgentMonitor } from "@/components/portfolio";
+import { notFound, redirect } from "next/navigation";
 
 /**
- * The route segment is the agent's id. The design called it `slug`; keeping the
- * segment name avoids churning every link, but the value is numeric because
- * that is what identifies an agent in the database.
+ * Legacy deep link into one agent. The owner's view is wireframe 1k, which
+ * lives on the workspace route now; the segment is still called `slug` because
+ * older links use it, but the value has always been the numeric agent id.
  */
 export default async function AgentMonitorPage({
   params,
@@ -15,9 +14,5 @@ export default async function AgentMonitorPage({
   const agentId = Number(slug);
   if (!Number.isInteger(agentId)) notFound();
 
-  return (
-    <main>
-      <AgentMonitor agentId={agentId} />
-    </main>
-  );
+  redirect(`/workspace/${agentId}`);
 }

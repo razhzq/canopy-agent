@@ -1,0 +1,1065 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { ActivityLog } from "@/components/activity";
+import { AddMarketModal } from "@/components/addMarket";
+import { EquityView } from "@/components/equity";
+import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { RWA_RULES, fmt } from "@/components/buildStrategy";
+import {
+  getAgent,
+  getEquity,
+  getStrategy,
+  getUniverse,
+  listAgents,
+  num,
+  pauseAgent,
+  resumeAgent,
+  stopAgent,
+  type AgentDetail as AgentDetailPayload,
+  type AgentRow,
+  type DetectionRule,
+  type EquitySeries,
+  type StrategyRow,
+  type UniverseAsset,
+} from "@/lib/api";
+
+/**
+ * My agent detail — wireframe 1k, the owner's view.
+ *
+ * Four requests compose it: the agent (status, mandate, wallet, open
+ * positions), its strategy (rules, universe, exits — s.* comes back whole on
+ * the detail route, which is the only place the recipe is readable), its equity
+ * curve, and the resolved universe for live marks.
+ *
+ * WHAT IS PORTED AS DRAWN
+ *
+ * The header and wallet, the market strip with a live mark and today's move per
+ * market, "watching now" with the real entry rule and the real distance to it,
+ * the exit cards, the activity log, the strategy chips, and pause / resume.
+ *
+ * WHAT IS NOT, AND WHY
+ *
+ * - PER-MARKET BUDGETS. There is no such thing. Budget is agent-global and
+ *   per-tick (mandate.constraints + trading_agent_policies), and no route reads
+ *   or writes a per-market figure. Drawing a table of per-market caps would
+ *   describe a control that does not exist and cannot be enforced. The rail
+ *   shows the mandate's ACTUAL caps instead.
+ * - + ADD MARKET. Universe belongs to the strategy, and a running strategy is
+ *   frozen by a database trigger. The only way to change what an agent trades
+ *   is to fork it, which produces a new strategy and a new agent — so the panel
+ *   says that rather than offering a button that would silently replace the
+ *   thing you are looking at.
+ * - UPTIME %, LIVE-SINCE GAPS, BILLING. No heartbeat table, no invoice, no
+ *   subscription in the agent stack. `created_at` is real, so "live since"
+ *   stays; the uptime cell became CADENCE, which is real and is the number that
+ *   actually tells you how often it looks.
+ * - ROUTE. Chosen in the builder but not yet stored — see pickRoute.tsx. Shown
+ *   as unset rather than asserted.
+ * - THE PRICE CHART with entry and trigger lines. Nothing in this API serves
+ *   per-market price history. The distance-to-trigger meters carry the same
+ *   information from the live mark, so the panel keeps the meaning and drops
+ *   the candles.
+ */
+
+export function AgentDetailView({ agentId }: { agentId: number }) {
+  const { ready, authenticated, getAccessToken } = usePrivy();
+  const [adding, setAdding] = useState(false);
+  const [state, setState] = useState<
+    | { phase: "loading" }
+    | { phase: "signed-out" }
+    | { phase: "error"; message: string }
+    | {
+        phase: "ready";
+        detail: AgentDetailPayload;
+        strategy: StrategyRow | null;
+        equity: EquitySeries | null;
+        assets: UniverseAsset[];
+        /** Every agent you own. Used to find this one's paper/live counterpart. */
+        siblings: AgentRow[];
+      }
+  >({ phase: "loading" });
+
+  const load = useCallback(async () => {
+    if (!ready) return;
+    if (!authenticated) {
+      setState({ phase: "signed-out" });
+      return;
+    }
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setState({ phase: "signed-out" });
+        return;
+      }
+      // The agent first: everything else keys off its strategy_id, and it is
+      // the one request whose failure means there is no page.
+      const detail = await getAgent(token, agentId);
+      const [strategy, equity, universe, agents] = await Promise.allSettled([
+        getStrategy(token, detail.agent.strategy_id),
+        getEquity(token, agentId),
+        getUniverse(token, detail.agent.strategy_class),
+        listAgents(token),
+      ]);
+      setState({
+        phase: "ready",
+        detail,
+        strategy: strategy.status === "fulfilled" ? strategy.value.strategy : null,
+        equity: equity.status === "fulfilled" ? equity.value : null,
+        assets: universe.status === "fulfilled" ? universe.value.assets : [],
+        siblings: agents.status === "fulfilled" ? agents.value.agents : [],
+      });
+    } catch (err) {
+      setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [ready, authenticated, getAccessToken, agentId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (state.phase === "loading") return <LoadingState label="Loading agent" />;
+  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
+  if (state.phase === "error")
+    return <ErrorState message={state.message} onRetry={() => void load()} />;
+
+  const { detail, strategy, equity, assets, siblings } = state;
+  const { agent, positions, wallet, lastRun } = detail;
+
+  /**
+   * The paper/live counterpart.
+   *
+   * `is_paper` is written when the agent is created and never changes — an
+   * agent IS one book or the other, it does not have two views. But a strategy
+   * normally ends up with both: the paper run that qualified it for publishing,
+   * and the funded agent deployed afterwards. They share a strategy_id, so the
+   * switch is a real navigation between two records rather than a filter.
+   *
+   * Matched on strategy_id alone, which means a FORKED lineage does not link up:
+   * a fork is a different strategy, so its paper run is not this strategy's
+   * counterpart and pretending otherwise would put someone else's numbers behind
+   * the pill.
+   */
+  const kin = siblings.filter((a) => a.strategy_id === agent.strategy_id);
+  const paperAgent = kin.find((a) => a.is_paper) ?? null;
+  const liveAgent = kin.find((a) => !a.is_paper) ?? null;
+
+  // The strategy's universe, resolved against live marks. A selection whose
+  // asset is missing from the resolved universe still renders — it is a market
+  // the agent holds a mandate for that cannot currently be priced, which is
+  // worth seeing, not worth hiding.
+  const markets = (strategy?.universe ?? []).map((sel) => ({
+    sel,
+    asset:
+      assets.find((a) => a.underlying === sel.underlying && (!sel.issuer || a.issuer === sel.issuer)) ??
+      null,
+  }));
+
+  const rules = strategy?.rules ?? [];
+  const entry = rules.find((r) => r.key === "changePct") ?? null;
+  const exits = strategy?.exits ?? null;
+  const constraints = agent.mandate?.constraints ?? {};
+
+  const capital = Number(agent.capital_usd) || 0;
+  // The nearest real thing to a per-market budget: the mandate's position cap,
+  // in dollars. It is agent-wide, so every market row shows the same figure —
+  // which is the truth, and is why the note under the table says so.
+  const positionCap =
+    constraints.maxPositionPct && capital ? (capital * constraints.maxPositionPct) / 100 : null;
+  const ret30 = return30d(equity);
+  const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
+
+  return (
+    <div>
+      {/* ------------------------------------------------------------ head -- */}
+      <section className="border-b border-grid px-8 pt-5 pb-5">
+        <Link
+          href="/workspace"
+          className="font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
+        >
+          ← My agents
+        </Link>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-3">
+          <h1 className="font-mono text-[28px] leading-none text-text-primary">
+            {agent.strategy_name}
+          </h1>
+          <StatusChip status={agent.status} />
+          <div className="flex-1" />
+          <WalletTag address={wallet?.address ?? null} isPaper={agent.is_paper} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-4">
+          <BookSwitch current={agentId} paper={paperAgent} live={liveAgent} />
+        </div>
+
+        {/* Why the other half of the switch is unavailable, said once, here,
+            rather than as a tooltip nobody opens. */}
+        {!agent.is_paper && !paperAgent ? (
+          <p className="pt-2 font-ui text-[12px] text-text-dim">
+            No paper record under this strategy — it was deployed without one, or its paper run
+            belonged to a strategy this one was forked from.
+          </p>
+        ) : null}
+        {agent.is_paper && !liveAgent ? (
+          <p className="pt-2 font-ui text-[12px] text-text-dim">
+            Nothing is live on this strategy yet. Publish it once the paper run qualifies, then
+            deploy it against real capital.
+          </p>
+        ) : null}
+
+        {agent.paused_reason ? (
+          <p className="pt-3 font-ui text-[12.5px] text-negative">
+            Stopped itself: {agent.paused_reason.replace(/_/g, " ")}.
+          </p>
+        ) : null}
+      </section>
+
+      {/* ------------------------------------------------------------ band -- */}
+      <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
+        <Cell
+          label="Markets"
+          value={
+            markets.length === 0
+              ? "Whole class"
+              : markets
+                  .map((m) => m.asset?.symbol ?? m.sel.underlying)
+                  .slice(0, 3)
+                  .join(" · ")
+          }
+          big={false}
+          note={
+            markets.length === 0
+              ? "no universe pinned"
+              : `${markets.length} ${markets.length === 1 ? "market" : "markets"} · one strategy`
+          }
+        />
+        <Cell
+          label={agent.is_paper ? "Paper book" : "Capital"}
+          value={money(capital)}
+          note={agent.is_paper ? "simulated · nothing funded" : "mandate, set at deploy"}
+        />
+        <Cell
+          label="Return · 30d"
+          value={ret30 === null ? "—" : signedPct(ret30)}
+          tone={ret30 === null ? undefined : ret30 >= 0 ? "accent" : "negative"}
+          note={ret30 === null ? "no readings yet" : "against capital"}
+        />
+        <Cell
+          label="Live since"
+          value={age(agent.created_at)}
+          note={absolute(agent.created_at)}
+        />
+        <Cell
+          label="Cadence"
+          value={cadenceSec ? cadence(cadenceSec) : "—"}
+          note={
+            agent.last_tick_at
+              ? `last ran ${when(agent.last_tick_at)}`
+              : "has not run yet"
+          }
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+        {/* ------------------------------------------------------- main -- */}
+        <div className="min-w-0 lg:border-r lg:border-grid">
+          {/* performance — the series the band's Return · 30d cell already
+              summarises, drawn in full. No extra request: `equity` is loaded
+              with the rest of the page. */}
+          <section className="border-b border-grid px-8 py-6">
+            <Rule label="Performance" />
+            <div className="pt-4">
+              <EquityView series={equity} />
+            </div>
+          </section>
+
+          {/* markets */}
+          <section className="border-b border-grid px-8 py-6">
+            <Rule label="Market" />
+            {markets.length === 0 ? (
+              <p className="pt-4 font-ui text-[13px] text-text-secondary">
+                No universe is pinned on this strategy, so the agent screens the whole{" "}
+                {agent.strategy_class} class each cycle.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-2.5 pt-4 sm:grid-cols-2">
+                  {markets.map((m) => (
+                    <MarketCard
+                      key={`${m.sel.underlying}/${m.sel.issuer ?? ""}`}
+                      label={m.asset ? `${m.asset.symbol}/USDC` : m.sel.underlying}
+                      asset={m.asset}
+                      entry={entry}
+                      held={positions.some(
+                        (p) => p.underlying === m.sel.underlying || p.symbol === m.asset?.symbol,
+                      )}
+                    />
+                  ))}
+                </div>
+                <p className="pt-3 font-ui text-[12px] text-text-dim">
+                  {entry
+                    ? "The same strategy runs on every market above. The bar is how close each one is to the entry rule."
+                    : "The same strategy runs on every market above."}
+                </p>
+              </>
+            )}
+          </section>
+
+          {/* watching now */}
+          <section className="border-b border-grid px-8 py-6">
+            <Rule
+              label="Watching now"
+              right={
+                agent.status === "active" ? (
+                  <span className="flex items-center gap-2">
+                    <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+                    <span className="font-mono text-[11px] text-text-secondary">
+                      {agent.last_tick_at ? `checked ${when(agent.last_tick_at)}` : "starting"}
+                      {agent.next_tick_at ? ` · next ${ahead(agent.next_tick_at)}` : ""}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="font-mono text-[11px] text-text-muted">not ticking</span>
+                )
+              }
+            />
+
+            {entry ? (
+              <>
+                <h2 className="pt-4 font-mono text-[20px] leading-tight text-text-primary">
+                  {entryHeadline(entry, markets[0]?.asset?.symbol)}
+                </h2>
+                <p className="pt-1.5 font-ui text-[13px] text-text-secondary">
+                  Entry condition. Nothing is bought until this is met.
+                </p>
+              </>
+            ) : (
+              <p className="pt-4 font-ui text-[13px] text-text-secondary">
+                {rules.length === 0
+                  ? "This strategy's rules are not readable — the detail route returned no rule set."
+                  : "This strategy has no move-on-the-day trigger. It screens on the rules in the rail instead, and buys whatever clears all of them."}
+              </p>
+            )}
+
+            {/* exits are the other half of the contract and are always real */}
+            <div className="grid grid-cols-1 gap-2.5 pt-5 sm:grid-cols-2">
+              <ExitCard
+                label="Exit — take profit"
+                body={
+                  exits ? (
+                    <>
+                      Sell at <Num>+{exits.takeProfitPct}%</Num> from entry
+                    </>
+                  ) : (
+                    "Not set — platform default for the posture."
+                  )
+                }
+              />
+              <ExitCard
+                label="Exit — stop-loss"
+                body={
+                  exits ? (
+                    <>
+                      Sell at <Num>−{exits.stopLossPct}%</Num> from entry
+                      {exits.maxHoldDays ? `, or after ${exits.maxHoldDays}d` : ""}
+                    </>
+                  ) : (
+                    "Not set — platform default for the posture."
+                  )
+                }
+              />
+            </div>
+
+            {constraints.maxDrawdownPct ? (
+              <p className="pt-3.5 font-mono text-[11px] text-text-dim">
+                Agent-wide breaker at −{constraints.maxDrawdownPct}% from the high-water mark:
+                past that it liquidates and stops on its own.
+              </p>
+            ) : null}
+          </section>
+
+          {/* activity */}
+          <section className="px-8 py-6">
+            <Rule
+              label="Activity"
+              right={
+                <Link
+                  href={`/workspace/${agentId}?tab=cycles`}
+                  className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
+                >
+                  All cycles →
+                </Link>
+              }
+            />
+            <div className="pt-4">
+              <ActivityLog agentId={agentId} />
+            </div>
+            <p className="pt-4 font-ui text-[12px] text-text-dim">
+              Append-only. Every check is recorded, whether it traded or not
+              {lastRun?.skip_reason
+                ? ` — the last cycle did not trade: ${lastRun.skip_reason.replace(/_/g, " ")}.`
+                : "."}
+            </p>
+          </section>
+        </div>
+
+        {/* ------------------------------------------------------- rail -- */}
+        <aside className="min-w-0 border-t border-grid px-8 py-6 lg:border-t-0">
+          <Rule label="Strategy · applies to every market" />
+          <p className="pt-2.5 font-ui text-[12px] leading-relaxed text-text-dim">
+            One strategy per agent. Yours in full — never shown on the marketplace.
+          </p>
+
+          <div className="mt-4 border border-grid">
+            <div className="flex flex-wrap gap-2 p-3.5">
+              {rules.length === 0 ? (
+                <span className="font-ui text-[12.5px] text-text-muted">No rules returned.</span>
+              ) : (
+                rules.map((r) => <RuleChip key={r.key} rule={r} />)
+              )}
+              {exits ? (
+                <>
+                  <Chip>
+                    Take profit: <Num>+{exits.takeProfitPct}%</Num>
+                  </Chip>
+                  <Chip>
+                    Stop-loss: <Num>−{exits.stopLossPct}%</Num>
+                  </Chip>
+                </>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-3 border-t border-grid bg-panel px-3.5 py-2.5">
+              <p className="min-w-0 flex-1 font-ui text-[11.5px] text-text-dim">
+                Frozen while it runs — editing forks it into a fresh paper run.
+              </p>
+              <Link
+                href={`/workspace/${agentId}?tab=chat`}
+                className="shrink-0 border border-border px-2.5 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
+              >
+                Edit strategy
+              </Link>
+            </div>
+          </div>
+
+          {/* per-market budgets */}
+          <div className="mt-6 border-t border-grid pt-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+                Per-market budgets
+              </span>
+              <span className="shrink-0 font-ui text-[11px] text-text-dim">
+                {markets.length} {markets.length === 1 ? "market" : "markets"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] gap-x-3 border-b border-grid-strong pt-3 pb-2 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+              <span>Market</span>
+              <span className="text-right">Position</span>
+              <span className="text-right">Open / max</span>
+              <span />
+            </div>
+
+            {markets.length === 0 ? (
+              <p className="py-3 font-ui text-[12px] text-text-muted">
+                No universe pinned — the cap below applies to whatever it screens into.
+              </p>
+            ) : (
+              markets.map((m) => {
+                const symbol = m.asset?.symbol ?? m.sel.underlying;
+                const open = positions.filter(
+                  (p) => p.underlying === m.sel.underlying || p.symbol === symbol,
+                ).length;
+                return (
+                  <div
+                    key={`${m.sel.underlying}/${m.sel.issuer ?? ""}`}
+                    className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid py-2.5"
+                  >
+                    <span className="truncate font-ui text-[12.5px] text-text-primary">
+                      {m.asset ? `${symbol}/USDC` : symbol}
+                    </span>
+                    <span className="tnum text-right font-mono text-[12px] text-text-primary">
+                      {positionCap === null ? "—" : `≤ ${money(positionCap)}`}
+                    </span>
+                    <span className="tnum text-right font-mono text-[12px] text-text-secondary">
+                      {open} / {constraints.maxTradesPerTick ?? "—"}
+                    </span>
+                    <Link
+                      href={`/workspace/${agentId}?tab=chat`}
+                      className="border border-border px-2 py-1 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent"
+                    >
+                      Edit
+                    </Link>
+                  </div>
+                );
+              })
+            )}
+
+            <div className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid-strong bg-panel px-2 py-2.5">
+              <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                Total capital
+              </span>
+              <span
+                className={`tnum text-right font-mono text-[12.5px] ${
+                  agent.is_paper ? "text-text-secondary" : "text-accent"
+                }`}
+              >
+                {money(capital)}
+              </span>
+              <span />
+              <span />
+            </div>
+
+            {/* The wireframe's "no shared pool" is the one claim here that is
+                NOT true of this backend, so it is the one line that had to be
+                rewritten rather than copied: the cap is per POSITION and per
+                CYCLE, and every market draws it from the same mandate. Saying
+                otherwise would promise ring-fencing nothing enforces. */}
+            <p className="pt-3 font-ui text-[11.5px] leading-relaxed text-text-dim">
+              Computed, read-only.{" "}
+              {positionCap === null
+                ? "The position cap is not set on this mandate."
+                : `${constraints.maxPositionPct}% of the mandate per position`}
+              {constraints.maxTradesPerTick
+                ? `, at most ${constraints.maxTradesPerTick} open per cycle`
+                : ""}
+              . One shared pool — the caps apply to every market alike rather than ring-fencing a
+              budget for each, so two markets can draw on the same capital.
+            </p>
+
+            {/* Deployed lived here too until the curve moved onto this page —
+                EquityView carries it now, from the same cost bases. */}
+            <div className="pt-2">
+              <RailRow label="Open positions" value={String(positions.length)} />
+            </div>
+          </div>
+
+          {/* + Add market */}
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="mt-4 block w-full border border-grid-strong px-4 py-3.5 text-left transition-colors hover:border-accent"
+          >
+            <span className="block font-mono text-[12.5px] text-text-primary">+ Add market</span>
+            {/* The wireframe promises "4 quick steps · strategy is not re-asked".
+                Half of that holds: the strategy is genuinely carried over. But a
+                running strategy is frozen by a database trigger, so adding a
+                market forks it — a NEW agent on a fresh paper run, with this one
+                left as it is. That is a different enough outcome that the card
+                has to say it rather than imply an in-place edit. */}
+            <span className="block pt-1 font-ui text-[11.5px] leading-relaxed text-text-dim">
+              Pick one — the rules carry over untouched. A live strategy is frozen, so it forks
+              into a new agent on a fresh paper run and this one keeps running.
+            </span>
+          </button>
+
+          {/* agent-level facts */}
+          <div className="mt-6 border-t border-grid pt-5">
+            <Rule label="Agent-level" />
+            <div className="pt-3">
+              <RailRow
+                label="Book"
+                value={agent.is_paper ? "Paper · simulated fills" : "Live · real capital"}
+              />
+              <RailRow label="Autonomy" value={agent.autonomy.replace(/_/g, " ")} />
+              <RailRow label="Cadence" value={cadenceSec ? cadence(cadenceSec) : "—"} />
+              <RailRow
+                label="Compliance"
+                value={constraints.complianceProfile ?? "—"}
+              />
+              {/* Route is a builder choice with nowhere to live yet. */}
+              <RailRow label="Route" value="Not stored yet" />
+            </div>
+          </div>
+
+        </aside>
+      </div>
+
+      <Controls agent={agent} onChanged={() => void load()} />
+
+      {adding ? (
+        <AddMarketModal
+          agentId={agentId}
+          agentName={agent.strategy_name}
+          assets={assets}
+          existing={strategy?.universe ?? []}
+          onClose={() => setAdding(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- controls -- */
+
+function Controls({
+  agent,
+  onChanged,
+}: {
+  agent: AgentDetailPayload["agent"];
+  onChanged: () => void;
+}) {
+  const { getAccessToken } = usePrivy();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
+
+  const paused = agent.status === "paused";
+
+  async function run(kind: "toggle" | "stop") {
+    setBusy(kind);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("not signed in");
+      if (kind === "stop") await stopAgent(token, agent.id);
+      else await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      setConfirmStop(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const stoppable = agent.status !== "stopped";
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t border-grid px-8 py-4">
+      {agent.status === "active" || paused ? (
+        <button
+          type="button"
+          onClick={() => void run("toggle")}
+          disabled={busy !== null}
+          className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          {busy === "toggle" ? "…" : paused ? "Resume agent" : "Pause agent"}
+        </button>
+      ) : null}
+
+      <Link
+        href={`/workspace/${agent.id}?tab=chat`}
+        className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
+      >
+        Edit limits
+      </Link>
+      <div className="flex-1" />
+
+      {error ? (
+        <span className="font-mono text-[10.5px] tracking-[0.06em] text-negative uppercase">
+          {error}
+        </span>
+      ) : null}
+
+      {stoppable ? (
+        // The kill switch revokes the wallet delegation as well as halting
+        // ticks, and it cannot be undone from this page — so it asks first.
+        confirmStop ? (
+          <span className="flex items-center gap-3">
+            <span className="font-ui text-[12px] text-text-secondary">
+              Stop for good and revoke the wallet?
+            </span>
+            <button
+              type="button"
+              onClick={() => void run("stop")}
+              disabled={busy !== null}
+              className="border border-negative px-3 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
+            >
+              {busy === "stop" ? "…" : "Stop it"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmStop(false)}
+              className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase hover:text-text-primary"
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmStop(true)}
+            className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-negative"
+          >
+            Stop agent
+          </button>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- pieces -- */
+
+function Rule({ label, right }: { label: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-4">
+      <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+        {label}
+      </span>
+      <span className="h-px min-w-0 flex-1 bg-grid" />
+      {right ? <span className="shrink-0">{right}</span> : null}
+    </div>
+  );
+}
+
+function Cell({
+  label,
+  value,
+  note,
+  tone,
+  big = true,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: "accent" | "negative";
+  big?: boolean;
+}) {
+  return (
+    <div className="border-r border-grid px-6 py-4 last:border-r-0">
+      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p
+        className={`tnum truncate pt-1.5 font-mono leading-none ${
+          big ? "text-[24px]" : "text-[15px]"
+        } ${
+          tone === "accent"
+            ? "text-accent"
+            : tone === "negative"
+              ? "text-negative"
+              : "text-text-primary"
+        }`}
+      >
+        {value}
+      </p>
+      {note ? <p className="truncate pt-1.5 font-ui text-[11px] text-text-dim">{note}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Run state only — is it ticking.
+ *
+ * It used to say "Live" for an active agent, which collided head-on with the
+ * live/paper BOOK now sitting beside it: "Live · Paper" read as a contradiction
+ * when it only meant "a running paper agent". Running is the unambiguous word.
+ */
+function StatusChip({ status }: { status: string }) {
+  const running = status === "active";
+  return (
+    <span
+      className={`flex items-center gap-2 px-2.5 py-1 font-mono text-[10px] tracking-[0.12em] uppercase ${
+        running
+          ? "bg-accent text-bg"
+          : status === "paused" || status === "liquidating"
+            ? "border border-negative text-negative"
+            : "border border-grid-strong text-text-muted"
+      }`}
+    >
+      {running ? <span className="size-1.5 animate-pulse rounded-full bg-bg" /> : null}
+      {running ? "Running" : status === "liquidating" ? "Closing out" : status}
+    </span>
+  );
+}
+
+/**
+ * Paper / Live — a segmented control over two REAL agents.
+ *
+ * Not a display filter. Each half is a different agent id with its own equity
+ * curve, positions, wallet and activity, so switching navigates and the page
+ * reloads against that record. Drawing it as a toggle would imply the same
+ * agent rendered two ways, which would make the numbers look like they changed
+ * under you.
+ *
+ * A half with no agent behind it is disabled rather than hidden: knowing there
+ * is no live deployment yet is the point of looking.
+ */
+function BookSwitch({
+  current,
+  paper,
+  live,
+}: {
+  current: number;
+  paper: AgentRow | null;
+  live: AgentRow | null;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Paper or live book"
+      className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+    >
+      <Half label="Paper" agent={paper} current={current} />
+      <Half label="Live" agent={live} current={current} />
+    </div>
+  );
+}
+
+function Half({
+  label,
+  agent,
+  current,
+}: {
+  label: string;
+  agent: AgentRow | null;
+  current: number;
+}) {
+  const active = agent?.id === current;
+  const base =
+    "flex h-8 items-center gap-2 rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors";
+
+  if (!agent) {
+    return (
+      <span
+        aria-disabled
+        title={`No ${label.toLowerCase()} agent on this strategy`}
+        className={`${base} cursor-not-allowed text-text-muted`}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  if (active) {
+    return (
+      <span aria-current="true" className={`${base} bg-accent-wash text-accent`}>
+        <span className="size-1.5 rounded-full bg-accent" />
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <Link href={`/workspace/${agent.id}`} className={`${base} text-text-dim hover:text-text-primary`}>
+      {label}
+      {/* Which of the two is actually ticking, without opening it. */}
+      <span className="font-mono text-[9px] tracking-[0.12em] uppercase">
+        {agent.status === "active" ? "running" : agent.status}
+      </span>
+    </Link>
+  );
+}
+
+function WalletTag({ address, isPaper }: { address: string | null; isPaper: boolean }) {
+  const [copied, setCopied] = useState(false);
+  if (!address) {
+    return (
+      <span className="font-ui text-[12px] text-text-dim">
+        {isPaper ? "No wallet — nothing is funded" : "No wallet provisioned"}
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-2.5">
+      <span className="font-mono text-[12.5px] text-text-secondary">
+        {address.slice(0, 4)}…{address.slice(-4)}
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(address)
+            .then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            })
+            .catch(() => {
+              /* clipboard blocked */
+            });
+        }}
+        className="border border-border px-2 py-0.5 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent"
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
+}
+
+/**
+ * One market: the live mark, today's move, and how far that move is from the
+ * entry trigger.
+ *
+ * The meter fills as the move approaches the threshold and turns negative when
+ * it is there — the wireframe's "MSTRx is close to firing", carried by the
+ * only price data this API actually serves.
+ */
+function MarketCard({
+  label,
+  asset,
+  entry,
+  held,
+}: {
+  label: string;
+  asset: UniverseAsset | null;
+  entry: DetectionRule | null;
+  held: boolean;
+}) {
+  const change = asset ? num(asset.changePct) : null;
+  const price = asset ? num(asset.priceUsd) : null;
+
+  // `changePct <= -4` — progress is how much of the fall has happened.
+  const target = entry && entry.op === "lte" ? entry.value : null;
+  const pct =
+    target !== null && target < 0 && change !== null
+      ? Math.max(0, Math.min(1, change / target))
+      : null;
+  const fired = pct !== null && pct >= 1;
+
+  return (
+    <div className="border border-grid p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="truncate font-mono text-[13px] text-text-primary">{label}</span>
+        <span
+          className={`tnum shrink-0 font-mono text-[12.5px] ${
+            change === null ? "text-text-muted" : change >= 0 ? "text-accent" : "text-negative"
+          }`}
+        >
+          {change === null ? "—" : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}%`}
+          {target !== null ? (
+            <span className="pl-1 text-text-dim"> / {target}%</span>
+          ) : null}
+        </span>
+      </div>
+
+      <p className="truncate pt-1 font-ui text-[11.5px] text-text-dim">
+        {price === null ? "not priced" : `$${price.toFixed(2)}`}
+        {" · "}
+        {held ? "1 position open" : "flat"}
+      </p>
+
+      {pct !== null ? (
+        <span className="mt-3 block h-1.5 w-full bg-grid">
+          <span
+            className={`block h-1.5 ${fired ? "bg-negative" : "bg-accent"}`}
+            style={{ width: `${pct * 100}%` }}
+          />
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ExitCard({ label, body }: { label: string; body: React.ReactNode }) {
+  return (
+    <div className="border border-grid p-4">
+      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p className="pt-1.5 font-ui text-[13px] text-text-primary">{body}</p>
+    </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="border border-grid-strong px-2.5 py-1.5 font-ui text-[12px] text-text-secondary">
+      {children}
+    </span>
+  );
+}
+
+function Num({ children }: { children: React.ReactNode }) {
+  return <span className="tnum font-mono text-[12px] text-text-primary">{children}</span>;
+}
+
+/** A stored rule, labelled with the spec the builder set it from. */
+function RuleChip({ rule }: { rule: DetectionRule }) {
+  const spec = RWA_RULES.find((r) => r.key === rule.key);
+  return (
+    <Chip>
+      {spec?.label ?? rule.key} {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
+      <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
+    </Chip>
+  );
+}
+
+function RailRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-grid py-2.5 last:border-b-0">
+      <span className="shrink-0 font-ui text-[12.5px] text-text-dim">{label}</span>
+      <span
+        className={`tnum truncate font-mono text-[12.5px] ${
+          strong ? "text-accent" : "text-text-primary"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- figures -- */
+
+function entryHeadline(entry: DetectionRule, symbol?: string): string {
+  const who = symbol ?? "The market";
+  if (entry.key === "changePct" && entry.op === "lte") {
+    return `${who} drops ${Math.abs(entry.value)}%+ on the day`;
+  }
+  const spec = RWA_RULES.find((r) => r.key === entry.key);
+  return `${spec?.label ?? entry.key} ${entry.op === "gte" ? "≥" : "≤"} ${entry.value}`;
+}
+
+/** Return across the trailing 30 days, against the reading 30 days back. */
+function return30d(equity: EquitySeries | null): number | null {
+  const points = equity?.points ?? [];
+  if (points.length === 0) return null;
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const before = [...points].reverse().find((p) => new Date(p.at).getTime() <= cutoff);
+  const base = before ?? points[0];
+  if (!base.equityUsd) return null;
+  return ((points[points.length - 1].equityUsd - base.equityUsd) / base.equityUsd) * 100;
+}
+
+function cadence(sec: number): string {
+  if (sec % 86_400 === 0) return `${sec / 86_400}d`;
+  if (sec % 3600 === 0) return `${sec / 3600}h`;
+  return `${Math.round(sec / 60)} min`;
+}
+
+function money(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+function signedPct(n: number): string {
+  return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(1)}%`;
+}
+
+function age(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days < 1) return "today";
+  return `${days}d`;
+}
+
+function absolute(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function when(iso: string | null): string {
+  if (!iso) return "never";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+  return `${Math.floor(mins / 1440)}d ago`;
+}
+
+function ahead(iso: string): string {
+  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+  if (mins <= 0) return "due now";
+  if (mins < 60) return `in ${mins} min`;
+  return `in ${Math.floor(mins / 60)}h`;
+}
