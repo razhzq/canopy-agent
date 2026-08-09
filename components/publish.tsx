@@ -15,7 +15,8 @@ import {
   WarnIcon,
 } from "@/components/ui";
 import { StepBar } from "@/components/wizard";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonPanel } from "@/components/skeleton";
 import {
   ApiError,
   getStrategy,
@@ -54,7 +55,7 @@ export function PublishScreen() {
       </Frame>
     );
   }
-  if (state.phase === "loading") return <Frame><LoadingState label="Loading record" /></Frame>;
+  if (state.phase === "loading") return <Frame><SkeletonPanel label="Loading record" /></Frame>;
   if (state.phase === "signed-out")
     return <Frame><SignedOutState note="Sign in to see this strategy's paper record." /></Frame>;
   if (state.phase === "error")

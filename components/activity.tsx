@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { getActivity, type ActivityCycle } from "@/lib/api";
 import { narrateCycle, type NarratedLine } from "@/lib/narrate";
 import { useApi } from "@/lib/useApi";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonLog } from "@/components/skeleton";
 import { Badge } from "@/components/ui";
 
 /**
@@ -73,7 +74,7 @@ export function ActivityLog({ agentId }: { agentId: number }) {
     return () => clearInterval(id);
   }, [pollMs]);
 
-  if (state.phase === "loading") return <LoadingState label="Loading activity" />;
+  if (state.phase === "loading") return <SkeletonLog label="Loading activity" />;
   if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 

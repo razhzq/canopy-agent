@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { PublishScreen } from "@/components/publish";
-import { LoadingState } from "@/components/states";
+import { SkeletonPanel } from "@/components/skeleton";
 
 /**
  * `PublishScreen` reads `?strategy=` via useSearchParams, which Next requires
@@ -9,7 +9,7 @@ import { LoadingState } from "@/components/states";
  */
 export default function PublishPage() {
   return (
-    <Suspense fallback={<LoadingState label="Loading record" />}>
+    <Suspense fallback={<SkeletonPanel label="Loading record" />}>
       <PublishScreen />
     </Suspense>
   );

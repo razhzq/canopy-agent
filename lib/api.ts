@@ -443,6 +443,11 @@ export interface AgentRow {
   high_water_mark_usd: string | null;
   next_tick_at: string | null;
   last_tick_at: string | null;
+  /**
+   * When the mandate runs out. No agent runs forever unattended, and a wallet
+   * delegation is scoped to this same clock. Only the detail route returns it.
+   */
+  expires_at?: string;
   /** Deploy time. There is no separate started_at — this is it. */
   created_at: string;
   updated_at?: string;
@@ -508,6 +513,45 @@ export const ackMessage = (token: string, agentId: number, messageId: string) =>
 export const listAgents = (token: string) =>
   request<{ agents: AgentRow[] }>("/agents", token);
 
+/**
+ * What the backend recorded about a delegation, after checking it with Privy.
+ *
+ * `ownerModel` is the field worth reading. It comes back as what Privy says is
+ * TRUE of the wallet, not as what the grant asked for — so if it returns
+ * `app_owned`, the wallet is custodial and the UI must say so rather than
+ * repeat the reassuring copy on the grant screen.
+ */
+export interface RegisteredWallet {
+  address: string;
+  ownerModel: "user_delegated" | "app_owned";
+  policyIds: string[];
+  expiresAt: string;
+}
+
+/**
+ * Records a delegation the user has just granted in the browser.
+ *
+ * Called AFTER `addSigners` resolves. The two steps are separate because they
+ * happen in different places against different authorities — the grant is the
+ * user's own session talking to Privy, and this is Canopy noticing. Nothing
+ * here is trusted: the backend re-reads the wallet from Privy and refuses
+ * anything that does not match.
+ */
+export const registerAgentWallet = (
+  token: string,
+  agentId: number,
+  body: {
+    walletId: string;
+    address: string;
+    maxSpendUsd: number;
+    expiresAt: string;
+  },
+) =>
+  request<RegisteredWallet>(`/agents/${agentId}/wallet`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
 export const deployAgent = (
   token: string,
   body: {
@@ -547,10 +591,28 @@ export interface AgentDetail {
     remainingUsd: number;
     expiresAt: string;
   } | null;
+  /**
+   * Which book the positions above came from — echoed by the server rather
+   * than assumed from what was asked for, so the page can never label a paper
+   * book as live because a `book` value was defaulted or rejected.
+   */
+  book: "paper" | "live";
+  /** True once the agent has gone live, meaning there is a paper run to look back at. */
+  hasPaperHistory: boolean;
 }
 
-export const getAgent = (token: string, agentId: number) =>
-  request<AgentDetail>(`/agents/${agentId}`, token);
+/**
+ * An agent keeps ONE identity across paper and live. It is not two agents:
+ * going live flips the same record, carrying its strategy and decision history
+ * across, and leaving the paper lots behind as a settled book.
+ *
+ * `book` chooses which one to show. Omitted means the agent's current mode.
+ */
+export const getAgent = (token: string, agentId: number, book?: "paper" | "live") =>
+  request<AgentDetail>(
+    `/agents/${agentId}${book ? `?book=${book}` : ""}`,
+    token,
+  );
 
 /**
  * One booked fill. Paper fills are INCLUDED and flagged, not filtered —
@@ -827,6 +889,25 @@ export const pauseAgent = (token: string, agentId: number) =>
 
 export const resumeAgent = (token: string, agentId: number) =>
   request<{ status: string }>(`/agents/${agentId}/resume`, token, { method: "POST" });
+
+/**
+ * Promotes a paper agent to live. One-way.
+ *
+ * The agent keeps its identity, strategy and decision history — everything it
+ * learned on paper comes across. What does NOT come across is its open
+ * positions: those are tokens it never actually bought, so the backend settles
+ * the paper book at real marks first and the live book starts flat.
+ *
+ * Fails with 409 if a paper position cannot be priced, leaving the agent
+ * settling rather than live on top of an unfinished book. Requires a granted
+ * delegation and a published strategy; the database enforces both.
+ */
+export const goLive = (token: string, agentId: number) =>
+  request<{ isPaper: false; address?: string; alreadyLive?: boolean }>(
+    `/agents/${agentId}/live`,
+    token,
+    { method: "POST" },
+  );
 
 /**
  * The kill switch. Halting ticks alone would not be enough — the wallet

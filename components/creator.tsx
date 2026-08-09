@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui";
-import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonRows } from "@/components/skeleton";
 import { getCreatorDashboard, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 
@@ -42,7 +43,7 @@ export function CreatorDashboard() {
     counts: { live: number; verifying: number; delisted: number; superseded: number };
   }>((t) => getCreatorDashboard(t));
 
-  if (state.phase === "loading") return <LoadingState label="Loading your strategies" />;
+  if (state.phase === "loading") return <SkeletonRows label="Loading your strategies" cols="minmax(0,1fr) 150px 110px 110px" />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 

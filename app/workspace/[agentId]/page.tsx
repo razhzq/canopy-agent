@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SkeletonAgentDetail } from "@/components/skeleton";
 import { notFound } from "next/navigation";
 import { WorkspaceShell } from "@/components/workspaceShell";
 
@@ -13,7 +14,7 @@ export default async function WorkspaceAgentPage({
 
   return (
     <main>
-      <Suspense fallback={null}>
+      <Suspense fallback={<SkeletonAgentDetail label="Loading agent" />}>
         <WorkspaceShell agentId={id} />
       </Suspense>
     </main>

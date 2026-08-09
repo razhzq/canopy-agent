@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonThread } from "@/components/skeleton";
 import {
   ackMessage,
   applyProposal,
@@ -96,7 +97,7 @@ export function AgentThread({
     }
   }
 
-  if (state.phase === "loading") return <LoadingState label="Loading the thread" />;
+  if (state.phase === "loading") return <SkeletonThread />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={state.reload} />;

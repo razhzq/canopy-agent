@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EquityCurve } from "@/components/charts";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { Badge, Breadcrumb } from "@/components/ui";
 import {
   getStrategy,
@@ -66,7 +67,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     </div>
   );
 
-  if (meta.phase === "loading") return <>{crumbs()}<LoadingState label="Loading strategy" /></>;
+  if (meta.phase === "loading") return <>{crumbs()}<SkeletonAgentDetail label="Loading strategy" /></>;
   if (meta.phase === "signed-out") return <>{crumbs()}<SignedOutState /></>;
   if (meta.phase === "error")
     return <>{crumbs()}<ErrorState message={meta.message} onRetry={meta.reload} /></>;
@@ -187,7 +188,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
         </div>
 
         {record.phase === "loading" ? (
-          <LoadingState label="Loading record" />
+          <SkeletonPanel label="Loading record" />
         ) : record.phase === "error" ? (
           <ErrorState message={record.message} onRetry={record.reload} />
         ) : windowed.length < 2 ? (
@@ -256,7 +257,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           </h2>
 
           {record.phase === "loading" ? (
-            <LoadingState label="Loading record" />
+            <SkeletonPanel label="Loading record" />
           ) : record.phase === "error" ? (
             <ErrorState message={record.message} onRetry={record.reload} />
           ) : daily === null ? (

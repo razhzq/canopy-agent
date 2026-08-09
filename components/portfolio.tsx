@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Breadcrumb } from "@/components/ui";
-import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonLog, SkeletonRows } from "@/components/skeleton";
 import { getCycle, listCycles, type CycleRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
@@ -48,7 +49,7 @@ const OUTCOME_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> 
 export function CycleList({ agentId }: { agentId: number }) {
   const state = useApi<{ cycles: CycleRow[] }>((t) => listCycles(t, agentId), [agentId]);
 
-  if (state.phase === "loading") return <LoadingState label="Loading cycles" />;
+  if (state.phase === "loading") return <SkeletonRows label="Loading cycles" cols="70px minmax(0,1fr) 120px 100px 90px" />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 
@@ -133,7 +134,7 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
     return (
       <>
         {crumbs()}
-        <LoadingState label="Loading the trace" />
+        <SkeletonLog label="Loading the trace" rows={6} />
       </>
     );
   if (state.phase === "signed-out")

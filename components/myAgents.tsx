@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonRows } from "@/components/skeleton";
 import {
   getAgent,
   getEquity,
@@ -102,7 +103,16 @@ export function MyAgents() {
     void load();
   }, [load]);
 
-  if (state.phase === "loading") return <LoadingState label="Loading your agents" />;
+  // Band plus rows, because that is what lands: the five summary cells are
+  // computed from the same fetch as the list.
+  if (state.phase === "loading")
+    return (
+      <SkeletonRows
+        label="Loading your agents"
+        band={5}
+        cols="minmax(0,1.6fr) 140px 110px 110px 100px 110px minmax(0,240px)"
+      />
+    );
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;

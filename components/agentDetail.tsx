@@ -7,8 +7,11 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
+import { GrantDelegation } from "@/components/grantDelegation";
+import { LIVE_TRADING_ENABLED } from "@/lib/privy";
 import { EquityView } from "@/components/equity";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonAgentDetail } from "@/components/skeleton";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -22,13 +25,12 @@ import {
   getEquity,
   getStrategy,
   getUniverse,
-  listAgents,
   num,
   pauseAgent,
   resumeAgent,
   deleteAgent,
+  goLive,
   type AgentDetail as AgentDetailPayload,
-  type AgentRow,
   type DetectionRule,
   type EquitySeries,
   type StrategyRow,
@@ -76,6 +78,13 @@ import {
 export function AgentDetailView({ agentId }: { agentId: number }) {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const [adding, setAdding] = useState(false);
+  /**
+   * Which book to show. Null means "whichever the agent is in now", which is
+   * what a fresh page load should open on — a live agent's page opening on its
+   * paper history would be showing simulated numbers where real ones belong.
+   * Set only when the reader deliberately switches.
+   */
+  const [book, setBook] = useState<"paper" | "live" | null>(null);
   const [state, setState] = useState<
     | { phase: "loading" }
     | { phase: "signed-out" }
@@ -86,8 +95,6 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         strategy: StrategyRow | null;
         equity: EquitySeries | null;
         assets: UniverseAsset[];
-        /** Every agent you own. Used to find this one's paper/live counterpart. */
-        siblings: AgentRow[];
       }
   >({ phase: "loading" });
 
@@ -105,12 +112,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       }
       // The agent first: everything else keys off its strategy_id, and it is
       // the one request whose failure means there is no page.
-      const detail = await getAgent(token, agentId);
-      const [strategy, equity, universe, agents] = await Promise.allSettled([
+      const detail = await getAgent(token, agentId, book ?? undefined);
+      const [strategy, equity, universe] = await Promise.allSettled([
         getStrategy(token, detail.agent.strategy_id),
         getEquity(token, agentId),
         getUniverse(token, detail.agent.strategy_class),
-        listAgents(token),
       ]);
       setState({
         phase: "ready",
@@ -118,42 +124,23 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         strategy: strategy.status === "fulfilled" ? strategy.value.strategy : null,
         equity: equity.status === "fulfilled" ? equity.value : null,
         assets: universe.status === "fulfilled" ? universe.value.assets : [],
-        siblings: agents.status === "fulfilled" ? agents.value.agents : [],
       });
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
     }
-  }, [ready, authenticated, getAccessToken, agentId]);
+  }, [ready, authenticated, getAccessToken, agentId, book]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (state.phase === "loading") return <LoadingState label="Loading agent" />;
+  if (state.phase === "loading") return <SkeletonAgentDetail />;
   if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;
 
-  const { detail, strategy, equity, assets, siblings } = state;
+  const { detail, strategy, equity, assets } = state;
   const { agent, positions, wallet, lastRun } = detail;
-
-  /**
-   * The paper/live counterpart.
-   *
-   * `is_paper` is written when the agent is created and never changes — an
-   * agent IS one book or the other, it does not have two views. But a strategy
-   * normally ends up with both: the paper run that qualified it for publishing,
-   * and the funded agent deployed afterwards. They share a strategy_id, so the
-   * switch is a real navigation between two records rather than a filter.
-   *
-   * Matched on strategy_id alone, which means a FORKED lineage does not link up:
-   * a fork is a different strategy, so its paper run is not this strategy's
-   * counterpart and pretending otherwise would put someone else's numbers behind
-   * the pill.
-   */
-  const kin = siblings.filter((a) => a.strategy_id === agent.strategy_id);
-  const paperAgent = kin.find((a) => a.is_paper) ?? null;
-  const liveAgent = kin.find((a) => !a.is_paper) ?? null;
 
   // The strategy's universe, resolved against live marks. A selection whose
   // asset is missing from the resolved universe still renders — it is a market
@@ -221,17 +208,20 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <WalletTag address={wallet?.address ?? null} isPaper={agent.is_paper} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-4">
-          <BookSwitch current={agentId} paper={paperAgent} live={liveAgent} />
-        </div>
-
-        {/* Why the other half of the switch is unavailable, said once, here,
-            rather than as a tooltip nobody opens. */}
-        {!agent.is_paper && !paperAgent ? (
-          <p className="pt-2 font-ui text-[12px] text-text-dim">
-            No paper record under this strategy — it was deployed without one, or its paper run
-            belonged to a strategy this one was forked from.
-          </p>
+        {/* Only once the agent has both books. A paper agent has no live book
+            to switch to, and the promotion below is the thing to look at. */}
+        {detail.hasPaperHistory ? (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-4">
+            <BookSwitch
+              book={detail.book}
+              onChange={setBook}
+            />
+            {detail.book === "paper" ? (
+              <p className="font-ui text-[12px] text-text-dim">
+                The settled paper run. This agent trades live now.
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {agent.paused_reason ? (
@@ -600,6 +590,15 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         </aside>
       </div>
 
+      {agent.is_paper ? (
+        <GoLive
+          agent={agent}
+          wallet={wallet}
+          openPositions={positions.length}
+          onChanged={() => void load()}
+        />
+      ) : null}
+
       <Controls agent={agent} positions={positions} onChanged={() => void load()} />
 
       {adding ? (
@@ -616,6 +615,165 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
 }
 
 /* -------------------------------------------------------------- controls -- */
+
+/**
+ * Paper → live, on the agent that has been running on paper.
+ *
+ * Two steps, and they are separate on purpose. Granting the delegation happens
+ * in the user's own wallet and gives Canopy permission to sign; promoting the
+ * agent is a second, deliberate act afterwards. Collapsing them into one
+ * button would mean a single click both hands over signing authority and puts
+ * real money behind a strategy — two decisions that deserve to be made
+ * separately.
+ *
+ * WHAT CARRIES OVER IS SAID PLAINLY, because it is the part people get wrong.
+ * The agent keeps its rules, its history and everything it learned. Its open
+ * paper positions do not come with it: they are holdings it never actually
+ * bought, so the backend settles them at real marks first and the live book
+ * starts flat.
+ */
+function GoLive({
+  agent,
+  wallet,
+  openPositions,
+  onChanged,
+}: {
+  agent: AgentDetailPayload["agent"];
+  wallet: AgentDetailPayload["wallet"];
+  openPositions: number;
+  onChanged: () => void;
+}) {
+  const { getAccessToken } = usePrivy();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  const delegated = wallet?.status === "active";
+
+  async function promote() {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("not signed in");
+      await goLive(token, agent.id);
+      setConfirming(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Closed for everyone right now. Stated as a product fact rather than shown
+  // as a broken button: nothing here is misconfigured, real-money trading is
+  // simply not open yet, and the agent is fine as it is.
+  if (!LIVE_TRADING_ENABLED) {
+    return (
+      <section className="border-t border-grid px-8 py-6">
+        <p className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase">
+          Go live
+        </p>
+        <p className="max-w-[760px] pt-3 font-ui text-[13px] leading-relaxed text-text-secondary">
+          Real-money trading isn&apos;t open yet. This agent keeps running on paper, and
+          everything it learns counts — when live opens, it carries across with its
+          record intact.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border-t border-grid px-8 py-6">
+      <p className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase">
+        Go live
+      </p>
+
+      {!delegated ? (
+        <>
+          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
+            This agent trades on paper. To trade real capital it needs your permission to
+            sign — granted from your own wallet, scoped to swaps, and revocable by you at
+            any time without asking Canopy.
+          </p>
+          <GrantDelegation
+            agentId={agent.id}
+            maxSpendUsd={Number(agent.capital_usd) || 0}
+            // Matches the mandate's own clock: an agent that has stopped
+            // running should not still hold signing authority. Falls back to
+            // 30 days only if the field is missing from an older build —
+            // never to something open-ended, because an unbounded delegation
+            // is the one shape this system does not allow.
+            expiresAt={
+              agent.expires_at
+                ? new Date(agent.expires_at)
+                : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            }
+            onGranted={onChanged}
+          />
+        </>
+      ) : !confirming ? (
+        <>
+          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
+            Delegation granted. Promoting keeps this agent&apos;s rules, history and
+            everything it learned on paper
+            {openPositions > 0 ? (
+              <>
+                {" "}
+                — but its {openPositions} open paper position
+                {openPositions === 1 ? "" : "s"} will be settled first, so the live book
+                starts flat.
+              </>
+            ) : (
+              "."
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black"
+          >
+            Go live
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-warning">
+            From the next tick this agent trades real money, up to{" "}
+            {money(Number(agent.capital_usd) || 0)}. You can pause it at any time, and
+            the paper book stays readable. This cannot be undone — an agent does not go
+            back to paper.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void promote()}
+              disabled={busy}
+              className="border border-warning px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-warning uppercase transition-colors hover:bg-warning hover:text-black disabled:opacity-40"
+            >
+              {busy ? "Settling…" : "Yes, trade real money"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={busy}
+              className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase hover:text-text-primary disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+
+      {error ? (
+        <p className="pt-4 font-ui text-[13px] text-negative" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
 
 function Controls({
   agent,
@@ -783,25 +941,27 @@ function StatusChip({ status }: { status: string }) {
 }
 
 /**
- * Paper / Live — a segmented control over two REAL agents.
+ * Paper / Live — two books belonging to ONE agent.
  *
- * Not a display filter. Each half is a different agent id with its own equity
- * curve, positions, wallet and activity, so switching navigates and the page
- * reloads against that record. Drawing it as a toggle would imply the same
- * agent rendered two ways, which would make the numbers look like they changed
- * under you.
+ * This used to switch between two separate agent records. It no longer does,
+ * because an agent no longer works that way: going live flips the same record,
+ * carrying its strategy and everything it learned across, and leaving the paper
+ * lots behind as a settled book. There is one id, one activity log, one set of
+ * rules — and two books, told apart by `is_paper` on each position and fill.
  *
- * A half with no agent behind it is disabled rather than hidden: knowing there
- * is no live deployment yet is the point of looking.
+ * So this IS a display filter now, and switching refetches the same agent for
+ * the other book rather than navigating anywhere.
+ *
+ * It only appears once there is something to switch to. A paper agent has no
+ * live book yet, and offering a half that can only ever be empty invites the
+ * reading that live is broken rather than not-yet.
  */
 function BookSwitch({
-  current,
-  paper,
-  live,
+  book,
+  onChange,
 }: {
-  current: number;
-  paper: AgentRow | null;
-  live: AgentRow | null;
+  book: "paper" | "live";
+  onChange: (book: "paper" | "live") => void;
 }) {
   return (
     <div
@@ -809,36 +969,26 @@ function BookSwitch({
       aria-label="Paper or live book"
       className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
     >
-      <Half label="Paper" agent={paper} current={current} />
-      <Half label="Live" agent={live} current={current} />
+      {(["paper", "live"] as const).map((b) => (
+        <Half key={b} book={b} current={book} onChange={onChange} />
+      ))}
     </div>
   );
 }
 
 function Half({
-  label,
-  agent,
+  book,
   current,
+  onChange,
 }: {
-  label: string;
-  agent: AgentRow | null;
-  current: number;
+  book: "paper" | "live";
+  current: "paper" | "live";
+  onChange: (book: "paper" | "live") => void;
 }) {
-  const active = agent?.id === current;
+  const active = book === current;
+  const label = book === "paper" ? "Paper" : "Live";
   const base =
     "flex h-8 items-center gap-2 rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors";
-
-  if (!agent) {
-    return (
-      <span
-        aria-disabled
-        title={`No ${label.toLowerCase()} agent on this strategy`}
-        className={`${base} cursor-not-allowed text-text-muted`}
-      >
-        {label}
-      </span>
-    );
-  }
 
   if (active) {
     return (
@@ -850,13 +1000,13 @@ function Half({
   }
 
   return (
-    <Link href={`/workspace/${agent.id}`} className={`${base} text-text-dim hover:text-text-primary`}>
+    <button
+      type="button"
+      onClick={() => onChange(book)}
+      className={`${base} text-text-dim hover:text-text-primary`}
+    >
       {label}
-      {/* Which of the two is actually ticking, without opening it. */}
-      <span className="font-mono text-[9px] tracking-[0.12em] uppercase">
-        {agent.status === "active" ? "running" : agent.status}
-      </span>
-    </Link>
+    </button>
   );
 }
 

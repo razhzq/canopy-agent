@@ -10,7 +10,8 @@ import {
   type UniverseAsset,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonRows } from "@/components/skeleton";
 import { Badge } from "@/components/ui";
 
 /**
@@ -305,7 +306,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
   }, [firstId, agentId]);
 
   if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "loading") return <LoadingState label="Loading trades" />;
+  if (state.phase === "loading") return <SkeletonRows label="Loading trades" cols="1.4fr 1fr 1fr 1fr 1fr auto" rows={5} />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 
   const fills = [...state.data.fills, ...extra];

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EquityCurve } from "@/components/charts";
-import { EmptyState, ErrorState, LoadingState, SignedOutState } from "@/components/states";
+import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
+import { SkeletonCards } from "@/components/skeleton";
 import { Badge } from "@/components/ui";
 import { listStrategies, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -174,7 +175,7 @@ export function Marketplace() {
 
       <section className="px-8 py-7">
         {state.phase === "loading" ? (
-          <LoadingState label="Loading marketplace" />
+          <SkeletonCards label="Loading marketplace" />
         ) : state.phase === "signed-out" ? (
           <SignedOutState />
         ) : state.phase === "error" ? (

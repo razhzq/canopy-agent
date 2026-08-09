@@ -4,12 +4,21 @@ import { usePrivy } from "@privy-io/react-auth";
 import { InfoIcon, WarnIcon } from "./ui";
 
 /**
- * The four states a live screen can be in.
+ * The states a live screen can be in, minus loading.
  *
  * They are written in the same visual language as the rest of the product
  * rather than as generic spinners and red boxes, because a user meets these
  * states as often as the populated one — a new account sees the empty state
  * before it ever sees data.
+ *
+ * LOADING LIVES IN skeleton.tsx AND NOT HERE.
+ *
+ * There used to be a `LoadingState` beside these: a centred label over a
+ * pulsing rule, in a bordered frame the size of nothing in particular. It has
+ * been removed rather than left unused, because an idle export is an
+ * invitation — the next screen would reach for it, and the page would go back
+ * to collapsing to a small box and then jumping to full height when data
+ * arrived. Use the skeleton that matches the surface instead.
  */
 
 function Frame({ children }: { children: React.ReactNode }) {
@@ -17,18 +26,6 @@ function Frame({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-[280px] items-center justify-center border border-grid px-8 py-16">
       <div className="max-w-[420px] space-y-4 text-center">{children}</div>
     </div>
-  );
-}
-
-export function LoadingState({ label = "Loading" }: { label?: string }) {
-  return (
-    <Frame>
-      <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-        {label}
-      </p>
-      {/* A determinate-looking bar would imply progress we cannot measure. */}
-      <div className="mx-auto h-px w-24 animate-pulse bg-grid-strong" />
-    </Frame>
   );
 }
 
