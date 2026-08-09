@@ -172,6 +172,28 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
 
   if (d.role === "risk") {
     const flags = Array.isArray(o.hardFlags) ? o.hardFlags : [];
+
+    // A HardFlag is `{ code, detail, raisedBy }`, not a string.
+    //
+    // Joining the array directly produced "Risk gate rejected it —
+    // [object Object].", which is the worst possible version of this line: the
+    // user learns their agent refused to buy something and is told nothing
+    // about why, on a screen whose entire purpose is explaining that.
+    //
+    // `detail` is the field written for exactly this — the contract calls it
+    // "human-readable, and it ends up in front of the user". `code` is the
+    // fallback because it is still specific ("liquidity_floor" beats nothing),
+    // and a plain string is tolerated because rows written before the flag
+    // became an object are still in the record and must not render as blanks.
+    const flagText = flags
+      .map((f) => {
+        if (typeof f === "string") return f;
+        if (!f || typeof f !== "object") return "";
+        const { detail, code } = f as { detail?: unknown; code?: unknown };
+        return str(detail) || str(code);
+      })
+      .filter(Boolean)
+      .join(", ");
     if (o.exit === true) {
       // An exit passes the gate as a witness, never as a gatekeeper — a stop
       // a compliance flag could veto is not a stop.
@@ -187,7 +209,7 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
       symbol: str(o.symbol),
       detail:
         o.decision === "reject"
-          ? `Risk gate rejected it${flags.length > 0 ? ` — ${flags.join(", ")}` : ""}.`
+          ? `Risk gate rejected it${flagText ? ` — ${flagText}` : ""}.`
           : `Risk gate approved ${money(o.approvedSizeUsd)}` +
             (o.stopLossPct ? `, stop at ${num(o.stopLossPct)}%` : "") +
             ".",
