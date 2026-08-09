@@ -479,6 +479,92 @@ export const getMessages = (token: string, agentId: number, limit = 100) =>
     token,
   );
 
+/** What the agent is doing right now. Real pipeline boundaries, not a timer. */
+export type TurnStage = "reading" | "drafting" | "searching";
+
+/**
+ * Sends a message and reports progress as the turn runs.
+ *
+ * One message costs two to five sequential model calls, so the wait is long
+ * enough that silence reads as breakage. This streams the stage boundaries as
+ * they happen and yields the finished messages at the end.
+ *
+ * `fetch` with a reader rather than `EventSource`, for two reasons that both
+ * rule EventSource out: it cannot POST, and it cannot send an Authorization
+ * header. Every route on this surface requires a bearer token.
+ */
+export async function sendMessageStreaming(
+  token: string,
+  agentId: number,
+  body: string,
+  onStage: (stage: TurnStage) => void,
+  /** Called with each chunk of the answer as the model produces it. */
+  onDelta?: (text: string) => void,
+): Promise<AgentMessage[]> {
+  const res = await fetch(`${BASE}/api/agents/${agentId}/messages?stream=1`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ body }),
+    cache: "no-store",
+  });
+
+  if (!res.ok || !res.body) {
+    let message = res.statusText;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j.error) message = j.error;
+    } catch {
+      /* non-JSON body; the status text will do */
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let messages: AgentMessage[] = [];
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Frames are separated by a blank line. The LAST fragment is kept back
+    // rather than parsed: a frame split across two network reads would
+    // otherwise be dropped as malformed JSON, silently losing the messages
+    // event and leaving the thread looking like nothing happened.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      let event: {
+        type?: string;
+        stage?: TurnStage;
+        text?: string;
+        messages?: AgentMessage[];
+        message?: string;
+      };
+      try {
+        event = JSON.parse(line.slice(6));
+      } catch {
+        continue;
+      }
+      if (event.type === "stage" && event.stage) onStage(event.stage);
+      else if (event.type === "delta" && typeof event.text === "string") onDelta?.(event.text);
+      else if (event.type === "messages" && event.messages) messages = event.messages;
+      else if (event.type === "error") throw new Error(event.message ?? "The agent stopped early.");
+    }
+  }
+
+  return messages;
+}
+
 export const sendMessage = (token: string, agentId: number, body: string) =>
   request<{ messages: AgentMessage[] }>(`/agents/${agentId}/messages`, token, {
     method: "POST",

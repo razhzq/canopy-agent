@@ -10,8 +10,9 @@ import {
   ackMessage,
   applyProposal,
   getMessages,
-  sendMessage,
+  sendMessageStreaming,
   type AgentMessage,
+  type TurnStage,
   type AgentRow,
   type ProposedChange,
 } from "@/lib/api";
@@ -48,6 +49,14 @@ export function AgentThread({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Which pipeline stage the turn is at, or null when nothing is in flight. */
+  const [stage, setStage] = useState<TurnStage | null>(null);
+  /** The user's message, shown before the server has echoed it back. */
+  const [echo, setEcho] = useState<string | null>(null);
+  /** Id of the reply currently being typed out. */
+  const [typing, setTyping] = useState<string | null>(null);
+  /** The answer as it arrives, token by token. Null when nothing is streaming. */
+  const [live, setLive] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
   const router = useRouter();
   const foot = useRef<HTMLDivElement>(null);
@@ -55,10 +64,12 @@ export function AgentThread({
   const state = useApi((t) => getMessages(t, agentId), [agentId, nonce]);
   const messages = state.phase === "ready" ? state.data.messages : [];
 
-  // Stick to the newest turn, the way a conversation behaves.
+  // Stick to the newest turn, the way a conversation behaves. `live` is in the
+  // deps because a streaming answer grows the page without adding a message —
+  // without it the text would type itself out below the fold.
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, live]);
 
   // Poll while something is pending: an approval that expires unseen is the
   // failure this whole surface exists to prevent.
@@ -73,16 +84,38 @@ export function AgentThread({
     if (!body || sending) return;
     setSending(true);
     setError(null);
+    setStage("reading");
+    // Shown immediately, in its final position. Waiting for the round trip to
+    // echo it back is what made sending feel like nothing had happened — the
+    // box emptied and the thread sat unchanged for several seconds.
+    setEcho(body);
+    setDraft("");
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Sign in again.");
-      await sendMessage(token, agentId, body);
-      setDraft("");
+      let streamed = false;
+      const fresh = await sendMessageStreaming(token, agentId, body, setStage, (text) => {
+        streamed = true;
+        setLive((prev) => (prev ?? "") + text);
+      });
+      // A question streams its answer, so by now the user has read most of it —
+      // replaying it as an animation would make them watch it a second time.
+      // A proposal has no prose to stream (it is a structured diff), so that
+      // one still gets the typed reveal.
+      const reply = fresh.find((m) => m.role === "agent");
+      if (reply && !streamed) setTyping(reply.id);
       setNonce((n) => n + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // The message was accepted server-side before anything could fail here,
+      // so a refetch is what shows the user their own words back rather than
+      // losing them.
+      setNonce((n) => n + 1);
     } finally {
       setSending(false);
+      setStage(null);
+      setEcho(null);
+      setLive(null);
     }
   }
 
@@ -113,8 +146,36 @@ export function AgentThread({
             onAck={() => void ack(m.id)}
             onApplied={(newAgentId) => router.push(`/workspace/${newAgentId}?tab=chat`)}
             agentId={agentId}
+            typing={typing === m.id}
+            onTyped={() => setTyping(null)}
           />
         ))}
+
+        {/* The user's own words, before the server has echoed them. Suppressed
+            once the refetch lands so the message does not appear twice. */}
+        {echo && !messages.some((m) => m.role === "user" && m.body === echo) ? (
+          <div className="flex justify-end">
+            <div className="max-w-[76%] border border-grid bg-panel px-5 py-3 opacity-60">
+              <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-primary">
+                {echo}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {/* The answer as it is written. Replaced by the persisted message once
+            the turn completes — same text, so the swap is invisible. */}
+        {live ? (
+          <Row role="agent">
+            <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
+              {live}
+              <span className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse bg-accent motion-reduce:animate-none" />
+            </p>
+          </Row>
+        ) : null}
+
+        {/* Stages stop once prose starts: the answer arriving IS the progress. */}
+        {stage && !live ? <Thinking stage={stage} /> : null}
         <div ref={foot} />
       </div>
 
@@ -161,6 +222,115 @@ export function AgentThread({
   );
 }
 
+/* ------------------------------------------------------------ in flight -- */
+
+/**
+ * What the agent is doing, while it does it.
+ *
+ * The stages are REAL — they arrive from the server as the pipeline crosses
+ * them, because one message costs two to five sequential model calls and the
+ * wait is long enough that silence reads as breakage. A timed animation would
+ * have looked identical on a good day and lied on a bad one, saying "drafting"
+ * about a request that had already failed.
+ *
+ * Each stage is also a genuinely different thing to wait for, which is why
+ * they are worth naming rather than showing one spinner: "checking your
+ * record" and "drafting changes" set different expectations about what is
+ * about to appear.
+ */
+const STAGE_LABEL: Record<TurnStage, string> = {
+  reading: "Reading your message",
+  drafting: "Drafting the changes",
+  searching: "Checking its record",
+};
+
+function Thinking({ stage }: { stage: TurnStage }) {
+  // The stages are strictly ordered, so earlier ones are shown as settled
+  // rather than replaced. Watching items tick off is the difference between
+  // "it is working" and "it is still working".
+  const order: TurnStage[] = ["reading", stage === "searching" ? "searching" : "drafting"];
+  const reached = order.indexOf(stage);
+
+  return (
+    <Row role="agent">
+      <ul className="space-y-1.5" role="status" aria-live="polite">
+        {order.map((s, i) => {
+          const done = i < reached;
+          const now = i === reached;
+          if (!done && !now) return null;
+          return (
+            <li key={s} className="flex items-center gap-2.5">
+              <span
+                className={`size-1.5 rounded-full ${
+                  done ? "bg-accent" : "animate-pulse bg-text-dim motion-reduce:animate-none"
+                }`}
+              />
+              <span
+                className={`font-mono text-[11px] tracking-[0.06em] ${
+                  done ? "text-text-dim" : "text-text-secondary"
+                }`}
+              >
+                {STAGE_LABEL[s]}
+                {now ? "…" : ""}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Row>
+  );
+}
+
+/**
+ * Reveals text a few characters at a time.
+ *
+ * Presentation, and labelled as such: the reply is already complete by the
+ * time this runs. The backend answers questions as one structured call whose
+ * citations are verified against the record BEFORE anything is shown, so
+ * streaming the raw tokens would mean displaying claims that had not been
+ * checked yet. Typing out the verified answer keeps that guarantee and still
+ * avoids a wall of text landing at once, which after a long wait reads as a
+ * page reload rather than an answer.
+ *
+ * Chunked rather than one character per frame: a 400-character answer would
+ * otherwise take seven seconds to read out, which is slower than reading it.
+ */
+function Typed({ text, onDone }: { text: string; onDone?: () => void }) {
+  const [shown, setShown] = useState(0);
+  const done = useRef(onDone);
+  done.current = onDone;
+
+  useEffect(() => {
+    setShown(0);
+    // Anyone who prefers reduced motion gets the whole thing immediately —
+    // this is decoration, and decoration should never withhold content.
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setShown(text.length);
+      done.current?.();
+      return;
+    }
+
+    const step = Math.max(2, Math.ceil(text.length / 90));
+    const id = setInterval(() => {
+      setShown((n) => {
+        const next = n + step;
+        if (next >= text.length) {
+          clearInterval(id);
+          done.current?.();
+          return text.length;
+        }
+        return next;
+      });
+    }, 16);
+    return () => clearInterval(id);
+  }, [text]);
+
+  return <>{text.slice(0, shown)}</>;
+}
+
 /* -------------------------------------------------------------------- turns -- */
 
 /** The standing brief. Always first, so an empty thread is not a blank page. */
@@ -192,11 +362,16 @@ function Turn({
   onAck,
   onApplied,
   agentId,
+  typing = false,
+  onTyped,
 }: {
   message: AgentMessage;
   onAck: () => void;
   onApplied: (newAgentId: number) => void;
   agentId: number;
+  /** Reveal this reply a character at a time rather than all at once. */
+  typing?: boolean;
+  onTyped?: () => void;
 }) {
   const open = m.requires_action && !m.acted_at;
   const changes = proposedChanges(m);
@@ -216,7 +391,7 @@ function Turn({
   return (
     <Row role="agent" tone={open ? "accent" : undefined}>
       <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
-        {m.body}
+        {typing ? <Typed text={m.body} onDone={onTyped} /> : m.body}
       </p>
 
       {/* The diff. Rendered as before → after so what is actually changing is
