@@ -622,3 +622,330 @@ function Slider({
 
 /** Platform default when no template has been picked. */
 export const DEFAULT_EXITS: ExitRules = { takeProfitPct: 25, stopLossPct: 12, maxHoldDays: 0 };
+
+/* ------------------------------------------------------------ accumulation -- */
+
+/**
+ * Buying more of something the agent already holds.
+ *
+ * OFF BY DEFAULT, AND THE DEFAULT IS THE PRODUCT DECISION.
+ *
+ * Every strategy that exists buys once per asset. Accumulation is a different
+ * shape of strategy, not a setting to nudge, so the card starts collapsed with
+ * one switch — and turning it on says plainly what it changes about the exits
+ * above, because that is the part nobody expects.
+ */
+export type AddTrigger =
+  | { kind: "schedule"; everySec: number }
+  | { kind: "drawdown"; pct: number }
+  | { kind: "gain"; pct: number };
+
+export type AddSizing =
+  | { kind: "fixedUsd"; usd: number }
+  | { kind: "pctOfCapital"; pct: number }
+  | { kind: "ladder"; baseUsd: number; factor: number };
+
+export interface AddPlanShape {
+  mode: "all" | "any";
+  triggers: AddTrigger[];
+  sizing: AddSizing;
+  maxAdds?: number;
+  maxTotalUsd?: number;
+  minSpacingSec?: number;
+}
+
+const SPACINGS: { sec: number; label: string }[] = [
+  { sec: 3600, label: "1 hour" },
+  { sec: 86_400, label: "1 day" },
+  { sec: 604_800, label: "1 week" },
+  { sec: 2_592_000, label: "1 month" },
+];
+
+/** A starting plan that is coherent on its own — weekly, fixed, bounded. */
+const DEFAULT_ADD_PLAN: AddPlanShape = {
+  mode: "all",
+  triggers: [{ kind: "schedule", everySec: 604_800 }],
+  sizing: { kind: "fixedUsd", usd: 100 },
+  maxAdds: 10,
+  minSpacingSec: 86_400,
+};
+
+/**
+ * The same coherence checks the backend runs, so the author sees them while
+ * editing rather than after submitting.
+ *
+ * Deliberately duplicated rather than fetched: a warning that needs a round
+ * trip does not appear while someone is dragging a slider, which is exactly
+ * when it is useful. The backend remains the authority and warns again on
+ * create — this copy existing does not make that one optional.
+ */
+export function localAddPlanWarnings(
+  plan: AddPlanShape | undefined,
+  exits: ExitRules,
+): string[] {
+  if (!plan) return [];
+  const out: string[] = [];
+  const stop = Math.abs(exits.stopLossPct);
+  const target = Math.abs(exits.takeProfitPct);
+
+  for (const t of plan.triggers) {
+    if (t.kind === "drawdown" && t.pct >= stop) {
+      out.push(
+        `Adding at −${t.pct}% will rarely fire: the ${stop}% stop closes the position first.`,
+      );
+    } else if (t.kind === "drawdown" && stop - t.pct <= 3) {
+      out.push(
+        `Adding at −${t.pct}% leaves only ${(stop - t.pct).toFixed(0)} points before the ${stop}% stop — expect to buy, then be stopped out of the bigger position.`,
+      );
+    }
+    if (t.kind === "gain" && t.pct >= target) {
+      out.push(`Adding at +${t.pct}% will rarely fire: the ${target}% target sells first.`);
+    }
+  }
+
+  const first =
+    plan.sizing.kind === "fixedUsd"
+      ? plan.sizing.usd
+      : plan.sizing.kind === "ladder"
+        ? plan.sizing.baseUsd
+        : null;
+  if (plan.maxTotalUsd !== undefined && first !== null && plan.maxTotalUsd < first) {
+    out.push(
+      `A $${plan.maxTotalUsd} ceiling is smaller than the $${first} first add, so this plan can never buy.`,
+    );
+  }
+  if (plan.sizing.kind === "ladder" && plan.sizing.factor > 1 && plan.maxAdds === undefined) {
+    out.push("A doubling ladder with no limit on adds compounds fast. Set a maximum.");
+  }
+  return out;
+}
+
+export function AddPlanCard({
+  plan,
+  exits,
+  onChange,
+}: {
+  plan?: AddPlanShape;
+  exits: ExitRules;
+  onChange: (next: AddPlanShape | undefined) => void;
+}) {
+  const on = !!plan;
+  const warnings = localAddPlanWarnings(plan, exits);
+
+  const setTrigger = (t: AddTrigger) =>
+    onChange(plan ? { ...plan, triggers: [t] } : { ...DEFAULT_ADD_PLAN, triggers: [t] });
+  const setSizing = (sizing: AddSizing) => plan && onChange({ ...plan, sizing });
+
+  const trigger = plan?.triggers[0];
+
+  return (
+    <section>
+      <StepHead
+        index="04"
+        title="Accumulation"
+        note="Buying more of what it already holds. Off by default."
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange(on ? undefined : DEFAULT_ADD_PLAN)}
+        aria-pressed={on}
+        className={`h-8 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+          on ? "border-accent text-accent" : "border-grid text-text-muted hover:text-text-secondary"
+        }`}
+      >
+        {on ? "Accumulating" : "One entry per asset"}
+      </button>
+
+      {!on ? (
+        <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+          The agent buys once and then manages that position. Turn this on to average in — on a
+          schedule, on dips, or on strength.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-5">
+          <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-warning">
+            Your take profit and stop loss now measure the BLEND of everything you have bought,
+            not each entry separately. A position averaged down three times exits as one.
+          </p>
+
+          <div>
+            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+              When to add
+            </p>
+            <PillRow>
+              <Pill
+                active={trigger?.kind === "schedule"}
+                onClick={() => setTrigger({ kind: "schedule", everySec: 604_800 })}
+              >
+                On a schedule
+              </Pill>
+              <Pill
+                active={trigger?.kind === "drawdown"}
+                onClick={() => setTrigger({ kind: "drawdown", pct: 5 })}
+              >
+                When it falls
+              </Pill>
+              <Pill
+                active={trigger?.kind === "gain"}
+                onClick={() => setTrigger({ kind: "gain", pct: 5 })}
+              >
+                When it rises
+              </Pill>
+            </PillRow>
+
+            {trigger?.kind === "schedule" ? (
+              <PillRow>
+                {SPACINGS.map((sp) => (
+                  <Pill
+                    key={sp.sec}
+                    active={trigger.everySec === sp.sec}
+                    onClick={() => setTrigger({ kind: "schedule", everySec: sp.sec })}
+                  >
+                    Every {sp.label}
+                  </Pill>
+                ))}
+              </PillRow>
+            ) : trigger ? (
+              <Slider
+                label={trigger.kind === "drawdown" ? "Falls by" : "Rises by"}
+                help={
+                  trigger.kind === "drawdown"
+                    ? "Measured from your average cost, not from the last entry."
+                    : "Adding to a winner. Measured from your average cost."
+                }
+                value={trigger.pct}
+                min={1}
+                max={90}
+                step={1}
+                display={`${trigger.kind === "drawdown" ? "−" : "+"}${trigger.pct}%`}
+                onChange={(v) => setTrigger({ ...trigger, pct: v })}
+              />
+            ) : null}
+          </div>
+
+          <div>
+            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+              How much
+            </p>
+            <PillRow>
+              <Pill
+                active={plan!.sizing.kind === "fixedUsd"}
+                onClick={() => setSizing({ kind: "fixedUsd", usd: 100 })}
+              >
+                Fixed amount
+              </Pill>
+              <Pill
+                active={plan!.sizing.kind === "pctOfCapital"}
+                onClick={() => setSizing({ kind: "pctOfCapital", pct: 5 })}
+              >
+                Share of capital
+              </Pill>
+              <Pill
+                active={plan!.sizing.kind === "ladder"}
+                onClick={() => setSizing({ kind: "ladder", baseUsd: 100, factor: 1.5 })}
+              >
+                Growing ladder
+              </Pill>
+            </PillRow>
+
+            {plan!.sizing.kind === "fixedUsd" ? (
+              <Slider
+                label="Each add"
+                help="The same amount every time."
+                value={plan!.sizing.usd}
+                min={10}
+                max={5_000}
+                step={10}
+                display={`$${plan!.sizing.usd.toLocaleString("en-US")}`}
+                onChange={(v) => setSizing({ kind: "fixedUsd", usd: v })}
+              />
+            ) : plan!.sizing.kind === "pctOfCapital" ? (
+              <Slider
+                label="Each add"
+                help="A share of the capital this agent was given."
+                value={plan!.sizing.pct}
+                min={1}
+                max={50}
+                step={1}
+                display={`${plan!.sizing.pct}%`}
+                onChange={(v) => setSizing({ kind: "pctOfCapital", pct: v })}
+              />
+            ) : (
+              <>
+                <Slider
+                  label="First add"
+                  help="Where the ladder starts."
+                  value={plan!.sizing.baseUsd}
+                  min={10}
+                  max={2_000}
+                  step={10}
+                  display={`$${plan!.sizing.baseUsd.toLocaleString("en-US")}`}
+                  onChange={(v) =>
+                    setSizing({ ...(plan!.sizing as { kind: "ladder"; factor: number }), kind: "ladder", baseUsd: v })
+                  }
+                />
+                <Slider
+                  label="Each add grows by"
+                  help="Compounds. A 2x ladder makes the tenth add 512 times the first."
+                  value={(plan!.sizing as { factor: number }).factor}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  display={`${(plan!.sizing as { factor: number }).factor.toFixed(1)}x`}
+                  onChange={(v) =>
+                    setSizing({ ...(plan!.sizing as { kind: "ladder"; baseUsd: number }), kind: "ladder", factor: v })
+                  }
+                />
+              </>
+            )}
+          </div>
+
+          <div>
+            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+              Where it stops
+            </p>
+            <Slider
+              label="Most adds"
+              help="Per position. The count resets when the position closes."
+              value={plan!.maxAdds ?? 10}
+              min={1}
+              max={100}
+              step={1}
+              display={`${plan!.maxAdds ?? 10}`}
+              onChange={(v) => onChange({ ...plan!, maxAdds: v })}
+            />
+            <Slider
+              label="Wait at least"
+              help="A floor between adds, whatever the condition above says."
+              value={plan!.minSpacingSec ?? 86_400}
+              min={300}
+              max={2_592_000}
+              step={300}
+              display={
+                SPACINGS.find((sp) => sp.sec === (plan!.minSpacingSec ?? 86_400))?.label ??
+                `${Math.round((plan!.minSpacingSec ?? 86_400) / 3600)}h`
+              }
+              onChange={(v) => onChange({ ...plan!, minSpacingSec: v })}
+            />
+          </div>
+
+          {warnings.length > 0 ? (
+            <ul className="space-y-1 border-t border-grid pt-3">
+              {warnings.map((w) => (
+                <li key={w} className="font-ui text-[12px] leading-relaxed text-warning">
+                  {w}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <p className="max-w-[64ch] font-ui text-[12px] leading-relaxed text-text-dim">
+            Every add goes through the same checks as a first purchase — position cap, compliance,
+            safety screen. A plan cannot buy past a limit you set elsewhere.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}

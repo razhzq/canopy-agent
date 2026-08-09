@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { composeAgent, type ExitRules, type UniverseAsset } from "@/lib/api";
+import { composeAgent, type AddPlan, type ExitRules, type UniverseAsset } from "@/lib/api";
 import {
+  AddPlanCard,
   DEFAULT_TIMEFRAME,
   RWA_RULES,
   fmt,
@@ -37,6 +38,13 @@ export interface Limits {
    * every strategy authored before this was a choice.
    */
   timeframe?: Timeframe;
+  /**
+   * How the strategy accumulates. Absent means one entry per asset.
+   *
+   * Setting one changes what the exits above MEASURE: they stop describing a
+   * single entry and start describing the blended position. The card says so.
+   */
+  addPlan?: AddPlan;
   /** Most the agent may put into one position, in dollars. */
   positionUsd: number;
   /** Ceiling on entries per cycle. */
@@ -88,6 +96,11 @@ export function SetLimits({
       setReading(draft.reading || null);
       onChange({
         ...value,
+        // The composer may have read an accumulation plan out of the sentence.
+        // Absent means the sentence did not ask for one — which must CLEAR any
+        // previous plan rather than leave a stale one attached to rules that no
+        // longer mention it.
+        addPlan: draft.addPlan,
         // Only rules the compiler actually set are switched on. The rest stay
         // available but off, rather than silently applying a default nobody
         // asked for.
@@ -261,6 +274,13 @@ export function SetLimits({
           {active.length === 1 ? "rule is" : "rules are"} active.
         </p>
       </section>
+
+      {/* --------------------------------------------------- accumulation */}
+      <AddPlanCard
+        plan={value.addPlan}
+        exits={value.exits}
+        onChange={(addPlan) => onChange({ ...value, addPlan })}
+      />
 
       {/* ------------------------------------------------------- budget */}
       <section>

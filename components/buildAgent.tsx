@@ -72,8 +72,43 @@ export function BuildAgent() {
   const [route, setRoute] = useState<RouteChoice>(DEFAULT_ROUTE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A created-but-not-yet-started strategy, held back because its plan drew
+  // warnings. The id is kept so confirming starts THAT strategy rather than
+  // creating a second one.
+  const [pending, setPending] = useState<{ id: number; warnings: string[] } | null>(null);
 
   const activeRules = limits.rules.filter((r) => r.enabled !== false);
+
+  /**
+   * Starts the paper run and leaves the builder.
+   *
+   * Split out because it is reachable two ways: straight through when a plan
+   * drew no warnings, and from the confirm button when it did. The strategy
+   * already exists by this point either way — confirming must never create a
+   * second one.
+   */
+  async function start(token: string, strategyId: number): Promise<void> {
+    // Creating leaves it a draft. Starting the paper run freezes the rules and
+    // deploys the agent, so the button does what it says rather than leaving a
+    // half-made thing behind.
+    const { agentId } = await startPaperRun(token, strategyId);
+    router.push(`/workspace/${agentId}?tab=cycles`);
+  }
+
+  async function confirmPending(): Promise<void> {
+    if (!pending) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("not signed in");
+      await start(token, pending.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -83,7 +118,7 @@ export function BuildAgent() {
       if (!token) throw new Error("not signed in");
       if (!market) throw new Error("pick a market first");
 
-      const { strategy } = await createStrategy(token, {
+      const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
         strategyClass: "rwa",
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
@@ -98,13 +133,24 @@ export function BuildAgent() {
         // One market: the universe is a list of exactly one.
         universe: [market],
         exits: limits.exits,
+        // Both of these were collected by the builder and then dropped on the
+        // floor here — a timeframe the author picked and a plan the composer
+        // read out of their sentence never reached the strategy they created.
+        timeframe: limits.timeframe,
+        addPlan: limits.addPlan ?? null,
       });
 
-      // Creating leaves it a draft. Starting the paper run freezes the rules
-      // and deploys the agent, so the button does what it says rather than
-      // leaving a half-made thing behind.
-      const { agentId } = await startPaperRun(token, strategy.id);
-      router.push(`/workspace/${agentId}?tab=cycles`);
+      // Legal-but-probably-not-meant combinations — an add deeper than the
+      // stop, an unbounded ladder. STOP here rather than reporting them on the
+      // way past: starting the paper run freezes the config, so this is the
+      // last moment the author can act on them. Setting state and navigating
+      // in the same breath would show the warning to nobody.
+      if (warnings?.length) {
+        setPending({ id: strategy.id, warnings });
+        return;
+      }
+
+      await start(token, strategy.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -263,6 +309,52 @@ export function BuildAgent() {
                   <Callout tone="negative" icon={<WarnIcon />}>
                     {error}
                   </Callout>
+                </div>
+              ) : null}
+
+              {pending ? (
+                <div className="mb-4 space-y-3">
+                  <Callout tone="negative" icon={<WarnIcon />}>
+                    <span className="block pb-1.5 font-mono text-[10px] tracking-[0.14em] uppercase">
+                      Check the accumulation plan
+                    </span>
+                    <ul className="space-y-1">
+                      {pending.warnings.map((w) => (
+                        <li key={w} className="font-ui text-[12.5px] leading-relaxed">
+                          {w}
+                        </li>
+                      ))}
+                    </ul>
+                    <span className="block pt-2 font-ui text-[12px] leading-relaxed opacity-80">
+                      The strategy is saved as a draft. Starting the paper run freezes it, so this
+                      is the last point you can change these.
+                    </span>
+                  </Callout>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={confirmPending}
+                      className="h-9 rounded-full border border-grid px-4 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+                    >
+                      Start anyway
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        // Back to the limits step with the plan intact. The
+                        // draft stays on the server; editing and submitting
+                        // again creates a new one, which is the same thing
+                        // every other abandoned draft in this flow does.
+                        setPending(null);
+                        setStep(1);
+                      }}
+                      className="h-9 rounded-full border border-accent px-4 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors disabled:opacity-40"
+                    >
+                      Go back and edit
+                    </button>
+                  </div>
                 </div>
               ) : null}
 

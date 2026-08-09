@@ -262,6 +262,10 @@ export interface ComposedDraft {
   universe: UniverseSelection[];
   rules: DetectionRule[];
   exits: ExitRules;
+  /** Bar size the rules are measured on. Always concrete. */
+  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+  /** Set only when the description asked to buy repeatedly. */
+  addPlan?: AddPlan;
   /** One sentence on how the request was read. */
   reading: string;
 }
@@ -271,6 +275,30 @@ export const composeAgent = (token: string, prompt: string) =>
     method: "POST",
     body: JSON.stringify({ prompt }),
   });
+
+/**
+ * How a strategy accumulates. Mirrors the backend contract — the same shape is
+ * validated there by resolveAddPlan, which is the authority. Absent means one
+ * entry per asset.
+ */
+export type AddTrigger =
+  | { kind: "schedule"; everySec: number }
+  | { kind: "drawdown"; pct: number }
+  | { kind: "gain"; pct: number };
+
+export type AddSizing =
+  | { kind: "fixedUsd"; usd: number }
+  | { kind: "pctOfCapital"; pct: number }
+  | { kind: "ladder"; baseUsd: number; factor: number };
+
+export interface AddPlan {
+  mode: "all" | "any";
+  triggers: AddTrigger[];
+  sizing: AddSizing;
+  maxAdds?: number;
+  maxTotalUsd?: number;
+  minSpacingSec?: number;
+}
 
 export const createStrategy = (
   token: string,
@@ -286,12 +314,21 @@ export const createStrategy = (
     exits?: ExitRules;
     /** Seconds between cycles. 300–86400; refused outside that, not clamped. */
     tickIntervalSec?: number;
+    /** Bar size the technical rules are measured on. Omitted means daily. */
+    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+    /** Accumulation. Omitted means one entry per asset. */
+    addPlan?: AddPlan | null;
   },
 ) =>
-  request<{ strategy: StrategyRow }>("/agents/strategies", token, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  // `warnings` are plans that are legal but probably not what the author meant —
+  // an add deeper than the stop, an unbounded ladder. They are not errors and
+  // must be shown rather than swallowed: the whole point is that the combination
+  // is individually sensible, so nothing else will reveal it.
+  request<{ strategy: StrategyRow; notes?: string[]; warnings?: string[] }>(
+    "/agents/strategies",
+    token,
+    { method: "POST", body: JSON.stringify(body) },
+  );
 
 export const getVerification = (token: string, strategyId: number) =>
   request<{ verification: VerificationStatus }>(
