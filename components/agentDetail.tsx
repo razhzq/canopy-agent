@@ -7,7 +7,13 @@ import { ActivityLog } from "@/components/activity";
 import { AddMarketModal } from "@/components/addMarket";
 import { EquityView } from "@/components/equity";
 import { ErrorState, LoadingState, SignedOutState } from "@/components/states";
-import { RWA_RULES, fmt } from "@/components/buildStrategy";
+import {
+  DEFAULT_TIMEFRAME,
+  RWA_RULES,
+  fmt,
+  ruleLabel,
+  type Timeframe,
+} from "@/components/buildStrategy";
 import {
   getAgent,
   getEquity,
@@ -158,6 +164,10 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   }));
 
   const rules = strategy?.rules ?? [];
+  // A stored rule means nothing without the bar size it was measured on:
+  // "RSI ≤ 30" is a fortnight of selling on daily bars and about an hour on
+  // 5-minute ones. Absent means daily, as it does everywhere else.
+  const timeframe: Timeframe = (strategy?.timeframe as Timeframe) ?? DEFAULT_TIMEFRAME;
   const entry = rules.find((r) => r.key === "changePct") ?? null;
   const exits = strategy?.exits ?? null;
   const constraints = agent.mandate?.constraints ?? {};
@@ -417,7 +427,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               {rules.length === 0 ? (
                 <span className="font-ui text-[12.5px] text-text-muted">No rules returned.</span>
               ) : (
-                rules.map((r) => <RuleChip key={r.key} rule={r} />)
+                rules.map((r) => <RuleChip key={r.key} rule={r} timeframe={timeframe} />)
               )}
               {exits ? (
                 <>
@@ -963,11 +973,18 @@ function Num({ children }: { children: React.ReactNode }) {
 }
 
 /** A stored rule, labelled with the spec the builder set it from. */
-function RuleChip({ rule }: { rule: DetectionRule }) {
+function RuleChip({
+  rule,
+  timeframe = DEFAULT_TIMEFRAME,
+}: {
+  rule: DetectionRule;
+  timeframe?: Timeframe;
+}) {
   const spec = RWA_RULES.find((r) => r.key === rule.key);
   return (
     <Chip>
-      {spec?.label ?? rule.key} {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
+      {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
+      {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
       <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
     </Chip>
   );

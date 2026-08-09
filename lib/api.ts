@@ -58,6 +58,12 @@ export interface StrategyRow {
   id: number;
   name: string;
   strategy_class: string;
+  /**
+   * Bar size the technical rules are measured on. Absent on strategies
+   * authored before timeframes existed, which were all daily — so a reader
+   * must default it rather than treat it as unknown.
+   */
+  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | null;
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;

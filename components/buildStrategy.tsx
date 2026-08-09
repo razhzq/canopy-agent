@@ -19,8 +19,25 @@ import type { DetectionRule, ExitRules } from "@/lib/api";
  * cannot yet honour shown as unavailable rather than hidden.
  */
 
+/**
+ * What a rule's number is measured against — which decides whether the
+ * strategy's timeframe changes its meaning.
+ *
+ *   bars    computed from the price series, so its window IS the timeframe.
+ *           "RSI 14" is a fortnight on daily bars and about three hours on 15m.
+ *   daily   from the research feed (volatility, change on the day, event
+ *           scores), which is daily whatever the strategy's timeframe is. A
+ *           15-minute strategy still reads "change on the day" as the DAY.
+ *   static  neither — pool depth, margin from filings. No time window at all.
+ *
+ * The distinction is not cosmetic: without it a 5-minute strategy would appear
+ * to be filtering on 5-minute volatility while actually filtering on daily.
+ */
+export type RuleBasis = "bars" | "daily" | "static";
+
 export interface RuleSpec {
   key: string;
+  /** Unit-free. Windows come from `periods`, rendered against the timeframe. */
   label: string;
   help: string;
   op: "gte" | "lte";
@@ -29,6 +46,9 @@ export interface RuleSpec {
   max: number;
   step: number;
   unit: string;
+  basis: RuleBasis;
+  /** Window in PERIODS, e.g. "14" or "20 vs 50". Only meaningful for `bars`. */
+  periods?: string;
   /**
    * Whether this rule applies. Undefined means on, so the older two-step
    * builder keeps working unchanged.
@@ -48,6 +68,7 @@ export const RWA_RULES: RuleSpec[] = [
   {
     key: "liquidityUsd",
     label: "Liquidity floor",
+    basis: "static",
     help: "Pool depth on Solana. Applies to every asset, including gold.",
     op: "gte",
     value: 50_000,
@@ -59,6 +80,7 @@ export const RWA_RULES: RuleSpec[] = [
   {
     key: "dailyVolPct",
     label: "Max daily volatility",
+    basis: "daily",
     help: "Trailing realised volatility of the underlying, from Wintel.",
     op: "lte",
     value: 5,
@@ -70,6 +92,7 @@ export const RWA_RULES: RuleSpec[] = [
   {
     key: "maxEventScore",
     label: "Max recent event severity",
+    basis: "daily",
     help: "Skip anything that has had a serious abnormal-activity event this week.",
     op: "lte",
     value: 70,
@@ -81,6 +104,7 @@ export const RWA_RULES: RuleSpec[] = [
   {
     key: "netMarginPct",
     label: "Min net margin",
+    basis: "static",
     help: "From SEC filings. Applies to equities; skipped for commodities.",
     op: "gte",
     value: 5,
@@ -92,6 +116,7 @@ export const RWA_RULES: RuleSpec[] = [
   {
     key: "changePct",
     label: "Max change on the day",
+    basis: "daily",
     help: "Buy only after a fall. −4 means it must already be down 4% or more today.",
     op: "lte",
     value: -4,
@@ -103,7 +128,9 @@ export const RWA_RULES: RuleSpec[] = [
   // Technical, computed from daily closes. Windows fit the 120-day history.
   {
     key: "rsi14",
-    label: "Max RSI (14d)",
+    label: "Max RSI",
+    basis: "bars",
+    periods: "14",
     help: "Daily RSI. 70+ is conventionally overbought — lower this to avoid buying into a run.",
     op: "lte",
     value: 70,
@@ -114,7 +141,9 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "smaSpreadPct",
-    label: "Min trend (20d vs 50d)",
+    label: "Min trend",
+    basis: "bars",
+    periods: "20 vs 50",
     help: "Gap between the 20- and 50-day averages. Above 0 means the short average leads — an uptrend.",
     op: "gte",
     value: 0,
@@ -125,7 +154,9 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "belowHigh60dPct",
-    label: "Min below 60d high",
+    label: "Min below high",
+    basis: "bars",
+    periods: "60",
     help: "How far under the 60-day high it must sit. Above 0 buys pullbacks rather than breakouts.",
     op: "gte",
     value: 0,
@@ -134,15 +165,97 @@ export const RWA_RULES: RuleSpec[] = [
     step: 1,
     unit: "%",
   },
+  {
+    key: "macdHistPct",
+    label: "Min MACD histogram",
+    basis: "bars",
+    periods: "12/26/9",
+    help: "MACD (12/26/9), measured as a percent of price so one setting works across gold and equities. Above 0 means the crossover has already happened.",
+    op: "gte",
+    value: 0,
+    min: -2,
+    max: 2,
+    step: 0.05,
+    unit: "%",
+  },
+  {
+    key: "bollingerPctB",
+    label: "Max Bollinger %B",
+    basis: "bars",
+    periods: "20",
+    help: "Where price sits in the 20-day bands: 0 is the lower band, 50 the average, 100 the upper. Lower this to buy near the bottom of the range.",
+    op: "lte",
+    value: 50,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "bollingerBandwidthPct",
+    label: "Max Bollinger bandwidth",
+    basis: "bars",
+    periods: "20",
+    help: "How wide the bands are, as a percent of price. Lower this to trade only when volatility has squeezed.",
+    op: "lte",
+    value: 20,
+    min: 1,
+    max: 40,
+    step: 1,
+    unit: "%",
+  },
 ];
+
+/** Bar sizes a strategy's technical rules can be measured on. */
+export type Timeframe = "1d" | "1h" | "30m" | "15m" | "5m";
+export const DEFAULT_TIMEFRAME: Timeframe = "1d";
+
+export const TIMEFRAMES: { tf: Timeframe; label: string; detail: string }[] = [
+  { tf: "1d", label: "1 day", detail: "The default. ~120 days of history behind every indicator." },
+  { tf: "1h", label: "1 hour", detail: "Two months of history. A 14-period RSI spans two days." },
+  { tf: "30m", label: "30 min", detail: "Six weeks of history." },
+  { tf: "15m", label: "15 min", detail: "A month of history. A 14-period RSI spans about 3½ hours." },
+  { tf: "5m", label: "5 min", detail: "A month of history. The finest the scheduler can act on." },
+];
+
+/**
+ * How a rule reads at a given timeframe.
+ *
+ * The whole reason this function exists rather than a hardcoded string: "Max
+ * RSI (14d)" was correct while daily was the only option and becomes a LIE at
+ * any other. A user on 15-minute bars reading "14d" would set a threshold for
+ * a fortnight of selling and get one for three hours of it — same label, same
+ * number, a different statistic, and nothing on screen to reveal the swap.
+ *
+ * Daily-basis rules say "daily" out loud for the mirror-image reason: they do
+ * NOT follow the timeframe, so on a 5-minute strategy they are the one thing
+ * still measured in days.
+ */
+export function ruleLabel(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRAME): string {
+  if (spec.basis !== "bars" || !spec.periods) return spec.label;
+  // "14d" reads better than "14 × 1d" and is what every chart calls it.
+  const window = timeframe === "1d" ? `${spec.periods}d` : `${spec.periods} × ${timeframe}`;
+  return `${spec.label} (${window})`;
+}
+
+/** One line stating what a rule is measured against. Pairs with the label. */
+export function ruleBasisNote(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRAME): string | null {
+  if (spec.basis === "daily" && timeframe !== "1d") {
+    return "Always daily — this one does not follow the strategy timeframe.";
+  }
+  return null;
+}
 
 /**
  * How often the agent wakes.
  *
- * Cadence is NOT chart timeframe, and the copy says so on every option:
- * research bars are daily, so between two close-together cycles only the
- * on-chain mark and pool liquidity have changed. A faster cadence buys tighter
- * stops, not more insight.
+ * Cadence is NOT chart timeframe — that is TIMEFRAMES above, and the two are
+ * now separate choices because the data finally supports it. This is how often
+ * the agent looks; timeframe is the resolution of what it looks at.
+ *
+ * The pairing that makes sense is cadence == timeframe: one new bar per cycle.
+ * Faster re-reads a bar that has not changed and pays for an LLM call to reach
+ * the same conclusion; slower steps over bars without ever seeing them.
  *
  * The 5-minute floor is the sweep cron's own period — anything faster is a
  * promise the scheduler cannot keep.
@@ -152,8 +265,17 @@ export const CADENCES: { sec: number; label: string; detail: string }[] = [
   { sec: 900, label: "15 min", detail: "Reacts within the session. ~96 a day." },
   { sec: 3600, label: "1 hour", detail: "The default. ~24 a day." },
   { sec: 14_400, label: "4 hours", detail: "Quiet. ~6 a day." },
-  { sec: 86_400, label: "1 day", detail: "Matches the data — bars are daily." },
+  { sec: 86_400, label: "1 day", detail: "One cycle a day." },
 ];
+
+/** The cadence that gives exactly one new bar per cycle. */
+export const CADENCE_FOR_TIMEFRAME: Record<Timeframe, number> = {
+  "1d": 86_400,
+  "1h": 3600,
+  "30m": 1800,
+  "15m": 900,
+  "5m": 300,
+};
 
 /**
  * Templates are the entry point, not a shortcut. Each is a complete, runnable
@@ -218,6 +340,8 @@ export function StrategyStep({
   onExits,
   cadenceSec,
   onCadence,
+  timeframe = DEFAULT_TIMEFRAME,
+  onTimeframe,
 }: {
   rules: RuleSpec[];
   onChange: (next: RuleSpec[]) => void;
@@ -227,6 +351,8 @@ export function StrategyStep({
   onExits: (next: ExitRules) => void;
   cadenceSec: number;
   onCadence: (sec: number) => void;
+  timeframe?: Timeframe;
+  onTimeframe?: (tf: Timeframe) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -283,7 +409,7 @@ export function StrategyStep({
         <div className="flex flex-wrap items-center gap-2">
           {rules.map((r) => (
             <PillTag key={r.key} tone="accent">
-              {r.label.split(" ")[0]} {r.op === "gte" ? "≥" : "≤"} {fmt(r.value, r.unit)}
+              {ruleLabel(r, timeframe)} {r.op === "gte" ? "≥" : "≤"} {fmt(r.value, r.unit)}
             </PillTag>
           ))}
           <button
@@ -300,7 +426,7 @@ export function StrategyStep({
             {rules.map((r) => (
               <Slider
                 key={r.key}
-                label={r.label}
+                label={ruleLabel(r, timeframe)}
                 qualifier={r.op === "gte" ? "at least" : "at most"}
                 help={r.help}
                 value={r.value}
@@ -360,9 +486,46 @@ export function StrategyStep({
         </p>
       </section>
 
+      {onTimeframe ? (
+        <section>
+          <StepHead
+            index="04"
+            title="Chart timeframe"
+            note="The bar size every rule above is measured on."
+          />
+          <PillRow>
+            {TIMEFRAMES.map((t) => (
+              <Pill
+                key={t.tf}
+                active={timeframe === t.tf}
+                onClick={() => {
+                  onTimeframe(t.tf);
+                  // Move cadence with it. Leaving a 1-day cadence on a
+                  // 5-minute chart reads every 288th bar and ignores the rest,
+                  // which is not a thing anyone picks on purpose — and the
+                  // pairing is still editable in the next step.
+                  onCadence(CADENCE_FOR_TIMEFRAME[t.tf]);
+                }}
+              >
+                {t.label}
+              </Pill>
+            ))}
+          </PillRow>
+          <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+            {TIMEFRAMES.find((t) => t.tf === timeframe)?.detail}{" "}
+            <span className="text-text-dim">
+              This changes what your rules mean, not just how often they run. RSI 14 is a
+              fortnight of selling on daily bars and about three hours on 15-minute ones — the
+              labels above update to match. Volatility, change on the day and event severity
+              stay daily whatever you pick here.
+            </span>
+          </p>
+        </section>
+      ) : null}
+
       <section>
         <StepHead
-          index="04"
+          index={onTimeframe ? "05" : "04"}
           title="Cycle"
           note="How often it wakes — not the chart timeframe."
         />
@@ -376,15 +539,17 @@ export function StrategyStep({
         <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
           {CADENCES.find((c) => c.sec === cadenceSec)?.detail}{" "}
           <span className="text-text-dim">
-            Research data is daily, so between two close-together cycles only the on-chain
-            price and pool depth have changed. A faster cycle tightens your stops; it does not
-            reveal more about the underlying.
+            {cadenceSec === CADENCE_FOR_TIMEFRAME[timeframe]
+              ? "Matched to your timeframe — one new bar each cycle."
+              : cadenceSec < CADENCE_FOR_TIMEFRAME[timeframe]
+                ? "Faster than your timeframe: some cycles re-read a bar that has not changed yet, and pay for a model call to reach the same answer. What it does buy is tighter stops, since exits are checked every cycle."
+                : "Slower than your timeframe: the agent will step over bars without ever seeing them. Deliberate if you want to sample a fast chart slowly."}
           </span>
         </p>
       </section>
 
       <section>
-        <StepHead index="05" title="Signal sources" note="What these rules draw on today." />
+        <StepHead index={onTimeframe ? "06" : "05"} title="Signal sources" note="What these rules draw on today." />
         <PillRow>
           {SOURCES.map((s) => (
             <PillTag key={s.name} tone={s.ready ? "accent" : "dim"} suffix={s.via}>

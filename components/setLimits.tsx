@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { composeAgent, type ExitRules, type UniverseAsset } from "@/lib/api";
-import { RWA_RULES, fmt, type RuleSpec } from "@/components/buildStrategy";
+import {
+  DEFAULT_TIMEFRAME,
+  RWA_RULES,
+  fmt,
+  ruleBasisNote,
+  ruleLabel,
+  type RuleSpec,
+  type Timeframe,
+} from "@/components/buildStrategy";
 
 /**
  * Step 2 — set the limits. Wireframe 1e.
@@ -24,6 +32,11 @@ import { RWA_RULES, fmt, type RuleSpec } from "@/components/buildStrategy";
 export interface Limits {
   rules: RuleSpec[];
   exits: ExitRules;
+  /**
+   * Bar size the technical rules are measured on. Absent means daily, matching
+   * every strategy authored before this was a choice.
+   */
+  timeframe?: Timeframe;
   /** Most the agent may put into one position, in dollars. */
   positionUsd: number;
   /** Ceiling on entries per cycle. */
@@ -207,7 +220,12 @@ export function SetLimits({
 
         <div className="border border-grid">
           {value.rules.map((r) => (
-            <RuleChip key={r.key} rule={r} onChange={(p) => setRule(r.key, p)} />
+            <RuleChip
+              key={r.key}
+              rule={r}
+              timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+              onChange={(p) => setRule(r.key, p)}
+            />
           ))}
           <ExitChip
             label="Take profit"
@@ -300,19 +318,28 @@ const PRESETS = [
 
 function RuleChip({
   rule: r,
+  timeframe = DEFAULT_TIMEFRAME,
   onChange,
 }: {
   rule: RuleSpec;
+  timeframe?: Timeframe;
   onChange: (patch: Partial<RuleSpec>) => void;
 }) {
   const on = r.enabled !== false;
+  // Never r.label directly: at any non-daily timeframe the bare label omits the
+  // one thing that decides what the number means.
+  const label = ruleLabel(r, timeframe);
+  const basisNote = ruleBasisNote(r, timeframe);
   return (
     <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}>
-          {r.label} <span className="text-text-dim">{r.op === "gte" ? "at least" : "at most"}</span>
+          {label} <span className="text-text-dim">{r.op === "gte" ? "at least" : "at most"}</span>
         </p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">{r.help}</p>
+        {basisNote ? (
+          <p className="pt-0.5 font-ui text-[11px] leading-relaxed text-text-muted">{basisNote}</p>
+        ) : null}
       </div>
       <input
         type="range"
@@ -322,7 +349,7 @@ function RuleChip({
         value={r.value}
         disabled={!on}
         onChange={(e) => onChange({ value: Number(e.target.value) })}
-        aria-label={r.label}
+        aria-label={label}
         className="accent-accent disabled:opacity-40"
       />
       <span
