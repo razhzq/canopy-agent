@@ -108,6 +108,15 @@ export interface StrategyRow {
   safety_floor?: Record<string, unknown> | null;
   /** Seconds between cycles. Copied on fork; never editable. */
   tick_interval_sec?: number;
+  /**
+   * How the strategy accumulates. Null means one entry per asset.
+   *
+   * Arrives on the DETAIL route only, which selects s.* — and it is recipe, not
+   * record: the marketplace and the public strategy page deliberately show
+   * neither rules nor thresholds, and a plan describes the strategy's shape as
+   * plainly as a rule does.
+   */
+  add_plan?: AddPlan | null;
   created_at?: string;
 }
 
@@ -284,7 +293,10 @@ export const composeAgent = (token: string, prompt: string) =>
 export type AddTrigger =
   | { kind: "schedule"; everySec: number }
   | { kind: "drawdown"; pct: number }
-  | { kind: "gain"; pct: number };
+  | { kind: "gain"; pct: number }
+  // Re-runs the strategy's own entry rules before each add. The only condition
+  // that notices the situation changing while the price holds up.
+  | { kind: "rules" };
 
 export type AddSizing =
   | { kind: "fixedUsd"; usd: number }
@@ -419,7 +431,12 @@ export interface AgentRow {
   strategy_name: string;
   strategy_class: string;
   /** `liquidating` is winding down after a drawdown breach — still ticking, but only to close. */
-  status: "draft" | "active" | "paused" | "stopped" | "liquidating";
+  /**
+   * `deleted` is a SOFT delete: hidden from the agent list and never
+   * scheduled, but every decision row, fill and position is kept. It arrives
+   * here only via a direct link, since the list filters it out.
+   */
+  status: "draft" | "active" | "paused" | "stopped" | "liquidating" | "deleted";
   capital_usd: string;
   autonomy: "propose_only" | "execute_with_caps";
   is_paper: boolean;
@@ -534,6 +551,76 @@ export interface AgentDetail {
 
 export const getAgent = (token: string, agentId: number) =>
   request<AgentDetail>(`/agents/${agentId}`, token);
+
+/**
+ * One booked fill. Paper fills are INCLUDED and flagged, not filtered —
+ * every agent is paper until a signing rail exists, so excluding them would
+ * return an empty history to everyone while appearing to work.
+ */
+export interface AgentFill {
+  id: string;
+  side: "buy" | "sell" | "add_liquidity" | "remove_liquidity";
+  mint: string;
+  symbol: string;
+  filled_usd: string;
+  qty: string;
+  price_usd: string;
+  fees_usd: string;
+  venue: string;
+  is_paper: boolean;
+  executed_at: string;
+  run_id: string;
+  tick_seq: string | null;
+  /** Set on sells only — an open position has no realised result. */
+  realized_pnl_usd: string | null;
+}
+
+/**
+ * A page of fills, newest first.
+ *
+ * The cursor is a (timestamp, id) PAIR because one tick fills several assets in
+ * the same instant — on live data three fills sharing an executed_at is the
+ * normal shape. A timestamp-only cursor drops the siblings of whichever row
+ * ended the page, so a user scrolling past a boundary quietly loses trades.
+ * Round-trip both halves; do not reconstruct them.
+ */
+export interface FillPage {
+  fills: AgentFill[];
+  nextBefore: string | null;
+  nextBeforeId: string | null;
+}
+
+/**
+ * Adds a market to a running agent, in place.
+ *
+ * Not a fork and not a chat proposal: the universe is the one part of a running
+ * strategy that is not frozen, so the same agent keeps its record and simply
+ * screens one more asset. The backend runs a cycle immediately — `ticked` says
+ * whether it actually did, which is false for a paused agent.
+ */
+export const addAgentMarket = (
+  token: string,
+  agentId: number,
+  market: { underlying: string; issuer?: string },
+) =>
+  request<{ markets: UniverseSelection[]; ticked: boolean; status: string }>(
+    `/agents/${agentId}/markets`,
+    token,
+    { method: "POST", body: JSON.stringify(market) },
+  );
+
+export const getAgentFills = (
+  token: string,
+  agentId: number,
+  cursor?: { before: string | null; beforeId: string | null } | null,
+) =>
+  request<FillPage>(
+    `/agents/${agentId}/fills?limit=50` +
+      (cursor?.before && cursor.beforeId
+        ? `&before=${encodeURIComponent(cursor.before)}&beforeId=${encodeURIComponent(cursor.beforeId)}`
+        : ""),
+    token,
+  );
 
 export interface CycleRow {
   id: string;
@@ -748,5 +835,19 @@ export const resumeAgent = (token: string, agentId: number) =>
  */
 export const stopAgent = (token: string, agentId: number) =>
   request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/stop`, token, {
+    method: "POST",
+  });
+
+/**
+ * Soft-deletes an agent: closes its book, revokes the wallet, hides it from the
+ * agent list — and keeps every decision row, fill and position for the record.
+ *
+ * Closing comes FIRST and the delete only lands once the agent is flat. If a
+ * position cannot be priced the call fails with 409 and the agent is left
+ * `liquidating` — visible and retried — because hiding exposure the owner can
+ * no longer see is the one outcome worth refusing.
+ */
+export const deleteAgent = (token: string, agentId: number) =>
+  request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/delete`, token, {
     method: "POST",
   });

@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { Pill, PillRow, PillTag, StepHead } from "@/components/wizard";
-import type { DetectionRule, ExitRules } from "@/lib/api";
+import type {
+  AddPlan,
+  AddSizing,
+  AddTrigger,
+  DetectionRule,
+  ExitRules,
+} from "@/lib/api";
 
 /**
  * Step 2 of the builder: what makes the agent buy.
@@ -635,25 +641,6 @@ export const DEFAULT_EXITS: ExitRules = { takeProfitPct: 25, stopLossPct: 12, ma
  * one switch — and turning it on says plainly what it changes about the exits
  * above, because that is the part nobody expects.
  */
-export type AddTrigger =
-  | { kind: "schedule"; everySec: number }
-  | { kind: "drawdown"; pct: number }
-  | { kind: "gain"; pct: number };
-
-export type AddSizing =
-  | { kind: "fixedUsd"; usd: number }
-  | { kind: "pctOfCapital"; pct: number }
-  | { kind: "ladder"; baseUsd: number; factor: number };
-
-export interface AddPlanShape {
-  mode: "all" | "any";
-  triggers: AddTrigger[];
-  sizing: AddSizing;
-  maxAdds?: number;
-  maxTotalUsd?: number;
-  minSpacingSec?: number;
-}
-
 const SPACINGS: { sec: number; label: string }[] = [
   { sec: 3600, label: "1 hour" },
   { sec: 86_400, label: "1 day" },
@@ -662,7 +649,9 @@ const SPACINGS: { sec: number; label: string }[] = [
 ];
 
 /** A starting plan that is coherent on its own — weekly, fixed, bounded. */
-const DEFAULT_ADD_PLAN: AddPlanShape = {
+const DEFAULT_ADD_PLAN: AddPlan = {
+  // "all" is what makes the rules guard a GUARD: with "any" it would be an
+  // alternative reason to buy rather than a condition on buying.
   mode: "all",
   triggers: [{ kind: "schedule", everySec: 604_800 }],
   sizing: { kind: "fixedUsd", usd: 100 },
@@ -680,7 +669,7 @@ const DEFAULT_ADD_PLAN: AddPlanShape = {
  * create — this copy existing does not make that one optional.
  */
 export function localAddPlanWarnings(
-  plan: AddPlanShape | undefined,
+  plan: AddPlan | undefined,
   exits: ExitRules,
 ): string[] {
   if (!plan) return [];
@@ -725,18 +714,33 @@ export function AddPlanCard({
   exits,
   onChange,
 }: {
-  plan?: AddPlanShape;
+  plan?: AddPlan;
   exits: ExitRules;
-  onChange: (next: AddPlanShape | undefined) => void;
+  onChange: (next: AddPlan | undefined) => void;
 }) {
   const on = !!plan;
   const warnings = localAddPlanWarnings(plan, exits);
 
+  // The plan has one TIMING trigger — schedule, falls, or rises — and may also
+  // carry `rules` alongside it. They are edited separately because they answer
+  // different questions: when to consider adding, and whether to allow it.
+  const timing = plan?.triggers.find((t) => t.kind !== "rules");
+  const guarded = !!plan?.triggers.some((t) => t.kind === "rules");
+
+  const writeTriggers = (next: AddTrigger[]) =>
+    onChange(plan ? { ...plan, triggers: next } : { ...DEFAULT_ADD_PLAN, triggers: next });
+
   const setTrigger = (t: AddTrigger) =>
-    onChange(plan ? { ...plan, triggers: [t] } : { ...DEFAULT_ADD_PLAN, triggers: [t] });
+    writeTriggers(guarded ? [t, { kind: "rules" }] : [t]);
+
+  const setGuard = (want: boolean) => {
+    const base = timing ?? { kind: "schedule" as const, everySec: 604_800 };
+    writeTriggers(want ? [base, { kind: "rules" }] : [base]);
+  };
+
   const setSizing = (sizing: AddSizing) => plan && onChange({ ...plan, sizing });
 
-  const trigger = plan?.triggers[0];
+  const trigger = timing;
 
   return (
     <section>
@@ -822,6 +826,29 @@ export function AddPlanCard({
                 onChange={(v) => setTrigger({ ...trigger, pct: v })}
               />
             ) : null}
+          </div>
+
+          <div>
+            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+              Only while it still qualifies
+            </p>
+            <button
+              type="button"
+              onClick={() => setGuard(!guarded)}
+              aria-pressed={guarded}
+              className={`h-8 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+                guarded
+                  ? "border-accent text-accent"
+                  : "border-grid text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              {guarded ? "Re-check my rules" : "Add regardless"}
+            </button>
+            <p className="max-w-[64ch] pt-2.5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+              {guarded
+                ? "Before each add, the agent re-runs the entry rules you set. If the asset would no longer be bought today — liquidity gone, bad news, fundamentals turned — it stops adding and holds what it has."
+                : "The agent keeps buying on the condition above without re-checking your rules. Your stop loss still protects you if the price falls, but nothing notices if the situation changes while the price holds up."}
+            </p>
           </div>
 
           <div>
@@ -948,4 +975,55 @@ export function AddPlanCard({
       )}
     </section>
   );
+}
+
+/**
+ * One line of plain English for a plan, for the pages that show a strategy back
+ * to its own author.
+ *
+ * Written out rather than rendered as fields because the fields do not read as
+ * a sentence: "schedule 604800 / fixedUsd 100 / rules" is four facts a reader
+ * has to assemble, and the thing they actually want to check is whether it
+ * matches what they meant.
+ */
+export function describeAddPlan(plan: AddPlan | null | undefined): string | null {
+  if (!plan) return null;
+
+  const money = (n: number) => `$${n.toLocaleString("en-US")}`;
+  const every = (sec: number) => {
+    const opt = SPACINGS.find((s) => s.sec === sec);
+    if (opt) return opt.label;
+    if (sec % 86_400 === 0) return `${sec / 86_400} days`;
+    if (sec % 3600 === 0) return `${sec / 3600} hours`;
+    return `${Math.round(sec / 60)} min`;
+  };
+
+  const size =
+    plan.sizing.kind === "fixedUsd"
+      ? money(plan.sizing.usd)
+      : plan.sizing.kind === "pctOfCapital"
+        ? `${plan.sizing.pct}% of capital`
+        : `${money(plan.sizing.baseUsd)}, growing ${plan.sizing.factor}x`;
+
+  const timing = plan.triggers
+    .filter((t) => t.kind !== "rules")
+    .map((t) =>
+      t.kind === "schedule"
+        ? `every ${every(t.everySec)}`
+        : t.kind === "drawdown"
+          ? `when down ${t.pct}%`
+          : `when up ${t.pct}%`,
+    );
+
+  const guarded = plan.triggers.some((t) => t.kind === "rules");
+
+  const parts = [`Adds ${size}`];
+  if (timing.length) parts.push(timing.join(plan.mode === "any" ? " or " : " and "));
+  // Named because it changes what the plan DOES, not merely how often: without
+  // it the agent keeps buying something that would no longer qualify.
+  if (guarded) parts.push("only while the rules still pass");
+  if (plan.maxAdds !== undefined) parts.push(`max ${plan.maxAdds}`);
+  if (plan.maxTotalUsd !== undefined) parts.push(`up to ${money(plan.maxTotalUsd)}`);
+
+  return parts.join(" · ");
 }

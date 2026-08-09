@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   num,
-  sendMessage,
+  addAgentMarket,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
@@ -161,15 +161,21 @@ export function AddMarketModal({
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Sign in to change this agent.");
-      await sendMessage(
-        token,
-        agentId,
-        // Named precisely enough that the proposal that comes back is about one
-        // market and nothing else. Issuer included: two issuers can wrap the
-        // same underlying, and "add Apple" would be ambiguous between them.
-        `Add ${picked.symbol} (${picked.underlying}, issued by ${picked.issuer}) to this agent's markets. Keep the existing strategy, limits and exits exactly as they are — this is a universe change only.`,
-      );
-      router.push(`/workspace/${agentId}?tab=chat`);
+      // Direct, not a chat instruction. This used to send a sentence for the
+      // agent to interpret into a proposal, which forked the strategy into a
+      // NEW agent — a large outcome for "also watch gold". The universe is not
+      // frozen while a strategy runs, so the same agent simply takes the extra
+      // market and screens it on the next cycle, which the endpoint triggers.
+      //
+      // Issuer is passed explicitly: two issuers can wrap the same underlying,
+      // and "Apple" alone is ambiguous between them.
+      await addAgentMarket(token, agentId, {
+        underlying: picked.underlying,
+        issuer: picked.issuer,
+      });
+      // Cycles, not chat: the agent screens the new market immediately, and
+      // that screen is the thing worth showing.
+      router.push(`/workspace/${agentId}?tab=cycles`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
@@ -205,10 +211,6 @@ export function AddMarketModal({
             >
               Add a market
             </h2>
-            <p className="max-w-[62ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              The strategy carries over untouched — same rules, same limits, same exits. Because a
-              running strategy is frozen, this goes to the agent as a proposal you approve.
-            </p>
           </div>
           <button
             type="button"
