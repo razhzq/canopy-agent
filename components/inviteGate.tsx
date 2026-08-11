@@ -2,7 +2,8 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, getInviteStatus, redeemInvite } from "@/lib/api";
+import { ApiError, openSession, redeemInvite, type SessionProfile } from "@/lib/api";
+import { readAccounts } from "@/components/nav";
 
 /**
  * The invite gate.
@@ -41,8 +42,29 @@ type Phase =
  */
 let grantedThisSession = false;
 
+/**
+ * What this browser's Privy session knows about the person, for registration.
+ *
+ * The first login at agent.canopy.finance IS the sign-up — there is no other
+ * step that would collect this — so it rides along on the session call rather
+ * than leaving the account half-formed until some other product fills it in.
+ *
+ * The wallet preference matches the navbar's: an external wallet is the more
+ * identifying thing for someone who signed in that way, and the Canopy-created
+ * one is the fallback so the field is not empty for an email login.
+ */
+function profileFrom(user: unknown): SessionProfile {
+  const { email, wallets } = readAccounts(user);
+  const external = wallets.find((w) => w.client !== "privy");
+  const embedded = wallets.find((w) => w.client === "privy");
+  return {
+    email,
+    walletAddress: external?.address ?? embedded?.address ?? null,
+  };
+}
+
 export function InviteGate({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, getAccessToken } = usePrivy();
+  const { ready, authenticated, getAccessToken, user } = usePrivy();
   const [phase, setPhase] = useState<Phase>(
     grantedThisSession ? { kind: "open" } : { kind: "checking" },
   );
@@ -78,7 +100,11 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
           if (!cancelled) setPhase({ kind: "open" });
           return;
         }
-        const status = await getInviteStatus(token);
+        // Registers this identity when it is new. That is why the gate calls
+        // this on every authenticated mount rather than only when it suspects
+        // a lock: on an ungated stack this is the ONLY moment a first-time
+        // visitor's account gets created.
+        const status = await openSession(token, profileFrom(user));
         if (cancelled) return;
         if (!status.required || status.granted) {
           grantedThisSession = true;
@@ -102,6 +128,11 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+    // `user` is read but deliberately not a dependency: it is only the profile
+    // sent along with the call, and Privy hands back a new object identity on
+    // refreshes that change nothing here. Depending on it would re-run the
+    // session call for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, authenticated, getAccessToken, nonce]);
 
   const onRedeemed = useCallback(() => {
@@ -141,7 +172,7 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ prompt -- */
 
 function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
-  const { getAccessToken, logout } = usePrivy();
+  const { getAccessToken, logout, user } = usePrivy();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +192,9 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Your session expired. Sign in again.");
-      const status = await redeemInvite(token, trimmed);
+      // Carries the profile too: on a gated stack this is the request that
+      // fires before the account exists, so it is where registration lands.
+      const status = await redeemInvite(token, trimmed, profileFrom(user));
       // Trusting the echoed status rather than assuming a 200 means granted:
       // the backend is the authority on what the code did, and a code that
       // resolves to "still not granted" must keep the gate shut.

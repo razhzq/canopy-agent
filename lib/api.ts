@@ -72,39 +72,75 @@ export interface InviteStatus {
 }
 
 /**
- * Reads the user's access state.
+ * What the browser's Privy session knows about the person, sent so the account
+ * is complete the first time they arrive.
  *
- * A 404 is deliberately NOT an error here — it means canopy-be does not have
- * the invite surface deployed yet, and the honest reading of "the authority
- * has no opinion" is that nothing is being gated. Failing closed on 404 would
- * brick every environment whose backend predates this endpoint, which is a
- * worse outcome than an ungated build talking to an ungated backend.
+ * agent.canopy.finance is a front door in its own right — someone can register
+ * here having never opened the DEX — so the row cannot be left half-populated
+ * on the assumption that another product will fill it in.
+ *
+ * Profile only. The identity is the bearer token; nothing here is trusted to
+ * say WHO this is.
+ */
+export interface SessionProfile {
+  email?: string | null;
+  walletAddress?: string | null;
+}
+
+/**
+ * Opens the session: registers this identity if it is new, and reports whether
+ * it may use the stack.
+ *
+ * A POST because the first login IS the registration — there is no separate
+ * sign-up step, so the call that checks access is also the call that creates
+ * the account.
+ *
+ * A 404 is deliberately NOT an error — it means canopy-be does not have the
+ * invite surface deployed yet, and the honest reading of "the authority has no
+ * opinion" is that nothing is being gated. Failing closed on 404 would brick
+ * every environment whose backend predates this endpoint.
  *
  * Any other failure propagates. A 500 or a dead network is NOT permission.
  */
-export async function getInviteStatus(token: string): Promise<InviteStatus> {
+export async function openSession(
+  token: string,
+  profile: SessionProfile = {},
+): Promise<InviteStatus> {
   try {
-    return await request<InviteStatus>("/agents/invite", token);
+    return await request<InviteStatus>("/agents/session", token, {
+      method: "POST",
+      body: JSON.stringify(profile),
+    });
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       return { required: false, granted: true };
+    }
+    // A 403 is a REFUSAL, not an outage. The backend verified the token and
+    // declined — on this surface that means "not admitted", and the useful
+    // response is the code prompt rather than an error nobody can act on.
+    if (err instanceof ApiError && err.status === 403) {
+      return { required: true, granted: false };
     }
     throw err;
   }
 }
 
 /**
- * Redeems an invite code for the signed-in user.
+ * Redeems an invite code, registering the identity if this is its first visit.
+ *
+ * Carries the profile for the same reason `openSession` does: on a gated
+ * stack, redeeming IS the moment of registration, and it is the only request
+ * that fires before the account exists.
  *
  * Refusals come back as ordinary ApiErrors carrying the backend's own message
  * — an unknown code, one already spent, one that has expired — and the gate
  * renders that message rather than inventing its own. The backend knows which
  * of those it was; the client would have to guess from a status code.
  */
-export const redeemInvite = (token: string, code: string) =>
+export const redeemInvite = (token: string, code: string, profile: SessionProfile = {}) =>
   request<InviteStatus>("/agents/invite", token, {
     method: "POST",
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, ...profile }),
   });
 
 /* ------------------------------------------------------------ marketplace -- */
