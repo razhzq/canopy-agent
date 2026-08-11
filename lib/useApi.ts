@@ -23,10 +23,32 @@ export type LoadState<T> =
 export function useApi<T>(
   fetcher: (token: string) => Promise<T>,
   deps: unknown[] = [],
+  /**
+   * Data already to hand — from a client-side cache — to render on the first
+   * frame instead of a skeleton.
+   *
+   * The request still goes out and still replaces this when it lands, so the
+   * seed is a head start rather than a substitute. Only pass something the
+   * caller can produce SYNCHRONOUSLY: awaiting a cache costs the same frame of
+   * loading state that seeding it exists to avoid.
+   */
+  initialData?: T,
 ): LoadState<T> & { reload: () => void } {
   const { ready, authenticated, getAccessToken } = usePrivy();
-  const [state, setState] = useState<LoadState<T>>({ phase: "loading" });
+  const [state, setState] = useState<LoadState<T>>(
+    initialData === undefined ? { phase: "loading" } : { phase: "ready", data: initialData },
+  );
   const [nonce, setNonce] = useState(0);
+  /**
+   * Whether a refetch may run behind what is already on screen.
+   *
+   * True only for seeded callers, and fixed for the life of the hook. Every
+   * other caller keeps the old behaviour — a re-run blanks to a skeleton —
+   * which is what a call keyed to something like an agent id NEEDS: showing the
+   * previous agent's figures under a new agent's heading while its request is
+   * in flight is worse than showing nothing.
+   */
+  const revalidateQuietly = useRef(initialData !== undefined);
 
   // Guards against a resolved request from a previous render writing over a
   // newer one — the classic out-of-order fetch bug.
@@ -36,7 +58,7 @@ export function useApi<T>(
 
   useEffect(() => {
     if (!ready) {
-      setState({ phase: "loading" });
+      if (!revalidateQuietly.current) setState({ phase: "loading" });
       return;
     }
     if (!authenticated) {
@@ -46,7 +68,7 @@ export function useApi<T>(
 
     const seq = ++latest.current;
     let cancelled = false;
-    setState({ phase: "loading" });
+    if (!revalidateQuietly.current) setState({ phase: "loading" });
 
     void (async () => {
       try {

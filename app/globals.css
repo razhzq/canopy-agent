@@ -118,6 +118,20 @@
   }
 }
 
+/* The account menu, arriving from under its trigger. Short enough to feel like
+   the panel was already there — a dropdown that animates slowly reads as slow
+   software, not as polish. */
+@keyframes menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Pulses while a cycle is mid-flight. */
 @keyframes live-pulse {
   0%,

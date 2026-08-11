@@ -245,6 +245,46 @@ export interface UniverseSelection {
   issuer?: string;
 }
 
+export interface UniverseResponse {
+  assets: UniverseAsset[];
+  note?: string;
+}
+
+/**
+ * The resolved universe, briefly remembered.
+ *
+ * Resolution is the most expensive read in the product — every asset is agreed
+ * across the issuer registry, research and the chain — and the builder walks
+ * over it: step 1 lists the markets, step 2 sets limits, and stepping BACK to
+ * change the market re-mounted the picker and re-ran the whole thing. From the
+ * outside that is a skeleton where a list already was.
+ *
+ * The window is deliberately short. Every row carries a live mark and the
+ * day's move, so this is a cache for the length of a decision, not for the
+ * length of a session — a minute later the numbers are worth re-reading.
+ *
+ * Keyed by class only, not by token: the universe is a property of the market,
+ * identical for every signed-in user, so a per-user key would only ever waste
+ * the entry.
+ */
+const UNIVERSE_TTL_MS = 60_000;
+const universeCache = new Map<string, { at: number; data: UniverseResponse }>();
+/** In-flight requests, so two components mounting together make one call. */
+const universeInFlight = new Map<string, Promise<UniverseResponse>>();
+
+/**
+ * The cached universe if it is still fresh, else null.
+ *
+ * Synchronous on purpose: it seeds the first render, which is the whole point.
+ * A cache that can only be read through a promise still costs a frame of
+ * loading state, and that frame is exactly what the reader was complaining
+ * about.
+ */
+export function peekUniverse(strategyClass = "rwa"): UniverseResponse | null {
+  const hit = universeCache.get(strategyClass);
+  return hit && Date.now() - hit.at < UNIVERSE_TTL_MS ? hit.data : null;
+}
+
 /**
  * The assets a strategy of this class could trade right now.
  *
@@ -252,11 +292,33 @@ export interface UniverseSelection {
  * registry/research/chain agreement is absent here rather than selectable and
  * then permanently silent.
  */
-export const getUniverse = (token: string, strategyClass = "rwa") =>
-  request<{ assets: UniverseAsset[]; note?: string }>(
+export async function getUniverse(
+  token: string,
+  strategyClass = "rwa",
+): Promise<UniverseResponse> {
+  const fresh = peekUniverse(strategyClass);
+  if (fresh) return fresh;
+
+  const pending = universeInFlight.get(strategyClass);
+  if (pending) return pending;
+
+  const call = request<UniverseResponse>(
     `/agents/universe?class=${encodeURIComponent(strategyClass)}`,
     token,
-  );
+  )
+    .then((data) => {
+      universeCache.set(strategyClass, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => {
+      // Cleared either way: a failed call must not be remembered as pending,
+      // or the next attempt would await a promise that already rejected.
+      universeInFlight.delete(strategyClass);
+    });
+
+  universeInFlight.set(strategyClass, call);
+  return call;
+}
 
 /**
  * A strategy draft composed from a sentence.

@@ -12,7 +12,6 @@ const NAV = [
   // agents.
   { label: "My agents", href: "/workspace", match: ["/workspace", "/portfolio"] },
   { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
-  { label: "Build", href: "/build", match: ["/build"] },
 ];
 
 /* ------------------------------------------------------------- accounts -- */
@@ -67,6 +66,46 @@ function walletLabel(w: LinkedWallet): string {
   return w.client.charAt(0).toUpperCase() + w.client.slice(1);
 }
 
+/**
+ * One letter for the avatar.
+ *
+ * Deliberately not a generated identicon: the label sits right beside it, so a
+ * pattern would be decoration, while an initial is the same information the
+ * reader is already using to recognise the account.
+ */
+function initialOf(label: string): string {
+  const c = label.trim()[0];
+  return c ? c.toUpperCase() : "?";
+}
+
+/** The circular monogram, shared by the trigger and the menu's header. */
+function Avatar({ label, size = 20 }: { label: string; size?: number }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-accent-wash font-mono text-accent ring-1 ring-accent/30"
+      style={{ width: size, height: size, fontSize: Math.max(size * 0.46, 9) }}
+    >
+      {initialOf(label)}
+    </span>
+  );
+}
+
+function CopyIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <rect x="5.5" y="5.5" width="7" height="7" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M10.5 3.5h-7v7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
@@ -74,6 +113,7 @@ function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   // Close on an outside click or Escape. Without this the panel stays open
   // behind whatever the user clicks next, which reads as a stuck UI.
@@ -82,7 +122,13 @@ function AccountMenu() {
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      // Escape must not strand focus on a panel that no longer exists — put it
+      // back where the keyboard user opened it from.
+      trigger.current?.focus();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -92,7 +138,10 @@ function AccountMenu() {
   }, [open]);
 
   if (!ready) {
-    return <div className="size-9 rounded-full bg-surface-2" />;
+    // Shaped like the button it becomes, not a circle: a placeholder of the
+    // wrong width shoves the whole right-hand side of the navbar sideways the
+    // moment Privy resolves.
+    return <div className="h-9 w-[148px] rounded-md bg-surface-2" />;
   }
 
   if (!authenticated) {
@@ -100,7 +149,7 @@ function AccountMenu() {
       <button
         type="button"
         onClick={() => login()}
-        className="h-9 rounded-md border border-border px-4 font-ui text-[14px] text-text-secondary transition-colors hover:border-accent hover:text-accent"
+        className="h-9 rounded-md border border-border px-4 font-ui text-[14px] font-medium text-text-secondary transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent"
       >
         Sign in
       </button>
@@ -116,6 +165,12 @@ function AccountMenu() {
   // else. Falls back to the Canopy-created wallet so the button is never blank.
   const primary =
     external.length > 0 ? short(external[0].address) : (email ?? (embedded[0] ? short(embedded[0].address) : "Account"));
+  // An address is set in mono because its characters have to be comparable
+  // digit by digit; an email is prose and reads better in the UI face.
+  const primaryIsAddress = external.length > 0 || !email;
+  // Which of the two ways in this was. Named in the menu header so the account
+  // is identifiable without expanding a wallet row.
+  const method = email ? "Email" : external.length > 0 ? walletLabel(external[0]) : "Wallet";
 
   const copy = async (value: string) => {
     try {
@@ -130,15 +185,33 @@ function AccountMenu() {
   return (
     <div ref={ref} className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-2.5 rounded-md border border-border px-3 transition-colors hover:border-grid-strong"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Account: ${primary}`}
+        className={`flex h-9 items-center gap-2.5 rounded-md border pr-2.5 pl-2 transition-colors ${
+          open
+            ? "border-grid-strong bg-surface-2"
+            : "border-border hover:border-grid-strong hover:bg-surface"
+        }`}
       >
-        <span className="size-5 rounded-full bg-accent-wash ring-1 ring-accent/40" />
-        <span className="max-w-[190px] truncate font-mono text-[13px] text-text-primary">
+        <Avatar label={email ?? primary} />
+        <span
+          className={`max-w-[180px] truncate text-[13px] text-text-primary ${
+            primaryIsAddress ? "font-mono" : "font-ui"
+          }`}
+        >
           {primary}
         </span>
-        <svg viewBox="0 0 16 16" className="size-3 shrink-0 text-text-dim" aria-hidden>
+        <svg
+          viewBox="0 0 16 16"
+          className={`size-3 shrink-0 text-text-dim transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+          aria-hidden
+        >
           <path
             d="m4 6 4 4 4-4"
             fill="none"
@@ -151,41 +224,66 @@ function AccountMenu() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-40 mt-2 w-[300px] border border-grid-strong bg-panel">
-          <div className="border-b border-grid px-4 py-3">
-            <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-              Signed in
-            </p>
+        <div
+          role="menu"
+          aria-label="Account"
+          className="absolute right-0 z-40 mt-2 w-[320px] animate-[menu-enter_120ms_ease-out] overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
+        >
+          {/* Identity, stated once at the top. The rows below are things to DO
+              with the account; this is the answer to "whose account is this",
+              which the old header ("Signed in") never actually gave. */}
+          <div className="flex items-center gap-3 border-b border-grid px-4 py-3.5">
+            <Avatar label={email ?? primary} size={32} />
+            <div className="min-w-0">
+              <p
+                className={`truncate text-[13.5px] text-text-primary ${
+                  primaryIsAddress ? "font-mono" : "font-ui"
+                }`}
+              >
+                {primary}
+              </p>
+              <p className="pt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase">
+                Signed in · {method}
+              </p>
+            </div>
           </div>
 
-          {email ? (
-            <div className="border-b border-grid px-4 py-3.5">
-              <p className="pb-1 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                Email
+          {wallets.length > 0 ? (
+            <div className="border-b border-grid py-1.5">
+              <p className="px-4 pt-1.5 pb-1 font-mono text-[9px] tracking-[0.12em] text-text-muted uppercase">
+                {wallets.length === 1 ? "Wallet" : "Wallets"}
               </p>
-              <p className="truncate font-ui text-[13px] text-text-primary">{email}</p>
+              {[...external, ...embedded].map((w) => (
+                <button
+                  key={w.address}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => copy(w.address)}
+                  // `group` so the copy affordance can stay quiet until the row
+                  // is pointed at: a permanent "COPY" on every row competed
+                  // with the addresses themselves for attention.
+                  className="group block w-full px-4 py-2 text-left transition-colors hover:bg-surface"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-ui text-[12px] text-text-secondary">
+                      {walletLabel(w)}
+                      {w.chain ? <span className="text-text-muted"> · {w.chain}</span> : null}
+                    </span>
+                    <span
+                      className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                        copied === w.address
+                          ? "text-accent opacity-100"
+                          : "text-text-dim opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      {copied === w.address ? "Copied" : <CopyIcon className="size-3" />}
+                    </span>
+                  </div>
+                  <p className="truncate font-mono text-[12.5px] text-text-primary">{w.address}</p>
+                </button>
+              ))}
             </div>
           ) : null}
-
-          {[...external, ...embedded].map((w) => (
-            <button
-              key={w.address}
-              type="button"
-              onClick={() => copy(w.address)}
-              className="block w-full border-b border-grid px-4 py-3.5 text-left transition-colors hover:bg-surface"
-            >
-              <div className="flex items-center justify-between pb-1">
-                <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  {walletLabel(w)}
-                  {w.chain ? ` · ${w.chain}` : ""}
-                </span>
-                <span className="font-mono text-[9px] tracking-[0.1em] text-accent uppercase">
-                  {copied === w.address ? "Copied" : "Copy"}
-                </span>
-              </div>
-              <p className="truncate font-mono text-[13px] text-text-primary">{w.address}</p>
-            </button>
-          ))}
 
           {!email && wallets.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
@@ -195,12 +293,23 @@ function AccountMenu() {
 
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               setOpen(false);
               void logout();
             }}
-            className="block w-full px-4 py-3.5 text-left font-mono text-[12px] tracking-[0.06em] text-text-secondary uppercase transition-colors hover:text-negative"
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors hover:bg-surface hover:text-negative"
           >
+            <svg viewBox="0 0 16 16" className="size-3.5 shrink-0" aria-hidden>
+              <path
+                d="M6.5 3.5h-3v9h3M9 5.5l2.5 2.5L9 10.5M11 8H5.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
             Sign out
           </button>
         </div>

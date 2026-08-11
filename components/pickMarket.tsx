@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { getUniverse, num, type UniverseAsset, type UniverseSelection } from "@/lib/api";
+import {
+  getUniverse,
+  num,
+  peekUniverse,
+  type UniverseAsset,
+  type UniverseSelection,
+} from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
 
@@ -39,7 +45,11 @@ export function PickMarket({
   onNext: () => void;
 }) {
   const { authenticated } = usePrivy();
-  const universe = useApi((t) => getUniverse(t, "rwa"), []);
+  // Seeded from the module cache, so stepping back here from limits shows the
+  // list it was already showing instead of a skeleton. `peekUniverse` is empty
+  // on a cold load and on the server, so the first render of the page is
+  // unchanged and there is nothing for hydration to disagree about.
+  const universe = useApi((t) => getUniverse(t, "rwa"), [], peekUniverse("rwa") ?? undefined);
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
   const [cursor, setCursor] = useState(0);
