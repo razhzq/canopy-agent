@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
+import { InviteGate } from "@/components/inviteGate";
 import { TopNav } from "@/components/nav";
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -31,7 +32,10 @@ export default function RootLayout({
         <Providers>
           <div className="mx-auto min-h-screen w-full max-w-[1440px] bg-bg">
             <TopNav />
-            {children}
+            {/* Inside Providers so the gate can read the Privy session, and
+                around children only — the nav keeps rendering behind the gate
+                so the account menu (and its sign out) stays reachable. */}
+            <InviteGate>{children}</InviteGate>
           </div>
         </Providers>
       </body>

@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
+import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
 import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
 
 /**
@@ -20,9 +21,9 @@ import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
  * IT DOES NOT FETCH
  *
  * The only caller — the agent's Overview — already loads this series for its
- * Return · 30d cell, so a self-fetching panel would ask the API for the same
- * rows twice on one screen. There was a fetching wrapper here for the old
- * Performance tab; that tab is gone and so is the wrapper.
+ * Return cell, so a self-fetching panel would ask the API for the same rows
+ * twice on one screen. There was a fetching wrapper here for the old Performance
+ * tab; that tab is gone and so is the wrapper.
  *
  * `null` is a real input, not a defensive check: Overview fetches with
  * allSettled so one failed request cannot blank the whole agent, which means it
@@ -63,8 +64,13 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
 
   const values = points.map((p) => p.equityUsd);
   const equity = values[values.length - 1];
-  const pnl = equity - capitalUsd;
-  const returnPct = capitalUsd > 0 ? (pnl / capitalUsd) * 100 : 0;
+  // Off the shared helpers, so this panel, the Return cell above it and the
+  // list all quote one calculation. It also inherits the fallback: a series
+  // with no capital figure is measured from its first reading, which is what
+  // was deployed.
+  const pnl = pnlSinceDeployUsd(series) ?? 0;
+  const returnPct = returnSinceDeployPct(series) ?? 0;
+  const deployedCapital = capitalUsd || points[0].equityUsd;
   const drawdown = maxDrawdownPct(values);
   const deployed = deployedUsd(points[points.length - 1]);
   // Unrealised is what the open book is carrying: everything not yet booked.
@@ -86,7 +92,7 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
               pnl >= 0 ? "text-accent" : "text-negative"
             }`}
           >
-            {signed(pnl)} · {signedPct(returnPct)} against {money(capitalUsd)}
+            {signed(pnl)} · {signedPct(returnPct)} against {money(deployedCapital)}
           </p>
         </div>
 

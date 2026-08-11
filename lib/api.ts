@@ -52,6 +52,61 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+/* ---------------------------------------------------------------- invite -- */
+
+/**
+ * Whether this user may use the agent stack at all.
+ *
+ * NOT THE CONTROL — the same shape as LIVE_TRADING_ENABLED. A gate the browser
+ * evaluates is a gate the browser can skip, so canopy-be must refuse every
+ * /agents route for an uninvited user regardless of what this returns. What
+ * this buys is the difference between a locked door and a wall of 403s: the
+ * user is told what is missing and given somewhere to type it.
+ *
+ * `required` is separate from `granted` so the gate can be turned off server-
+ * side without shipping a frontend build.
+ */
+export interface InviteStatus {
+  required: boolean;
+  granted: boolean;
+}
+
+/**
+ * Reads the user's access state.
+ *
+ * A 404 is deliberately NOT an error here — it means canopy-be does not have
+ * the invite surface deployed yet, and the honest reading of "the authority
+ * has no opinion" is that nothing is being gated. Failing closed on 404 would
+ * brick every environment whose backend predates this endpoint, which is a
+ * worse outcome than an ungated build talking to an ungated backend.
+ *
+ * Any other failure propagates. A 500 or a dead network is NOT permission.
+ */
+export async function getInviteStatus(token: string): Promise<InviteStatus> {
+  try {
+    return await request<InviteStatus>("/agents/invite", token);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { required: false, granted: true };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Redeems an invite code for the signed-in user.
+ *
+ * Refusals come back as ordinary ApiErrors carrying the backend's own message
+ * — an unknown code, one already spent, one that has expired — and the gate
+ * renders that message rather than inventing its own. The backend knows which
+ * of those it was; the client would have to guess from a status code.
+ */
+export const redeemInvite = (token: string, code: string) =>
+  request<InviteStatus>("/agents/invite", token, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+
 /* ------------------------------------------------------------ marketplace -- */
 
 export interface StrategyRow {

@@ -13,6 +13,7 @@ import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
+import { returnSinceDeployPct } from "@/lib/perf";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -187,7 +188,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // which is the truth, and is why the note under the table says so.
   const positionCap =
     constraints.maxPositionPct && capital ? (capital * constraints.maxPositionPct) / 100 : null;
-  const ret30 = return30d(equity);
+  const ret30 = returnSinceDeployPct(equity);
 
   // Why a half of the book switch cannot be picked, or null when it can. The
   // flag comes first: while real-money trading is closed, "not open yet" is the
@@ -272,10 +273,10 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           note={agent.is_paper ? "simulated · nothing funded" : "mandate, set at deploy"}
         />
         <Cell
-          label="Return · 30d"
+          label="Return"
           value={ret30 === null ? "—" : signedPct(ret30)}
           tone={ret30 === null ? undefined : ret30 >= 0 ? "accent" : "negative"}
-          note={ret30 === null ? "no readings yet" : "against capital"}
+          note={ret30 === null ? "no readings yet" : "since deployed"}
         />
         <Cell
           label="Live since"
@@ -1242,17 +1243,6 @@ function entryHeadline(entry: DetectionRule, symbol?: string): string {
   }
   const spec = RWA_RULES.find((r) => r.key === entry.key);
   return `${spec?.label ?? entry.key} ${entry.op === "gte" ? "≥" : "≤"} ${entry.value}`;
-}
-
-/** Return across the trailing 30 days, against the reading 30 days back. */
-function return30d(equity: EquitySeries | null): number | null {
-  const points = equity?.points ?? [];
-  if (points.length === 0) return null;
-  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const before = [...points].reverse().find((p) => new Date(p.at).getTime() <= cutoff);
-  const base = before ?? points[0];
-  if (!base.equityUsd) return null;
-  return ((points[points.length - 1].equityUsd - base.equityUsd) / base.equityUsd) * 100;
 }
 
 function cadence(sec: number): string {

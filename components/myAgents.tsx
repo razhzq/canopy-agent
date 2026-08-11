@@ -15,6 +15,7 @@ import {
   type AgentRow,
   type EquitySeries,
 } from "@/lib/api";
+import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
 
 /**
  * "My agents" — wireframe 1j.
@@ -30,10 +31,21 @@ import {
  * `GET /agents` selects a.* from trading_agents, so status, capital, cadence,
  * pause reason and deploy time are all one request. Return and wallet ADDRESS
  * are not on that row — equity lives in the desk's decision rows and the
- * address in trading_agent_wallets — so each agent gets a `getEquity` and a
- * `getAgent` alongside. That is a fan-out, which is only acceptable because an
- * owner has a handful of agents; past FANOUT_CAP the extra rows load without
- * their return and wallet rather than firing eighty requests.
+ * address in trading_agent_wallets — so each agent gets a `getEquity`, and a
+ * `getAgent` too if it could have a wallet.
+ *
+ * EVERY ROW GETS ITS FIGURE.
+ *
+ * This used to stop after the first twelve agents, and the rest rendered with an
+ * empty return. That is the worst of the options: the thirteenth agent has a
+ * return, the page knows how to find it, and the row said nothing — which reads
+ * as an agent that has done nothing rather than as a request nobody made.
+ *
+ * The cost is held down two ways instead. Requests run through a small
+ * concurrency pool rather than all at once, so a long list arrives in waves
+ * without opening thirty sockets. And `getAgent` is skipped for paper agents
+ * entirely: it was only ever fetched for the wallet address, and a paper agent
+ * has no wallet to show — which today is most of them, halving the fan-out.
  *
  * TWO CELLS OF THE WIREFRAME ARE NOT PORTED AS DRAWN
  *
@@ -44,14 +56,48 @@ import {
  * thing you would actually act on.
  */
 
-/** Past this many agents the per-agent detail fetches are skipped. */
-const FANOUT_CAP = 12;
+/** How many per-agent requests are in flight at once. */
+const CONCURRENCY = 6;
+
+/**
+ * Runs `work` over every item, at most `limit` at a time, in order.
+ *
+ * Plain `Promise.all` over a list opens one socket per agent; the browser queues
+ * them anyway, and the API sees a burst. This keeps the burst to a width the
+ * server is happy with while still finishing in a fraction of the time a
+ * sequential loop would take.
+ */
+async function pooled<T, R>(
+  items: T[],
+  limit: number,
+  work: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await work(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
 
 interface Enriched {
   agent: AgentRow;
-  /** Null until the fan-out lands, or when the agent has no wallet at all. */
+  /** Null when the agent has no wallet — the normal state for a paper agent. */
   wallet: AgentDetail["wallet"];
   equity: EquitySeries | null;
+  /**
+   * Why there is no equity, when there is none.
+   *
+   * `null` equity used to mean either "the request failed" or "no cycle has
+   * recorded a reading", and both printed "—" — so a row whose equity call had
+   * errored looked exactly like a flat agent. That is how this list came to say
+   * nothing about an agent whose own page said +2.4%.
+   */
+  equityGap: "failed" | null;
 }
 
 export function MyAgents() {
@@ -79,20 +125,20 @@ export function MyAgents() {
 
       // Settled, not all: one agent whose equity 500s must not blank the whole
       // page. A row with a missing figure still shows its status and capital.
-      const enriched = await Promise.all(
-        agents.map(async (agent, i): Promise<Enriched> => {
-          if (i >= FANOUT_CAP) return { agent, wallet: null, equity: null };
-          const [detail, equity] = await Promise.allSettled([
-            getAgent(token, agent.id),
-            getEquity(token, agent.id),
-          ]);
-          return {
-            agent,
-            wallet: detail.status === "fulfilled" ? detail.value.wallet : null,
-            equity: equity.status === "fulfilled" ? equity.value : null,
-          };
-        }),
-      );
+      const enriched = await pooled(agents, CONCURRENCY, async (agent): Promise<Enriched> => {
+        const [detail, equity] = await Promise.allSettled([
+          // Only for an agent that can have a wallet. A paper agent's row shows
+          // "unfunded" whatever comes back, so the request buys nothing.
+          agent.is_paper ? Promise.resolve(null) : getAgent(token, agent.id),
+          getEquity(token, agent.id),
+        ]);
+        return {
+          agent,
+          wallet: detail.status === "fulfilled" ? (detail.value?.wallet ?? null) : null,
+          equity: equity.status === "fulfilled" ? equity.value : null,
+          equityGap: equity.status === "fulfilled" ? null : ("failed" as const),
+        };
+      });
       setState({ phase: "ready", rows: enriched });
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
@@ -101,6 +147,30 @@ export function MyAgents() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  /**
+   * Kept current, because this list is the thing people leave open.
+   *
+   * It used to fetch once per mount. An agent deployed a minute ago has no
+   * readings yet, so the row showed no return — and it went on showing no
+   * return for as long as the tab stayed open, while the agent's own page
+   * (fetched fresh on every visit) showed the real figure. The two screens were
+   * not disagreeing about the arithmetic; one of them was simply older.
+   *
+   * Refetching on focus is the half that matters most: the usual way back here
+   * is from an agent's page, in the same tab, having just seen the true number.
+   */
+  useEffect(() => {
+    const id = setInterval(() => void load(), 45_000);
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [load]);
 
   // Band plus rows, because that is what lands: the five summary cells are
@@ -137,7 +207,7 @@ export function MyAgents() {
     .filter((r) => r.agent.status !== "stopped")
     .reduce((s, r) => s + (Number(r.agent.capital_usd) || 0), 0);
 
-  const pnl30d = sum30d(rows);
+  const pnlWindow = sumWindow(rows);
 
   const live = rows.filter((r) => !r.agent.is_paper && r.agent.status === "active").length;
   const paper = rows.filter((r) => r.agent.is_paper && r.agent.status === "active").length;
@@ -155,10 +225,10 @@ export function MyAgents() {
       <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
         <Cell label="Capital deployed" value={money(deployed)} />
         <Cell
-          label="P&L · 30d"
-          value={pnl30d === null ? "—" : signed(pnl30d)}
-          tone={pnl30d === null ? undefined : pnl30d >= 0 ? "accent" : "negative"}
-          note={pnl30d === null ? "no readings yet" : undefined}
+          label="P&L · since deploy"
+          value={pnlWindow === null ? "—" : signed(pnlWindow)}
+          tone={pnlWindow === null ? undefined : pnlWindow >= 0 ? "accent" : "negative"}
+          note={pnlWindow === null ? "no readings yet" : undefined}
         />
         <Cell label="Live" value={String(live)} />
         <Cell label="Paper" value={String(paper)} />
@@ -220,7 +290,7 @@ export function MyAgents() {
 /* --------------------------------------------------------------------- row -- */
 
 function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
-  const { agent, wallet, equity } = row;
+  const { agent, wallet, equity, equityGap } = row;
   const { getAccessToken } = usePrivy();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -244,7 +314,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
     }
   }
 
-  const ret = returnPct(equity);
+  const ret = returnSinceDeployPct(equity);
 
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-8 py-4 lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
@@ -307,13 +377,35 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
         {money(Number(agent.capital_usd) || 0)}
       </span>
 
-      <span
-        className={`tnum font-mono text-[14px] lg:text-right ${
-          ret === null ? "text-text-muted" : ret >= 0 ? "text-accent" : "text-negative"
-        }`}
-      >
-        {ret === null ? "—" : signedPct(ret)}
-      </span>
+      {/* A missing return says which kind of missing it is. "Retry" is a real
+          button because a failed equity call is the one case the reader can
+          actually do something about — and the case where "—" was previously
+          claiming the agent had made nothing. */}
+      {ret !== null ? (
+        <span
+          className={`tnum font-mono text-[14px] lg:text-right ${
+            ret >= 0 ? "text-accent" : "text-negative"
+          }`}
+        >
+          {signedPct(ret)}
+        </span>
+      ) : equityGap === "failed" ? (
+        <button
+          type="button"
+          onClick={onChanged}
+          title="The equity reading did not load. Its own page has the figure."
+          className="font-mono text-[11px] tracking-[0.06em] text-warning uppercase transition-colors hover:text-accent lg:text-right"
+        >
+          Retry
+        </button>
+      ) : (
+        <span
+          className="font-mono text-[11px] tracking-[0.06em] text-text-muted uppercase lg:text-right"
+          title="No cycle has recorded an equity reading yet."
+        >
+          no data
+        </span>
+      )}
 
       <span className="font-ui text-[11.5px] text-text-dim lg:text-right">
         {when(agent.last_tick_at)}
@@ -395,36 +487,21 @@ const STATUS_LABEL: Record<string, string> = {
 /* ---------------------------------------------------------------- figures -- */
 
 /**
- * Return against the capital the agent was deployed with.
+ * P&L across the trailing window, summed over every agent with readings.
  *
- * Equity, not realised PnL: the last reading already carries the open book, and
- * an owner asking "how is it doing" means everything, not just what closed.
+ * Per-agent movement comes from the shared `pnlUsd`, so the band and the Return
+ * column are two views of one calculation rather than two implementations that
+ * happen to agree. Agents with no readings contribute nothing rather than a
+ * zero — a zero would claim they were flat.
  */
-function returnPct(equity: EquitySeries | null): number | null {
-  if (!equity || equity.points.length === 0 || !equity.capitalUsd) return null;
-  const last = equity.points[equity.points.length - 1].equityUsd;
-  return ((last - equity.capitalUsd) / equity.capitalUsd) * 100;
-}
-
-/**
- * P&L across the trailing 30 days, summed over every agent with readings.
- *
- * The baseline is the last reading at or before the cutoff — what the book was
- * worth 30 days ago. An agent younger than the window has no such reading, so
- * its own first point is the baseline, which is its starting capital. Agents
- * with no readings at all contribute nothing rather than a zero.
- */
-function sum30d(rows: Enriched[]): number | null {
-  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+function sumWindow(rows: Enriched[]): number | null {
   let total = 0;
   let any = false;
 
   for (const { equity } of rows) {
-    const points = equity?.points ?? [];
-    if (points.length === 0) continue;
-    const before = [...points].reverse().find((p) => new Date(p.at).getTime() <= cutoff);
-    const base = before ?? points[0];
-    total += points[points.length - 1].equityUsd - base.equityUsd;
+    const moved = pnlSinceDeployUsd(equity);
+    if (moved === null) continue;
+    total += moved;
     any = true;
   }
   return any ? total : null;
