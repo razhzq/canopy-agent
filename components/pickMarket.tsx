@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { getUniverse, num, type UniverseAsset, type UniverseSelection } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { AssetLogo } from "@/components/ui";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -189,7 +190,8 @@ export function PickMarket({
                 i === cursor ? "bg-panel" : ""
               } ${chosen(a) ? "bg-accent-wash" : ""}`}
             >
-              <span className="flex min-w-0 items-baseline gap-2.5">
+              <span className="flex min-w-0 items-center gap-2.5">
+                <AssetLogo symbol={a.underlying} issuer={a.issuer} size={18} />
                 <span
                   className={`truncate font-mono text-[13px] ${
                     chosen(a) ? "text-accent" : "text-text-primary"

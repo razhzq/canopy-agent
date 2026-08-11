@@ -448,6 +448,112 @@ export function EarningsBars({
 
 /* ----------------------------------------------------------- equity curve -- */
 
+/** The viewBox the equity curve is drawn in. Stretched to the container width. */
+const CURVE_W = 1000;
+const CURVE_H = 300;
+
+/**
+ * Where a curve's values land inside the viewBox.
+ *
+ * Exported because the hover readout on the agent page has to place a crosshair
+ * and a tooltip over the same geometry the line was drawn with. Recomputing the
+ * scale there by hand is how a marker ends up a few pixels off the line it is
+ * supposed to be sitting on.
+ */
+export function equityScale(values: number[], baseline?: number) {
+  const all = baseline === undefined ? values : [...values, baseline];
+  let lo = Math.min(...all);
+  let hi = Math.max(...all);
+  // A perfectly flat series has no range to scale into; give it one so the
+  // line lands mid-panel instead of on an edge or dividing by zero.
+  if (hi - lo < 1e-9) {
+    lo -= Math.max(Math.abs(lo) * 0.01, 1);
+    hi += Math.max(Math.abs(hi) * 0.01, 1);
+  } else {
+    const pad = (hi - lo) * 0.12;
+    lo -= pad;
+    hi += pad;
+  }
+
+  return {
+    W: CURVE_W,
+    H: CURVE_H,
+    lo,
+    hi,
+    x: (i: number) =>
+      values.length === 1 ? CURVE_W / 2 : (i / (values.length - 1)) * CURVE_W,
+    y: (v: number) => CURVE_H - ((v - lo) / (hi - lo)) * CURVE_H,
+  };
+}
+
+/**
+ * A monotone cubic path through the points — smoothed, but not invented.
+ *
+ * The naive way to soften a polyline is a Catmull-Rom spline, and it lies: a
+ * spline through equity readings overshoots at every turn, drawing peaks the
+ * account never reached and troughs it never fell to. On a curve someone is
+ * using to judge a track record that is not a cosmetic difference.
+ *
+ * Monotone cubic (Fritsch–Carlson tangents) keeps the eased look while staying
+ * bounded by consecutive readings: between two points the curve never leaves
+ * their range, and a local high or low in the data stays the local high or low
+ * on screen. The readings themselves are untouched — every one is still exactly
+ * on the line, which is what makes the hover readout honest.
+ */
+export function curvePath(pts: number[][]): string {
+  const n = pts.length;
+  if (n === 0) return "";
+  if (n < 3) {
+    return pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px} ${py}`).join(" ");
+  }
+
+  // Secant slopes between neighbours.
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const h = pts[i + 1][0] - pts[i][0];
+    dx.push(h);
+    slope.push(h === 0 ? 0 : (pts[i + 1][1] - pts[i][1]) / h);
+  }
+
+  // Tangents: the average of the two adjacent secants, forced flat wherever the
+  // series turns. The flattening at turning points is what stops overshoot.
+  const m: number[] = new Array(n);
+  m[0] = slope[0];
+  m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
+  }
+  // Fritsch–Carlson clamp: a tangent steeper than 3× its secant can still leave
+  // the interval, so pull both ends of each segment back inside.
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i] / slope[i];
+    const b = m[i + 1] / slope[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * slope[i];
+      m[i + 1] = t * b * slope[i];
+    }
+  }
+
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    const c1x = pts[i][0] + h;
+    const c1y = pts[i][1] + m[i] * h;
+    const c2x = pts[i + 1][0] - h;
+    const c2y = pts[i + 1][1] - m[i + 1] * h;
+    d += ` C${c1x} ${c1y} ${c2x} ${c2y} ${pts[i + 1][0]} ${pts[i + 1][1]}`;
+  }
+  return d;
+}
+
 /**
  * An equity curve.
  *
@@ -473,27 +579,9 @@ export function EquityCurve({
   baseline?: number;
   height?: number;
 }) {
-  const W = 1000;
-  const H = 300;
-
   if (values.length === 0) return <div style={{ height }} />;
 
-  const all = baseline === undefined ? values : [...values, baseline];
-  let lo = Math.min(...all);
-  let hi = Math.max(...all);
-  // A perfectly flat series has no range to scale into; give it one so the
-  // line lands mid-panel instead of on an edge or dividing by zero.
-  if (hi - lo < 1e-9) {
-    lo -= Math.max(Math.abs(lo) * 0.01, 1);
-    hi += Math.max(Math.abs(hi) * 0.01, 1);
-  } else {
-    const pad = (hi - lo) * 0.12;
-    lo -= pad;
-    hi += pad;
-  }
-
-  const x = (i: number) => (values.length === 1 ? W / 2 : (i / (values.length - 1)) * W);
-  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
+  const { W, H, x, y } = equityScale(values, baseline);
 
   // One point is a flat line across the panel, not a dot in the middle: the
   // account existed for that whole cycle at that value.
@@ -505,7 +593,7 @@ export function EquityCurve({
         ]
       : values.map((v, i) => [x(i), y(v)]);
 
-  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px} ${py}`).join(" ");
+  const line = curvePath(pts);
   const area = `${line} L${pts[pts.length - 1][0]} ${H} L${pts[0][0]} ${H} Z`;
 
   const last = values[values.length - 1];
@@ -519,14 +607,19 @@ export function EquityCurve({
       style={{ height, width: "100%" }}
       aria-hidden
     >
+      {/* Keyed by tone, not a single fixed id: two curves on one page (the
+          marketplace cards) both emit these defs, and duplicate ids resolve to
+          whichever came first — a losing card was picking up the winning card's
+          green wash. One id per tone means a collision is always with an
+          identical gradient. */}
       <defs>
-        <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`equityFill-${up ? "up" : "down"}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
 
-      <path d={area} fill="url(#equityFill)" />
+      <path d={area} fill={`url(#equityFill-${up ? "up" : "down"})`} />
 
       {baseline !== undefined ? (
         <line

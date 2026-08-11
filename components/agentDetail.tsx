@@ -12,6 +12,7 @@ import { LIVE_TRADING_ENABLED } from "@/lib/privy";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
+import { AssetLogo } from "@/components/ui";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -187,6 +188,19 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   const positionCap =
     constraints.maxPositionPct && capital ? (capital * constraints.maxPositionPct) / 100 : null;
   const ret30 = return30d(equity);
+
+  // Why a half of the book switch cannot be picked, or null when it can. The
+  // flag comes first: while real-money trading is closed, "not open yet" is the
+  // true reason for every agent, and saying "hasn't gone live" would imply a
+  // promotion the product will not currently perform.
+  const liveDisabledReason = !LIVE_TRADING_ENABLED
+    ? "Real-money trading isn't open yet"
+    : agent.is_paper
+      ? "This agent hasn't gone live yet"
+      : null;
+  // A live agent that was deployed straight to live has no paper run behind it.
+  const paperDisabledReason =
+    agent.is_paper || detail.hasPaperHistory ? null : "This agent has no paper run";
   const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
 
   return (
@@ -208,21 +222,23 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <WalletTag address={wallet?.address ?? null} isPaper={agent.is_paper} />
         </div>
 
-        {/* Only once the agent has both books. A paper agent has no live book
-            to switch to, and the promotion below is the thing to look at. */}
-        {detail.hasPaperHistory ? (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-4">
-            <BookSwitch
-              book={detail.book}
-              onChange={setBook}
-            />
-            {detail.book === "paper" ? (
-              <p className="font-ui text-[12px] text-text-dim">
-                The settled paper run. This agent trades live now.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+        {/* Always both halves, so the reader can see that an agent has two books
+            and which one they are looking at. A half with nothing behind it is
+            disabled and says why — "not open yet" reads as a stage, where a
+            missing half read as a feature that had been taken away. */}
+        <div className="pt-4">
+          <BookSwitch
+            book={detail.book}
+            onChange={setBook}
+            paperDisabledReason={paperDisabledReason}
+            liveDisabledReason={liveDisabledReason}
+            note={
+              detail.book === "paper" && detail.hasPaperHistory
+                ? "The settled paper run. This agent trades live now."
+                : null
+            }
+          />
+        </div>
 
         {agent.paused_reason ? (
           <p className="pt-3 font-ui text-[12.5px] text-negative">
@@ -513,8 +529,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                     key={`${m.sel.underlying}/${m.sel.issuer ?? ""}`}
                     className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid py-2.5"
                   >
-                    <span className="truncate font-ui text-[12.5px] text-text-primary">
-                      {m.asset ? `${symbol}/USDC` : symbol}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <AssetLogo symbol={m.sel.underlying} issuer={m.sel.issuer ?? m.asset?.issuer} />
+                      <span className="truncate font-ui text-[12.5px] text-text-primary">
+                        {m.asset ? `${symbol}/USDC` : symbol}
+                      </span>
                     </span>
                     <span className="tnum text-right font-mono text-[12px] text-text-primary">
                       {positionCap === null ? "—" : `≤ ${money(positionCap)}`}
@@ -952,26 +971,55 @@ function StatusChip({ status }: { status: string }) {
  * So this IS a display filter now, and switching refetches the same agent for
  * the other book rather than navigating anywhere.
  *
- * It only appears once there is something to switch to. A paper agent has no
- * live book yet, and offering a half that can only ever be empty invites the
- * reading that live is broken rather than not-yet.
+ * Both halves always render. A half with no book behind it — live, while
+ * real-money trading is closed — is disabled and carries its reason, which
+ * reads as a stage the product is in. Hiding it instead left the page silent
+ * about the fact that an agent has two books at all.
+ *
+ * The reason surfaces on hover of the half it belongs to, not as a standing
+ * line beside the pill: sitting there permanently it read as a page-level
+ * announcement about the product, when it is an answer to "why can't I press
+ * this". `note` holds anything that IS worth saying unprompted, and the hovered
+ * reason takes its place while pointed at.
  */
 function BookSwitch({
   book,
   onChange,
+  paperDisabledReason,
+  liveDisabledReason,
+  note,
 }: {
   book: "paper" | "live";
   onChange: (book: "paper" | "live") => void;
+  paperDisabledReason: string | null;
+  liveDisabledReason: string | null;
+  note: string | null;
 }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+
   return (
-    <div
-      role="group"
-      aria-label="Paper or live book"
-      className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
-    >
-      {(["paper", "live"] as const).map((b) => (
-        <Half key={b} book={b} current={book} onChange={onChange} />
-      ))}
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+      <div
+        role="group"
+        aria-label="Paper or live book"
+        className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+      >
+        {(["paper", "live"] as const).map((b) => (
+          <Half
+            key={b}
+            book={b}
+            current={book}
+            onChange={onChange}
+            disabledReason={b === "paper" ? paperDisabledReason : liveDisabledReason}
+            onHover={setHovered}
+          />
+        ))}
+      </div>
+      {hovered ? (
+        <p className="font-ui text-[12px] text-text-dim">{hovered}.</p>
+      ) : note ? (
+        <p className="font-ui text-[12px] text-text-dim">{note}</p>
+      ) : null}
     </div>
   );
 }
@@ -980,10 +1028,14 @@ function Half({
   book,
   current,
   onChange,
+  disabledReason,
+  onHover,
 }: {
   book: "paper" | "live";
   current: "paper" | "live";
   onChange: (book: "paper" | "live") => void;
+  disabledReason: string | null;
+  onHover: (reason: string | null) => void;
 }) {
   const active = book === current;
   const label = book === "paper" ? "Paper" : "Live";
@@ -999,11 +1051,25 @@ function Half({
     );
   }
 
+  // aria-disabled rather than `disabled`: a disabled button fires no pointer
+  // events in most browsers and cannot be focused, so the reason would never
+  // reach anyone — which is the one thing this half exists to say.
   return (
     <button
       type="button"
-      onClick={() => onChange(book)}
-      className={`${base} text-text-dim hover:text-text-primary`}
+      aria-disabled={disabledReason !== null}
+      onClick={() => {
+        if (!disabledReason) onChange(book);
+      }}
+      onMouseEnter={() => onHover(disabledReason)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(disabledReason)}
+      onBlur={() => onHover(null)}
+      className={
+        disabledReason
+          ? `${base} cursor-not-allowed text-text-dim/45`
+          : `${base} text-text-dim hover:text-text-primary`
+      }
     >
       {label}
     </button>

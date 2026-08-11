@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Badge, Breadcrumb } from "@/components/ui";
+import { AssetLogo, Badge, Breadcrumb, SourceMark } from "@/components/ui";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonLog, SkeletonRows } from "@/components/skeleton";
 import { getCycle, listCycles, type CycleRow } from "@/lib/api";
@@ -246,16 +246,13 @@ function Seat({
                 <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
                   {line.symbol ? (
                     <span className="font-mono text-[12px] text-text-primary">
+                      <AssetLogo symbol={line.symbol} size={14} />{" "}
                       {line.symbol}{" "}
                     </span>
                   ) : null}
                   {line.detail}
                 </span>
-                {line.source ? (
-                  <span className="ml-2 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
-                    {line.source}
-                  </span>
-                ) : null}
+                {line.source ? <SourceMark source={line.source} /> : null}
               </span>
             </li>
           ))}

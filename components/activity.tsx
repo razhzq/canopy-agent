@@ -6,7 +6,7 @@ import { narrateCycle, type NarratedLine } from "@/lib/narrate";
 import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonLog } from "@/components/skeleton";
-import { Badge } from "@/components/ui";
+import { AssetLogo, Badge, SourceMark } from "@/components/ui";
 
 /**
  * The agent's activity log: what it did, in order, most recent cycle first.
@@ -232,16 +232,13 @@ function Cycle({
                 <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
                   {line.symbol ? (
                     <span className="font-mono text-[12px] text-text-primary">
+                      <AssetLogo symbol={line.symbol} size={14} />{" "}
                       {line.symbol}{" "}
                     </span>
                   ) : null}
                   {line.detail}
                 </span>
-                {line.source ? (
-                  <span className="ml-2 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
-                    {line.source}
-                  </span>
-                ) : null}
+                {line.source ? <SourceMark source={line.source} /> : null}
               </span>
             </li>
           ))}

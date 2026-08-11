@@ -1,6 +1,8 @@
 "use client";
 
-import { EquityCurve } from "@/components/charts";
+import { useState, type CSSProperties } from "react";
+
+import { EquityCurve, equityScale } from "@/components/charts";
 import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
 
 /**
@@ -106,7 +108,7 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
       </div>
 
       <div className="border border-grid p-4">
-        <EquityCurve values={values} baseline={capitalUsd} height={220} />
+        <ReadableCurve points={points} capitalUsd={capitalUsd} height={220} />
         <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
           <span>Cycle {points[0].tickSeq}</span>
           <span className="text-text-muted">
@@ -118,6 +120,167 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
       </div>
     </div>
   );
+}
+
+/* ------------------------------------------------------------- hover read -- */
+
+/**
+ * The curve with a per-cycle readout under the pointer.
+ *
+ * The curve alone answers "how did it go"; a reader looking at a step in it
+ * immediately wants "which cycle was that, and what was the account worth" —
+ * and the only way to answer used to be counting cycles along the axis labels.
+ *
+ * The marker and the card are HTML, positioned over the SVG rather than drawn
+ * inside it. The chart's viewBox is stretched with `preserveAspectRatio="none"`,
+ * so anything drawn in SVG units gets stretched with it — a circle becomes an
+ * ellipse and text becomes wider than it is tall. Percentages off the same
+ * scale the line was built from land in exactly the same place without
+ * inheriting the distortion.
+ *
+ * Snapping is to the NEAREST READING, never to a position along the line: the
+ * card always names a cycle that actually happened and a figure the desk
+ * actually recorded.
+ */
+function ReadableCurve({
+  points,
+  capitalUsd,
+  height,
+}: {
+  points: EquityPoint[];
+  capitalUsd: number;
+  height: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const values = points.map((p) => p.equityUsd);
+  const { W, H, x, y } = equityScale(values, capitalUsd);
+
+  const track = (clientX: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    setHover(Math.round(frac * (values.length - 1)));
+  };
+
+  const i = hover === null ? null : Math.min(hover, values.length - 1);
+  const point = i === null ? null : points[i];
+  // A single reading is drawn as a flat line across the whole panel, so its
+  // marker belongs at the middle of that line rather than at x(0).
+  const leftPct = i === null ? 0 : (values.length === 1 ? W / 2 : x(i)) / W;
+  const topPct = i === null ? 0 : y(values[i]) / H;
+
+  return (
+    <div
+      className="relative"
+      onMouseMove={(e) => track(e.clientX, e.currentTarget)}
+      onMouseLeave={() => setHover(null)}
+      onTouchStart={(e) => track(e.touches[0].clientX, e.currentTarget)}
+      onTouchMove={(e) => track(e.touches[0].clientX, e.currentTarget)}
+      onTouchEnd={() => setHover(null)}
+    >
+      <EquityCurve values={values} baseline={capitalUsd} height={height} />
+
+      {point ? (
+        <>
+          {/* Crosshair and marker. pointer-events-none throughout: the pointer
+              must keep reaching the container, or moving onto the card the
+              pointer just summoned would dismiss it. */}
+          <div
+            className="pointer-events-none absolute inset-y-0 w-px bg-grid-strong"
+            style={{ left: `${leftPct * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-panel"
+            style={{
+              left: `${leftPct * 100}%`,
+              top: `${topPct * 100}%`,
+              // A ring in the line's own colour, which the chart tints by where
+              // the series ended.
+              boxShadow: `0 0 0 2px ${
+                values[values.length - 1] >= capitalUsd
+                  ? "var(--color-accent)"
+                  : "var(--color-negative)"
+              }`,
+            }}
+          />
+          <Readout
+            point={point}
+            capitalUsd={capitalUsd}
+            /* Flipped near the edges so the card never hangs outside the panel. */
+            align={leftPct > 0.72 ? "right" : leftPct < 0.28 ? "left" : "center"}
+            /* And dropped below the point when there is no room above it. */
+            below={topPct < 0.34}
+            style={{ left: `${leftPct * 100}%`, top: `${topPct * 100}%` }}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** The card itself: which cycle, when, what it was worth, and against capital. */
+function Readout({
+  point,
+  capitalUsd,
+  align,
+  below,
+  style,
+}: {
+  point: EquityPoint;
+  capitalUsd: number;
+  align: "left" | "center" | "right";
+  below: boolean;
+  style: CSSProperties;
+}) {
+  const pnl = point.equityUsd - capitalUsd;
+  const pct = capitalUsd > 0 ? (pnl / capitalUsd) * 100 : 0;
+  const cash = num(point.cashUsd);
+
+  return (
+    <div
+      className="pointer-events-none absolute z-10 whitespace-nowrap border border-grid-strong bg-panel px-3 py-2 shadow-lg"
+      style={{
+        ...style,
+        transform: `translate(${
+          align === "center" ? "-50%" : align === "right" ? "calc(-100% - 10px)" : "10px"
+        }, ${below ? "12px" : "calc(-100% - 12px)"})`,
+      }}
+    >
+      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+        Cycle {point.tickSeq} · {when(point.at)}
+      </p>
+      <p className="tnum pt-1 font-mono text-[15px] leading-none text-text-primary">
+        {money(point.equityUsd)}
+      </p>
+      <p
+        className={`tnum pt-1 font-mono text-[11px] ${
+          pnl >= 0 ? "text-accent" : "text-negative"
+        }`}
+      >
+        {signed(pnl)} · {signedPct(pct)}
+      </p>
+      {cash === null ? null : (
+        <p className="tnum pt-1 font-mono text-[10px] text-text-muted">{money(cash)} cash</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The reading's timestamp, short.
+ *
+ * Locale-formatted on the client only, which this is — the panel is behind a
+ * signed-in fetch, so there is no server render of this string to disagree with.
+ */
+function when(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /* ---------------------------------------------------------------- helpers -- */

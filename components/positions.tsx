@@ -12,7 +12,7 @@ import {
 import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
-import { Badge } from "@/components/ui";
+import { AssetLogo, Badge } from "@/components/ui";
 
 /**
  * What the agent owns, and what it has done.
@@ -216,8 +216,15 @@ function OpenTable({
               className="grid w-full grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
             >
               <span className="min-w-0">
-                <span className="block truncate font-mono text-[12.5px] text-text-primary">
-                  {h.symbol}
+                <span className="flex items-center gap-2">
+                  {/* The wrapper's own symbol, not the underlying: it resolves
+                      just as well for equities ("TSLAx" → TSLA) and is the only
+                      one of the two that identifies a gold position, where the
+                      underlying is XAU for both issuers. */}
+                  <AssetLogo symbol={h.symbol} />
+                  <span className="truncate font-mono text-[12.5px] text-text-primary">
+                    {h.symbol}
+                  </span>
                 </span>
                 <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
                   {h.lots.length === 1
@@ -228,16 +235,31 @@ function OpenTable({
               <Cell>{h.qty.toFixed(4)}</Cell>
               <Cell>${h.avgUsd.toFixed(2)}</Cell>
               <Cell>{h.valueUsd === null ? "not priced" : `$${h.valueUsd.toFixed(2)}`}</Cell>
+              {/* Dollars lead, percent underneath. A percentage alone cannot be
+                  weighed: −6% is a rounding error on one holding and the worst
+                  loss on the book on another, and the reader had to work it out
+                  from Value against Avg cost. Both figures come off the same
+                  mark, so they cannot disagree. */}
               <span
-                className={`tnum text-right font-mono text-[12.5px] ${
-                  h.pnlPct === null
+                className={`text-right ${
+                  h.pnlUsd === null
                     ? "text-text-muted"
-                    : h.pnlPct >= 0
+                    : h.pnlUsd >= 0
                       ? "text-accent"
                       : "text-negative"
                 }`}
               >
-                {h.pnlPct === null ? "—" : `${h.pnlPct >= 0 ? "+" : "−"}${Math.abs(h.pnlPct).toFixed(1)}%`}
+                <span className="tnum block font-mono text-[12.5px]">
+                  {h.pnlUsd === null
+                    ? "—"
+                    : `${h.pnlUsd >= 0 ? "+" : "−"}$${Math.abs(h.pnlUsd).toFixed(2)}`}
+                </span>
+                {h.pnlPct === null ? null : (
+                  <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
+                    {h.pnlPct >= 0 ? "+" : "−"}
+                    {Math.abs(h.pnlPct).toFixed(1)}%
+                  </span>
+                )}
               </span>
               <span className="w-8 text-right font-mono text-[11px] text-text-dim">
                 {canExpand ? (expanded ? "−" : "+") : ""}
@@ -396,6 +418,7 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
+          <AssetLogo symbol={f.symbol} />
           <span className="truncate font-mono text-[12.5px] text-text-primary">{f.symbol}</span>
           {/* Labelled, not hidden. Every agent is paper today, so a history
               that silently implied real fills would mislead every reader. */}
