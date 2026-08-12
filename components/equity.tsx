@@ -3,8 +3,14 @@
 import { useState, type CSSProperties } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
-import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
-import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
+import { markOpenBook, pnlSinceDeployUsd } from "@/lib/perf";
+import {
+  num,
+  type AgentDetail,
+  type EquityPoint,
+  type EquitySeries,
+  type UniverseAsset,
+} from "@/lib/api";
 
 /**
  * The performance panel on the agent page: equity curve plus the figures a
@@ -30,7 +36,17 @@ import { num, type EquityPoint, type EquitySeries } from "@/lib/api";
  * can legitimately hand this a missing series. That reads as a note here rather
  * than as an empty frame that looks like a curve which failed to draw.
  */
-export function EquityView({ series }: { series: EquitySeries | null }) {
+export function EquityView({
+  series,
+  positions,
+  universe,
+}: {
+  series: EquitySeries | null;
+  /** The open lots, so unrealised is marked against the same prices the
+   *  positions table uses rather than against the last cycle's snapshot. */
+  positions: AgentDetail["positions"];
+  universe: UniverseAsset[];
+}) {
   if (series === null) {
     return (
       <div className="border border-grid bg-panel px-8 py-10 text-center">
@@ -63,18 +79,31 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
   }
 
   const values = points.map((p) => p.equityUsd);
-  const equity = values[values.length - 1];
-  // Off the shared helpers, so this panel, the Return cell above it and the
-  // list all quote one calculation. It also inherits the fallback: a series
-  // with no capital figure is measured from its first reading, which is what
-  // was deployed.
-  const pnl = pnlSinceDeployUsd(series) ?? 0;
-  const returnPct = returnSinceDeployPct(series) ?? 0;
+  const last = points[points.length - 1];
+  // A series with no capital figure is measured from its first reading, which
+  // is what was deployed — the desk records equity before it acts.
   const deployedCapital = capitalUsd || points[0].equityUsd;
   const drawdown = maxDrawdownPct(values);
-  const deployed = deployedUsd(points[points.length - 1]);
+
   // Unrealised is what the open book is carrying: everything not yet booked.
-  const unrealized = pnl - realizedPnlUsd;
+  // Marked HERE, against the same prices the positions table below uses, so
+  // the two cannot disagree. See markOpenBook for why it is not read off the
+  // curve any more.
+  const book = markOpenBook(positions, universe);
+  const marked = book.unpriced.length === 0;
+
+  // The snapshot figure, still the answer whenever a holding cannot be priced:
+  // half a book marked live is worse than a whole one marked one cycle late.
+  const snapshotPnl = pnlSinceDeployUsd(series) ?? 0;
+
+  const unrealized = marked ? book.unrealizedPnlUsd : snapshotPnl - realizedPnlUsd;
+  // Realised plus unrealised IS the total — the stat rail has to add up, and on
+  // the snapshot path this reduces to exactly what the curve's last point says.
+  const pnl = marked ? realizedPnlUsd + unrealized : snapshotPnl;
+  const equity = deployedCapital + pnl;
+  const returnPct = deployedCapital ? (pnl / deployedCapital) * 100 : 0;
+  // Same book, same marks: what the open positions are worth now.
+  const deployed = marked ? book.marketValueUsd : deployedUsd(last);
   const hitRate = closedPositions > 0 ? (winningPositions / closedPositions) * 100 : null;
 
   return (
@@ -98,7 +127,15 @@ export function EquityView({ series }: { series: EquitySeries | null }) {
 
         <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
           <Stat label="Realised" value={signed(realizedPnlUsd)} tone={toneOf(realizedPnlUsd)} />
-          <Stat label="Unrealised" value={signed(unrealized)} tone={toneOf(unrealized)} />
+          <Stat
+            label="Unrealised"
+            value={signed(unrealized)}
+            tone={toneOf(unrealized)}
+            // Silent when it is marked live, because then it reconciles with
+            // the positions table and needs no explaining. Only the degraded
+            // case has something to say.
+            note={marked ? undefined : `at cycle ${last.tickSeq}`}
+          />
           <Stat
             label="Max drawdown"
             value={drawdown === 0 ? "—" : `−${drawdown.toFixed(2)}%`}

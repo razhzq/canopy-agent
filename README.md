@@ -29,7 +29,11 @@ from `canopy-fe-mono/packages/canopy-agent` on 2026-08-04.
 | 10 Cycle Trace — Council | `/portfolio/[slug]/cycles/[cycle]` |
 | 11 Build Agent | `/build/new` |
 | 12 Publish Gate | `/build/new/publish` |
-| 13 Creator Dashboard | `/build` |
+
+The creator dashboard that used to sit at `/build` is gone. It existed as a
+place to bounce out to when the naming modal was cancelled; cancelling now
+returns to the page the builder was opened from (see `components/routeMemory.tsx`),
+and `/workspace` is where a creator's own agents live.
 
 ## Layout
 

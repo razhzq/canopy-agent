@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Inter } from "next/font/google";
 import { InviteGate } from "@/components/inviteGate";
 import { TopNav } from "@/components/nav";
 import { Providers } from "@/components/providers";
+import { RouteMemory } from "@/components/routeMemory";
 import "./globals.css";
 
 const plexMono = IBM_Plex_Mono({
@@ -30,6 +31,9 @@ export default function RootLayout({
     <html lang="en" className={`${plexMono.variable} ${inter.variable}`}>
       <body>
         <Providers>
+          {/* Records the page behind the builder, so cancelling out of the
+              naming modal returns there instead of to a fixed route. */}
+          <RouteMemory />
           <div className="mx-auto min-h-screen w-full max-w-[1440px] bg-bg">
             <TopNav />
             {/* Inside Providers so the gate can read the Privy session, and

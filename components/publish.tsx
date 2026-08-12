@@ -193,10 +193,10 @@ function Body({
               </h3>
               <div className="space-y-3">
                 <Link
-                  href="/build"
+                  href="/workspace"
                   className="flex h-11 w-full items-center border border-border px-4 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                 >
-                  Your strategies
+                  Your agents
                 </Link>
                 {live ? (
                   <Link

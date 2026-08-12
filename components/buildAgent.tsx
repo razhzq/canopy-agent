@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { BUILD_STAGES } from "@/lib/data";
 import { NameAgentModal } from "@/components/nameAgent";
+import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
 import { toPayload } from "@/components/buildStrategy";
@@ -165,7 +166,10 @@ export function BuildAgent() {
           setName(n);
           setNamed(true);
         }}
-        onCancel={() => router.push("/build")}
+        // Back where they were, not to a page they never asked for. `replace`
+        // rather than `push` so the builder does not sit in history — pressing
+        // Back after cancelling must not reopen the naming modal.
+        onCancel={() => router.replace(lastRoute())}
       />
     );
   }

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const NAV = [
   // "My agents" is the workspace — the rail plus one agent open beside it. It
@@ -13,6 +13,26 @@ const NAV = [
   { label: "My agents", href: "/workspace", match: ["/workspace", "/portfolio"] },
   { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
 ];
+
+/**
+ * Whether a nav entry owns the current route.
+ *
+ * Segment-aware rather than a bare startsWith: "/agents" must not light up on
+ * "/agents-archive", which is a different section that merely shares a prefix.
+ */
+function isActive(pathname: string, match: string[]): boolean {
+  return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
+}
+
+/**
+ * The one focus treatment for everything in the bar.
+ *
+ * An outline rather than a ring: it sits outside the element's own border, so
+ * it stays visible on the filled accent button and the bordered ones alike
+ * without either having to reserve space for it.
+ */
+const FOCUS =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /* ------------------------------------------------------------- accounts -- */
 
@@ -106,6 +126,20 @@ function CopyIcon({ className = "" }: { className?: string }) {
   );
 }
 
+function PlusIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <path
+        d="M8 3.75v8.5M3.75 8h8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
@@ -114,20 +148,58 @@ function AccountMenu() {
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close on an outside click or Escape. Without this the panel stays open
-  // behind whatever the user clicks next, which reads as a stuck UI.
+  const close = useCallback((restoreFocus: boolean) => {
+    setOpen(false);
+    // Never strand focus on a panel that no longer exists — put it back where
+    // the keyboard user opened it from.
+    if (restoreFocus) trigger.current?.focus();
+  }, []);
+
+  // Close on an outside click, Escape, or a Tab out of the panel. Without this
+  // the panel stays open behind whatever the user clicks next, which reads as
+  // a stuck UI.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      // Escape must not strand focus on a panel that no longer exists — put it
-      // back where the keyboard user opened it from.
-      trigger.current?.focus();
+      if (e.key === "Escape") {
+        close(true);
+        return;
+      }
+      if (e.key === "Tab") {
+        // Let the browser move focus normally, then drop the panel if focus
+        // has left it — a menu that outlives its own focus is a trap.
+        setTimeout(() => {
+          if (ref.current && !ref.current.contains(document.activeElement)) setOpen(false);
+        }, 0);
+        return;
+      }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") {
+        return;
+      }
+      // The rows carry role="menuitem", which promises arrow-key traversal.
+      // This is that promise kept.
+      const items = Array.from(
+        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+      if (items.length === 0) return;
+      e.preventDefault();
+      const here = items.indexOf(document.activeElement as HTMLElement);
+      const next =
+        e.key === "Home"
+          ? 0
+          : e.key === "End"
+            ? items.length - 1
+            : e.key === "ArrowDown"
+              ? (here + 1) % items.length
+              : here <= 0
+                ? items.length - 1
+                : here - 1;
+      items[next].focus();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -135,13 +207,21 @@ function AccountMenu() {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, close]);
+
+  // The "Copied" flag is on a timer; unmounting mid-flight (a sign-out, a route
+  // change) must not leave it to fire into a dead component.
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
 
   if (!ready) {
     // Shaped like the button it becomes, not a circle: a placeholder of the
     // wrong width shoves the whole right-hand side of the navbar sideways the
     // moment Privy resolves.
-    return <div className="h-9 w-[148px] rounded-md bg-surface-2" />;
+    return <div className="h-9 w-[112px] rounded-md bg-surface-2 sm:w-[148px]" aria-hidden />;
   }
 
   if (!authenticated) {
@@ -149,7 +229,7 @@ function AccountMenu() {
       <button
         type="button"
         onClick={() => login()}
-        className="h-9 rounded-md border border-border px-4 font-ui text-[14px] font-medium text-text-secondary transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent"
+        className={`h-9 rounded-md border border-border px-4 font-ui text-[14px] font-medium text-text-secondary transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent ${FOCUS}`}
       >
         Sign in
       </button>
@@ -176,7 +256,8 @@ function AccountMenu() {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(value);
-      setTimeout(() => setCopied(null), 1200);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(null), 1200);
     } catch {
       /* clipboard blocked — the address is still visible to select by hand */
     }
@@ -188,10 +269,18 @@ function AccountMenu() {
         ref={trigger}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          // Opening with the keyboard should land on the first row, the way
+          // every other menu button on the platform behaves.
+          if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Account: ${primary}`}
-        className={`flex h-9 items-center gap-2.5 rounded-md border pr-2.5 pl-2 transition-colors ${
+        className={`flex h-9 items-center gap-2.5 rounded-md border pr-2.5 pl-2 transition-colors ${FOCUS} ${
           open
             ? "border-grid-strong bg-surface-2"
             : "border-border hover:border-grid-strong hover:bg-surface"
@@ -199,7 +288,7 @@ function AccountMenu() {
       >
         <Avatar label={email ?? primary} />
         <span
-          className={`max-w-[180px] truncate text-[13px] text-text-primary ${
+          className={`max-w-[92px] truncate text-[13px] text-text-primary sm:max-w-[180px] ${
             primaryIsAddress ? "font-mono" : "font-ui"
           }`}
         >
@@ -207,7 +296,7 @@ function AccountMenu() {
         </span>
         <svg
           viewBox="0 0 16 16"
-          className={`size-3 shrink-0 text-text-dim transition-transform ${
+          className={`size-3 shrink-0 text-text-dim transition-transform duration-150 ${
             open ? "rotate-180" : ""
           }`}
           aria-hidden
@@ -223,11 +312,17 @@ function AccountMenu() {
         </svg>
       </button>
 
+      {/* Copying is a silent, purely visual event otherwise — this is the same
+          confirmation, spoken. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {copied ? "Address copied to clipboard" : ""}
+      </span>
+
       {open ? (
         <div
           role="menu"
           aria-label="Account"
-          className="absolute right-0 z-40 mt-2 w-[320px] animate-[menu-enter_120ms_ease-out] overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
+          className="absolute right-0 z-40 mt-2 w-[288px] origin-top-right animate-[menu-enter_120ms_ease-out] overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)] sm:w-[320px]"
         >
           {/* Identity, stated once at the top. The rows below are things to DO
               with the account; this is the answer to "whose account is this",
@@ -259,10 +354,12 @@ function AccountMenu() {
                   type="button"
                   role="menuitem"
                   onClick={() => copy(w.address)}
+                  aria-label={`Copy ${walletLabel(w)} address ${w.address}`}
                   // `group` so the copy affordance can stay quiet until the row
                   // is pointed at: a permanent "COPY" on every row competed
-                  // with the addresses themselves for attention.
-                  className="group block w-full px-4 py-2 text-left transition-colors hover:bg-surface"
+                  // with the addresses themselves for attention. It also shows
+                  // on focus, or the keyboard path has no affordance at all.
+                  className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-ui text-[12px] text-text-secondary">
@@ -273,8 +370,9 @@ function AccountMenu() {
                       className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
                         copied === w.address
                           ? "text-accent opacity-100"
-                          : "text-text-dim opacity-0 group-hover:opacity-100"
+                          : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
                       }`}
+                      aria-hidden
                     >
                       {copied === w.address ? "Copied" : <CopyIcon className="size-3" />}
                     </span>
@@ -295,10 +393,10 @@ function AccountMenu() {
             type="button"
             role="menuitem"
             onClick={() => {
-              setOpen(false);
+              close(true);
               void logout();
             }}
-            className="flex w-full items-center gap-2.5 px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors hover:bg-surface hover:text-negative"
+            className={`group flex w-full items-center gap-2.5 px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
           >
             <svg viewBox="0 0 16 16" className="size-3.5 shrink-0" aria-hidden>
               <path
@@ -321,56 +419,71 @@ function AccountMenu() {
 /* ------------------------------------------------------------------ nav -- */
 
 export function TopNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface px-8">
-      <div className="flex items-center gap-6">
-        {/* The brand wordmark, not set type: it is a specific blocky face with
-            its own mint fill and offset shadow, taken from canopy-fe's
-            /canopy.png. That source is 2000x1555 and ~83% transparent padding,
-            which is why canopy-fe has to render it at h-[120px]; this copy is
-            cropped to the ink so it sits correctly at navbar height. */}
-        <Link href="/agents" className="flex items-center">
-          <Image
-            src="/canopy-wordmark.png"
-            alt="Canopy"
-            width={1298}
-            height={303}
-            priority
-            className="h-[21px] w-auto"
-          />
-        </Link>
-        <nav className="flex items-center gap-1">
-          {NAV.map((item) => {
-            const active = item.match.some((m) => pathname.startsWith(m));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  active
-                    ? "rounded-md bg-surface-2 px-3.5 py-1.5 font-ui text-[15px] font-medium text-text-primary"
-                    : "rounded-md px-3.5 py-1.5 font-ui text-[15px] text-text-secondary transition-colors hover:text-text-primary"
-                }
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+    // Translucent + blurred rather than opaque: content scrolling under the bar
+    // stays faintly legible, which is what tells you the page moved. The solid
+    // fallback keeps browsers without backdrop-filter from showing text through.
+    <header className="sticky top-0 z-30 border-b border-border bg-surface supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-md">
+      <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-4 lg:gap-6">
+          {/* The brand wordmark, not set type: it is a specific blocky face with
+              its own mint fill and offset shadow, taken from canopy-fe's
+              /canopy.png. That source is 2000x1555 and ~83% transparent padding,
+              which is why canopy-fe has to render it at h-[120px]; this copy is
+              cropped to the ink so it sits correctly at navbar height. */}
+          <Link
+            href="/agents"
+            aria-label="Canopy — home"
+            className={`flex shrink-0 items-center rounded-sm ${FOCUS}`}
+          >
+            <Image
+              src="/canopy-wordmark.png"
+              alt="Canopy"
+              width={1298}
+              height={303}
+              priority
+              className="h-[21px] w-auto"
+            />
+          </Link>
+          <nav aria-label="Primary" className="flex min-w-0 items-center gap-1">
+            {NAV.map((item) => {
+              const active = isActive(pathname, item.match);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`shrink-0 rounded-md px-3 py-1.5 font-ui text-[15px] transition-colors sm:px-3.5 ${FOCUS} ${
+                    active
+                      ? "bg-surface-2 font-medium text-text-primary"
+                      : // Inactive links get a background on hover too, so the
+                        // hit target is legible before the click, not only the
+                        // label colour shifting.
+                        "text-text-secondary hover:bg-surface-2/60 hover:text-text-primary"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
-      <div className="flex items-center gap-4">
-        <Link
-          href="/build/new"
-          className="flex h-9 items-center gap-2 rounded-md bg-accent px-4 font-ui text-[14px] font-semibold text-bg transition-opacity hover:opacity-90"
-        >
-          <span className="text-[16px] leading-none">+</span>
-          Create agent
-        </Link>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-4">
+          <Link
+            href="/build/new"
+            className={`flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 font-ui text-[14px] font-semibold text-bg transition-colors hover:bg-accent/85 active:bg-accent/75 sm:pr-4 ${FOCUS}`}
+          >
+            <PlusIcon className="size-3.5 shrink-0" />
+            {/* On a phone the plus alone carries it; the label stays in the
+                accessibility tree so the control is still named. */}
+            <span className="max-sm:sr-only">Create agent</span>
+          </Link>
 
-        <AccountMenu />
+          <AccountMenu />
+        </div>
       </div>
     </header>
   );

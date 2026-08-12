@@ -303,7 +303,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <section className="border-b border-grid px-8 py-6">
             <Rule label="Performance" />
             <div className="pt-4">
-              <EquityView series={equity} />
+              <EquityView series={equity} positions={positions} universe={assets} />
             </div>
           </section>
 

@@ -1,4 +1,4 @@
-import type { EquitySeries } from "@/lib/api";
+import { num, type AgentDetail, type EquitySeries, type UniverseAsset } from "@/lib/api";
 
 /**
  * The performance figures, in ONE place.
@@ -48,4 +48,71 @@ export function pnlSinceDeployUsd(equity: EquitySeries | null): number | null {
   if (points.length === 0) return null;
   const base = equity?.capitalUsd || points[0].equityUsd;
   return points[points.length - 1].equityUsd - base;
+}
+
+/* ------------------------------------------------------------- open book -- */
+
+export interface OpenBookMark {
+  costBasisUsd: number;
+  marketValueUsd: number;
+  /** Market value against cost. Zero on an empty book, which is correct. */
+  unrealizedPnlUsd: number;
+  /**
+   * Symbols the universe could not price. Non-empty means the totals above are
+   * a floor, not a fact — the unpriced lots are carried at cost — so the caller
+   * must fall back rather than publish them.
+   */
+  unpriced: string[];
+}
+
+/**
+ * The open book, marked at the prices the page is showing RIGHT NOW.
+ *
+ * Unrealised used to be inferred from the equity curve instead — last reading
+ * minus capital minus realised. That identity is sound, but the equity curve
+ * records one point per cycle, so the figure it yields is marked at whatever
+ * the price was when the agent last ran. The positions table beside it marks
+ * the same lots against the live universe. Two clocks, one label: an agent
+ * holding two gold positions each up a couple of dollars was reporting
+ * "Unrealised −$4.46", and the panel and the table below it contradicted each
+ * other on the same screen.
+ *
+ * So unrealised is measured here, off the same marks and the same cost bases
+ * the table uses, and the panel's other figures are derived from it — realised
+ * plus unrealised is the total, and the total against capital is the return.
+ * The curve stays per-cycle: it is a history, and a history should not move
+ * because a price ticked.
+ */
+export function markOpenBook(
+  positions: readonly Pick<AgentDetail["positions"][number], "symbol" | "qty" | "cost_basis_usd">[],
+  universe: readonly Pick<UniverseAsset, "symbol" | "priceUsd">[],
+): OpenBookMark {
+  const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
+
+  let costBasisUsd = 0;
+  let marketValueUsd = 0;
+  const unpriced = new Set<string>();
+
+  for (const p of positions) {
+    const cost = num(p.cost_basis_usd) ?? 0;
+    costBasisUsd += cost;
+
+    const mark = priced.get(p.symbol) ?? null;
+    const qty = num(p.qty);
+    if (mark === null || qty === null) {
+      unpriced.add(p.symbol);
+      // Carried at cost so the total stays a number rather than a hole. It is
+      // `unpriced` — not this value — that tells the caller not to trust it.
+      marketValueUsd += cost;
+      continue;
+    }
+    marketValueUsd += mark * qty;
+  }
+
+  return {
+    costBasisUsd,
+    marketValueUsd,
+    unrealizedPnlUsd: marketValueUsd - costBasisUsd,
+    unpriced: [...unpriced],
+  };
 }

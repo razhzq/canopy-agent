@@ -2,18 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AssetLogo, Badge, Breadcrumb, SourceMark } from "@/components/ui";
+import { Badge, Breadcrumb } from "@/components/ui";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
+import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
 import { SkeletonLog, SkeletonRows } from "@/components/skeleton";
 import { getCycle, listCycles, type CycleRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import {
-  narrateDecision,
-  SEAT_LABEL,
-  SEAT_PURPOSE,
-  SOURCE_LABEL,
-  type NarratedLine,
-} from "@/lib/narrate";
+import { narrateDecision, SOURCE_LABEL } from "@/lib/narrate";
 
 /**
  * The cycle screens: a list of an agent's ticks, and the council transcript for
@@ -208,12 +203,7 @@ function Seat({
           <span className="tnum font-mono text-[10px] text-text-dim">
             {String(index + 1).padStart(2, "0")}
           </span>
-          <span className="font-mono text-[12.5px] tracking-[0.08em] text-text-primary uppercase">
-            {SEAT_LABEL[d.role] ?? d.role}
-          </span>
-          <span className="truncate font-ui text-[12px] text-text-dim">
-            {SEAT_PURPOSE[d.role] ?? ""}
-          </span>
+          <SeatTag role={d.role} variant="header" />
         </div>
         <div className="flex shrink-0 items-center gap-3 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
           {d.model ? <span>{d.model}</span> : null}
@@ -240,20 +230,9 @@ function Seat({
               className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-3 border-b border-grid px-5 py-2.5 last:border-b-0"
             >
               <span className="mt-0.5">
-                <TraceMark outcome={line.outcome} />
+                <OutcomeMark outcome={line.outcome} />
               </span>
-              <span className="min-w-0">
-                <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                  {line.symbol ? (
-                    <span className="font-mono text-[12px] text-text-primary">
-                      <AssetLogo symbol={line.symbol} size={14} />{" "}
-                      {line.symbol}{" "}
-                    </span>
-                  ) : null}
-                  {line.detail}
-                </span>
-                {line.source ? <SourceMark source={line.source} /> : null}
-              </span>
+              <NarratedLineBody line={line} />
             </li>
           ))}
         </ol>
@@ -287,31 +266,3 @@ function Seat({
   );
 }
 
-function TraceMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
-  if (outcome === "pass") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="passed">
-        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (outcome === "drop") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="stopped">
-        <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (outcome === "work") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="step">
-        <circle cx="8" cy="8" r="3" fill="currentColor" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="note">
-      <circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}

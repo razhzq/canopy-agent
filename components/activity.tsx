@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { getActivity, type ActivityCycle } from "@/lib/api";
-import { narrateCycle, type NarratedLine } from "@/lib/narrate";
+import { narrateCycle, type SeatedLine } from "@/lib/narrate";
 import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
+import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
 import { SkeletonLog } from "@/components/skeleton";
-import { AssetLogo, Badge, SourceMark } from "@/components/ui";
+import { Badge } from "@/components/ui";
 
 /**
  * The agent's activity log: what it did, in order, most recent cycle first.
@@ -157,6 +158,49 @@ function useSequentialReveal(total: number, active: boolean): number {
   return Math.min(shown, total);
 }
 
+/**
+ * Open/closed for one cycle, in three parts rather than one.
+ *
+ * `open` is the intent, `mounted` is whether the lines exist in the DOM, and
+ * `expanded` is the committed height. They are separate because a panel that
+ * mounts already at its open height has nothing to transition FROM — the
+ * browser only interpolates between two styles it has actually committed — so
+ * the content mounts collapsed and the expansion lands on a later frame.
+ *
+ * Two frames later, specifically: one rAF still lands inside the same paint as
+ * the mount, and the transition is skipped.
+ *
+ * Content stays mounted once opened. Unmounting on collapse would give the
+ * closing animation nothing to animate, and re-opening would pay for the whole
+ * screen trace — including a next/image call per asset — a second time. Cycles
+ * that were never opened never mount at all, which is what keeps five cycles'
+ * worth of traces off the first paint.
+ */
+function useDisclosure(defaultOpen: boolean) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [mounted, setMounted] = useState(defaultOpen);
+  const [expanded, setExpanded] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (open) setMounted(true);
+    else setExpanded(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !mounted) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setExpanded(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [open, mounted]);
+
+  return { open, setOpen, mounted, expanded };
+}
+
 function Cycle({
   cycle,
   defaultOpen,
@@ -166,7 +210,8 @@ function Cycle({
   defaultOpen: boolean;
   isNew: boolean;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const { open, setOpen, mounted, expanded } = useDisclosure(defaultOpen);
+  const panelId = useId();
   const lines = narrateCycle(cycle);
   const running = cycle.status === "running";
 
@@ -194,7 +239,13 @@ function Cycle({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-panel"
+        aria-expanded={open}
+        aria-controls={panelId}
+        // Tinted while open so the header and the lines below read as one card
+        // rather than a bar sitting on an unrelated list.
+        className={`flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
+          open ? "bg-panel" : ""
+        }`}
       >
         <span className="flex min-w-0 items-center gap-4">
           <span className="tnum shrink-0 font-mono text-[11px] text-text-dim">
@@ -215,49 +266,98 @@ function Cycle({
             {clock(cycle.started_at)}
           </span>
           <Badge tone={STATUS_TONE[cycle.status]}>{STATUS_LABEL[cycle.status]}</Badge>
+          {/* The row was expandable with nothing to say so. The caret both
+              advertises that and reports which way it currently is. */}
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden
+            className={`size-3 shrink-0 text-text-dim transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            <path
+              d="m4 6 4 4 4-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
       </button>
 
-      {open ? (
-        <ol className="border-t border-grid">
-          {lines.slice(0, shown).map((line, i) => (
-            <li
-              key={i}
-              className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5 border-b border-grid px-5 py-3 last:border-b-0"
-            >
-              <span className="mt-0.5">
-                <Mark outcome={line.outcome} />
-              </span>
-              <span className="min-w-0">
-                <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                  {line.symbol ? (
-                    <span className="font-mono text-[12px] text-text-primary">
-                      <AssetLogo symbol={line.symbol} size={14} />{" "}
-                      {line.symbol}{" "}
-                    </span>
-                  ) : null}
-                  {line.detail}
-                </span>
-                {line.source ? <SourceMark source={line.source} /> : null}
-              </span>
-            </li>
-          ))}
+      {/* Height animates on the 0fr→1fr grid row rather than a measured
+          max-height: a trace is two lines or forty, and it GROWS while a new
+          cycle replays. A pixel figure would need re-measuring on every revealed
+          line, and a max-height guess makes the easing wrong for every cycle
+          that is not exactly that tall. */}
+      <div
+        id={panelId}
+        inert={!open}
+        className={`grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        {/* The clip. Fades a little faster than the row collapses, so the text
+            is gone before the last pixels close rather than being sliced. */}
+        <div
+          className={`overflow-hidden transition-opacity duration-200 ${
+            expanded ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {mounted ? (
+            <ol className="border-t border-grid">
+              {/* Grouped AFTER the reveal slice, so the rail fills in with the replay
+                  rather than appearing whole at the first line. */}
+              {groupBySeat(lines.slice(0, shown)).map((run, r) => (
+                <li
+                  key={r}
+                  className="grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 sm:grid-cols-[68px_minmax(0,1fr)]"
+                >
+                  {/* On a phone the seat sits above its run: 68px of gutter is a
+                      fifth of the width there, and the lines are what matter. */}
+                  <span className="pb-1.5 sm:pt-0.5 sm:pb-0">
+                    <SeatTag role={run.role} variant="rail" />
+                  </span>
+                  <ol className="min-w-0 space-y-2">
+                    {run.lines.map((line, i) => (
+                      <li
+                        key={i}
+                        className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5"
+                      >
+                        <span className="mt-0.5">
+                          <OutcomeMark outcome={line.outcome} />
+                        </span>
+                        <NarratedLineBody line={line} />
+                      </li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
 
-          {/* Where the replay has reached. A caret, not a claim — the cycle has
-              already finished; this is the reading of it catching up. */}
-          {revealing || running ? (
-            <li className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 px-5 py-3">
-              <span
-                aria-hidden
-                className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
-              />
-              <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
-                {revealing ? `${shown} of ${lines.length}` : "still running"}
-              </span>
-            </li>
+              {/* Where the replay has reached. A caret, not a claim — the cycle has
+                  already finished; this is the reading of it catching up. */}
+              {revealing || running ? (
+                // Empty seat cell so the caret lands in the same text column as the
+                // lines above it rather than under the rail.
+                <li className="grid grid-cols-1 gap-x-3.5 px-5 py-3 sm:grid-cols-[68px_minmax(0,1fr)]">
+                  <span aria-hidden />
+                  <span className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5">
+                    <span
+                      aria-hidden
+                      className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
+                    />
+                    <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
+                      {revealing ? `${shown} of ${lines.length}` : "still running"}
+                    </span>
+                  </span>
+                </li>
+              ) : null}
+            </ol>
           ) : null}
-        </ol>
-      ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -316,38 +416,26 @@ const SKIP_LABEL: Record<string, string> = {
   not_active: "Agent is not active",
 };
 
-/* --------------------------------------------------------------- fragments -- */
-
-function Mark({ outcome }: { outcome: NarratedLine["outcome"] }) {
-  if (outcome === "pass") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="passed">
-        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (outcome === "drop") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="dropped">
-        <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (outcome === "work") {
-    return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="step">
-        <circle cx="8" cy="8" r="3" fill="currentColor" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="note">
-      <circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
 /* ---------------------------------------------------------------- helpers -- */
+
+/**
+ * Consecutive lines from one seat, so the rail names it once per run.
+ *
+ * Consecutive rather than collected-by-role: the analyst speaks twice in a
+ * normal cycle — once to screen the universe, once to reason over what survived
+ * — with the portfolio manager's adds in between. Gathering those into a single
+ * "Analyst" block would put the two in one breath and reorder the cycle, which
+ * is the one thing a log of an audit trail must not do.
+ */
+function groupBySeat(lines: SeatedLine[]): { role: SeatedLine["role"]; lines: SeatedLine[] }[] {
+  const runs: { role: SeatedLine["role"]; lines: SeatedLine[] }[] = [];
+  for (const line of lines) {
+    const current = runs[runs.length - 1];
+    if (current && current.role === line.role) current.lines.push(line);
+    else runs.push({ role: line.role, lines: [line] });
+  }
+  return runs;
+}
 
 function clock(iso: string): string {
   const d = new Date(iso);
