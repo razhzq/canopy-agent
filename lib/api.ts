@@ -304,10 +304,37 @@ export interface DetectionRule {
  * pointing somewhere else.
  */
 export interface UniverseAsset {
-  underlying: string;
-  issuer: string;
+  /**
+   * Which identity model this asset uses, and therefore which selection
+   * variant picking it produces.
+   */
+  kind: "rwa" | "crypto";
+  /**
+   * The ticker the mint tracks. ABSENT for a crypto token, which has no
+   * underlying — it is the asset. Left off rather than filled with the symbol,
+   * because a field that quietly means two different things is how symbol-based
+   * resolution creeps back in.
+   */
+  underlying?: string;
+  /** Who wrapped it. Absent for a crypto token: nobody did. */
+  issuer?: string;
+  /** The mint. Present only for crypto, where it IS the identity. */
+  mint?: string;
+  /** How much is known about a crypto token. Absent for RWA. */
+  tier?: "verified" | "listed" | "pool";
+  /** A remote logo, for tokens with no bundled ticker file. */
+  iconUrl?: string | null;
   symbol: string;
-  assetClass: "equity" | "etf" | "commodity";
+  /**
+   * The token's full name, e.g. "Chameleon" for CHAM.
+   *
+   * Carried so the picker can tell two tokens apart when they share a ticker,
+   * which happens more than it sounds: the universe holds three CATs and two
+   * each of DOG, GOLD and WOJAK. Keying on the mint makes that harmless to the
+   * ENGINE, and does nothing for a person reading two identical rows.
+   */
+  name?: string;
+  assetClass: "equity" | "etf" | "commodity" | "token";
   calendar: string;
   hasFilings: boolean;
   /** Jupiter mark. Null when the pool could not be priced. */
@@ -330,10 +357,41 @@ export interface ExitRules {
   maxHoldDays?: number;
 }
 
-/** What a strategy may trade. An empty array means the whole class — "Auto". */
-export interface UniverseSelection {
-  underlying: string;
-  issuer?: string;
+/**
+ * What a strategy may trade. An empty array means the whole class — "Auto".
+ *
+ * Two variants, because identity works opposite ways for the two classes. An
+ * RWA pick is INTENT — "gold, from Paxos" — and the backend resolves the mint
+ * fresh at boot, so a stored address can never silently start pointing
+ * elsewhere. An SPL token IS its mint, and resolving it by symbol later would
+ * be the lookalike attack: anyone can mint a token called BONK, nobody else can
+ * mint DezXAZ8z…B263.
+ *
+ * Mirrors `UniverseSelection` in @canopy/agent-contracts. Keep them in step.
+ */
+export type UniverseSelection =
+  | { kind: "rwa"; underlying: string; issuer?: string }
+  | { kind: "crypto"; mint: string };
+
+/**
+ * How a selection reads to a person.
+ *
+ * A crypto pick has no name of its own here — the mint IS the identity, and
+ * this module has no universe to look a symbol up in. Callers that can resolve
+ * a symbol should prefer it and fall back to this.
+ */
+export function selectionLabel(u: UniverseSelection): string {
+  return u.kind === "crypto" ? u.mint : u.underlying;
+}
+
+/** A stable local key. The two variants cannot collide. */
+export function selectionKey(u: UniverseSelection): string {
+  return u.kind === "crypto" ? `mint:${u.mint}` : `${u.underlying}/${u.issuer ?? ""}`;
+}
+
+/** The issuer, where the variant has one. */
+export function selectionIssuer(u: UniverseSelection): string | undefined {
+  return u.kind === "rwa" ? u.issuer : undefined;
 }
 
 export interface UniverseResponse {
@@ -411,6 +469,127 @@ export async function getUniverse(
   return call;
 }
 
+/** What the crypto branch of /agents/universe returns. Shaped by the mint. */
+interface CryptoPickerMarket {
+  kind: "crypto";
+  mint: string;
+  symbol: string;
+  name: string;
+  assetClass: "token";
+  calendar: "crypto";
+  tier: "verified" | "listed" | "pool";
+  decimals: number | null;
+  poolAddress: string | null;
+  iconUrl: string | null;
+  priceUsd: number | null;
+  liquidityUsd: number | null;
+  changePct: number | null;
+  sources: string[];
+  aliases: string[];
+  refreshedAt: string;
+}
+
+/**
+ * Every market a new strategy could be built on, across all classes.
+ *
+ * Two requests rather than one, because the two universes are resolved
+ * differently and neither endpoint can answer for the other: the RWA list comes
+ * from the issuer registry agreeing with Wintel and the chain, the token list
+ * from a catalogue sweep cross-checked against Jupiter.
+ *
+ * `allSettled`, so a class that is down costs its own rows and not the whole
+ * picker. Someone who wanted to trade gold should not be blocked by the token
+ * sweep having failed.
+ */
+function cryptoRowToAsset(r: CryptoPickerMarket): UniverseAsset {
+  return {
+    kind: "crypto",
+    mint: r.mint,
+    symbol: r.symbol,
+    name: r.name,
+    tier: r.tier,
+    iconUrl: r.iconUrl,
+    assetClass: "token",
+    calendar: "crypto",
+    hasFilings: false,
+    priceUsd: r.priceUsd,
+    liquidityUsd: r.liquidityUsd,
+    changePct: r.changePct,
+    // underlying and issuer are deliberately absent — see UniverseAsset.
+  };
+}
+
+/**
+ * The markets for ONE class, normalised.
+ *
+ * The crypto branch of the endpoint answers in its own shape — keyed by mint,
+ * with no underlying or issuer — so a caller that just wants "this agent's
+ * universe" would otherwise get two different object shapes depending on the
+ * class and have to know which.
+ */
+export async function getMarketsForClass(
+  token: string,
+  strategyClass: string,
+): Promise<UniverseAsset[]> {
+  const res = await getUniverse(token, strategyClass);
+  if (strategyClass !== "spot") {
+    return res.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) }));
+  }
+  return (res.assets as unknown as CryptoPickerMarket[]).filter((r) => r?.mint).map(cryptoRowToAsset);
+}
+
+export async function getAllMarkets(token: string): Promise<UniverseAsset[]> {
+  const [rwa, crypto] = await Promise.allSettled([
+    getUniverse(token, "rwa"),
+    getUniverse(token, "spot"),
+  ]);
+
+  const out: UniverseAsset[] = [];
+  if (rwa.status === "fulfilled") {
+    // Rows written before `kind` existed carry none; they are all RWA.
+    out.push(...rwa.value.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) })));
+  }
+  if (crypto.status === "fulfilled") {
+    const rows = crypto.value.assets as unknown as CryptoPickerMarket[];
+    for (const r of rows) {
+      if (r?.mint) out.push(cryptoRowToAsset(r));
+    }
+  }
+  return out;
+}
+
+/** The cached halves, for seeding the first render without a spinner. */
+export function peekAllMarkets(): UniverseAsset[] | null {
+  const rwa = peekUniverse("rwa");
+  const crypto = peekUniverse("spot");
+  if (!rwa && !crypto) return null;
+  const out: UniverseAsset[] = [];
+  if (rwa) out.push(...rwa.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) })));
+  if (crypto) {
+    for (const r of crypto.assets as unknown as CryptoPickerMarket[]) {
+      if (r?.mint) out.push(cryptoRowToAsset(r));
+    }
+  }
+  return out;
+}
+
+/**
+ * Which selection picking this asset produces.
+ *
+ * The one place the two identity models meet. An RWA pick is intent resolved
+ * later; a token pins its mint here and forever.
+ */
+export function selectionFor(a: UniverseAsset): UniverseSelection {
+  return a.kind === "crypto"
+    ? { kind: "crypto", mint: a.mint! }
+    : { kind: "rwa", underlying: a.underlying!, issuer: a.issuer };
+}
+
+/** The strategy class an asset implies. A strategy has exactly one. */
+export function classFor(a: UniverseAsset): "rwa" | "spot" {
+  return a.kind === "crypto" ? "spot" : "rwa";
+}
+
 /**
  * A strategy draft composed from a sentence.
  *
@@ -465,6 +644,16 @@ export interface AddPlan {
   minSpacingSec?: number;
 }
 
+/**
+ * The compliance screens an author may pick between.
+ *
+ * Shariah is deliberately not the default. It is a real constraint on what the
+ * agent may hold — it removes conventional financials and over-leveraged
+ * balance sheets from the universe entirely — so it is a choice the author
+ * makes, not a setting they discover afterwards.
+ */
+export type ComplianceProfile = "none" | "shariah";
+
 export const createStrategy = (
   token: string,
   body: {
@@ -483,6 +672,14 @@ export const createStrategy = (
     timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
     /** Accumulation. Omitted means one entry per asset. */
     addPlan?: AddPlan | null;
+    /**
+     * Which compliance screen the agent runs.
+     *
+     * Omitted means "not stated", which defers to the server default — NOT
+     * "none". A strategy authored before this was a choice must keep behaving
+     * as it did, rather than silently losing or gaining a screen.
+     */
+    complianceProfile?: ComplianceProfile;
   },
 ) =>
   // `warnings` are plans that are legal but probably not what the author meant —
@@ -902,7 +1099,9 @@ export interface FillPage {
 export const addAgentMarket = (
   token: string,
   agentId: number,
-  market: { underlying: string; issuer?: string },
+  // Whichever identity the agent's class uses. The backend reads the strategy
+  // first and accepts only the matching kind.
+  market: { underlying: string; issuer?: string } | { mint: string },
 ) =>
   request<{ markets: UniverseSelection[]; ticked: boolean; status: string }>(
     `/agents/${agentId}/markets`,

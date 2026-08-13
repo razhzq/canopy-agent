@@ -63,12 +63,26 @@ export interface RuleSpec {
    * must not quietly apply a default the author did not ask for.
    */
   enabled?: boolean;
+  /**
+   * Which specialists gather the fact behind this rule.
+   *
+   * Not decoration: a rule whose fact the running specialist never produces is
+   * skipped at screening time, so an author who sets it gets an agent that
+   * quietly ignores one of its rules. Showing it and letting them set it is
+   * worse than not offering it.
+   */
+  classes?: ("rwa" | "spot")[];
 }
 
 /**
- * Every key is a fact the RWA specialist actually gathers, so a rule you set is
- * a rule that runs. A key the SME never produces would silently never apply and
+ * Every key is a fact a specialist actually gathers, so a rule you set is a
+ * rule that runs. A key the SME never produces would silently never apply and
  * the asset would simply never qualify, with nothing explaining why.
+ *
+ * `classes` says WHICH specialist. Three of these read research the crypto
+ * specialist has no source for — an SPL token has no filer, no fundamentals and
+ * no event feed — so they are RWA-only. Everything else is market structure or
+ * a technical indicator over a close series, and both specialists produce those.
  */
 export const RWA_RULES: RuleSpec[] = [
   {
@@ -85,6 +99,8 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "dailyVolPct",
+    // RWA only — needs research market activity, which an SPL token does not have.
+    classes: ["rwa"] as ("rwa" | "spot")[],
     label: "Max daily volatility",
     basis: "daily",
     help: "Trailing realised volatility of the underlying, from Wintel.",
@@ -97,6 +113,8 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "maxEventScore",
+    // RWA only — needs a detected-events feed, which an SPL token does not have.
+    classes: ["rwa"] as ("rwa" | "spot")[],
     label: "Max recent event severity",
     basis: "daily",
     help: "Skip anything that has had a serious abnormal-activity event this week.",
@@ -109,6 +127,8 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "netMarginPct",
+    // RWA only — needs a balance sheet, which an SPL token does not have.
+    classes: ["rwa"] as ("rwa" | "spot")[],
     label: "Min net margin",
     basis: "static",
     help: "From SEC filings. Applies to equities; skipped for commodities.",
@@ -1026,4 +1046,9 @@ export function describeAddPlan(plan: AddPlan | null | undefined): string | null
   if (plan.maxTotalUsd !== undefined) parts.push(`up to ${money(plan.maxTotalUsd)}`);
 
   return parts.join(" · ");
+}
+
+/** The rules a strategy of this class can actually run. */
+export function rulesForClass(strategyClass: "rwa" | "spot"): RuleSpec[] {
+  return RWA_RULES.filter((r) => !r.classes || r.classes.includes(strategyClass));
 }

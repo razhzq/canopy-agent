@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Callout, Columns, WarnIcon } from "@/components/ui";
 import { StepBar } from "@/components/wizard";
 import {
+  classFor,
   createStrategy,
   startPaperRun,
   type UniverseAsset,
@@ -16,7 +17,7 @@ import { NameAgentModal } from "@/components/nameAgent";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
-import { toPayload } from "@/components/buildStrategy";
+import { rulesForClass, toPayload } from "@/components/buildStrategy";
 import {
   DEFAULT_ROUTE,
   PickRoute,
@@ -121,7 +122,8 @@ export function BuildAgent() {
 
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
-        strategyClass: "rwa",
+        // The pick decides the specialist. A strategy has exactly one class.
+        strategyClass: asset ? classFor(asset) : "rwa",
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
         // threshold still applies and still excludes things.
         rules: toPayload(activeRules),
@@ -139,6 +141,10 @@ export function BuildAgent() {
         // read out of their sentence never reached the strategy they created.
         timeframe: limits.timeframe,
         addPlan: limits.addPlan ?? null,
+        // The compliance screen the author chose in step 2. Omitted when they
+        // never chose, which defers to the server default rather than asserting
+        // "none" on their behalf.
+        complianceProfile: limits.complianceProfile,
       });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
@@ -228,8 +234,22 @@ export function BuildAgent() {
               <PickMarket
                 value={market}
                 onChange={(sel, a) => {
+                  const before = asset ? classFor(asset) : null;
+                  const after = classFor(a);
                   setMarket(sel);
                   setAsset(a);
+                  // Switching between classes changes which rules exist. Rules
+                  // the new specialist cannot evaluate are not merely hidden —
+                  // they are removed, because a rule left enabled in state
+                  // would be sent to a backend that silently skips it, and the
+                  // author would never learn their strategy asserts less than
+                  // they set.
+                  if (before !== after) {
+                    setLimits((l) => ({
+                      ...l,
+                      rules: rulesForClass(after).map((r) => ({ ...r, enabled: false })),
+                    }));
+                  }
                 }}
                 onNext={() => setStep(1)}
               />

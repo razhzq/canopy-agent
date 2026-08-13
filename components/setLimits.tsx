@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { composeAgent, type AddPlan, type ExitRules, type UniverseAsset } from "@/lib/api";
+import {
+  composeAgent,
+  type AddPlan,
+  type ComplianceProfile,
+  type ExitRules,
+  type UniverseAsset,
+} from "@/lib/api";
 import {
   AddPlanCard,
   DEFAULT_TIMEFRAME,
@@ -49,6 +55,14 @@ export interface Limits {
   positionUsd: number;
   /** Ceiling on entries per cycle. */
   tradesPerCycle: number;
+  /**
+   * Which compliance screen the agent runs.
+   *
+   * Absent means the author never chose, which defers to the server default —
+   * NOT "none". The distinction matters: a strategy built before this was a
+   * choice must keep behaving exactly as it did.
+   */
+  complianceProfile?: ComplianceProfile;
 }
 
 /** Verification capital. The budget is expressed against it. */
@@ -143,8 +157,11 @@ export function SetLimits({
       if (!token) throw new Error("Sign in to compile a rule.");
       const { draft, notes: refused } = await composeAgent(
         token,
-        // The market is named for it, so the sentence does not have to be.
-        `Trading ${market.symbol} (${market.underlying}). ${nextSpec.join(" ")}`,
+        // The market is named for it, so the sentence does not have to be. The
+        // underlying is only named when there is one — a token has none, and
+        // "(undefined)" reads as a bug to the model as much as to a person.
+        `Trading ${market.symbol}${market.underlying ? ` (${market.underlying})` : ""}. ` +
+          nextSpec.join(" "),
       );
       setNotes(refused);
 
@@ -499,9 +516,83 @@ export function SetLimits({
           />
         </div>
       </section>
+
+      {/* --------------------------------------------------- compliance */}
+      {/*
+        Only for tokenized real-world assets. The screen reads a filer's balance
+        sheet and its revenue mix, and an SPL token has neither — offering the
+        choice on a crypto strategy would be offering a setting that cannot do
+        anything.
+      */}
+      {market.kind !== "crypto" ? (
+        <section>
+          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            Compliance screen
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {COMPLIANCE_CHOICES.map((choice) => {
+              const active = (value.complianceProfile ?? "none") === choice.id;
+              return (
+                <button
+                  key={choice.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange({ ...value, complianceProfile: choice.id })}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                    active
+                      ? "border-accent bg-accent/10 text-text"
+                      : "border-line text-text-dim hover:border-line-bright hover:text-text"
+                  }`}
+                >
+                  <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
+                    {choice.label}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-snug text-text-dim">
+                    {choice.help}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="pt-2 text-[11px] leading-snug text-text-dim">
+            {/*
+              Stated plainly because it is a universe change, not a preference.
+              Someone who picks a screen and then cannot find an asset they
+              expected deserves to have been told why in advance.
+            */}
+            A screen narrows what the agent may hold. It is applied before the
+            analyst sees anything, so a filtered asset never appears in a cycle.
+          </p>
+        </section>
+      ) : null}
     </div>
   );
 }
+
+/**
+ * The compliance screens on offer.
+ *
+ * "None" is first and is the default. Shariah screening removes conventional
+ * financials and over-leveraged balance sheets from the universe outright, so
+ * it is a decision the author makes deliberately rather than a box they find
+ * already ticked.
+ */
+const COMPLIANCE_CHOICES: {
+  id: ComplianceProfile;
+  label: string;
+  help: string;
+}[] = [
+  {
+    id: "none",
+    label: "None",
+    help: "Every asset in the market, screened only by your own rules.",
+  },
+  {
+    id: "shariah",
+    label: "Shariah",
+    help: "Excludes conventional finance, leverage over the line, and non-compliant revenue.",
+  },
+];
 
 /* ------------------------------------------------------------ what it needs -- */
 

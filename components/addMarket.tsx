@@ -4,12 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  selectionKey,
   num,
   addAgentMarket,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
-import { AssetLogo } from "@/components/ui";
+import {
+  describeClass, AssetLogo } from "@/components/ui";
 
 /**
  * "Add market" — the picker behind the + Add market card on wireframe 1k.
@@ -72,23 +74,30 @@ export function AddMarketModal({
   const held = useMemo(
     () =>
       new Set(
-        existing.map((s) => `${s.underlying}/${s.issuer ?? ""}`),
+        existing.map(selectionKey),
       ),
     [existing],
   );
 
   const isHeld = (a: UniverseAsset) =>
-    held.has(`${a.underlying}/${a.issuer}`) || held.has(`${a.underlying}/`);
+    a.kind === "crypto"
+      ? held.has(`mint:${a.mint}`)
+      : // The second form covers a selection that named the underlying without
+        // pinning an issuer, which means every issuer of it.
+        held.has(`${a.underlying}/${a.issuer}`) || held.has(`${a.underlying}/`);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter(
       (a) =>
-        (klass === "all" || a.assetClass === klass) &&
+        // No class filter for tokens: an agent's universe is one class already,
+        // so the list is either all RWA or all crypto and the chips only ever
+        // subdivide the former.
+        (klass === "all" || a.kind === "crypto" || a.assetClass === klass) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
-          a.underlying.toLowerCase().includes(q) ||
-          a.issuer.toLowerCase().includes(q)),
+          (a.underlying ?? "").toLowerCase().includes(q) ||
+          (a.issuer ?? "").toLowerCase().includes(q)),
     );
   }, [assets, query, klass]);
 
@@ -168,12 +177,18 @@ export function AddMarketModal({
       // frozen while a strategy runs, so the same agent simply takes the extra
       // market and screens it on the next cycle, which the endpoint triggers.
       //
-      // Issuer is passed explicitly: two issuers can wrap the same underlying,
-      // and "Apple" alone is ambiguous between them.
-      await addAgentMarket(token, agentId, {
-        underlying: picked.underlying,
-        issuer: picked.issuer,
-      });
+      // Whichever identity this agent's class uses. A token is pinned by its
+      // mint, which IS its identity. An RWA market is named and resolved
+      // through the registry server-side — and its issuer is passed explicitly,
+      // because two issuers can wrap the same underlying and "Apple" alone is
+      // ambiguous between them.
+      await addAgentMarket(
+        token,
+        agentId,
+        picked.kind === "crypto"
+          ? { mint: picked.mint! }
+          : { underlying: picked.underlying ?? "", issuer: picked.issuer },
+      );
       // Cycles, not chat: the agent screens the new market immediately, and
       // that screen is the thing worth showing.
       router.push(`/workspace/${agentId}?tab=cycles`);
@@ -288,7 +303,7 @@ export function AddMarketModal({
                 picked?.underlying === a.underlying && picked?.issuer === a.issuer;
               return (
                 <button
-                  key={`${a.underlying}/${a.issuer}`}
+                  key={a.mint ?? `${a.underlying}/${a.issuer}`}
                   type="button"
                   data-row={i}
                   disabled={taken}
@@ -305,7 +320,7 @@ export function AddMarketModal({
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <AssetLogo symbol={a.underlying} issuer={a.issuer} size={18} />
+                    <AssetLogo symbol={a.underlying ?? a.symbol} issuer={a.issuer} src={a.iconUrl} size={18} />
                     <span
                       className={`truncate font-mono text-[13px] ${
                         chosen ? "text-accent" : "text-text-primary"
@@ -314,8 +329,8 @@ export function AddMarketModal({
                       {a.symbol}/USDC
                     </span>
                     <span className="truncate font-ui text-[11px] text-text-dim">
-                      {a.assetClass === "commodity" ? "Tokenized commodity" : "Tokenized equity"} ·{" "}
-                      {a.issuer}
+                      {describeClass(a)}
+                      {a.issuer ? ` · ${a.issuer}` : ""}
                     </span>
                   </span>
                   <span className="tnum text-right font-mono text-[12.5px] text-text-primary">

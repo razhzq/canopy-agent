@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
-  getUniverse,
+  selectionFor,
+  peekAllMarkets,
+  getAllMarkets,
   num,
-  peekUniverse,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { AssetLogo } from "@/components/ui";
+import {
+  describeClass, AssetLogo } from "@/components/ui";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -28,11 +30,30 @@ import { AssetLogo } from "@/components/ui";
  * that grows.
  */
 
+/**
+ * The categories, and what each one admits.
+ *
+ * ETFs sit under stocks rather than getting a chip of their own: a tokenized
+ * index fund is an equity position to everyone choosing one here, and a fourth
+ * category holding a single asset is a worse list than a third holding two.
+ *
+ * The choice is not cosmetic. A strategy has exactly ONE class — one specialist
+ * screens it — so the category picked here decides which specialist runs and,
+ * in the next step, which rules can even apply.
+ */
 const CLASSES = [
-  { key: "all", label: "All" },
-  { key: "equity", label: "Equities" },
-  { key: "commodity", label: "Commodities" },
-  { key: "etf", label: "Funds" },
+  { key: "all", label: "All", admits: () => true },
+  {
+    key: "stocks",
+    label: "Tokenized stocks",
+    admits: (a: UniverseAsset) => a.assetClass === "equity" || a.assetClass === "etf",
+  },
+  {
+    key: "commodity",
+    label: "Commodities",
+    admits: (a: UniverseAsset) => a.assetClass === "commodity",
+  },
+  { key: "token", label: "Crypto", admits: (a: UniverseAsset) => a.kind === "crypto" },
 ] as const;
 
 export function PickMarket({
@@ -49,26 +70,52 @@ export function PickMarket({
   // list it was already showing instead of a skeleton. `peekUniverse` is empty
   // on a cold load and on the server, so the first render of the page is
   // unchanged and there is nothing for hydration to disagree about.
-  const universe = useApi((t) => getUniverse(t, "rwa"), [], peekUniverse("rwa") ?? undefined);
+  // Every class at once. The categories below are a view over one list rather
+  // than four separate fetches, so switching chips never waits on the network.
+  const universe = useApi((t) => getAllMarkets(t), [], peekAllMarkets() ?? undefined);
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
   const [cursor, setCursor] = useState(0);
   const search = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const assets = universe.phase === "ready" ? universe.data.assets : [];
+  const assets = universe.phase === "ready" ? universe.data : [];
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const admits = CLASSES.find((c) => c.key === klass)?.admits ?? (() => true);
     return assets.filter(
       (a) =>
-        (klass === "all" || a.assetClass === klass) &&
+        admits(a) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
-          a.underlying.toLowerCase().includes(q) ||
-          a.issuer.toLowerCase().includes(q)),
+          (a.name ?? "").toLowerCase().includes(q) ||
+          (a.underlying ?? "").toLowerCase().includes(q) ||
+          (a.issuer ?? "").toLowerCase().includes(q)),
     );
   }, [assets, query, klass]);
+
+  /**
+   * Tickers held by more than one asset on screen.
+   *
+   * Ticker collisions are ordinary on a permissionless chain — the universe
+   * carries three CATs and two each of DOG, GOLD and WOJAK — and every one of
+   * them is a genuinely different token that happened to pick the same three
+   * letters. Selection is keyed on the mint, so the ENGINE is never confused;
+   * the person choosing from two identical-looking rows is.
+   *
+   * Computed over the FILTERED rows rather than the whole universe: a name is
+   * only worth the horizontal space when the ambiguity is actually visible. A
+   * search narrowed to one CAT does not need to explain which CAT it is.
+   */
+  const ambiguous = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const a of rows) {
+      const key = a.symbol.toUpperCase();
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    return new Set([...seen].filter(([, n]) => n > 1).map(([sym]) => sym));
+  }, [rows]);
 
   // Keyboard navigation over the whole step, not just the input — the table is
   // the subject of the page, so arrows should drive it wherever focus sits.
@@ -91,7 +138,7 @@ export function PickMarket({
       if (e.key === "Enter" && rows[cursor]) {
         e.preventDefault();
         const a = rows[cursor];
-        onChange({ underlying: a.underlying, issuer: a.issuer }, a);
+        onChange(selectionFor(a), a);
         onNext();
       }
     };
@@ -107,7 +154,9 @@ export function PickMarket({
   }, [cursor]);
 
   const chosen = (a: UniverseAsset) =>
-    value?.underlying === a.underlying && value?.issuer === a.issuer;
+    a.kind === "crypto"
+      ? value?.kind === "crypto" && value.mint === a.mint
+      : value?.kind === "rwa" && value.underlying === a.underlying && value.issuer === a.issuer;
 
   return (
     <div className="space-y-6">
@@ -119,9 +168,10 @@ export function PickMarket({
           Pick what you&apos;re trading
         </h2>
         <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
-          One pick sets the asset and the market. Tokenized real-world assets — equities and
-          commodities, wrapped on Solana. The token trades around the clock; the underlying keeps
-          its own hours, and the agent respects them.
+          One pick sets the asset, the market, and which specialist screens it. Tokenized stocks
+          and commodities keep their underlying&apos;s trading hours even though the token trades
+          around the clock; crypto never closes. What you pick here decides which rules are
+          available in the next step.
         </p>
       </div>
 
@@ -188,12 +238,12 @@ export function PickMarket({
 
           {rows.map((a, i) => (
             <button
-              key={`${a.underlying}/${a.issuer}`}
+              key={a.mint ?? `${a.underlying}/${a.issuer}`}
               type="button"
               data-row={i}
               onMouseEnter={() => setCursor(i)}
               onClick={() => {
-                onChange({ underlying: a.underlying, issuer: a.issuer }, a);
+                onChange(selectionFor(a), a);
                 onNext();
               }}
               className={`grid w-full grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
@@ -201,7 +251,7 @@ export function PickMarket({
               } ${chosen(a) ? "bg-accent-wash" : ""}`}
             >
               <span className="flex min-w-0 items-center gap-2.5">
-                <AssetLogo symbol={a.underlying} issuer={a.issuer} size={18} />
+                <AssetLogo symbol={a.underlying ?? a.symbol} issuer={a.issuer} src={a.iconUrl} size={18} />
                 <span
                   className={`truncate font-mono text-[13px] ${
                     chosen(a) ? "text-accent" : "text-text-primary"
@@ -210,8 +260,17 @@ export function PickMarket({
                   {a.symbol}/USDC
                 </span>
                 <span className="truncate font-ui text-[11px] text-text-dim">
-                  {a.assetClass === "commodity" ? "Tokenized commodity" : "Tokenized equity"} ·{" "}
-                  {a.issuer}
+                  {describeClass(a)}
+                  {a.issuer ? ` · ${a.issuer}` : ""}
+                  {/*
+                    Only when the ticker is genuinely ambiguous on screen. The
+                    name comes first because it is what a person recognises;
+                    the mint prefix is the tiebreak for the case the name does
+                    not settle, since two tokens may share both.
+                  */}
+                  {ambiguous.has(a.symbol.toUpperCase())
+                    ? ` · ${a.name ?? `${a.mint?.slice(0, 4)}…`}`
+                    : ""}
                 </span>
               </span>
               <span className="tnum text-right font-mono text-[12.5px] text-text-primary">

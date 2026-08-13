@@ -1,6 +1,8 @@
+import type { UniverseAsset } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { RemoteIcon } from "@/components/remoteIcon";
 
 /* ---------------------------------------------------------------- tone ---- */
 
@@ -486,26 +488,31 @@ function tickerOf(symbol: string, issuer?: string | null): string | null {
 export function AssetLogo({
   symbol,
   issuer,
+  src,
   size = 16,
 }: {
   symbol: string;
   /** Which wrapper this is, where the underlying alone cannot say (gold). */
   issuer?: string | null;
+  /**
+   * A remote icon, for assets with no bundled ticker file.
+   *
+   * There are five hundred-odd Solana tokens in the universe and the list grows
+   * hourly, so shipping a PNG per token is not a thing that can work. The URL
+   * comes from the same DexScreener response the sweep already makes to find
+   * each token's pool.
+   */
+  src?: string | null;
   size?: number;
 }) {
   const ticker = tickerOf(symbol, issuer);
+  const monogram = <Monogram symbol={symbol} size={size} />;
 
-  if (!ticker) {
-    return (
-      <span
-        aria-hidden
-        className="inline-flex shrink-0 items-center justify-center rounded-[3px] border border-grid bg-surface-2 font-mono text-text-dim"
-        style={{ width: size, height: size, fontSize: Math.max(size * 0.42, 7) }}
-      >
-        {symbol.trim().slice(0, 2).toUpperCase()}
-      </span>
-    );
-  }
+  // A remote icon wins when there is one: the bundled ticker files cover a
+  // dozen tokenized RWAs, not five hundred Solana tokens.
+  if (src) return <RemoteIcon src={src} size={size} fallback={monogram} />;
+
+  if (!ticker) return monogram;
 
   return (
     <Image
@@ -721,5 +728,29 @@ export function ChevronRight({ className = "" }: { className?: string }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+/** What kind of thing this is, in the reader's terms. */
+export function describeClass(a: UniverseAsset): string {
+  if (a.kind === "crypto") {
+    // The tier is the honest caveat on a token nobody vouches for.
+    return a.tier === "pool" ? "Crypto · unverified" : "Crypto";
+  }
+  if (a.assetClass === "commodity") return "Tokenized commodity";
+  if (a.assetClass === "etf") return "Tokenized fund";
+  return "Tokenized equity";
+}
+
+/** The two-letter stand-in for an asset with no artwork. */
+function Monogram({ symbol, size }: { symbol: string; size: number }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex shrink-0 items-center justify-center rounded-[3px] border border-grid bg-surface-2 font-mono text-text-dim"
+      style={{ width: size, height: size, fontSize: Math.max(size * 0.42, 7) }}
+    >
+      {symbol.trim().slice(0, 2).toUpperCase()}
+    </span>
   );
 }

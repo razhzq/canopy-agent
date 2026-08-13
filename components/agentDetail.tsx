@@ -23,10 +23,13 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import {
+  selectionKey,
+  selectionLabel,
+  selectionIssuer,
   getAgent,
   getEquity,
   getStrategy,
-  getUniverse,
+  getMarketsForClass,
   num,
   pauseAgent,
   resumeAgent,
@@ -118,14 +121,14 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       const [strategy, equity, universe] = await Promise.allSettled([
         getStrategy(token, detail.agent.strategy_id),
         getEquity(token, agentId),
-        getUniverse(token, detail.agent.strategy_class),
+        getMarketsForClass(token, detail.agent.strategy_class),
       ]);
       setState({
         phase: "ready",
         detail,
         strategy: strategy.status === "fulfilled" ? strategy.value.strategy : null,
         equity: equity.status === "fulfilled" ? equity.value : null,
-        assets: universe.status === "fulfilled" ? universe.value.assets : [],
+        assets: universe.status === "fulfilled" ? universe.value : [],
       });
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
@@ -151,7 +154,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   const markets = (strategy?.universe ?? []).map((sel) => ({
     sel,
     asset:
-      assets.find((a) => a.underlying === sel.underlying && (!sel.issuer || a.issuer === sel.issuer)) ??
+      assets.find(
+        (a) =>
+          sel.kind === "rwa" &&
+          a.underlying === sel.underlying &&
+          (!sel.issuer || a.issuer === sel.issuer),
+      ) ??
       null,
   }));
 
@@ -256,7 +264,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             markets.length === 0
               ? "Whole class"
               : markets
-                  .map((m) => m.asset?.symbol ?? m.sel.underlying)
+                  .map((m) => m.asset?.symbol ?? selectionLabel(m.sel))
                   .slice(0, 3)
                   .join(" · ")
           }
@@ -404,8 +412,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {markets.map((m) => (
                     <MarketCard
-                      key={`${m.sel.underlying}/${m.sel.issuer ?? ""}`}
-                      label={m.asset ? `${m.asset.symbol}/USDC` : m.sel.underlying}
+                      key={selectionKey(m.sel)}
+                      label={m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)}
                       asset={m.asset}
                       entry={entry}
                     />
@@ -521,17 +529,17 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               </p>
             ) : (
               markets.map((m) => {
-                const symbol = m.asset?.symbol ?? m.sel.underlying;
+                const symbol = m.asset?.symbol ?? selectionLabel(m.sel);
                 const open = positions.filter(
-                  (p) => p.underlying === m.sel.underlying || p.symbol === symbol,
+                  (p) => p.underlying === selectionLabel(m.sel) || p.symbol === symbol,
                 ).length;
                 return (
                   <div
-                    key={`${m.sel.underlying}/${m.sel.issuer ?? ""}`}
+                    key={selectionKey(m.sel)}
                     className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid py-2.5"
                   >
                     <span className="flex min-w-0 items-center gap-2">
-                      <AssetLogo symbol={m.sel.underlying} issuer={m.sel.issuer ?? m.asset?.issuer} />
+                      <AssetLogo symbol={selectionLabel(m.sel)} issuer={selectionIssuer(m.sel) ?? m.asset?.issuer} />
                       <span className="truncate font-ui text-[12.5px] text-text-primary">
                         {m.asset ? `${symbol}/USDC` : symbol}
                       </span>
