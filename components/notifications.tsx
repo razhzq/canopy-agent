@@ -218,56 +218,83 @@ export function NotificationSettings() {
 }
 
 /**
- * The alerts chip on the agent detail page.
+ * The alerts bell, beside the agent's name.
  *
- * WHY IT IS HERE AND NOT ONLY IN THE ACCOUNT MENU
+ * WHY A BELL AND NOT A LABELLED BUTTON
  *
- * Nobody hunting for "how do I hear about this agent's trades" opens a profile
- * dropdown. They look at the agent. So the prompt lives beside the controls
- * that already act on it, and `/settings` stays the single destination — one
- * place that owns the connection, two places that point at it.
+ * It sits in the page title row, which is the most valuable space on the
+ * screen and already holds the name, the status and the wallet. A control that
+ * reads "Get alerts" competes with those for attention every time the page is
+ * opened, forever, to say something most people need to act on once. A bell is
+ * the one icon nobody has to be taught, and it states the same thing in the
+ * space of a character.
  *
- * It states the CURRENT state rather than always saying "connect", because an
- * owner who has already linked needs the opposite reassurance: that alerts are
- * on, and that silence means nothing happened rather than something broke.
+ * COLOUR CARRIES THE STATE, AND IT IS NOT THE ONLY THING THAT DOES
  *
- * It renders nothing at all when the deployment has no bot configured.
- * Advertising a channel that cannot be connected is worse than staying quiet.
+ * Green for on, grey for off — but the title and the aria-label say it too,
+ * and the off state gets a slash through the bell. Roughly one man in twelve
+ * cannot reliably separate those two hues, and "is my agent able to reach me"
+ * is not a question to answer in colour alone.
+ *
+ * It renders nothing when the deployment has no bot configured. Advertising a
+ * channel that cannot be connected is worse than staying quiet.
  */
 export function AlertsControl() {
   const state = useApi(getTelegramStatus, []);
 
-  // Also nothing while loading or signed out: this is a secondary affordance in
-  // a row of primary ones, and a chip that pops in as "connect" then corrects
-  // itself to "on" is worse than one that arrives late.
+  // Nothing while loading or signed out: this sits in the title row, and a
+  // control that pops in mid-read shifts the heading under the cursor.
   if (state.phase !== "ready" || !state.data.configured) return null;
 
   const { linked, enabled } = state.data;
+  const on = linked && enabled;
 
-  if (linked && enabled) {
-    return (
-      <Link
-        href="/settings"
-        title="Manage where alerts go"
-        className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
-      >
-        <span className="text-accent">●</span> Alerts on
-      </Link>
-    );
-  }
+  const label = on
+    ? "Alerts on — trades and breaches are sent to your Telegram"
+    : linked
+      ? "Alerts muted — click to manage"
+      : "Alerts off — connect Telegram to hear about trades";
 
   return (
     <Link
       href="/settings"
-      className={`border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] uppercase transition-colors ${
-        linked
-          ? "border-border text-text-dim hover:border-accent hover:text-accent"
-          : // Unconnected is the one state worth a nudge — it is the difference
-            // between learning about a stop-loss now and learning tomorrow.
-            "border-accent/40 text-accent hover:bg-accent-wash"
+      title={label}
+      aria-label={label}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+        on
+          ? "text-accent hover:bg-accent-wash"
+          : "text-text-muted hover:bg-surface hover:text-text-secondary"
       }`}
     >
-      {linked ? "Alerts muted" : "Get alerts"}
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
+        {/* One outline, drawn once. A filled bell for "on" and an outline for
+            "off" would change the icon's WEIGHT as well as its colour, which
+            reads as two different controls rather than two states of one. */}
+        <path
+          d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6c0 2.6-.9 3.6-1.3 4.1-.2.2 0 .6.3.6h9.2c.3 0 .5-.4.3-.6-.4-.5-1.3-1.5-1.3-4.1A3.6 3.6 0 0 0 8 2.2Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M6.6 12.4a1.5 1.5 0 0 0 2.8 0"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+        {/* The slash is what makes "off" legible without colour. */}
+        {on ? null : (
+          <path
+            d="m3.4 3.4 9.2 9.2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
     </Link>
   );
 }

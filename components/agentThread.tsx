@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -60,16 +60,81 @@ export function AgentThread({
   const { getAccessToken } = usePrivy();
   const router = useRouter();
   const foot = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   const state = useApi((t) => getMessages(t, agentId), [agentId, nonce]);
-  const messages = state.phase === "ready" ? state.data.messages : [];
 
-  // Stick to the newest turn, the way a conversation behaves. `live` is in the
-  // deps because a streaming answer grows the page without adding a message —
-  // without it the text would type itself out below the fold.
+  // THE LAST GOOD THREAD, KEPT ACROSS REFETCHES.
+  //
+  // This is what stopped the page "refreshing itself" mid-conversation. The
+  // poll below bumps `nonce` every 60 seconds; `useApi` answers a dep change by
+  // resetting to `loading`; and the loading branch renders a skeleton. So once
+  // a minute the entire conversation was replaced by grey bars and then put
+  // back — indistinguishable from a page reload, and it landed in the middle of
+  // reading a reply.
+  //
+  // Holding the previous messages means a refetch is invisible: the thread
+  // stays on screen and is simply replaced by the newer copy when it lands.
+  // Written during render on purpose — it is a cache of a value already in
+  // hand, so an effect would only make it arrive one frame late.
+  const seen = useRef<AgentMessage[]>([]);
+  if (state.phase === "ready") seen.current = state.data.messages;
+  const messages = state.phase === "ready" ? state.data.messages : seen.current;
+
+  /**
+   * Whether the view is pinned to the newest turn.
+   *
+   * False the moment the reader scrolls up, so an answer arriving cannot yank
+   * them away from the message they went back to read. True again as soon as
+   * they return to the bottom. 80px of slack because "at the bottom" is a
+   * feeling rather than an exact scroll position.
+   */
+  const pinned = useRef(true);
+  /**
+   * Whether to offer a way back to the newest turn.
+   *
+   * The pinning above fixed one problem and created another: scroll up to
+   * re-read something and you are no longer followed down, which is right —
+   * but there was then no way back except scrolling by hand, and no sign that
+   * anything new had arrived while you were reading. React state rather than a
+   * ref because this one has to paint.
+   */
+  const [adrift, setAdrift] = useState(false);
+
+  const toEnd = useCallback((force = false) => {
+    const el = scroller.current;
+    if (!el || (!pinned.current && !force)) return;
+    // Instant, never smooth. A smooth scroll during a streaming answer never
+    // catches up with the text growing above it, so the view lags a line or two
+    // behind the words for the whole reply.
+    el.scrollTop = el.scrollHeight;
+    if (force) {
+      pinned.current = true;
+      setAdrift(false);
+    }
+  }, []);
+
+  // The composer grows to fit what is in it. Reset to `auto` first — without
+  // that, scrollHeight only ever reports the current height and the box can
+  // grow but never shrink again after a deletion.
   useEffect(() => {
-    foot.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, live]);
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  }, [draft]);
+
+  // Everything that grows the thread, not just the message count.
+  //
+  // The deps used to be [messages.length, live], which covered a reply landing
+  // and a reply streaming — and missed the case that matters most: the moment
+  // you press send. Your own message appears as `echo` and the status line as
+  // `stage`, neither of which changes the message count, so the thread grew
+  // under the fold and you had to scroll to find your own question.
+  useEffect(() => {
+    toEnd();
+  }, [messages.length, live, echo, stage, typing, toEnd]);
 
   // Poll while something is pending: an approval that expires unseen is the
   // failure this whole surface exists to prevent.
@@ -85,6 +150,11 @@ export function AgentThread({
     setSending(true);
     setError(null);
     setStage("reading");
+    // Sending is an explicit request to be at the bottom. Someone who scrolled
+    // up to re-read something and then asked a question wants to watch the
+    // answer, not to stay where they were reading.
+    pinned.current = true;
+    setAdrift(false);
     // Shown immediately, in its final position. Waiting for the round trip to
     // echo it back is what made sending feel like nothing had happened — the
     // box emptied and the thread sat unchanged for several seconds.
@@ -130,18 +200,38 @@ export function AgentThread({
     }
   }
 
-  if (state.phase === "loading") return <SkeletonThread />;
+  // The skeleton is for the FIRST load only. Every later fetch is a background
+  // refresh of a thread already on screen.
+  if (state.phase === "loading" && seen.current.length === 0) return <SkeletonThread />;
   if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "error")
+  // A failed poll must not destroy the conversation either. With nothing to
+  // fall back on this is still the right screen; with a thread in hand, the
+  // honest thing is to keep showing it — the messages did not stop existing
+  // because one request timed out.
+  if (state.phase === "error" && seen.current.length === 0)
     return <ErrorState message={state.message} onRetry={state.reload} />;
 
   return (
     <div className="mx-auto flex h-[calc(100vh-152px)] max-w-[820px] flex-col px-8">
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-7 [&::-webkit-scrollbar-thumb]:bg-grid-strong [&::-webkit-scrollbar]:w-1.5">
+      <div
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          pinned.current = atEnd;
+          setAdrift((was) => (was === !atEnd ? was : !atEnd));
+        }}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-7 [&::-webkit-scrollbar-thumb]:bg-grid-strong [&::-webkit-scrollbar]:w-1.5"
+      >
         <Opening agent={agent} />
-        {messages.map((m) => (
+        {messages.map((m, i) => (
           <Turn
             key={m.id}
+            // ONLY THE NEWEST TURN ANIMATES. Applying the entrance to every
+            // message would replay the whole conversation on each poll — the
+            // thread would twitch once a minute, which is the exact mistake
+            // log-enter's comment in globals.css warns about.
+            fresh={i === messages.length - 1}
             message={m}
             onAck={() => void ack(m.id)}
             // Stays put: the agent that just changed is the one on screen.
@@ -157,8 +247,13 @@ export function AgentThread({
             once the refetch lands so the message does not appear twice. */}
         {echo && !messages.some((m) => m.role === "user" && m.body === echo) ? (
           <div className="flex justify-end">
-            <div className="max-w-[76%] border border-grid bg-panel px-5 py-3 opacity-60">
-              <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-primary">
+            {/* Identical to a settled message except for the text colour.
+                It used to be 60% opacity, which dimmed the whole bubble and
+                then snapped to full when the refetch landed — a visible
+                flinch on every send, drawing the eye to the one thing that
+                had not changed. */}
+            <div className="max-w-[78%] rounded-xl rounded-br-sm bg-surface-2 px-5 py-3">
+              <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-secondary">
                 {echo}
               </p>
             </div>
@@ -169,7 +264,7 @@ export function AgentThread({
             the turn completes — same text, so the swap is invisible. */}
         {live ? (
           <Row role="agent">
-            <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
+            <p className="font-ui text-[14px] leading-[1.7] whitespace-pre-wrap text-text-primary">
               {live}
               <span className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse bg-accent motion-reduce:animate-none" />
             </p>
@@ -181,12 +276,41 @@ export function AgentThread({
         <div ref={foot} />
       </div>
 
+      {/* The way back. Only while adrift, and only when there is something to
+          go back TO — offering it on an already-complete thread would be a
+          button that does nothing visible. */}
+      {adrift && messages.length > 0 ? (
+        <div className="pointer-events-none relative">
+          <button
+            type="button"
+            onClick={() => toEnd(true)}
+            style={{ animation: "pill-enter 180ms ease-out" }}
+            className="pointer-events-auto absolute -top-12 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
+          >
+            <svg viewBox="0 0 16 16" className="size-3" aria-hidden>
+              <path
+                d="M8 3v10m0 0 4-4m-4 4-4-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {live || stage ? "Answering" : "Latest"}
+          </button>
+        </div>
+      ) : null}
+
       <div
-        className={`mb-6 border transition-colors ${
-          sending ? "border-accent" : "border-grid-strong focus-within:border-accent"
+        className={`mb-6 rounded-xl border bg-panel/60 transition-colors duration-150 ${
+          sending
+            ? "border-accent"
+            : "border-grid-strong focus-within:border-accent focus-within:bg-panel"
         }`}
       >
         <textarea
+          ref={box}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -196,16 +320,27 @@ export function AgentThread({
             }
           }}
           disabled={sending}
-          rows={2}
+          rows={1}
           maxLength={2000}
           aria-label="Message this agent"
           placeholder="Ask it something, or tell it what to change…"
-          className="w-full resize-none bg-transparent px-5 py-3.5 font-ui text-[14px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
+          // GROWS WITH WHAT IS BEING WRITTEN, up to a point. It was a fixed two
+          // rows, so a three-line instruction — which is what "change the stop
+          // to 8% and stop trading equities" becomes — was composed through a
+          // slot showing two-thirds of itself. The cap keeps a long paste from
+          // eating the conversation above it.
+          className="max-h-[180px] w-full resize-none bg-transparent px-5 pt-4 pb-2 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
         />
-        <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
+        <div className="flex items-center justify-between gap-4 px-4 pb-3">
           <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
             {error ? (
               <span className="text-negative">{error}</span>
+            ) : draft.length > 1800 ? (
+              // Only near the ceiling. A counter shown from the first keystroke
+              // is a limit announcing itself to people who will never reach it.
+              <span className={draft.length >= 2000 ? "text-negative" : "text-warning"}>
+                {2000 - draft.length} characters left
+              </span>
             ) : (
               "Enter to send · Shift+Enter for a new line"
             )}
@@ -214,9 +349,30 @@ export function AgentThread({
             type="button"
             onClick={() => void send()}
             disabled={sending || draft.trim().length === 0}
-            className="flex h-8 items-center border border-accent bg-accent-wash px-5 font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+            aria-label="Send"
+            className="flex size-9 items-center justify-center rounded-lg bg-accent text-bg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim"
           >
-            {sending ? "…" : "Send"}
+            {sending ? (
+              <span
+                className="block size-3.5 rounded-full border-[1.5px] border-current border-t-transparent motion-safe:animate-spin"
+                aria-hidden
+              />
+            ) : (
+              // An arrow, not the word "Send". The control sits beside a hint
+              // that already says Enter sends — a second instruction in the same
+              // 40 pixels is noise, and every chat on earth has taught this
+              // glyph.
+              <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
+                <path
+                  d="M8 13V3m0 0L4 7m4-4 4 4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -340,7 +496,7 @@ function Opening({ agent }: { agent: AgentRow | null }) {
   if (!agent) return null;
   return (
     <Row role="agent">
-      <p className="font-ui text-[13.5px] leading-relaxed text-text-secondary">
+      <p className="font-ui text-[13.5px] leading-[1.7] text-text-secondary">
         I run{" "}
         <span className="font-mono text-[12.5px] text-text-primary">
           {agent.strategy_class}
@@ -366,6 +522,7 @@ function Turn({
   agentId,
   typing = false,
   onTyped,
+  fresh = false,
 }: {
   message: AgentMessage;
   onAck: () => void;
@@ -374,15 +531,24 @@ function Turn({
   /** Reveal this reply a character at a time rather than all at once. */
   typing?: boolean;
   onTyped?: () => void;
+  /** The newest turn, and the only one that animates in. */
+  fresh?: boolean;
 }) {
   const open = m.requires_action && !m.acted_at;
   const changes = proposedChanges(m);
 
+  const enter = fresh ? { animation: "turn-enter 220ms ease-out" } : undefined;
+
   if (m.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[76%] border border-grid bg-panel px-5 py-3">
-          <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-primary">
+      <div className="flex justify-end" style={enter}>
+        {/* Filled rather than outlined, and softened at the corners. An
+            outlined box on a dark ground reads as an input waiting to be
+            filled; a filled one reads as something already said. The radius
+            matches the buttons in the nav — this page is not the place to
+            invent a second corner language. */}
+        <div className="max-w-[78%] rounded-xl rounded-br-sm bg-surface-2 px-5 py-3">
+          <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-primary">
             {m.body}
           </p>
         </div>
@@ -391,8 +557,11 @@ function Turn({
   }
 
   return (
-    <Row role="agent" tone={open ? "accent" : undefined}>
-      <p className="font-ui text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
+    <Row role="agent" tone={open ? "accent" : undefined} style={enter}>
+      {/* The answer is the content of this page, so it is set at reading
+          contrast and reading measure — not at the secondary grey used for
+          labels around it. This was the single cheapest legibility win here. */}
+      <p className="font-ui text-[14px] leading-[1.7] whitespace-pre-wrap text-text-primary">
         {typing ? <Typed text={m.body} onDone={onTyped} /> : m.body}
       </p>
 
@@ -461,28 +630,49 @@ function Turn({
   );
 }
 
+/**
+ * One thing the agent said.
+ *
+ * OPEN PROSE, NOT A BUBBLE — and that is the biggest change to this page.
+ *
+ * Every agent turn used to be a bordered box with an empty circle beside it.
+ * The circle was a placeholder that read as a missing avatar, and the box gave
+ * the agent's words the same visual weight as the owner's — so a four-sentence
+ * analysis and a three-word question looked like peers. Worse, boxing long
+ * prose puts a hard edge a few words from the end of every line, which is
+ * exactly where the eye wants to run on.
+ *
+ * So the agent speaks in the open, full width, like a document; the owner's
+ * messages stay contained and right-aligned. That asymmetry is what makes a
+ * transcript scannable — you can find your own questions without reading.
+ *
+ * Containment is kept for the one case that earns it: a turn waiting on a
+ * decision, which gets an accent rail so it is findable in peripheral vision
+ * while scrolling.
+ */
 function Row({
   children,
   tone,
+  style,
 }: {
   role: "agent";
   children: React.ReactNode;
   tone?: "accent";
+  style?: React.CSSProperties;
 }) {
-  return (
-    <div className="flex gap-3.5">
-      <span
-        className={`mt-1 block size-6 shrink-0 rounded-full border ${
-          tone === "accent" ? "border-accent bg-accent-wash" : "border-grid bg-panel"
-        }`}
-      />
+  if (tone === "accent") {
+    return (
       <div
-        className={`min-w-0 flex-1 border px-5 py-3.5 ${
-          tone === "accent" ? "border-accent bg-accent-wash" : "border-grid"
-        }`}
+        style={style}
+        className="min-w-0 border-l-2 border-accent bg-accent-wash/50 py-3.5 pr-5 pl-4"
       >
         {children}
       </div>
+    );
+  }
+  return (
+    <div style={style} className="min-w-0 py-1.5">
+      {children}
     </div>
   );
 }

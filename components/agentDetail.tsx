@@ -229,6 +229,10 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           </h1>
           <StatusChip status={agent.status} />
           <div className="flex-1" />
+          {/* Whether the agent can reach you, next to whether it is running.
+              Both are facts about the agent's connection to the world, and this
+              is where the eye already goes. */}
+          <AlertsControl />
           <WalletTag address={wallet?.address ?? null} isPaper={agent.is_paper} />
         </div>
 
@@ -902,10 +906,6 @@ function Controls({
       >
         Edit limits
       </Link>
-
-      {/* Where the owner hears about all of this. Renders nothing when the
-          deployment has no Telegram bot configured. */}
-      <AlertsControl />
 
       <div className="flex-1" />
 
