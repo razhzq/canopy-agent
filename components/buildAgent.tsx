@@ -8,6 +8,7 @@ import { StepBar } from "@/components/wizard";
 import {
   classFor,
   createStrategy,
+  selectionFor,
   startPaperRun,
   type UniverseAsset,
   type UniverseSelection,
@@ -66,8 +67,19 @@ export function BuildAgent() {
   const [name, setName] = useState("");
   const [named, setNamed] = useState(false);
   const [step, setStep] = useState(0);
-  const [market, setMarket] = useState<UniverseSelection | null>(null);
-  const [asset, setAsset] = useState<UniverseAsset | null>(null);
+  /**
+   * Every market the agent may trade, in the order they were picked.
+   *
+   * A list rather than one, because the engine always screened a list — both
+   * specialists loop over their universe and an auto strategy screens up to
+   * sixty. The single-market limit was this component and one line below.
+   *
+   * The FIRST entry is the representative: it names the step in the rail, and
+   * it is what the strategy composer is told it is trading. Every entry shares a
+   * class, so any of them would describe the specialist equally well.
+   */
+  const [markets, setMarkets] = useState<UniverseAsset[]>([]);
+  const asset = markets[0] ?? null;
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
   // Builder state only — no strategy or deploy payload carries a venue yet.
   // See the note at the top of pickRoute.tsx.
@@ -118,7 +130,7 @@ export function BuildAgent() {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("not signed in");
-      if (!market) throw new Error("pick a market first");
+      if (markets.length === 0) throw new Error("pick a market first");
 
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
@@ -133,8 +145,9 @@ export function BuildAgent() {
           requireSafetyScreen: false,
         },
         feePct: 10,
-        // One market: the universe is a list of exactly one.
-        universe: [market],
+        // Every market chosen. The picker guarantees they share a class, which
+        // is what makes one `strategyClass` above correct for all of them.
+        universe: markets.map(selectionFor),
         exits: limits.exits,
         // Both of these were collected by the builder and then dropped on the
         // floor here — a timeframe the author picked and a plan the composer
@@ -145,6 +158,11 @@ export function BuildAgent() {
         // never chose, which defers to the server default rather than asserting
         // "none" on their behalf.
         complianceProfile: limits.complianceProfile,
+        // The budget from step 2. These were collected by the builder and then
+        // dropped here, exactly as timeframe and addPlan once were — the slider
+        // went to 10 and every agent ran with 3.
+        positionUsd: limits.positionUsd,
+        tradesPerCycle: limits.tradesPerCycle,
       });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
@@ -232,19 +250,18 @@ export function BuildAgent() {
           <div className="px-8 py-8">
             {step === 0 || !asset ? (
               <PickMarket
-                value={market}
-                onChange={(sel, a) => {
+                value={markets}
+                onChange={(next) => {
                   const before = asset ? classFor(asset) : null;
-                  const after = classFor(a);
-                  setMarket(sel);
-                  setAsset(a);
+                  const after = next[0] ? classFor(next[0]) : null;
+                  setMarkets(next);
                   // Switching between classes changes which rules exist. Rules
                   // the new specialist cannot evaluate are not merely hidden —
                   // they are removed, because a rule left enabled in state
-                  // would be sent to a backend that silently skips it, and the
-                  // author would never learn their strategy asserts less than
-                  // they set.
-                  if (before !== after) {
+                  // would be sent to a backend that now REJECTS the asset over
+                  // it rather than skipping it, which would stop the strategy
+                  // trading at all.
+                  if (after !== null && before !== after) {
                     setLimits((l) => ({
                       ...l,
                       rules: rulesForClass(after).map((r) => ({ ...r, enabled: false })),
@@ -255,7 +272,7 @@ export function BuildAgent() {
               />
             ) : step === 1 ? (
               <SetLimits
-                market={asset}
+                markets={markets}
                 value={limits}
                 onChange={setLimits}
                 onBack={() => setStep(0)}
@@ -282,7 +299,13 @@ export function BuildAgent() {
                 done={step > 0 && !!asset}
                 here={step === 0}
                 label="Market"
-                value={asset ? `${asset.symbol}/USDC` : "this step"}
+                value={
+                  markets.length === 0
+                    ? "this step"
+                    : markets.length === 1
+                      ? `${markets[0].symbol}/USDC`
+                      : `${markets.length} markets`
+                }
               />
               <Trail
                 done={step > 1}
@@ -387,12 +410,12 @@ export function BuildAgent() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    disabled={!market}
+                    disabled={markets.length === 0}
                     className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                   >
                     Continue to limits
                   </button>
-                  {!market ? (
+                  {markets.length === 0 ? (
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
                       Pick a market first
                     </p>

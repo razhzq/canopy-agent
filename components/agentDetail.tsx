@@ -34,6 +34,7 @@ import {
   pauseAgent,
   resumeAgent,
   deleteAgent,
+  flattenAgent,
   goLive,
   type AgentDetail as AgentDetailPayload,
   type DetectionRule,
@@ -818,10 +819,12 @@ function Controls({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmFlatten, setConfirmFlatten] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const paused = agent.status === "paused";
 
-  async function run(kind: "toggle" | "delete") {
+  async function run(kind: "toggle" | "delete" | "flatten") {
     setBusy(kind);
     setError(null);
     try {
@@ -833,11 +836,28 @@ function Controls({
         router.push("/agents");
         return;
       }
+      if (kind === "flatten") {
+        const { closed } = await flattenAgent(token, agent.id);
+        setConfirmFlatten(false);
+        // Reported rather than left to be inferred from a table that may take a
+        // moment to catch up — "nothing happened" and "it worked" look the same
+        // otherwise.
+        setNotice(
+          closed === 0
+            ? "Nothing was open to close."
+            : `Closed ${closed} position${closed === 1 ? "" : "s"}. The agent is paused.`,
+        );
+        onChanged();
+        return;
+      }
       await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
       onChanged();
     } catch (err) {
+      // A partial close comes back as an error carrying real progress, so the
+      // message is shown and the modal closed rather than treated as a no-op.
       setError(err instanceof Error ? err.message : String(err));
       setConfirmDelete(false);
+      setConfirmFlatten(false);
     } finally {
       setBusy(null);
     }
@@ -858,6 +878,19 @@ function Controls({
         </button>
       ) : null}
 
+      {/* Only when there is something to close. A button that can do nothing is
+          a button that teaches people it does nothing. */}
+      {positions.length > 0 && agent.status !== "deleted" ? (
+        <button
+          type="button"
+          onClick={() => setConfirmFlatten(true)}
+          disabled={busy !== null}
+          className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-warning hover:text-warning disabled:opacity-40"
+        >
+          {busy === "flatten" ? "…" : "Close all positions"}
+        </button>
+      ) : null}
+
       <Link
         href={`/workspace/${agent.id}?tab=chat`}
         className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
@@ -865,6 +898,12 @@ function Controls({
         Edit limits
       </Link>
       <div className="flex-1" />
+
+      {notice ? (
+        <span className="font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
+          {notice}
+        </span>
+      ) : null}
 
       {error ? (
         <span className="font-mono text-[10.5px] tracking-[0.06em] text-negative uppercase">
@@ -880,6 +919,16 @@ function Controls({
         >
           Delete agent
         </button>
+      ) : null}
+
+      {confirmFlatten ? (
+        <FlattenAgentModal
+          agent={agent}
+          positions={positions}
+          busy={busy === "flatten"}
+          onConfirm={() => void run("flatten")}
+          onClose={() => setConfirmFlatten(false)}
+        />
       ) : null}
 
       {confirmDelete ? (
@@ -1402,6 +1451,107 @@ function DeleteAgentModal({
             className="border border-negative px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
           >
             {busy ? "Closing…" : open > 0 ? "Close positions and delete" : "Delete agent"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Confirm closing the whole book.
+ *
+ * Separate from the delete modal even though both sell everything, because the
+ * two are answering different questions and share only a mechanism. Delete asks
+ * "are you finished with this agent"; this asks "do you want to be in cash".
+ * Folding them together is how someone ends up deleting an agent they only
+ * wanted to flatten.
+ */
+function FlattenAgentModal({
+  agent,
+  positions,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  agent: AgentDetailPayload["agent"];
+  positions: AgentDetailPayload["positions"];
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const open = positions.length;
+  const investedUsd = positions.reduce((sum, p) => sum + Number(p.cost_basis_usd), 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-bg/80 px-4 py-10 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="flatten-agent-title"
+        className="w-full max-w-[560px] border border-grid-strong bg-panel"
+      >
+        <div className="border-b border-grid px-7 py-5">
+          <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            {agent.strategy_name}
+          </p>
+          <h2
+            id="flatten-agent-title"
+            className="pt-1.5 font-mono text-[20px] leading-none text-text-primary"
+          >
+            Close every position?
+          </h2>
+        </div>
+
+        <div className="space-y-4 px-7 py-5">
+          <ol className="space-y-2.5">
+            <Step n="1">
+              It sells{" "}
+              <Num>
+                {open} {open === 1 ? "position" : "positions"}
+              </Num>{" "}
+              at the current pool price — <Num>{money(investedUsd)}</Num> invested. Real sales,
+              and the result lands in your record.
+            </Step>
+            {/* Said plainly because it is the part people do not expect, and the
+                part that would otherwise look like a bug an hour later. */}
+            <Step n="2">
+              It then <Num>pauses</Num>. Otherwise it would start buying again on its next cycle.
+            </Step>
+            <Step n="3">The agent, its strategy and its whole record stay exactly as they are.</Step>
+          </ol>
+
+          <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">
+            Resume it whenever you want. Nothing here is one-way.
+          </p>
+
+          <p className="font-ui text-[12px] leading-relaxed text-warning">
+            A position that cannot be priced right now is left open rather than sold at a guess.
+            The agent keeps trying and stays visible while it settles.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-grid px-7 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="border border-warning px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
+          >
+            {busy ? "Closing…" : "Close all positions"}
           </button>
         </div>
       </div>

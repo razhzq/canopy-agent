@@ -68,17 +68,35 @@ export interface Limits {
 /** Verification capital. The budget is expressed against it. */
 const CAPITAL_USD = 10_000;
 
+/**
+ * Smallest position the builder will set, and the step it moves in.
+ *
+ * Not $1: a trade that small is mostly fees on any pool, so offering it would be
+ * offering something that cannot fill well. Not $100 either — that was the old
+ * floor, and it silently multiplied "$10 each trade" by ten.
+ */
+const MIN_POSITION_USD = 10;
+
 export function SetLimits({
-  market,
+  markets,
   value,
   onChange,
   onBack,
 }: {
-  market: UniverseAsset;
+  /**
+   * Every market the strategy will screen, sharing one class.
+   *
+   * The first is the representative for anything that needs a single example —
+   * the heading, the placeholder. The composer is told about ALL of them,
+   * because a strategy screening three assets and told it trades one will
+   * happily write a rule that only makes sense for the one.
+   */
+  markets: UniverseAsset[];
   value: Limits;
   onChange: (next: Limits) => void;
   onBack: () => void;
 }) {
+  const market = markets[0];
   const { getAccessToken } = usePrivy();
   const [mode, setMode] = useState<"write" | "preset">("write");
   const [sentence, setSentence] = useState("");
@@ -160,7 +178,12 @@ export function SetLimits({
         // The market is named for it, so the sentence does not have to be. The
         // underlying is only named when there is one — a token has none, and
         // "(undefined)" reads as a bug to the model as much as to a person.
-        `Trading ${market.symbol}${market.underlying ? ` (${market.underlying})` : ""}. ` +
+        // Every market named, not just the first. The rules apply to all of
+        // them, and a composer that believes it is writing for one asset will
+        // reach for facts only that asset has.
+        `Trading ${markets
+          .map((m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`)
+          .join(", ")}. ` +
           nextSpec.join(" "),
       );
       setNotes(refused);
@@ -241,8 +264,12 @@ export function SetLimits({
         </p>
         <h2 className="font-mono text-[22px] leading-none text-text-primary">Set your limits</h2>
         <p className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-text-secondary">
-          {market.symbol}/USDC ·{" "}
-          {market.assetClass === "commodity" ? "Tokenized commodity" : "Tokenized equity"}
+          {markets.length === 1 ? `${market.symbol}/USDC` : `${markets.length} markets`} ·{" "}
+          {market.kind === "crypto"
+            ? "Crypto"
+            : market.assetClass === "commodity"
+              ? "Tokenized commodity"
+              : "Tokenized equity"}
           <button
             type="button"
             onClick={onBack}
@@ -257,7 +284,7 @@ export function SetLimits({
       <section>
         <div className="flex items-center justify-between pb-3">
           <h3 className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Strategy · {market.symbol}
+            Strategy · {markets.length === 1 ? market.symbol : `${markets.length} markets`}
           </h3>
           <div className="flex items-center gap-0.5 rounded-full border border-grid p-1">
             {(["write", "preset"] as const).map((m) => (
@@ -441,6 +468,7 @@ export function SetLimits({
               min={2}
               max={1000}
               suffix="%"
+              resumeAt={45}
               onChange={(n) => onChange({ ...value, exits: { ...value.exits, takeProfitPct: n } })}
             />
             <ExitChip
@@ -449,7 +477,42 @@ export function SetLimits({
               min={1}
               max={90}
               suffix="%"
+              resumeAt={20}
               onChange={(n) => onChange({ ...value, exits: { ...value.exits, stopLossPct: n } })}
+            />
+            {/* Both default to OFF, unlike the two above. A trailing stop nobody
+                asked for closes positions its author meant to keep, so these
+                are opt-in rather than a level to adjust. */}
+            <ExitChip
+              label="Trailing stop"
+              value={value.exits.trailingStopPct ?? 0}
+              min={1}
+              max={90}
+              suffix="%"
+              resumeAt={12}
+              onChange={(n) =>
+                onChange({ ...value, exits: { ...value.exits, trailingStopPct: n } })
+              }
+            />
+            <ExitChip
+              label="Break-even at"
+              value={value.exits.breakevenAfterPct ?? 0}
+              min={1}
+              max={200}
+              suffix="%"
+              resumeAt={5}
+              onChange={(n) =>
+                onChange({ ...value, exits: { ...value.exits, breakevenAfterPct: n } })
+              }
+            />
+            <ScaleOutLadder
+              rungs={value.exits.scaleOut ?? []}
+              onChange={(next) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, scaleOut: next.length > 0 ? next : undefined },
+                })
+              }
             />
           </div>
 
@@ -493,10 +556,10 @@ export function SetLimits({
             label="Position size limit"
             value={value.positionUsd}
             unit="USDC"
-            min={100}
+            min={MIN_POSITION_USD}
             max={CAPITAL_USD}
-            step={100}
-            help={`Most per trade on this market. Never exceeded. ${(
+            step={MIN_POSITION_USD}
+            help={`Most per trade, per market. Never exceeded. ${(
               (value.positionUsd / CAPITAL_USD) *
               100
             ).toFixed(0)}% of the ${money(CAPITAL_USD)} paper book.`}
@@ -577,6 +640,142 @@ export function SetLimits({
  * it is a decision the author makes deliberately rather than a box they find
  * already ticked.
  */
+/**
+ * The partial-profit ladder.
+ *
+ * NOT AN ExitChip, because a ladder is a list rather than a level. Each rung is
+ * a pair — how much, and at what gain — and they fire in order, once each. The
+ * chips above are single numbers and squeezing a sequence into one would hide
+ * the thing that makes it a ladder.
+ *
+ * The remainder is shown as its own row and cannot be edited. It is not a
+ * setting; it is whatever the rungs leave behind, and showing it as a
+ * consequence rather than a field is what makes "and let the rest ride" legible.
+ */
+function ScaleOutLadder({
+  rungs,
+  onChange,
+}: {
+  rungs: { atPct: number; fraction: number }[];
+  onChange: (next: { atPct: number; fraction: number }[]) => void;
+}) {
+  const sold = rungs.reduce((sum, r) => sum + r.fraction, 0);
+  const left = Math.max(0, 1 - sold);
+
+  const setRung = (i: number, patch: Partial<{ atPct: number; fraction: number }>) =>
+    onChange(rungs.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+
+  const add = () => {
+    // Above the last rung, because they fire in ascending order — a new step
+    // below an existing one would never be reached.
+    const last = rungs[rungs.length - 1];
+    const atPct = last ? last.atPct + 15 : 15;
+    // Never propose a ladder that leaves nothing: the engine refuses it, and a
+    // control that can build a refused state is a control that lies.
+    const fraction = Math.min(0.25, Math.max(0.05, left - 0.05));
+    if (fraction <= 0) return;
+    onChange([...rungs, { atPct, fraction }]);
+  };
+
+  return (
+    <div className="border-b border-grid px-4 py-3 last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[12px] text-text-primary">Take profit in steps</p>
+          <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+            {rungs.length === 0
+              ? "Off — the position closes in one go."
+              : "Each step sells part of the position once, then the rest keeps running."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          disabled={left <= 0.05}
+          className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-30"
+        >
+          + Add step
+        </button>
+      </div>
+
+      {rungs.length > 0 ? (
+        <ul className="space-y-2 pt-3">
+          {rungs.map((r, i) => (
+            <li key={i} className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
+              <span className="text-text-dim">Sell</span>
+              <input
+                type="number"
+                min={1}
+                max={95}
+                value={Math.round(r.fraction * 100)}
+                onChange={(e) =>
+                  setRung(i, { fraction: Math.min(0.95, Math.max(0.01, Number(e.target.value) / 100)) })
+                }
+                className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+                aria-label={`Step ${i + 1} size in percent`}
+              />
+              <span className="text-text-dim">% at</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={r.atPct}
+                onChange={(e) => setRung(i, { atPct: Math.max(1, Number(e.target.value)) })}
+                className="w-20 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+                aria-label={`Step ${i + 1} gain in percent`}
+              />
+              <span className="text-text-dim">% gain</span>
+              <button
+                type="button"
+                onClick={() => onChange(rungs.filter((_, n) => n !== i))}
+                className="ml-auto text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-negative"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+          <li className="flex items-center gap-2 pt-1 font-ui text-[11.5px] text-text-dim">
+            {/* The consequence, not a field. */}
+            Leaves <span className="font-mono text-text-secondary">{Math.round(left * 100)}%</span>{" "}
+            running, governed by the exits above.
+          </li>
+          {sold >= 1 ? (
+            <li className="font-ui text-[11.5px] text-warning">
+              These steps sell the whole position. Leave something behind, or use Take profit.
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * What each exit does, in the two states it can be in.
+ *
+ * A table because the chips are no longer two-of-a-kind: a trailing stop and a
+ * fixed stop are both "stops" and behave differently enough that one branching
+ * sentence was already misleading before the other two arrived.
+ */
+const EXIT_COPY: Record<string, { on: string; off: string }> = {
+  "Take profit": {
+    on: "Closes the position once it is up this much.",
+    off: "Off — a winner runs until something else closes it.",
+  },
+  "Stop loss": {
+    on: "Closes without asking. A stop you can veto is not a stop.",
+    off: "Off — nothing closes this on a loss. The drawdown breaker still applies to the book.",
+  },
+  "Trailing stop": {
+    on: "Measured from the highest price since you entered, not from your entry. It only ever moves up.",
+    off: "Off — gains are not protected on the way back down.",
+  },
+  "Break-even at": {
+    on: "Once it has been up this much, it will not be allowed to close at a loss.",
+    off: "Off — a position that was up can still round-trip into a loss.",
+  },
+};
+
 const COMPLIANCE_CHOICES: {
   id: ComplianceProfile;
   label: string;
@@ -668,16 +867,26 @@ function requirements(limits: Limits, said: string): Requirement[] {
     {
       key: "profit",
       label: "Take profit",
-      state: mentions(said, /take profit|profit at|target|upside|\btp\b/) ? "met" : "assumed",
-      detail: `+${takeProfitPct}%`,
+      // Switching an exit off is a decision, so the checklist reports it as met
+      // rather than going on asking for a value the author has deliberately
+      // removed. "+0%" would also read as a target of zero, which is the one
+      // thing it does not mean.
+      state:
+        takeProfitPct <= 0 || mentions(said, /take profit|profit at|target|upside|\btp\b/)
+          ? "met"
+          : "assumed",
+      detail: takeProfitPct > 0 ? `+${takeProfitPct}%` : "off",
       ask: `Where should it take profit? It is on +${takeProfitPct}% until you say.`,
       chips: ["take profit at 5%", "take profit at 15%", "take profit at 30%"],
     },
     {
       key: "stop",
       label: "Stop loss",
-      state: mentions(said, /stop|cut it|\bsl\b|downside|lose/) ? "met" : "assumed",
-      detail: `−${stopLossPct}%`,
+      state:
+        stopLossPct <= 0 || mentions(said, /stop|cut it|\bsl\b|downside|lose/)
+          ? "met"
+          : "assumed",
+      detail: stopLossPct > 0 ? `−${stopLossPct}%` : "off",
       ask: `Where should it stop out? It is on −${stopLossPct}% until you say.`,
       chips: ["stop out at 3%", "stop out at 8%", "stop out at 15%"],
     },
@@ -714,7 +923,17 @@ function readSizing(text: string, limits: Limits): Limits | null {
   const raw = Number(m[1].replace(/,/g, ""));
   if (!Number.isFinite(raw) || raw <= 0) return null;
   const usd = /k\b/i.test(m[0]) ? raw * 1000 : raw;
-  const clamped = Math.min(Math.max(Math.round(usd / 100) * 100, 100), CAPITAL_USD);
+  // Floor and step of 10, not 100.
+  //
+  // "$10 each trade" is a real request — it is how a grid or a wide ladder is
+  // sized — and a $100 floor silently turned it into ten times the intended
+  // size while the checklist reported the instruction as honoured. Rounding to
+  // the nearest $100 did the same thing more quietly to $150.
+  //
+  // Matches what the server accepts, which is the point: a client floor above
+  // the server's makes a capability unreachable, and the two disagreeing is the
+  // same class of gap that let the budget be dropped entirely.
+  const clamped = Math.min(Math.max(Math.round(usd / MIN_POSITION_USD) * MIN_POSITION_USD, MIN_POSITION_USD), CAPITAL_USD);
   return { ...limits, positionUsd: clamped };
 }
 
@@ -905,12 +1124,26 @@ function RuleChip({
  * slider would jump to its floor mid-edit. It commits on blur or Enter, and
  * Escape puts the previous number back.
  */
+/**
+ * One exit, which the author may switch off entirely.
+ *
+ * ZERO IS THE OFF STATE, matching what the engine reads: it skips the
+ * comparison rather than treating 0 as a threshold. Both exits are optional —
+ * running without a target lets a winner run, and running without a stop is the
+ * owner's call to make. The portfolio drawdown breaker still applies either way
+ * and is not reachable from here.
+ *
+ * `resumeAt` is where the value comes back when it is switched on again. The
+ * slider cannot express "off", so without somewhere to return to, turning it
+ * back on would land wherever the track happened to be.
+ */
 function ExitChip({
   label,
   value,
   min,
   max,
   suffix,
+  resumeAt,
   onChange,
 }: {
   label: string;
@@ -918,16 +1151,20 @@ function ExitChip({
   min: number;
   max: number;
   suffix: string;
+  resumeAt: number;
   onChange: (n: number) => void;
 }) {
+  const off = value <= 0;
+
   return (
     <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className="font-mono text-[12px] text-text-primary">{label}</p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-          {label === "Stop loss"
-            ? "Closes without asking. A stop you can veto is not a stop."
-            : "Closes the position once it is up this much."}
+          {EXIT_COPY[label]?.[off ? "off" : "on"] ??
+            (off
+              ? "Off."
+              : "Closes the position once this is true.")}
         </p>
       </div>
       <input
@@ -935,25 +1172,37 @@ function ExitChip({
         min={min}
         max={max}
         step={1}
-        value={value}
+        value={off ? min : value}
+        disabled={off}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={`${label} slider`}
-        className="accent-accent"
+        className="accent-accent disabled:opacity-30"
       />
-      <NumberEntry
-        value={value}
-        min={min}
-        max={max}
-        step={1}
-        unit={suffix}
-        // The sign belongs to the direction, not the figure: a stop is entered
-        // as 12 and shown as −12%, because "−" is a fact about a stop rather
-        // than something the author should have to type or be able to omit.
-        sign={label === "Stop loss" ? "−" : "+"}
-        label={label}
-        onChange={onChange}
-      />
-      <span />
+      {off ? (
+        <span className="text-right font-mono text-[12px] text-text-dim">Off</span>
+      ) : (
+        <NumberEntry
+          value={value}
+          min={min}
+          max={max}
+          step={1}
+          unit={suffix}
+          // The sign belongs to the direction, not the figure: a stop is entered
+          // as 12 and shown as −12%, because "−" is a fact about a stop rather
+          // than something the author should have to type or be able to omit.
+          sign={label === "Stop loss" ? "−" : "+"}
+          label={label}
+          onChange={onChange}
+        />
+      )}
+      <button
+        type="button"
+        aria-pressed={!off}
+        onClick={() => onChange(off ? resumeAt : 0)}
+        className="text-right font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+      >
+        {off ? "On" : "Off"}
+      </button>
     </div>
   );
 }

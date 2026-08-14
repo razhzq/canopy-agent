@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
-  selectionFor,
+  classFor,
   peekAllMarkets,
   getAllMarkets,
   num,
@@ -56,13 +56,30 @@ const CLASSES = [
   { key: "token", label: "Crypto", admits: (a: UniverseAsset) => a.kind === "crypto" },
 ] as const;
 
+/**
+ * Step 1 — choose what the agent may trade.
+ *
+ * MULTI-SELECT, because the engine always was.
+ *
+ * Both specialists loop over `this.opts.universe` and an auto strategy screens
+ * up to sixty assets; the single-market limit lived entirely in this component
+ * and in one line of buildAgent. A strategy that says "buy RSI-oversold dips"
+ * has no reason to be pinned to one ticker.
+ *
+ * ONE CLASS AT A TIME. A strategy carries a single `strategyClass`, which picks
+ * the specialist, and the two evaluate different facts — a tokenized stock has
+ * fundamentals and no ATR, a token the reverse. Mixing them would mean half the
+ * universe silently failing rules the other half satisfies, so choosing a
+ * second class replaces the selection rather than extending it, and says so.
+ */
 export function PickMarket({
   value,
   onChange,
   onNext,
 }: {
-  value: UniverseSelection | null;
-  onChange: (next: UniverseSelection, asset: UniverseAsset) => void;
+  value: UniverseAsset[];
+  /** The whole selection, every time — the parent never merges. */
+  onChange: (next: UniverseAsset[]) => void;
   onNext: () => void;
 }) {
   const { authenticated } = usePrivy();
@@ -136,10 +153,11 @@ export function PickMarket({
         return;
       }
       if (e.key === "Enter" && rows[cursor]) {
+        // Toggles rather than advancing. Advancing on Enter made sense when one
+        // pick WAS the whole selection; with several it would end the step on
+        // the first choice.
         e.preventDefault();
-        const a = rows[cursor];
-        onChange(selectionFor(a), a);
-        onNext();
+        toggle(rows[cursor]);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -153,10 +171,28 @@ export function PickMarket({
     });
   }, [cursor]);
 
-  const chosen = (a: UniverseAsset) =>
-    a.kind === "crypto"
-      ? value?.kind === "crypto" && value.mint === a.mint
-      : value?.kind === "rwa" && value.underlying === a.underlying && value.issuer === a.issuer;
+  /** Identity, matching how selection is keyed: mint for crypto, issuer+underlying for RWA. */
+  const idOf = (a: UniverseAsset) =>
+    a.kind === "crypto" ? `crypto:${a.mint}` : `rwa:${a.issuer}/${a.underlying}`;
+
+  const chosen = (a: UniverseAsset) => value.some((v) => idOf(v) === idOf(a));
+
+  /**
+   * Adds or removes one market.
+   *
+   * Picking an asset from a different CLASS clears the rest rather than mixing:
+   * a strategy has one specialist, and a universe spanning both would leave half
+   * of it unable to satisfy rules the other half was written for.
+   */
+  const toggle = (a: UniverseAsset) => {
+    const already = chosen(a);
+    if (already) {
+      onChange(value.filter((v) => idOf(v) !== idOf(a)));
+      return;
+    }
+    const mixes = value.length > 0 && classFor(value[0]) !== classFor(a);
+    onChange(mixes ? [a] : [...value, a]);
+  };
 
   return (
     <div className="space-y-6">
@@ -168,10 +204,11 @@ export function PickMarket({
           Pick what you&apos;re trading
         </h2>
         <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
-          One pick sets the asset, the market, and which specialist screens it. Tokenized stocks
-          and commodities keep their underlying&apos;s trading hours even though the token trades
-          around the clock; crypto never closes. What you pick here decides which rules are
-          available in the next step.
+          Pick one or several — the agent screens every market you choose, on the same rules, and
+          buys whichever qualify. Tokenized stocks and commodities keep their underlying&apos;s
+          trading hours even though the token trades around the clock; crypto never closes.
+          Everything must come from one category, because a single specialist screens them all,
+          and that choice decides which rules are available in the next step.
         </p>
       </div>
 
@@ -242,10 +279,7 @@ export function PickMarket({
               type="button"
               data-row={i}
               onMouseEnter={() => setCursor(i)}
-              onClick={() => {
-                onChange(selectionFor(a), a);
-                onNext();
-              }}
+              onClick={() => toggle(a)}
               className={`grid w-full grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
                 i === cursor ? "bg-panel" : ""
               } ${chosen(a) ? "bg-accent-wash" : ""}`}
@@ -297,10 +331,36 @@ export function PickMarket({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-        <span>↑↓ navigate</span>
-        <span>⏎ select</span>
-        <span>/ search</span>
+      {/* The step no longer ends on a click, so it needs a way to end. */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-grid pt-5">
+        <div className="flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+          <span>↑↓ navigate</span>
+          <span>⏎ add or remove</span>
+          <span>/ search</span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {value.length > 0 ? (
+            <span className="font-ui text-[12.5px] text-text-secondary">
+              {/* Named, not just counted, while the list is short enough to read.
+                  "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision. */}
+              {value.length <= 4
+                ? value.map((a) => a.symbol).join(", ")
+                : `${value.length} markets`}{" "}
+              <span className="text-text-dim">
+                · {describeClass(value[0])}
+              </span>
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={value.length === 0}
+            className="border border-border px-5 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+          >
+            {value.length === 0 ? "Pick a market" : "Continue"}
+          </button>
+        </div>
       </div>
     </div>
   );

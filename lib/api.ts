@@ -351,6 +351,12 @@ export interface UniverseAsset {
  * and backwards inverts a stop into a target.
  */
 export interface ExitRules {
+  /** Partial sales taken in order, each firing once. Must leave a remainder. */
+  scaleOut?: { atPct: number; fraction: number }[];
+  /** Close when price falls this far below the high since entry. 0 = off. */
+  trailingStopPct?: number;
+  /** Once it has been up this much, never close at a loss. 0 = off. */
+  breakevenAfterPct?: number;
   takeProfitPct: number;
   stopLossPct: number;
   /** Zero or absent means never on time alone. */
@@ -680,6 +686,17 @@ export const createStrategy = (
      * as it did, rather than silently losing or gaining a screen.
      */
     complianceProfile?: ComplianceProfile;
+    /**
+     * Most the agent may put into one position, in dollars.
+     *
+     * Dollars because that is what the author typed. The server converts to a
+     * share of capital against its own verification book — the browser is not
+     * asked to hold a copy of that figure, because a client-side copy is what
+     * drifts.
+     */
+    positionUsd?: number;
+    /** Entries per cycle, 1–10. Exits are not counted against it. */
+    tradesPerCycle?: number;
   },
 ) =>
   // `warnings` are plans that are legal but probably not what the author meant —
@@ -986,6 +1003,38 @@ export const registerAgentWallet = (
   request<RegisteredWallet>(`/agents/${agentId}/wallet`, token, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+
+/* ---------------------------------------------------- capability notices -- */
+
+/**
+ * Something this person asked their agent to do that it could not express, and
+ * that it now can.
+ *
+ * `example` is their OWN wording, not the normalised grouping key — "you asked
+ * for grid strategy" lands where a slug does not.
+ */
+export interface CapabilityNotice {
+  phraseNorm: string;
+  example: string;
+  /** `shipped` was built for them; `supported` means it always worked. */
+  status: "shipped" | "supported";
+  /** What to use instead, e.g. "addPlan". Always set for these two statuses. */
+  capabilityKey: string | null;
+  since: string;
+}
+
+export const getCapabilityNotices = (token: string) =>
+  request<{ notices: CapabilityNotice[] }>("/agents/capability-notices", token);
+
+/**
+ * Dismissal. The server scopes the update to the caller, so a phrase key from
+ * one person cannot clear another's notice.
+ */
+export const dismissCapabilityNotices = (token: string, phraseNorms: string[]) =>
+  request<{ seen: number }>("/agents/capability-notices/seen", token, {
+    method: "POST",
+    body: JSON.stringify({ phraseNorms }),
   });
 
 export const deployAgent = (
@@ -1366,6 +1415,24 @@ export const stopAgent = (token: string, agentId: number) =>
  * `liquidating` — visible and retried — because hiding exposure the owner can
  * no longer see is the one outcome worth refusing.
  */
+/**
+ * Closes every open position, now.
+ *
+ * Ends with the agent PAUSED, not active — an agent that sold everything and
+ * then bought back in an hour has not done what was asked. Resuming is separate
+ * and deliberate.
+ *
+ * A position with no readable price is left open rather than sold at a guess,
+ * which surfaces as a 409 carrying how many closed and how many remain. That is
+ * a partial success to report, not a failure to swallow.
+ */
+export const flattenAgent = (token: string, agentId: number) =>
+  request<{ closed: number; remaining: number; alreadyFlat?: boolean; status?: string }>(
+    `/agents/${agentId}/flatten`,
+    token,
+    { method: "POST" },
+  );
+
 export const deleteAgent = (token: string, agentId: number) =>
   request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/delete`, token, {
     method: "POST",

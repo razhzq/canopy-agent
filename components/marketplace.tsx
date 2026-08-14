@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { EquityCurve } from "@/components/charts";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonCards } from "@/components/skeleton";
+import { CapabilityNotices } from "@/components/capabilityNotice";
 import { Badge } from "@/components/ui";
 import { listStrategies, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -114,6 +115,11 @@ export function Marketplace() {
 
   return (
     <>
+      {/* Above the fold and above the heading: it answers a question the reader
+          asked weeks ago and has probably stopped expecting an answer to. It
+          renders nothing at all when there is nothing to say. */}
+      <CapabilityNotices />
+
       <section className="border-b border-grid px-8 pt-7 pb-6">
         <h1 className="font-mono text-[34px] leading-none text-text-primary">Agents</h1>
         <p className="max-w-[70ch] pt-2.5 font-ui text-[14px] text-text-secondary">

@@ -205,6 +205,25 @@ export const RWA_RULES: RuleSpec[] = [
     unit: "%",
   },
   {
+    key: "atrPct",
+    label: "Max ATR",
+    basis: "bars",
+    periods: "14",
+    help: "Average True Range over 14 bars, as a percent of price — how much this token typically moves in a bar, gaps included. Lower admits only calmer tokens.",
+    op: "lte",
+    value: 10,
+    min: 1,
+    max: 50,
+    step: 1,
+    unit: "%",
+    // CRYPTO ONLY, and structurally so. True range needs a high and a low per
+    // bar; the tokenized-stock feed serves close and volume at every interval,
+    // so a tokenized stock cannot satisfy this rule at all — and an unsatisfiable
+    // rule now rejects the asset rather than being skipped, which would stop the
+    // strategy trading entirely.
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
     key: "bollingerPctB",
     label: "Max Bollinger %B",
     basis: "bars",
