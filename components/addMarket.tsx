@@ -18,16 +18,14 @@ import {
  *
  * WHAT CONFIRMING ACTUALLY DOES
  *
- * It does not edit this agent. A live strategy's rules and universe are frozen
- * by a database trigger, and the only route that can change a universe is the
- * chat proposal's apply path — which forks the strategy and starts the fork as
- * a new agent on a fresh paper run. So the button posts the request into the
- * agent's own thread and takes you there to approve or discard what it comes
- * back with. Nothing is forked until you apply the proposal.
+ * It posts the request into the agent's own thread and takes you there to
+ * approve or discard the diff that comes back. That is a real two-step, not a
+ * euphemism for a missing feature: the same mechanism is what "edit limits"
+ * uses, and the change is reviewable before it takes effect.
  *
- * That is a real two-step, not a euphemism for a missing feature: the same
- * mechanism is what "edit limits" uses, and the proposal is reviewable before
- * anything is created.
+ * Applying it edits THIS agent — same agent, same positions, same thread. It
+ * used to fork the strategy into a new agent on a fresh paper run, which is
+ * why this comment once described a much larger consequence.
  *
  * The list is the resolved universe the parent already fetched. Assets the
  * strategy holds are shown and disabled rather than filtered out — a picker

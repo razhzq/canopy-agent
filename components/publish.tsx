@@ -170,10 +170,11 @@ function Body({
 
               <Note icon="warn">
                 These are shown to anyone considering your strategy, met or not. Nothing
-                here blocks you from listing — a short record lists as a short record. The
-                record is also append-only: editing a rule forks a new strategy and starts
-                a fresh run, and the old one stays visible on your profile. You can abandon
-                a strategy, but you cannot quietly reset a bad run.
+                here blocks you from listing — a short record lists as a short record.
+                Listing takes a SNAPSHOT of your strategy as it stands, and that snapshot
+                is what builds the record: your own agent stays editable, and nothing you
+                change afterwards rewrites what you published. You can abandon a listing,
+                but you cannot quietly reset a bad run.
               </Note>
             </section>
           </>

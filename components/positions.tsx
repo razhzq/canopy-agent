@@ -13,6 +13,7 @@ import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo, Badge } from "@/components/ui";
+import { ClosePositionModal } from "@/components/closePosition";
 
 /**
  * What the agent owns, and what it has done.
@@ -42,11 +43,14 @@ export function Positions({
   agentId,
   positions,
   universe,
+  onChanged,
 }: {
   agentId: number;
   positions: AgentDetail["positions"];
   /** Priced assets, for the mark. Absent while the universe call is in flight. */
   universe: UniverseAsset[];
+  /** Re-read the book after the owner closes something out from under it. */
+  onChanged?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("open");
 
@@ -62,7 +66,12 @@ export function Positions({
       </div>
 
       {tab === "open" ? (
-        <OpenTable positions={positions} universe={universe} />
+        <OpenTable
+          agentId={agentId}
+          positions={positions}
+          universe={universe}
+          onChanged={onChanged}
+        />
       ) : (
         <HistoryTable agentId={agentId} />
       )}
@@ -105,6 +114,8 @@ interface Lot {
 }
 
 interface Holding {
+  /** The asset's identity, and what the close endpoint is keyed on. */
+  mint: string;
   symbol: string;
   underlying: string | null;
   qty: number;
@@ -157,6 +168,8 @@ export function aggregate(
       const valueUsd = markUsd === null ? null : markUsd * qty;
 
       return {
+        // Every lot in the group is the same asset, so any lot's mint will do.
+        mint: group[0].mint,
         symbol,
         underlying: group[0].underlying,
         qty,
@@ -175,13 +188,19 @@ export function aggregate(
 }
 
 function OpenTable({
+  agentId,
   positions,
   universe,
+  onChanged,
 }: {
+  agentId: number;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
+  onChanged?: () => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  /** The holding awaiting confirmation, or null when no dialog is up. */
+  const [closing, setClosing] = useState<Holding | null>(null);
   const holdings = aggregate(positions, universe);
 
   if (holdings.length === 0) {
@@ -194,13 +213,18 @@ function OpenTable({
 
   return (
     <div className="pt-4">
-      <div className="hidden grid-cols-[1.4fr_repeat(4,1fr)_auto] gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:grid">
-        <span>Asset</span>
-        <span className="text-right">Qty</span>
-        <span className="text-right">Avg cost</span>
-        <span className="text-right">Value</span>
-        <span className="text-right">P&amp;L</span>
-        <span className="w-8" />
+      {/* Header and rows are both `flex-1` grid + a fixed trailing column, so
+          the data columns line up exactly whatever the × column costs. */}
+      <div className="hidden items-center gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:flex">
+        <div className="grid flex-1 grid-cols-[1.4fr_repeat(4,1fr)_auto] gap-3">
+          <span>Asset</span>
+          <span className="text-right">Qty</span>
+          <span className="text-right">Avg cost</span>
+          <span className="text-right">Value</span>
+          <span className="text-right">P&amp;L</span>
+          <span className="w-8" />
+        </div>
+        <span className="w-9" />
       </div>
 
       {holdings.map((h) => {
@@ -209,11 +233,15 @@ function OpenTable({
         const canExpand = h.lots.length > 1;
         return (
           <div key={h.symbol} className="border-b border-grid last:border-b-0">
+            {/* SIBLINGS, not nested. A × inside the expand button would be a
+                button inside a button — invalid, and every click on it would
+                also toggle the row underneath the dialog it opened. */}
+            <div className="flex items-center gap-3">
             <button
               type="button"
               disabled={!canExpand}
               onClick={() => setOpen(expanded ? null : h.symbol)}
-              className="grid w-full grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
+              className="grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
@@ -266,6 +294,28 @@ function OpenTable({
               </span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setClosing(h)}
+              aria-label={`Close the ${h.symbol} position`}
+              title="Close this position"
+              // Dim until hovered or focused. It sells something, so it should
+              // not compete for attention with the figures — but it must be
+              // reachable by keyboard, which is why focus-visible lights it too.
+              className="flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative focus-visible:outline-1 focus-visible:outline-accent"
+            >
+              <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden>
+                <path
+                  d="m4.5 4.5 7 7m0-7-7 7"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            </div>
+
             {expanded ? (
               <div className="pb-3 pl-3">
                 <p className="pb-1.5 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
@@ -290,6 +340,18 @@ function OpenTable({
           </div>
         );
       })}
+
+      {closing ? (
+        <ClosePositionModal
+          agentId={agentId}
+          holding={closing}
+          onClose={() => setClosing(null)}
+          // The book has changed, so the page re-reads it. Without this the row
+          // stays on screen after a successful sale and the owner clicks it
+          // again — which the backend refuses, but only after alarming them.
+          onClosed={() => onChanged?.()}
+        />
+      ) : null}
     </div>
   );
 }

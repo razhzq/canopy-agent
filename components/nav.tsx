@@ -389,6 +389,32 @@ function AccountMenu() {
             </div>
           ) : null}
 
+          {/* Above sign-out, and inside the same bordered group, because it is
+              a destination rather than an action on the session. */}
+          <Link
+            href="/settings"
+            role="menuitem"
+            onClick={() => close(false)}
+            className={`group flex w-full items-center gap-2.5 border-b border-grid px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors -outline-offset-2 hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary ${FOCUS}`}
+          >
+            <svg viewBox="0 0 16 16" className="size-3.5 shrink-0" aria-hidden>
+              <path
+                d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.3"
+              />
+              <path
+                d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8m10.6-4.4-1.1 1.1M4.7 11.3l-1.1 1.1m0-8.8 1.1 1.1m6.6 6.6 1.1 1.1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
+            </svg>
+            Settings
+          </Link>
+
           <button
             type="button"
             role="menuitem"

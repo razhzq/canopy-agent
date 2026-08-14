@@ -13,6 +13,7 @@ import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
+import { AlertsControl } from "@/components/notifications";
 import { returnSinceDeployPct } from "@/lib/perf";
 import {
   DEFAULT_TIMEFRAME,
@@ -64,11 +65,10 @@ import {
  *   or writes a per-market figure. Drawing a table of per-market caps would
  *   describe a control that does not exist and cannot be enforced. The rail
  *   shows the mandate's ACTUAL caps instead.
- * - + ADD MARKET. Universe belongs to the strategy, and a running strategy is
- *   frozen by a database trigger. The only way to change what an agent trades
- *   is to fork it, which produces a new strategy and a new agent — so the panel
- *   says that rather than offering a button that would silently replace the
- *   thing you are looking at.
+ * - + ADD MARKET. Universe belongs to the strategy, which the owner may now
+ *   edit in place — so this is a live control rather than the explanation it
+ *   used to be. It was written when a running strategy was frozen and the only
+ *   way to change what an agent traded was to fork it into a new agent.
  * - UPTIME %, LIVE-SINCE GAPS, BILLING. No heartbeat table, no invoice, no
  *   subscription in the agent stack. `created_at` is real, so "live since"
  *   stays; the uptime cell became CADENCE, which is real and is the number that
@@ -319,7 +319,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           {/* markets */}
           <section className="border-b border-grid px-8 py-6">
             <Rule label="Positions" />
-            <Positions agentId={agentId} positions={positions} universe={assets} />
+            <Positions
+              agentId={agentId}
+              positions={positions}
+              universe={assets}
+              onChanged={() => void load()}
+            />
           </section>
 
           {/* watching now */}
@@ -897,6 +902,11 @@ function Controls({
       >
         Edit limits
       </Link>
+
+      {/* Where the owner hears about all of this. Renders nothing when the
+          deployment has no Telegram bot configured. */}
+      <AlertsControl />
+
       <div className="flex-1" />
 
       {notice ? (

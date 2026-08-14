@@ -144,7 +144,9 @@ export function AgentThread({
             key={m.id}
             message={m}
             onAck={() => void ack(m.id)}
-            onApplied={(newAgentId) => router.push(`/workspace/${newAgentId}?tab=chat`)}
+            // Stays put: the agent that just changed is the one on screen.
+            // This used to navigate to the fork's replacement agent.
+            onApplied={() => setNonce((n) => n + 1)}
             agentId={agentId}
             typing={typing === m.id}
             onTyped={() => setTyping(null)}
@@ -367,7 +369,7 @@ function Turn({
 }: {
   message: AgentMessage;
   onAck: () => void;
-  onApplied: (newAgentId: number) => void;
+  onApplied: () => void;
   agentId: number;
   /** Reveal this reply a character at a time rather than all at once. */
   typing?: boolean;
@@ -486,9 +488,13 @@ function Row({
 }
 
 /**
- * Applying forks the strategy, so this says so before you press it. A change
- * agreed in conversation is as append-only as one made through the form —
- * the old record stays, and a new one starts.
+ * Applying edits THIS agent, in place.
+ *
+ * It used to fork — new strategy, new agent, this one superseded and stopped —
+ * and the bar said so, because that was a large enough consequence to warn
+ * about before a click. It is no longer true: the agent keeps its id, its
+ * positions and this thread, so there is nothing to warn about and the note is
+ * a plain statement of when the change takes effect.
  */
 function ApplyBar({
   agentId,
@@ -498,7 +504,7 @@ function ApplyBar({
 }: {
   agentId: number;
   messageId: string;
-  onApplied: (newAgentId: number) => void;
+  onApplied: () => void;
   onDismiss: () => void;
 }) {
   const { getAccessToken } = usePrivy();
@@ -511,8 +517,8 @@ function ApplyBar({
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Sign in again.");
-      const { newAgentId } = await applyProposal(token, agentId, messageId);
-      onApplied(newAgentId);
+      await applyProposal(token, agentId, messageId);
+      onApplied();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -543,7 +549,7 @@ function ApplyBar({
           Leave it
         </button>
         <span className="font-ui text-[11.5px] text-text-muted">
-          Applying starts a fresh record — the current one stays on your profile.
+          Takes effect from the next cycle. Same agent, same positions.
         </span>
       </div>
     </div>

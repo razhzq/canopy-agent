@@ -963,11 +963,14 @@ export interface ProposedChange {
 }
 
 /**
- * Applies a proposed change. Forks the strategy exactly as editing by hand
- * does, so the record stays append-only — and returns the agent that continues.
+ * Applies a proposed change to THIS agent, in place.
+ *
+ * No fork and no new agent: the same agent keeps its id, its positions, its
+ * thread and its history, and follows the new rule from its next cycle.
+ * Returns the fields that changed, for the confirmation.
  */
 export const applyProposal = (token: string, agentId: number, messageId: string) =>
-  request<{ newStrategyId: number; newAgentId: number }>(
+  request<{ agentId: number; changed: string[] }>(
     `/agents/${agentId}/messages/${messageId}/apply`,
     token,
     { method: "POST" },
@@ -1453,3 +1456,64 @@ export const deleteAgent = (token: string, agentId: number) =>
   request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/delete`, token, {
     method: "POST",
   });
+
+/* --------------------------------------------------------- notifications -- */
+
+/**
+ * The state of this account's Telegram link.
+ *
+ * `configured` is about the DEPLOYMENT, not the user: a backend with no bot
+ * token cannot link anybody. Kept separate from `linked` so the UI can say "not
+ * available here" instead of offering a button that returns 503 — a missing env
+ * var should not look like the user did something wrong.
+ */
+export interface TelegramStatus {
+  configured: boolean;
+  linked: boolean;
+  username: string | null;
+  enabled: boolean;
+}
+
+export const getTelegramStatus = (token: string) =>
+  request<TelegramStatus>("/agents/notifications/telegram", token);
+
+/**
+ * Mints a fresh deep link to open in Telegram.
+ *
+ * Each call invalidates whatever was minted before, so the URL is fetched when
+ * the user asks to connect rather than held on the page. A link that has been
+ * sitting in an open tab for a week is a credential with a week of exposure.
+ */
+export const linkTelegram = (token: string) =>
+  request<{ url: string; alreadyLinked: boolean }>(
+    "/agents/notifications/telegram/link",
+    token,
+    { method: "POST" },
+  );
+
+/** Mutes or unmutes without forgetting the chat. */
+export const setTelegramEnabled = (token: string, enabled: boolean) =>
+  request<{ ok: true; enabled: boolean }>("/agents/notifications/telegram", token, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+
+/** Forgets the chat entirely. Reconnecting needs a new link. */
+export const unlinkTelegram = (token: string) =>
+  request<{ ok: true }>("/agents/notifications/telegram", token, { method: "DELETE" });
+
+/**
+ * Closes one position at the owner's request, leaving the rest of the book and
+ * the agent's status alone.
+ *
+ * Distinct from `flattenAgent`, which closes everything and ends with the agent
+ * paused. Errors here are meaningful and worth surfacing verbatim: 409 covers
+ * "the agent is mid-cycle, try again" and "that asset has no readable price
+ * right now", both of which are temporary and neither of which is a bug.
+ */
+export const closePosition = (token: string, agentId: number, mint: string) =>
+  request<{ closed: number; symbol: string; realizedPnlUsd: number | null }>(
+    `/agents/${agentId}/positions/close`,
+    token,
+    { method: "POST", body: JSON.stringify({ mint }) },
+  );

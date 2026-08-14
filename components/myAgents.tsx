@@ -279,9 +279,10 @@ export function MyAgents() {
       ))}
 
       <p className="px-8 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim">
-        A running agent&apos;s rules are frozen — editing them forks the strategy into a fresh
-        paper run rather than changing what is live underneath you. That happens in the
-        agent&apos;s chat, which is where &ldquo;edit limits&rdquo; goes.
+        Your agent&apos;s rules are yours to change — take profit, stop loss, what it trades,
+        any of it — and the change applies to the agent you are already running, from its
+        next cycle. That happens in the agent&apos;s chat, which is where &ldquo;edit
+        limits&rdquo; goes.
       </p>
     </div>
   );
