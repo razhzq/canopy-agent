@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
-import { InviteGate } from "@/components/inviteGate";
-import { TopNav } from "@/components/nav";
 import { Providers } from "@/components/providers";
-import { RouteMemory } from "@/components/routeMemory";
 import "./globals.css";
 
 const plexMono = IBM_Plex_Mono({
@@ -24,24 +21,21 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://agent.canopy.finance"),
 };
 
+/**
+ * Everything every route needs and nothing more: the document, the fonts, and
+ * the Privy session.
+ *
+ * The signed-in chrome — nav, invite gate, page frame — moved to
+ * `(app)/layout.tsx` so the marketing routes can render without it. See the
+ * note there.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${plexMono.variable} ${inter.variable}`}>
       <body>
-        <Providers>
-          {/* Records the page behind the builder, so cancelling out of the
-              naming modal returns there instead of to a fixed route. */}
-          <RouteMemory />
-          <div className="mx-auto min-h-screen w-full max-w-[1440px] bg-bg">
-            <TopNav />
-            {/* Inside Providers so the gate can read the Privy session, and
-                around children only — the nav keeps rendering behind the gate
-                so the account menu (and its sign out) stays reachable. */}
-            <InviteGate>{children}</InviteGate>
-          </div>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
