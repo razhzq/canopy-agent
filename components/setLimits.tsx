@@ -5,6 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import {
   composeAgent,
   type AddPlan,
+  type RankingSpec,
   type ComplianceProfile,
   type ExitRules,
   type UniverseAsset,
@@ -63,6 +64,14 @@ export interface Limits {
    * choice must keep behaving exactly as it did.
    */
   complianceProfile?: ComplianceProfile;
+  /**
+   * Keep only the best N of whatever passes the rules.
+   *
+   * Absent means keep all, which is how every strategy behaved before this
+   * existed — and is the right default for a single-market strategy, where
+   * there is nothing to rank against.
+   */
+  ranking?: RankingSpec;
 }
 
 /** Verification capital. The budget is expressed against it. */
@@ -580,6 +589,26 @@ export function SetLimits({
         </div>
       </section>
 
+      {/* ------------------------------------------------------ ranking */}
+      {/*
+        Only when there is something to rank. A top-3 of one market is that
+        market, so offering the control on a single-asset strategy would be
+        offering a setting that cannot do anything — the same reason ATR is
+        hidden for tokenized stocks.
+      */}
+      {markets.length > 1 ? (
+        <section>
+          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            How many to hold
+          </h3>
+          <RankingControl
+            markets={markets.length}
+            value={value.ranking}
+            onChange={(ranking) => onChange({ ...value, ranking })}
+          />
+        </section>
+      ) : null}
+
       {/* --------------------------------------------------- compliance */}
       {/*
         Only for tokenized real-world assets. The screen reads a filer's balance
@@ -628,6 +657,105 @@ export function SetLimits({
           </p>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Keep only the best N of whatever passed the rules.
+ *
+ * Off by default and deliberately so. Ranking narrows what the agent may buy,
+ * and a narrowing nobody asked for is the kind of setting people discover months
+ * later while wondering why two of their markets never trade.
+ */
+function RankingControl({
+  markets,
+  value,
+  onChange,
+}: {
+  markets: number;
+  value?: RankingSpec;
+  onChange: (next: RankingSpec | undefined) => void;
+}) {
+  const on = !!value;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={!on}
+          onClick={() => onChange(undefined)}
+          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+            !on ? "border-accent bg-accent/10 text-text" : "border-line text-text-dim hover:text-text"
+          }`}
+        >
+          <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
+            All of them
+          </span>
+          <span className="mt-1 block text-[11px] text-text-dim">
+            Buy anything that passes the rules.
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={on}
+          onClick={() =>
+            onChange(value ?? { by: "momentum20dPct", take: Math.min(3, markets), prefer: "highest" })
+          }
+          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+            on ? "border-accent bg-accent/10 text-text" : "border-line text-text-dim hover:text-text"
+          }`}
+        >
+          <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
+            Only the best
+          </span>
+          <span className="mt-1 block text-[11px] text-text-dim">
+            Rank what passes, act on the top few.
+          </span>
+        </button>
+      </div>
+
+      {value ? (
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
+          <span className="text-text-dim">Hold the best</span>
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, markets)}
+            value={value.take}
+            onChange={(e) =>
+              onChange({ ...value, take: Math.max(1, Math.min(markets, Number(e.target.value))) })
+            }
+            className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+            aria-label="How many to hold"
+          />
+          <span className="text-text-dim">of {markets}, by</span>
+          <select
+            value={`${value.by}:${value.prefer}`}
+            onChange={(e) => {
+              const [by, prefer] = e.target.value.split(":");
+              onChange({ ...value, by, prefer: prefer as "highest" | "lowest" });
+            }}
+            className="border border-line bg-transparent px-2 py-1 text-text-primary"
+            aria-label="Rank by"
+          >
+            {/* Each option names the DIRECTION as well as the measure, because
+                both ends are wanted and neither is a sensible default. */}
+            <option value="momentum20dPct:highest">strongest recent return</option>
+            <option value="momentum20dPct:lowest">weakest recent return</option>
+            <option value="rsi14:lowest">most oversold</option>
+            <option value="liquidityUsd:highest">deepest pool</option>
+            <option value="dailyVolPct:lowest">calmest</option>
+          </select>
+        </div>
+      ) : null}
+
+      <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
+        Ranking runs after your rules, never instead of them — a market that fails a rule is never
+        ranked back in. Anything left out is named in the cycle log, so a market that never trades
+        is never a mystery.
+      </p>
     </div>
   );
 }

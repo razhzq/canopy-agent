@@ -660,6 +660,20 @@ export interface AddPlan {
  */
 export type ComplianceProfile = "none" | "shariah";
 
+/**
+ * Keep only the best N of whatever passed the rules.
+ *
+ * Comparative, which is why it is not a rule: "the five strongest" cannot be
+ * asked of one asset, only of a set. It runs after the rules, never instead of
+ * them.
+ */
+export interface RankingSpec {
+  /** A fact the specialist produces, e.g. "momentum20dPct". */
+  by: string;
+  take: number;
+  prefer: "highest" | "lowest";
+}
+
 export const createStrategy = (
   token: string,
   body: {
@@ -697,6 +711,8 @@ export const createStrategy = (
     positionUsd?: number;
     /** Entries per cycle, 1–10. Exits are not counted against it. */
     tradesPerCycle?: number;
+    /** Keep the best N of what passed the rules. Omitted keeps all. */
+    ranking?: RankingSpec;
   },
 ) =>
   // `warnings` are plans that are legal but probably not what the author meant —

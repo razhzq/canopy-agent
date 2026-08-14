@@ -163,6 +163,10 @@ export function BuildAgent() {
         // went to 10 and every agent ran with 3.
         positionUsd: limits.positionUsd,
         tradesPerCycle: limits.tradesPerCycle,
+        // Only meaningful across several markets — a top-3 of one asset is that
+        // asset. Sent regardless when set, because the engine treats a ranking
+        // wider than the universe as a no-op rather than an error.
+        ranking: limits.ranking,
       });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
