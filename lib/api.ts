@@ -31,15 +31,29 @@ export class ApiError extends Error {
   }
 }
 
-/** A 402 from any endpoint: the action is possible, but not on this plan. */
+/**
+ * A 402 from any endpoint: the action is possible, but not yet permitted.
+ *
+ * The two codes want opposite responses from the UI, which is why they are
+ * distinguished rather than sharing one "upgrade" prompt:
+ *
+ *   slot_limit       — out of paper agents. The way out is FREE: invite
+ *                      someone. Showing a payment prompt here would sell
+ *                      something that does not grant slots at all.
+ *   live_not_allowed — this agent is not subscribed. `checkout` carries what
+ *                      the client needs to start the payment.
+ */
 export interface PaywallDetail {
   code: "slot_limit" | "live_not_allowed";
-  entitlement: {
+  entitlement?: {
     plan: string;
+    baseSlots?: number;
+    referralCount?: number;
     agentSlots?: number;
     agentsInUse?: number;
-    allowLive: boolean;
   };
+  /** Present on live_not_allowed: pass straight to `startCheckout`. */
+  checkout?: { planCode: string; agentId: number };
 }
 
 /**
@@ -1172,18 +1186,35 @@ export interface BillingPlan {
   purchasable: boolean;
 }
 
+/** One agent's live subscription. */
+export interface LiveSubscription {
+  agentId: number;
+  subscriptionId: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  /** When live access actually ends. The agent is paused after this, not before. */
+  currentPeriodEnd: string | null;
+}
+
 export interface Entitlement {
   plan: { code: string; name: string };
+  /** Free paper agents everyone gets. */
+  baseSlots: number;
+  /** People invited. One extra paper agent each, uncapped. */
+  referralCount: number;
+  /** baseSlots + referralCount. */
   agentSlots: number;
   agentsInUse: number;
   slotsRemaining: number;
-  allowLive: boolean;
-  subscription: {
-    id: string;
-    status: string;
-    cancelAtPeriodEnd: boolean;
-    currentPeriodEnd: string | null;
-  } | null;
+  /** Price of one live agent per month. */
+  liveMonthlyUsd: number | null;
+  /**
+   * Which agents are paid up for live execution.
+   *
+   * There is no account-level `allowLive`: live is bought per agent, so the
+   * question is always "is THIS agent subscribed", never "is this user paid".
+   */
+  liveAgents: LiveSubscription[];
 }
 
 export const getPlans = (token: string) =>
@@ -1200,10 +1231,10 @@ export const getEntitlement = (token: string) =>
  * between a redirect and a new tab, and a function that navigates as a side
  * effect cannot be tested or cancelled.
  */
-export const startCheckout = (token: string, planCode: string) =>
+export const startCheckout = (token: string, agentId: number, planCode = "live_agent") =>
   request<{ url: string }>("/billing/checkout", token, {
     method: "POST",
-    body: JSON.stringify({ planCode }),
+    body: JSON.stringify({ planCode, agentId }),
   });
 
 export const cancelSubscription = (token: string, subscriptionId: string) =>

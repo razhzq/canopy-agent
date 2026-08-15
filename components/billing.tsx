@@ -1,22 +1,28 @@
 "use client";
 
-// The plan panel.
+// Plan and billing.
 //
-// Two things are being sold here and the panel has to be honest about both:
-// how many agents you may run, and whether any of them may touch real money.
-// Free is one paper agent — not a crippled one. It screens the same universe,
-// runs the same council and writes the same decision trail. What it cannot do
-// is put money behind a proposal, and that is the only line the paywall draws.
+// TWO THINGS ARE BEING SHOWN AND THEY ARE NOT THE SAME KIND OF THING.
+//
+//   Paper agents — 3 free, +1 for every person you invite. EARNED, never sold.
+//   Live agents  — $20/month each. Bought, one subscription per agent.
+//
+// Which is why there is no plan picker here. There are no tiers to compare:
+// everyone is on the same footing and the only purchase is per agent. A pricing
+// table would imply a choice nobody is being asked to make.
+//
+// The paper section therefore never shows a payment prompt. When someone runs
+// out of slots the way forward is free — invite someone — and offering to sell
+// them something that grants no slots would be worse than saying nothing.
 //
 // WHY CHECKOUT LEAVES THE APP AND COMES BACK UNSURE
 //
 // BoomFi has no create-subscription API. A subscription exists because a human
-// finished paying on BoomFi's own page, so this panel can only mint a tagged
-// pay link and send the browser there. When they return, the webhook that
-// records the payment may not have landed yet — so the panel offers an explicit
-// re-check rather than pretending a reload is authoritative. Telling someone
-// who has just paid "you are on Free" with no way to argue is the single worst
-// moment this component can produce, and the refresh button exists for it.
+// finished paying on BoomFi's own page, so this can only mint a tagged pay link
+// and send the browser there. When they return, the webhook may not have landed
+// yet — so there is an explicit re-check rather than a pretence that a reload is
+// authoritative. Telling someone who has just paid "not subscribed" with no way
+// to argue is the worst moment this component can produce.
 
 import { useCallback, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -24,11 +30,10 @@ import { useApi } from "@/lib/useApi";
 import {
   cancelSubscription,
   getEntitlement,
-  getPlans,
+  getMyInvite,
   refreshBilling,
-  startCheckout,
-  type BillingPlan,
   type Entitlement,
+  type PersonalInvite,
 } from "@/lib/api";
 import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
@@ -37,13 +42,22 @@ import { SkeletonPanel } from "./skeleton";
 const BTN =
   "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
 
-/** Both reads in one call so the panel never renders a plan against stale slots. */
+/** Entitlement and invite together, so slots and the way to earn more agree. */
 async function loadBilling(token: string): Promise<{
   entitlement: Entitlement;
-  plans: BillingPlan[];
+  invite: PersonalInvite | null;
 }> {
-  const [entitlement, { plans }] = await Promise.all([getEntitlement(token), getPlans(token)]);
-  return { entitlement, plans };
+  const [entitlement, invite] = await Promise.all([
+    getEntitlement(token),
+    // The invite code is a nice-to-have on this screen; billing is not. A
+    // failure here must not blank the section that says what you are paying.
+    getMyInvite(token).catch(() => null),
+  ]);
+  return { entitlement, invite };
+}
+
+function money(n: number | null): string {
+  return n === null ? "—" : `$${n}`;
 }
 
 export function BillingSettings() {
@@ -68,18 +82,6 @@ export function BillingSettings() {
       }
     },
     [getAccessToken],
-  );
-
-  const upgrade = useCallback(
-    (planCode: string) =>
-      withToken(async (token) => {
-        const { url } = await startCheckout(token, planCode);
-        // Same tab, not a popup. Payment pages get blocked as popups, and a
-        // blocked one fails silently — the user clicks Upgrade and nothing
-        // whatsoever happens.
-        window.location.href = url;
-      }),
-    [withToken],
   );
 
   const recheck = useCallback(
@@ -107,45 +109,57 @@ export function BillingSettings() {
     return <ErrorState message={state.message} onRetry={state.reload} />;
   }
 
-  const { entitlement: ent, plans } = state.data;
-  const current = plans.find((p) => p.code === ent.plan.code);
-  const upgrades = plans.filter(
-    (p) => p.code !== ent.plan.code && p.purchasable && p.agentSlots >= ent.agentSlots,
-  );
+  const { entitlement: ent, invite } = state.data;
+  const monthly = ent.liveMonthlyUsd;
+  const liveTotal = monthly === null ? null : monthly * ent.liveAgents.length;
 
   return (
     <section className="space-y-6">
       <SectionHead
         index="01"
         title="PLAN"
-        note={ent.subscription ? `${ent.plan.name} · ${ent.subscription.status}` : ent.plan.name}
+        note={`${ent.agentsInUse} of ${ent.agentSlots} agents · ${ent.liveAgents.length} live`}
       />
 
-      {/* Usage first. The number someone came here to check is how many agents
-          they have left, not what the tier is called. */}
       <div className="grid grid-cols-2 gap-px border border-grid bg-grid">
         <Figure
-          label="Agents"
+          label="Paper agents"
           value={`${ent.agentsInUse} / ${ent.agentSlots}`}
           note={
-            ent.slotsRemaining > 0
-              ? `${ent.slotsRemaining} slot${ent.slotsRemaining === 1 ? "" : "s"} left`
-              : "no slots left"
+            ent.referralCount > 0
+              ? `${ent.baseSlots} free + ${ent.referralCount} earned`
+              : `${ent.baseSlots} free · invite to earn more`
           }
         />
         <Figure
-          label="Execution"
-          value={ent.allowLive ? "Live" : "Paper"}
-          note={ent.allowLive ? "real money permitted" : "simulated fills only"}
+          label="Live agents"
+          value={String(ent.liveAgents.length)}
+          note={
+            ent.liveAgents.length === 0
+              ? `${money(monthly)}/mo each`
+              : `${money(liveTotal)}/mo total`
+          }
         />
       </div>
 
-      {/* Over quota is possible and is NOT an error: the limit was introduced
-          after these agents existed, and nothing revokes one for being over.
-          Saying so plainly beats leaving someone to infer they are in trouble. */}
+      {/* The way to more slots is free, so it is stated as a fact rather than
+          dressed as an offer. */}
+      <Callout tone="info" icon={<InfoIcon />} title="Invite someone, get an agent">
+        Every person who joins on your invite code adds one paper agent to your
+        allowance, permanently. There is no limit.
+        {invite ? (
+          <>
+            {" "}
+            Yours is{" "}
+            <span className="font-mono text-text-primary">{invite.code}</span> —
+            it&rsquo;s in the account menu, top right.
+          </>
+        ) : null}
+      </Callout>
+
       {ent.agentsInUse > ent.agentSlots && (
-        <Callout tone="info" icon={<InfoIcon />} title="More agents than your plan allows">
-          These were deployed before plans existed and they keep running. You
+        <Callout tone="info" icon={<InfoIcon />} title="More agents than your allowance">
+          These were deployed before the limit existed and they keep running. You
           cannot create another until you are back under {ent.agentSlots}.
         </Callout>
       )}
@@ -156,47 +170,63 @@ export function BillingSettings() {
         </Callout>
       )}
 
-      {checked && !ent.subscription && (
+      {checked && ent.liveAgents.length === 0 && (
         <Callout tone="warning" icon={<InfoIcon />} title="Still no subscription found">
           If you have just paid, it can take a moment to reach us. Check again in
           a minute — and if it still says this, the payment did not complete.
         </Callout>
       )}
 
-      {/* What the paid tier buys, stated before the button that buys it. */}
-      {upgrades.length > 0 && (
+      {/* Live subscriptions, one row per agent, because that is how they are
+          bought and how they are cancelled. */}
+      {ent.liveAgents.length > 0 ? (
         <div className="space-y-px border border-grid bg-grid">
-          {upgrades.map((plan) => (
-            <div key={plan.code} className="space-y-4 bg-surface p-5">
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="font-mono text-[13px] tracking-[0.08em] text-text-primary uppercase">
-                  {plan.name}
-                </span>
-                {plan.priceUsd !== null && (
-                  <span className="font-mono text-[13px] text-text-primary">
-                    ${plan.priceUsd}
-                    <span className="text-text-dim"> / month</span>
-                  </span>
-                )}
+          {ent.liveAgents.map((sub) => (
+            <div
+              key={sub.subscriptionId}
+              className="flex items-center justify-between gap-4 bg-surface px-5 py-4"
+            >
+              <div className="min-w-0">
+                <p className="font-mono text-[12.5px] text-text-primary">
+                  Agent #{sub.agentId}
+                </p>
+                <p className="pt-0.5 font-ui text-[12px] text-text-dim">
+                  {sub.cancelAtPeriodEnd
+                    ? // The honest version of "cancelled": still live, still
+                      // paid for, and the date is when that stops.
+                      `Live until ${fmtDate(sub.currentPeriodEnd)} — then paused`
+                    : `${money(monthly)}/mo · renews ${fmtDate(sub.currentPeriodEnd)}`}
+                </p>
               </div>
-              <ul className="space-y-1.5 font-ui text-[13px] text-text-secondary">
-                <li>
-                  {plan.agentSlots} agent{plan.agentSlots === 1 ? "" : "s"}
-                </li>
-                <li>{plan.allowLive ? "Live trading with real funds" : "Paper trading only"}</li>
-              </ul>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void upgrade(plan.code)}
-                className={`${BTN} w-full border-accent text-accent hover:bg-accent hover:text-bg`}
-              >
-                {busy ? "Opening…" : `Upgrade to ${plan.name}`}
-              </button>
+              {!sub.cancelAtPeriodEnd && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void cancel(sub.subscriptionId)}
+                  className={`${BTN} shrink-0 border-grid text-text-dim hover:text-negative`}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           ))}
         </div>
-      )}
+      ) : null}
+
+      {/* Deliberately NOT an upgrade button. Live is bought for one agent, from
+          that agent's own screen, because "which agent" is the first thing the
+          purchase needs and this screen does not know it. */}
+      <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
+        {ent.liveAgents.length === 0 ? (
+          <>
+            Every agent runs on paper by default — same universe, same council,
+            same decision record. Going live costs {money(monthly)}/month per
+            agent and is started from the agent&rsquo;s own page.
+          </>
+        ) : (
+          <>Live is {money(monthly)}/month per agent. Start it from the agent&rsquo;s page.</>
+        )}
+      </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -207,36 +237,25 @@ export function BillingSettings() {
         >
           {busy ? "Checking…" : "I've paid — check again"}
         </button>
-
-        {/* Cancel is present but deliberately unemphasised, and it says what
-            actually happens: BoomFi may run the subscription to period end, so
-            promising immediate revocation here would be a lie either way. */}
-        {ent.subscription && !ent.subscription.cancelAtPeriodEnd && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void cancel(ent.subscription!.id)}
-            className={`${BTN} border-grid text-text-dim hover:text-negative`}
-          >
-            Cancel plan
-          </button>
-        )}
       </div>
 
-      {ent.subscription?.cancelAtPeriodEnd && (
-        <Callout tone="warning" title="Ending at the end of this period">
-          Your agents keep trading live until then. Nothing changes today.
+      {ent.liveAgents.some((s) => s.cancelAtPeriodEnd) && (
+        <Callout tone="warning" title="Ending at the end of the period">
+          Those agents keep trading live until then. When the period ends they
+          are paused holding their positions — nothing is sold for you.
         </Callout>
-      )}
-
-      {current && !current.allowLive && (
-        <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-          A paper agent runs the full loop — same universe, same council, same
-          decision record. It just cannot put money behind what it decides.
-        </p>
       )}
     </section>
   );
+}
+
+/** A date, or an honest blank when the provider has not told us one. */
+function fmtDate(iso: string | null): string {
+  if (!iso) return "unknown";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? "unknown"
+    : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function Figure({ label, value, note }: { label: string; value: string; note: string }) {
