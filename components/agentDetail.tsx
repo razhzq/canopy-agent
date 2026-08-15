@@ -145,18 +145,6 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
     void load();
   }, [load]);
 
-  if (state.phase === "loading") return <SkeletonAgentDetail />;
-  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
-  if (state.phase === "error")
-    return <ErrorState message={state.message} onRetry={() => void load()} />;
-
-  const { detail, strategy, equity, assets } = state;
-  const { agent, positions, wallet, lastRun } = detail;
-
-  // The strategy's universe, resolved against live marks. A selection whose
-  // asset is missing from the resolved universe still renders — it is a market
-  // the agent holds a mandate for that cannot currently be priced, which is
-  // worth seeing, not worth hiding.
   // Which market is mid-removal, by its selection key. A single id rather than
   // a boolean so only the card being removed shows a pending state.
   const [removingKey, setRemovingKey] = useState<string | null>(null);
@@ -196,6 +184,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
     [agentId, getAccessToken, load],
   );
 
+  if (state.phase === "loading") return <SkeletonAgentDetail />;
+  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
+  if (state.phase === "error")
+    return <ErrorState message={state.message} onRetry={() => void load()} />;
+
+  const { detail, strategy, equity, assets } = state;
+  const { agent, positions, wallet, lastRun } = detail;
+
+  // The strategy's universe, resolved against live marks. A selection whose
+  // asset is missing from the resolved universe still renders — it is a market
+  // the agent holds a mandate for that cannot currently be priced, which is
+  // worth seeing, not worth hiding.
   const markets = (strategy?.universe ?? []).map((sel) => ({
     sel,
     asset:
