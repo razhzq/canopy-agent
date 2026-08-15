@@ -14,6 +14,20 @@ import {
   describeClass, AssetLogo } from "@/components/ui";
 
 /**
+ * Whether two rows are the same market.
+ *
+ * By MINT when there is one, because that is a token's identity — and because
+ * comparing `underlying`/`issuer` alone made every crypto row equal to every
+ * other: a token has neither field, so `undefined === undefined` matched them
+ * all and selecting one highlighted the lot.
+ */
+function sameAsset(a: UniverseAsset | null, b: UniverseAsset | null): boolean {
+  if (!a || !b) return false;
+  if (a.mint || b.mint) return Boolean(a.mint) && a.mint === b.mint;
+  return a.underlying === b.underlying && (a.issuer ?? null) === (b.issuer ?? null);
+}
+
+/**
  * "Add market" — the picker behind the + Add market card on wireframe 1k.
  *
  * WHAT CONFIRMING ACTUALLY DOES
@@ -297,8 +311,7 @@ export function AddMarketModal({
           ) : (
             rows.map((a, i) => {
               const taken = isHeld(a);
-              const chosen =
-                picked?.underlying === a.underlying && picked?.issuer === a.issuer;
+              const chosen = sameAsset(picked, a);
               return (
                 <button
                   key={a.mint ?? `${a.underlying}/${a.issuer}`}
@@ -306,7 +319,12 @@ export function AddMarketModal({
                   data-row={i}
                   disabled={taken}
                   onMouseEnter={() => setCursor(i)}
-                  onClick={() => setPicked(a)}
+                  // Click the chosen row again to unchoose it. Without this
+                  // the only way out of a selection was to pick a different
+                  // market or close the dialog, and neither is "I changed my
+                  // mind about adding one".
+                  onClick={() => setPicked((prev) => (sameAsset(prev, a) ? null : a))}
+                  aria-pressed={chosen}
                   className={`grid w-full grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid px-7 py-3 text-left transition-colors ${
                     taken
                       ? "cursor-not-allowed opacity-45"

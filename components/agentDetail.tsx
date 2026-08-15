@@ -8,7 +8,9 @@ import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
 import { GrantDelegation } from "@/components/grantDelegation";
+import { FundingPanel } from "@/components/funding";
 import { LIVE_TRADING_ENABLED } from "@/lib/privy";
+import type { UniverseSelection } from "@/lib/api";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
@@ -37,6 +39,9 @@ import {
   deleteAgent,
   flattenAgent,
   goLive,
+  removeAgentMarket,
+  isPaywallError,
+  startCheckout,
   type AgentDetail as AgentDetailPayload,
   type DetectionRule,
   type EquitySeries,
@@ -152,6 +157,45 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // asset is missing from the resolved universe still renders — it is a market
   // the agent holds a mandate for that cannot currently be priced, which is
   // worth seeing, not worth hiding.
+  // Which market is mid-removal, by its selection key. A single id rather than
+  // a boolean so only the card being removed shows a pending state.
+  const [removingKey, setRemovingKey] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  /**
+   * Stops the agent screening one market.
+   *
+   * Reloads rather than mutating local state: the backend decides what the
+   * universe is now, and a client that patched its own copy would disagree with
+   * it the first time a rule was refused server-side.
+   */
+  const removeMarket = useCallback(
+    async (sel: UniverseSelection) => {
+      const key = selectionKey(sel);
+      setRemovingKey(key);
+      setRemoveError(null);
+      try {
+        const token = await getAccessToken();
+        if (!token) throw new Error("Sign in to change this agent.");
+        await removeAgentMarket(
+          token,
+          agentId,
+          sel.kind === "crypto"
+            ? { mint: sel.mint }
+            : { underlying: sel.underlying, issuer: sel.issuer },
+        );
+        await load();
+      } catch (err) {
+        // Shown rather than swallowed: the most likely refusal is the
+        // last-market guard, and that message is the whole explanation.
+        setRemoveError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setRemovingKey(null);
+      }
+    },
+    [agentId, getAccessToken, load],
+  );
+
   const markets = (strategy?.universe ?? []).map((sel) => ({
     sel,
     asset:
@@ -426,10 +470,24 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                       label={m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)}
                       asset={m.asset}
                       entry={entry}
+                      // Not offered on the last one. An empty list means "every
+                      // market in the class", so removing it would widen the
+                      // agent rather than narrow it — the backend refuses, and
+                      // offering a button that always fails is worse than not
+                      // offering one.
+                      onRemove={
+                        markets.length > 1 ? () => void removeMarket(m.sel) : undefined
+                      }
+                      removing={removingKey === selectionKey(m.sel)}
                     />
                   ))}
                 </div>
               )}
+              {removeError ? (
+                <p className="pt-3 font-ui text-[12.5px] text-negative" role="alert">
+                  {removeError}
+                </p>
+              ) : null}
             </div>
           </section>
 
@@ -685,6 +743,22 @@ function GoLive({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  /**
+   * Set when the backend answers the promotion with a 402.
+   *
+   * Live execution is billed per agent, so "this agent is not subscribed" is a
+   * distinct answer from "something went wrong" — and rendering it as a red
+   * error would tell someone their agent is broken when it is simply unpaid.
+   */
+  const [needsPayment, setNeedsPayment] = useState<string | null>(null);
+  /**
+   * Whether the wallet can actually trade.
+   *
+   * Starts false and is raised by the funding panel's own chain read. Starting
+   * true would show the promote button to an empty wallet for one frame, and
+   * that frame is the one someone clicks.
+   */
+  const [funded, setFunded] = useState(false);
 
   const delegated = wallet?.status === "active";
 
@@ -698,8 +772,43 @@ function GoLive({
       setConfirming(false);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (isPaywallError(err) && err.detail.code === "live_not_allowed") {
+        // Not an error state. The confirm step is dismissed and the payment
+        // step takes its place, carrying the backend's own message — which
+        // already names the price.
+        setConfirming(false);
+        // The backend's own sentence, which already names the price. Held as
+        // the message rather than the parsed body so there is one string to
+        // render and no second copy of "$20/month" to drift from it.
+        setNeedsPayment(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Sends the browser to BoomFi to start the subscription.
+   *
+   * Same tab, not a popup: payment pages get blocked as popups and a blocked
+   * one fails silently, so the user clicks Subscribe and nothing happens.
+   *
+   * Nothing is promoted here. The subscription begins on BoomFi's page, the
+   * webhook records it, and the user comes back and presses Go live again —
+   * which is why this does not try to be clever about resuming the flow.
+   */
+  async function subscribe() {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("not signed in");
+      const { url } = await startCheckout(token, agent.id);
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
   }
@@ -750,6 +859,50 @@ function GoLive({
             }
             onGranted={onChanged}
           />
+        </>
+      ) : !funded ? (
+        <>
+          {/* Funding sits between delegation and promotion because that is
+              where it actually blocks: the wallet exists now, and an agent
+              promoted with an empty one pauses on its first tick with a message
+              about balances — which is a worse place to learn this. */}
+          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
+            Delegation granted. This wallet needs funding before the agent can trade —
+            USDC to trade with, and a little SOL to pay transaction fees.
+          </p>
+          <FundingPanel agentId={agent.id} onFunded={() => setFunded(true)} />
+        </>
+      ) : needsPayment ? (
+        <>
+          {/* The backend's own message, which names the price. Repeating the
+              figure here would be a second copy to drift from it. */}
+          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
+            {needsPayment}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void subscribe()}
+              disabled={busy}
+              className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black disabled:opacity-40"
+            >
+              {busy ? "Opening…" : "Subscribe"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setNeedsPayment(null)}
+              disabled={busy}
+              className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase hover:text-text-primary disabled:opacity-40"
+            >
+              Not now
+            </button>
+          </div>
+          {/* Said plainly, because the return journey is not automatic: they
+              pay on BoomFi's page, come back, and press Go live again. */}
+          <p className="max-w-[760px] pt-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
+            You&apos;ll pay on BoomFi and come back here. Nothing changes for this agent
+            until you press Go live again — it keeps trading on paper in the meantime.
+          </p>
         </>
       ) : !confirming ? (
         <>
@@ -1191,10 +1344,15 @@ function MarketCard({
   label,
   asset,
   entry,
+  onRemove,
+  removing,
 }: {
   label: string;
   asset: UniverseAsset | null;
   entry: DetectionRule | null;
+  /** Absent when removal is not offered — the last market, or a shared strategy. */
+  onRemove?: () => void;
+  removing?: boolean;
 }) {
   const change = asset ? num(asset.changePct) : null;
   const price = asset ? num(asset.priceUsd) : null;
@@ -1208,9 +1366,23 @@ function MarketCard({
   const fired = pct !== null && pct >= 1;
 
   return (
-    <div className="border border-grid p-4">
+    <div className="group border border-grid p-4">
       <div className="flex items-baseline justify-between gap-3">
         <span className="truncate font-mono text-[13px] text-text-primary">{label}</span>
+        {onRemove ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removing}
+            // Quiet until pointed at. A destructive-looking control on every
+            // card competes with the prices, which are what this grid is for.
+            aria-label={`Stop trading ${label}`}
+            title="Stop trading this market. Anything held stays open."
+            className="order-last shrink-0 font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
+          >
+            {removing ? "…" : "Remove"}
+          </button>
+        ) : null}
         <span
           className={`tnum shrink-0 font-mono text-[12.5px] ${
             change === null ? "text-text-muted" : change >= 0 ? "text-accent" : "text-negative"

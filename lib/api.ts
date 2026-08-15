@@ -1138,6 +1138,34 @@ export const deployAgent = (
   body: JSON.stringify(body),
 });
 
+/* ---------------------------------------------------------------- funding -- */
+
+export interface AgentFunding {
+  /** Null until delegation is granted — the wallet does not exist before that. */
+  address: string | null;
+  walletStatus: string | null;
+  /** Sent by the backend rather than hardcoded: "which USDC" has wrong answers. */
+  usdcMint: string;
+  /** SOL needed for fees, in whole SOL. */
+  minSol: number;
+  usdc: number;
+  sol: number;
+  fundedForLive: boolean;
+  /** The same sentence the tick pauses with. Null when the wallet is ready. */
+  shortfall: string | null;
+}
+
+/**
+ * Where to send funds, and whether enough have arrived.
+ *
+ * Reads the chain, so it is the only honest answer to "has my deposit landed" —
+ * and it is a 503, never a `fundedForLive: false`, when the RPC cannot be
+ * reached. Reporting an outage as "unfunded" would tell someone to send money
+ * they have already sent.
+ */
+export const getAgentFunding = (token: string, agentId: number) =>
+  request<AgentFunding>(`/agents/${agentId}/funding`, token);
+
 /* ----------------------------------------------------------------- invite -- */
 
 export interface PersonalInvite {
@@ -1357,6 +1385,27 @@ export const addAgentMarket = (
     `/agents/${agentId}/markets`,
     token,
     { method: "POST", body: JSON.stringify(market) },
+  );
+
+/**
+ * Stops the agent screening a market. Does NOT sell.
+ *
+ * An open position there stays open and keeps its exits — the backend is
+ * explicit about this, because "stop looking at this" and "sell what I hold"
+ * are different instructions and only one of them was asked for.
+ *
+ * 409 on the last remaining market: an empty list means "every market in the
+ * class", so removing the only one widens the agent instead of narrowing it.
+ */
+export const removeAgentMarket = (
+  token: string,
+  agentId: number,
+  market: { underlying: string; issuer?: string } | { mint: string },
+) =>
+  request<{ markets: UniverseSelection[]; status: string }>(
+    `/agents/${agentId}/markets`,
+    token,
+    { method: "DELETE", body: JSON.stringify(market) },
   );
 
 export const getAgentFills = (
