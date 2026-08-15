@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MARKET_CLASSES } from "@/components/pickMarket";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   selectionKey,
@@ -47,20 +48,6 @@ function sameAsset(a: UniverseAsset | null, b: UniverseAsset | null): boolean {
  * that silently omits what you are looking for reads as a missing asset.
  */
 
-/**
- * The chips, in the order they are offered.
- *
- * Which of these actually APPEAR is derived from the assets in hand — see
- * `classes` below. A fixed list gave every RWA agent a "Funds" tab that always
- * answered "Nothing matches", because the only ETF in the registry (SPY) fails
- * resolution and never reaches the picker. A filter that can only ever return
- * nothing is worse than no filter: it reads as a broken search.
- */
-const ALL_CLASSES = [
-  { key: "equity", label: "Equities" },
-  { key: "commodity", label: "Commodities" },
-  { key: "etf", label: "Funds" },
-] as const;
 
 export function AddMarketModal({
   agentId,
@@ -158,29 +145,14 @@ export function AddMarketModal({
         // pinning an issuer, which means every issuer of it.
         held.has(`${a.underlying}/${a.issuer}`) || held.has(`${a.underlying}/`);
 
-  /**
-   * Chips worth showing: only classes present in this list, and only when
-   * there is more than one to choose between.
-   *
-   * A crypto agent's universe is all tokens, so it gets no chips at all rather
-   * than three that subdivide nothing.
-   */
-  const classes = useMemo(() => {
-    const present = new Set(
-      assets.filter((a) => a.kind !== "crypto").map((a) => a.assetClass),
-    );
-    const shown = ALL_CLASSES.filter((c) => present.has(c.key));
-    return shown.length > 1 ? [{ key: "all", label: "All" } as const, ...shown] : [];
-  }, [assets]);
-
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter(
       (a) =>
-        // No class filter for tokens: an agent's universe is one class already,
-        // so the list is either all RWA or all crypto and the chips only ever
-        // subdivide the former.
-        (klass === "all" || a.kind === "crypto" || a.assetClass === klass) &&
+        // The same predicate the creation picker uses, from the same list —
+        // two copies of "what counts as a commodity" drift the moment either
+        // is edited.
+        (MARKET_CLASSES.find((c) => c.key === klass)?.admits(a) ?? true) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
           // Name as well: a token is searched for by what it is called
@@ -331,7 +303,7 @@ export function AddMarketModal({
         {/* --------------------------------------------------------- filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-7 py-3.5">
           <div className="flex items-center gap-2">
-            {classes.map((c) => (
+            {MARKET_CLASSES.map((c) => (
               <button
                 key={c.key}
                 type="button"

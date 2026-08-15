@@ -41,7 +41,7 @@ import {
  * screens it — so the category picked here decides which specialist runs and,
  * in the next step, which rules can even apply.
  */
-const CLASSES = [
+export const MARKET_CLASSES = [
   { key: "all", label: "All", admits: () => true },
   {
     key: "stocks",
@@ -55,6 +55,10 @@ const CLASSES = [
   },
   { key: "token", label: "Crypto", admits: (a: UniverseAsset) => a.kind === "crypto" },
 ] as const;
+
+/** Kept so this file reads unchanged; the picker and the add-market modal
+ *  now share one definition, because two lists of the same chips drift. */
+const CLASSES = MARKET_CLASSES;
 
 /**
  * Step 1 — choose what the agent may trade.
