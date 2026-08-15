@@ -539,11 +539,25 @@ export async function getUniverse(
   if (pending) return pending;
 
   const call = request<UniverseResponse>(
-    // No `class` param: the route answers with BOTH universes, because an
-    // agent may hold tokenized equities and SPL tokens at once. Passing a class
-    // still narrows it, which is what the creation flow does before an agent
-    // has one.
-    `/agents/universe`,
+    // THE CLASS IS SENT, because it is what this entry is CACHED UNDER.
+    //
+    // This used to request `/agents/universe` bare. Omitting the param makes
+    // the route answer with both universes concatenated — and the answer was
+    // then stored under whichever class was asked for, so the "rwa" and "spot"
+    // entries held the same combined list. `getAllMarkets` reads one entry as
+    // RWA and the other as crypto, so every token came back twice: once from
+    // the RWA pass, which keeps its `kind`, and again from the crypto pass,
+    // which re-normalises the same rows.
+    //
+    // Duplicates are not a cosmetic problem here. The picker keys its rows on
+    // the mint, so a doubled token means two rows with one React key, and
+    // React's reconciliation across a filter change stops being predictable —
+    // which is how switching back from Crypto to Commodities kept the crypto
+    // rows on screen.
+    //
+    // A caller that genuinely wants both asks for both, which is exactly what
+    // `getAllMarkets` does by requesting each class and merging.
+    `/agents/universe?class=${encodeURIComponent(strategyClass)}`,
     token,
   )
     .then((data) => {
@@ -629,24 +643,58 @@ export async function getMarketsForClass(
   return (res.assets as unknown as CryptoPickerMarket[]).filter((r) => r?.mint).map(cryptoRowToAsset);
 }
 
+/**
+ * One asset's identity, and the only definition of it.
+ *
+ * A token IS its mint; an RWA pick is intent, named by issuer and underlying.
+ * Exported because the picker keys its React rows on this — two rows sharing a
+ * key is a rendering bug, not a warning, so the list and the thing that renders
+ * it must agree on what "the same asset" means.
+ */
+export function marketKey(a: UniverseAsset): string {
+  return a.kind === "crypto" ? `crypto:${a.mint}` : `rwa:${a.issuer}/${a.underlying}`;
+}
+
+/**
+ * The two halves as one list, each asset once.
+ *
+ * DEDUPED, and not because anything is currently expected to double: the two
+ * halves come from two requests, and callers — the picker especially — treat
+ * this as a set. Enforcing that here means a backend that ever answers one
+ * class with rows belonging to both degrades into a redundant fetch rather than
+ * into duplicate React keys and rows that survive a filter change. First
+ * writer wins, so the RWA pass keeps its richer shape.
+ */
+function mergeMarkets(
+  rwa: UniverseResponse | null,
+  crypto: UniverseResponse | null,
+): UniverseAsset[] {
+  const byKey = new Map<string, UniverseAsset>();
+  const add = (a: UniverseAsset) => {
+    const key = marketKey(a);
+    if (!byKey.has(key)) byKey.set(key, a);
+  };
+
+  // Rows written before `kind` existed carry none; they are all RWA.
+  if (rwa) for (const a of rwa.assets) add({ ...a, kind: a.kind ?? ("rwa" as const) });
+  if (crypto) {
+    for (const r of crypto.assets as unknown as CryptoPickerMarket[]) {
+      if (r?.mint) add(cryptoRowToAsset(r));
+    }
+  }
+  return [...byKey.values()];
+}
+
 export async function getAllMarkets(token: string): Promise<UniverseAsset[]> {
   const [rwa, crypto] = await Promise.allSettled([
     getUniverse(token, "rwa"),
     getUniverse(token, "spot"),
   ]);
 
-  const out: UniverseAsset[] = [];
-  if (rwa.status === "fulfilled") {
-    // Rows written before `kind` existed carry none; they are all RWA.
-    out.push(...rwa.value.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) })));
-  }
-  if (crypto.status === "fulfilled") {
-    const rows = crypto.value.assets as unknown as CryptoPickerMarket[];
-    for (const r of rows) {
-      if (r?.mint) out.push(cryptoRowToAsset(r));
-    }
-  }
-  return out;
+  return mergeMarkets(
+    rwa.status === "fulfilled" ? rwa.value : null,
+    crypto.status === "fulfilled" ? crypto.value : null,
+  );
 }
 
 /** The cached halves, for seeding the first render without a spinner. */
@@ -654,14 +702,7 @@ export function peekAllMarkets(): UniverseAsset[] | null {
   const rwa = peekUniverse("rwa");
   const crypto = peekUniverse("spot");
   if (!rwa && !crypto) return null;
-  const out: UniverseAsset[] = [];
-  if (rwa) out.push(...rwa.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) })));
-  if (crypto) {
-    for (const r of crypto.assets as unknown as CryptoPickerMarket[]) {
-      if (r?.mint) out.push(cryptoRowToAsset(r));
-    }
-  }
-  return out;
+  return mergeMarkets(rwa, crypto);
 }
 
 /**

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
-  classFor,
+  marketKey,
   peekAllMarkets,
   getAllMarkets,
   num,
@@ -181,9 +181,14 @@ export function PickMarket({
     });
   }, [cursor]);
 
-  /** Identity, matching how selection is keyed: mint for crypto, issuer+underlying for RWA. */
-  const idOf = (a: UniverseAsset) =>
-    a.kind === "crypto" ? `crypto:${a.mint}` : `rwa:${a.issuer}/${a.underlying}`;
+  /**
+   * Identity: mint for crypto, issuer+underlying for RWA.
+   *
+   * `marketKey` from the data layer rather than a copy, because the list is
+   * deduped on that definition and these rows are keyed on this one. Two
+   * definitions of "the same asset" that disagree put duplicate keys back.
+   */
+  const idOf = marketKey;
 
   const chosen = (a: UniverseAsset) => value.some((v) => idOf(v) === idOf(a));
 
@@ -287,7 +292,13 @@ export function PickMarket({
 
           {rows.map((a, i) => (
             <button
-              key={a.mint ?? `${a.underlying}/${a.issuer}`}
+              // `idOf`, the same identity selection is keyed on, rather than a
+              // second hand-rolled one. The old key was the bare mint, which
+              // collides the moment one asset reaches this list twice — and a
+              // duplicate key is not a warning to live with: React reuses rows
+              // across a re-render, so a filter change can leave the previous
+              // category's rows on screen.
+              key={idOf(a)}
               type="button"
               data-row={i}
               onMouseEnter={() => setCursor(i)}
