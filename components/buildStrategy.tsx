@@ -249,6 +249,54 @@ export const RWA_RULES: RuleSpec[] = [
     step: 1,
     unit: "%",
   },
+  // SUPERTREND — the state, then the two events.
+  //
+  // Crypto-only for exactly the reason ATR is: it is built from ATR, so it
+  // needs a high and a low per bar and the tokenized-stock feed serves neither.
+  // An unsatisfiable rule REJECTS the asset rather than being skipped, so
+  // offering these on a tokenized-stock strategy would silently stop it trading.
+  {
+    key: "supertrendDistancePct",
+    label: "Min Supertrend distance",
+    basis: "bars",
+    periods: "10 · ×3",
+    help: "How far price sits above the Supertrend band, as a percent. Above 0 means Supertrend is bullish right now, and stays true for the whole trend — set it to 0 for 'only buy while the trend is up'. For the flip itself, use the rule below.",
+    op: "gte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 0.5,
+    unit: "%",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "supertrendFlipUpBars",
+    label: "Supertrend flipped up within",
+    basis: "bars",
+    periods: "10 · ×3",
+    help: "How many bars ago Supertrend turned bullish. 0 means on the latest bar, 3 means within the last three. This is the EVENT — a fresh signal — so most tokens are skipped most of the time, which is the point of a trend follower.",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "supertrendFlipDownBars",
+    label: "Supertrend flipped down within",
+    basis: "bars",
+    periods: "10 · ×3",
+    help: "How many bars ago Supertrend turned bearish. Rarely an entry condition — for a strategy that buys weakness deliberately.",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
 ];
 
 /** Bar sizes a strategy's technical rules can be measured on. */

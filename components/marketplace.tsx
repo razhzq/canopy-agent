@@ -32,17 +32,32 @@ import { useApi } from "@/lib/useApi";
 
 /**
  * No "delisted" tab, because no delisted strategy reaches this page: the list
- * endpoint returns published and verifying only. A tab of strategies nobody can
- * deploy — the deploy path refuses a delisted one — is a shelf of dead ends,
- * and delisting is precisely the act of taking a listing down.
+ * endpoint returns published, verifying, and drafts with a running agent. A tab
+ * of strategies nobody can deploy — the deploy path refuses a delisted one — is
+ * a shelf of dead ends, and delisting is precisely the act of taking a listing
+ * down.
+ *
+ * A TAB IS A PREDICATE, NOT A STATUS.
+ *
+ * It used to compare `r.status === tab`, which silently assumed one tab meant
+ * exactly one status. Paper is two: a `draft` with an agent running on it and a
+ * `verifying` one are both paper records that cannot be deployed, and the
+ * difference between them — whether the author entered it for a listing — is
+ * not something a browser can act on. Splitting them into two tabs would ask
+ * the reader to care about our lifecycle; matching on status alone would have
+ * hidden every draft behind "All" with no tab counting it.
  */
-type Tab = "all" | "published" | "verifying";
+type Tab = "all" | "published" | "paper";
 type Sort = "return" | "newest" | "capital" | "users";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "published", label: "Listed" },
-  { key: "verifying", label: "Paper run" },
+const TABS: { key: Tab; label: string; admits: (r: StrategyRow) => boolean }[] = [
+  { key: "all", label: "All", admits: () => true },
+  { key: "published", label: "Listed", admits: (r) => r.status === "published" },
+  {
+    key: "paper",
+    label: "Paper",
+    admits: (r) => r.status === "verifying" || r.status === "draft",
+  },
 ];
 
 const SORTS: { key: Sort; label: string }[] = [
@@ -66,9 +81,10 @@ export function Marketplace() {
   const visible = useMemo(() => {
     if (!rows) return [];
     const q = query.trim().toLowerCase();
+    const admits = TABS.find((t) => t.key === tab)?.admits ?? (() => true);
     const filtered = rows.filter(
       (r) =>
-        (tab === "all" || r.status === tab) &&
+        admits(r) &&
         (q === "" ||
           r.name.toLowerCase().includes(q) ||
           r.strategy_class.toLowerCase().includes(q) ||
@@ -81,7 +97,12 @@ export function Marketplace() {
           ? Number(r.aum_usd)
           : sort === "users"
             ? Number(r.deployments)
-            : new Date(r.published_at ?? r.verification_started_at ?? 0).getTime();
+            : // `created_at` last: a draft has neither of the other two, and
+              // without it every draft dates to the epoch and sorts below
+              // everything under "Newest" — the opposite of the truth.
+              new Date(
+                r.published_at ?? r.verification_started_at ?? r.created_at ?? 0,
+              ).getTime();
     return [...filtered].sort((a, b) => by(b) - by(a));
   }, [rows, tab, sort, query]);
 
@@ -138,7 +159,7 @@ export function Marketplace() {
         <div className="flex flex-wrap items-center">
           {TABS.map((t) => {
             const active = t.key === tab;
-            const n = rows?.filter((r) => t.key === "all" || r.status === t.key).length;
+            const n = rows?.filter(t.admits).length;
             return (
               <button
                 key={t.key}
@@ -451,12 +472,16 @@ function Metric({
 
 function StatusBadge({ row: r }: { row: StrategyRow }) {
   if (r.status === "published") return <Badge tone="accent">Listed</Badge>;
-  // Unreachable while the list endpoint returns published and verifying only,
-  // and kept anyway: the fallback below says "Paper run", so dropping this
-  // would label a delisted strategy as a live paper record if one ever arrived.
-  // A branch that cannot fire costs a line; a badge that lies costs trust.
+  // Unreachable while the list endpoint excludes delisted, and kept anyway: the
+  // fallback below says "Paper", so dropping this would label a delisted
+  // strategy as a live paper record if one ever arrived. A branch that cannot
+  // fire costs a line; a badge that lies costs trust.
   if (r.status === "delisted") return <Badge tone="warning">Delisted</Badge>;
-  return <Badge tone="muted">Paper run</Badge>;
+  // Draft and verifying alike. Both are trading on paper and neither can be
+  // deployed, so one badge tells the reader the one thing that is true of both
+  // — and "Paper" rather than "Paper run" because it is also what the agent
+  // itself is labelled everywhere else in the product.
+  return <Badge tone="muted">Paper</Badge>;
 }
 
 function PageButton({
@@ -482,9 +507,15 @@ function PageButton({
 
 /* ------------------------------------------------------------------ helpers -- */
 
-/** How long it has been running a record, published or not. */
+/**
+ * How long it has been running a record, published or not.
+ *
+ * `created_at` is the fallback because a DRAFT has no other date, and returning
+ * 0 for one made every draft permanently "NEW" — a badge that never expires is
+ * not a fact about the strategy, it is noise on every row.
+ */
 function recordDays(r: StrategyRow): number {
-  const from = r.verification_started_at ?? r.published_at;
+  const from = r.verification_started_at ?? r.published_at ?? r.created_at;
   if (!from) return 0;
   return Math.max(Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000), 0);
 }

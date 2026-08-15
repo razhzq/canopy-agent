@@ -74,7 +74,10 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
 
   const { strategy, verification, isMine } = meta.data;
   const live = strategy.status === "published";
-  const onPaper = strategy.status === "verifying";
+  // Both unpublished-with-a-record states. A draft reaches this page for a
+  // non-author only when an agent is running on it, so it is a paper record in
+  // exactly the sense a verifying one is — and neither can be deployed.
+  const onPaper = strategy.status === "verifying" || strategy.status === "draft";
   const days = verification.day;
 
   // null means the API did not send a daily breakdown at all — an older build.
@@ -104,13 +107,25 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
               {strategy.name}
             </h1>
             {live ? <Badge tone="accent">Listed</Badge> : null}
-            {onPaper ? <Badge tone="muted">Paper run</Badge> : null}
+            {/* Draft and verifying are both paper, and the page says so the
+                same way for both. A draft only reaches a non-author at all
+                once an agent is running on it, so "Paper" is a statement
+                about a real record rather than about an empty shell. */}
+            {onPaper ? <Badge tone="muted">Paper</Badge> : null}
             {strategy.status === "delisted" ? <Badge tone="warning">Delisted</Badge> : null}
             {isMine ? <Badge tone="muted">Yours</Badge> : null}
           </div>
           <p className="font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
             {strategy.strategy_class} · {strategy.fee_pct}% fee · running since{" "}
-            {since(strategy.verification_started_at ?? strategy.published_at)}
+            {/* A draft has neither of the first two — it has only when it was
+                created, which for a draft with an agent on it IS when the
+                record started. */}
+            {since(
+              strategy.verification_started_at ??
+                strategy.published_at ??
+                strategy.created_at ??
+                null,
+            )}
           </p>
         </div>
 
