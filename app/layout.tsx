@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { ReferralCapture } from "@/components/referralCapture";
 import "./globals.css";
 
 const plexMono = IBM_Plex_Mono({
@@ -35,6 +36,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${plexMono.variable} ${inter.variable}`}>
       <body>
+        {/* Outside Providers: capturing a referral is not a signed-in concern,
+            and it has to happen on the marketing page too — which is where a
+            referral link actually lands. */}
+        <ReferralCapture />
         <Providers>{children}</Providers>
       </body>
     </html>

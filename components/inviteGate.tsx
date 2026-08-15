@@ -4,6 +4,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, openSession, redeemInvite, type SessionProfile } from "@/lib/api";
 import { readAccounts } from "@/components/nav";
+import { clearReferral, readReferral } from "@/lib/referral";
 
 /**
  * The invite gate.
@@ -104,8 +105,16 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
         // this on every authenticated mount rather than only when it suspects
         // a lock: on an ungated stack this is the ONLY moment a first-time
         // visitor's account gets created.
-        const status = await openSession(token, profileFrom(user));
+        // The held `?ref=` rides along. On a first-ever login this call IS the
+        // registration, so it is the only moment attribution can be recorded —
+        // and it is recorded whether or not the gate is on, because who brought
+        // someone in is true independently of whether a code was needed.
+        const status = await openSession(token, profileFrom(user), readReferral());
         if (cancelled) return;
+        // Cleared only on confirmation. A network failure or a backend that
+        // never saw it must leave the code held, or the referral is burned on
+        // an attempt that did nothing.
+        if (status.referralApplied) clearReferral();
         if (!status.required || status.granted) {
           grantedThisSession = true;
           setPhase({ kind: "open" });
@@ -173,7 +182,13 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
 
 function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
   const { getAccessToken, logout, user } = usePrivy();
-  const [code, setCode] = useState("");
+  // Pre-filled from a held `?ref=`. Someone who followed an invite link and
+  // landed on this prompt has already told us their code — asking them to find
+  // it again is asking them to re-derive something we are sitting on.
+  //
+  // Still editable: it is a starting value, not a lock. A stale or exhausted
+  // held code must not trap the user into a code that cannot work.
+  const [code, setCode] = useState(() => readReferral() ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -203,6 +218,9 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
         setBusy(false);
         return;
       }
+      // The code has done its job. Held past this point it would be offered
+      // again on the next device, long after it stopped being relevant.
+      clearReferral();
       onRedeemed();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

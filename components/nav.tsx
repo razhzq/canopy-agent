@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getMyInvite, type PersonalInvite } from "@/lib/api";
 
 const NAV = [
   // "My agents" is the workspace — the rail plus one agent open beside it. It
@@ -140,15 +141,61 @@ function PlusIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/**
+ * The shareable form of an invite code.
+ *
+ * Built from `window.location.origin` rather than a configured base URL so it
+ * is always the host the sharer is actually looking at — a link minted on a
+ * preview deploy that pointed at production would send people somewhere the
+ * sharer never visited. Falls back to the canonical host for the server render,
+ * which never runs this in practice but must not produce "undefined/?ref=".
+ */
+function inviteLink(code: string): string {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "https://agent.canopy.finance";
+  return `${origin}/?ref=${code}`;
+}
+
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [invite, setInvite] = useState<PersonalInvite | null>(null);
+  const [inviteFailed, setInviteFailed] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetched when the menu OPENS, never on mount.
+  //
+  // The backend mints the code on first read, so fetching this from the navbar
+  // — which is on every page — would issue a code to every visitor who never
+  // opens the menu. Loading it on demand keeps "has a code" meaning "wanted
+  // one". Fetched once per session and kept; a code does not change, and the
+  // referral count being a few minutes stale is not worth a request per open.
+  useEffect(() => {
+    if (!open || !authenticated || invite || inviteFailed) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const data = await getMyInvite(token);
+        if (!cancelled) setInvite(data);
+      } catch {
+        // Silent. The invite row is one section of a menu whose main job is
+        // signing out — an error banner here would be louder than the feature.
+        if (!cancelled) setInviteFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, authenticated, invite, inviteFailed, getAccessToken]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -386,6 +433,115 @@ function AccountMenu() {
           {!email && wallets.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
               <p className="font-ui text-[13px] text-text-dim">No linked account details.</p>
+            </div>
+          ) : null}
+
+          {/* Your invite code.
+              Below the wallets because it is about other people, not about
+              this account — and above Settings because it is a thing to copy
+              here rather than a place to go. */}
+          {invite ? (
+            <div className="border-b border-grid py-1.5">
+              <div className="flex items-baseline justify-between gap-3 px-4 pt-1.5 pb-1">
+                <p className="font-mono text-[9px] tracking-[0.12em] text-text-muted uppercase">
+                  Your invite code
+                </p>
+                {/* The budget, stated as remaining rather than used: the
+                    question being asked is "can I still invite someone". */}
+                <p className="font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
+                  {invite.remaining} of {invite.maxUses} left
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copy(invite.code)}
+                disabled={invite.disabled}
+                aria-label={`Copy your invite code ${invite.code}`}
+                className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface disabled:opacity-50 ${FOCUS}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate font-mono text-[12.5px] tracking-[0.06em] text-text-primary">
+                    {invite.code}
+                  </span>
+                  <span
+                    className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                      copied === invite.code
+                        ? "text-accent opacity-100"
+                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                    }`}
+                    aria-hidden
+                  >
+                    {copied === invite.code ? "Copied" : <CopyIcon className="size-3" />}
+                  </span>
+                </div>
+              </button>
+
+              {/* The link, not just the code. `?ref=` is captured on landing
+                  and redeemed automatically, so this path costs the recipient
+                  no typing and no prompt — the code above is the fallback for
+                  anywhere a URL cannot go. */}
+              {!invite.disabled && invite.remaining > 0 ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => copy(inviteLink(invite.code))}
+                  aria-label="Copy your invite link"
+                  className={`group flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                >
+                  <span className="font-ui text-[12px] text-text-secondary">
+                    Copy invite link
+                  </span>
+                  <span
+                    className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                      copied === inviteLink(invite.code)
+                        ? "text-accent opacity-100"
+                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                    }`}
+                    aria-hidden
+                  >
+                    {copied === inviteLink(invite.code) ? (
+                      "Copied"
+                    ) : (
+                      <CopyIcon className="size-3" />
+                    )}
+                  </span>
+                </button>
+              ) : null}
+
+              <p className="px-4 pt-0.5 pb-1.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                {invite.disabled
+                  ? "This code has been disabled."
+                  : invite.remaining === 0
+                    ? "You've used every invite on this code."
+                    : invite.gateActive
+                      ? // The honest version of "invite your friends": the code
+                        // is what gets them in.
+                        "Share it with someone you want inside the closed access."
+                      : // Access is currently open, so the code does NOT unlock
+                        // anything — it only records that they came from you.
+                        // Saying "invite your friends" here would be selling a
+                        // door that is already unlocked.
+                        "Access is open right now, so this isn't needed to get in — it just records who you brought."}
+              </p>
+
+              {invite.uses > 0 ? (
+                <p className="px-4 pb-1.5 font-ui text-[11.5px] text-text-secondary">
+                  {invite.uses} {invite.uses === 1 ? "person has" : "people have"} joined on
+                  it
+                  {/* Names, not just a count, when there are few enough to read.
+                      A bare number is a metric; a name is a memory of who you
+                      actually brought. */}
+                  {invite.referrals.some((r) => r.email) && invite.uses <= 3
+                    ? ` — ${invite.referrals
+                        .map((r) => r.email)
+                        .filter(Boolean)
+                        .join(", ")}`
+                    : ""}
+                  .
+                </p>
+              ) : null}
             </div>
           ) : null}
 

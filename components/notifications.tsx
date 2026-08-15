@@ -96,7 +96,7 @@ export function NotificationSettings() {
   return (
     <div className="space-y-8">
       <SectionHead
-        index="01"
+        index="02"
         title="TELEGRAM"
         note={linked ? (enabled ? "connected" : "muted") : "not connected"}
       />

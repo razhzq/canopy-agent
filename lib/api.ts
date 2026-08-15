@@ -16,10 +16,40 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /**
+     * The parsed error body, when there was one.
+     *
+     * Exists for 402: a paywall refusal carries `code` and `entitlement`, and
+     * the screen needs them to show "you have 1 of 1 agents" rather than a bare
+     * message. Optional so every existing `new ApiError(status, message)` call
+     * and every `catch` that only reads `.message` keeps working untouched.
+     */
+    readonly detail?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** A 402 from any endpoint: the action is possible, but not on this plan. */
+export interface PaywallDetail {
+  code: "slot_limit" | "live_not_allowed";
+  entitlement: {
+    plan: string;
+    agentSlots?: number;
+    agentsInUse?: number;
+    allowLive: boolean;
+  };
+}
+
+/**
+ * Narrows an unknown error to a paywall refusal.
+ *
+ * Checks the status rather than the code so an unrecognised future `code` still
+ * routes to the upgrade prompt instead of falling through to a generic error.
+ */
+export function isPaywallError(err: unknown): err is ApiError & { detail: PaywallDetail } {
+  return err instanceof ApiError && err.status === 402 && Boolean(err.detail?.code);
 }
 
 async function request<T>(
@@ -40,13 +70,18 @@ async function request<T>(
 
   if (!res.ok) {
     let message = res.statusText;
+    let detail: Record<string, unknown> | undefined;
     try {
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string } & Record<string, unknown>;
       if (body.error) message = body.error;
+      // Kept whole rather than picked apart here: a 402 carries the plan and
+      // slot counts the upgrade prompt needs, and this helper has no business
+      // knowing which endpoint returns what.
+      detail = body;
     } catch {
       /* non-JSON error body; the status text will do */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, detail);
   }
 
   return (await res.json()) as T;
@@ -69,6 +104,14 @@ async function request<T>(
 export interface InviteStatus {
   required: boolean;
   granted: boolean;
+  /**
+   * True when a `ref` sent with this call was actually applied.
+   *
+   * The signal to stop holding the code. Absent or false means it was not
+   * used — an existing account, an exhausted or invalid code — and the client
+   * keeps holding it rather than burning it on a call that did nothing.
+   */
+  referralApplied?: boolean;
 }
 
 /**
@@ -105,11 +148,21 @@ export interface SessionProfile {
 export async function openSession(
   token: string,
   profile: SessionProfile = {},
+  /**
+   * A referral code captured from `?ref=`, if one is being held.
+   *
+   * Sent on every session call, not just the first: the client cannot know
+   * which call is the registering one, and the backend ignores it for anyone
+   * who already has an account. Attribution belongs to whoever brought a NEW
+   * user, so a code arriving for an existing one is dropped there rather than
+   * guessed at here.
+   */
+  ref?: string | null,
 ): Promise<InviteStatus> {
   try {
     return await request<InviteStatus>("/agents/session", token, {
       method: "POST",
-      body: JSON.stringify(profile),
+      body: JSON.stringify(ref ? { ...profile, ref } : profile),
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
@@ -1070,6 +1123,104 @@ export const deployAgent = (
   method: "POST",
   body: JSON.stringify(body),
 });
+
+/* ----------------------------------------------------------------- invite -- */
+
+export interface PersonalInvite {
+  code: string;
+  maxUses: number;
+  uses: number;
+  remaining: number;
+  disabled: boolean;
+  /** Who came in on this code, most recent first. */
+  referrals: Array<{ privyId: string; email: string | null; redeemedAt: string }>;
+  /**
+   * Whether an invite code is currently required to get in.
+   *
+   * Comes from the backend's `AGENT_INVITE_REQUIRED` constant. When false the
+   * code still redeems and still records who referred whom, but nobody is ever
+   * ASKED for one — so the UI has to describe a door that is already open
+   * rather than implying the code is what opens it.
+   */
+  gateActive: boolean;
+}
+
+/**
+ * The signed-in user's own invite code.
+ *
+ * The backend mints it on first read, so calling this has a side effect the
+ * first time. Fetch it when the user actually looks — not on page load — or
+ * every visitor gets a code row whether or not they ever open the menu.
+ */
+export const getMyInvite = (token: string) =>
+  request<PersonalInvite>("/agents/invite/mine", token);
+
+/* ---------------------------------------------------------------- billing -- */
+
+// Recurring subscriptions run on BoomFi. Nothing here creates a subscription —
+// their API has no endpoint for it. `startCheckout` mints a pay link tagged
+// with the user's id and the subscription comes into existence when the human
+// finishes paying, so the client's job is to redirect and then re-read.
+
+export interface BillingPlan {
+  code: string;
+  name: string;
+  agentSlots: number;
+  allowLive: boolean;
+  priceUsd: number | null;
+  /** False when the tier has no pay link configured yet — show, do not offer. */
+  purchasable: boolean;
+}
+
+export interface Entitlement {
+  plan: { code: string; name: string };
+  agentSlots: number;
+  agentsInUse: number;
+  slotsRemaining: number;
+  allowLive: boolean;
+  subscription: {
+    id: string;
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string | null;
+  } | null;
+}
+
+export const getPlans = (token: string) =>
+  request<{ plans: BillingPlan[] }>("/billing/plans", token);
+
+/** What the signed-in user may do right now. Drives every paywall in the UI. */
+export const getEntitlement = (token: string) =>
+  request<Entitlement>("/billing/entitlement", token);
+
+/**
+ * A checkout URL for one plan. Redirect the browser to what comes back.
+ *
+ * Deliberately returns the URL instead of navigating: the caller decides
+ * between a redirect and a new tab, and a function that navigates as a side
+ * effect cannot be tested or cancelled.
+ */
+export const startCheckout = (token: string, planCode: string) =>
+  request<{ url: string }>("/billing/checkout", token, {
+    method: "POST",
+    body: JSON.stringify({ planCode }),
+  });
+
+export const cancelSubscription = (token: string, subscriptionId: string) =>
+  request<{ status: string }>("/billing/cancel", token, {
+    method: "POST",
+    body: JSON.stringify({ subscriptionId }),
+  });
+
+/**
+ * Force a re-read from the payment provider.
+ *
+ * The webhook usually lands before the user is back from checkout, but "usually"
+ * is not good enough on the screen someone stares at after paying — this is
+ * what the "I've paid, but nothing changed" button calls.
+ */
+export const refreshBilling = (token: string) =>
+  request<Entitlement>("/billing/refresh", token, { method: "POST" });
 
 /* ------------------------------------------------------------- monitoring -- */
 
