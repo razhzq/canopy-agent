@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  classFor,
   composeAgent,
   type AddPlan,
   type RankingSpec,
@@ -552,6 +553,11 @@ export function SetLimits({
           plan={value.addPlan}
           exits={value.exits}
           onChange={(addPlan) => onChange({ ...value, addPlan })}
+          // Every market in a strategy shares one class, so the first speaks
+          // for all of them. It decides whether ATR spacing is offered at all:
+          // ATR needs a high and a low per bar, which the tokenized-stock feed
+          // does not carry.
+          strategyClass={classFor(market)}
         />
       ) : null}
 

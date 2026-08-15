@@ -774,6 +774,18 @@ export function localAddPlanWarnings(
         `Adding at −${t.pct}% leaves only ${(stop - t.pct).toFixed(0)} points before the ${stop}% stop — expect to buy, then be stopped out of the bigger position.`,
       );
     }
+    // The stop collision, stated the only way it honestly can be for a rung
+    // with no fixed depth. Whether it fires depends on a reading taken every
+    // cycle, so this names the volatility at which the rung crosses the stop —
+    // a number the author can check against the assets they picked.
+    if (t.kind === "drawdownVolatility" && stop > 0) {
+      const crossesAt = stop / Math.abs(t.multiple);
+      out.push(
+        `Rungs sit at ${t.multiple}× ${
+          t.measure === "atr" ? "ATR" : "bandwidth"
+        }, so on anything more volatile than ${crossesAt.toFixed(1)}% the first rung falls past the ${stop}% stop and the position closes before it ever adds.`,
+      );
+    }
     if (t.kind === "gain" && t.pct >= target) {
       out.push(`Adding at +${t.pct}% will rarely fire: the ${target}% target sells first.`);
     }
@@ -800,10 +812,20 @@ export function AddPlanCard({
   plan,
   exits,
   onChange,
+  strategyClass,
 }: {
   plan?: AddPlan;
   exits: ExitRules;
   onChange: (next: AddPlan | undefined) => void;
+  /**
+   * Which specialist screens this strategy — it decides whether ATR is offered.
+   *
+   * ATR needs a high and a low per bar and only the crypto feed carries them,
+   * so an ATR-spaced plan on a tokenized stock would never add, ever. Offering
+   * a control that silently does nothing is worse than not offering it, which
+   * is the same rule the entry catalogue applies with `classes`.
+   */
+  strategyClass: "rwa" | "spot";
 }) {
   const on = !!plan;
   const warnings = localAddPlanWarnings(plan, exits);
@@ -883,6 +905,20 @@ export function AddPlanCard({
               >
                 When it rises
               </Pill>
+              <Pill
+                active={trigger?.kind === "drawdownVolatility"}
+                onClick={() =>
+                  setTrigger({
+                    kind: "drawdownVolatility",
+                    // Bandwidth regardless of class: it works everywhere, and
+                    // the measure is switchable below once the pill is on.
+                    measure: "bollingerBandwidth",
+                    multiple: 2,
+                  })
+                }
+              >
+                When it falls by volatility
+              </Pill>
             </PillRow>
 
             {trigger?.kind === "schedule" ? (
@@ -897,6 +933,50 @@ export function AddPlanCard({
                   </Pill>
                 ))}
               </PillRow>
+            ) : trigger?.kind === "drawdownVolatility" ? (
+              <>
+                {/* The measure is only a choice on a crypto strategy. On an RWA
+                    one there is nothing to choose: ATR cannot be computed from
+                    a feed with no high and no low, so the row would offer an
+                    option that silently never fires. */}
+                {strategyClass === "spot" ? (
+                  <PillRow>
+                    <Pill
+                      active={trigger.measure === "bollingerBandwidth"}
+                      onClick={() => setTrigger({ ...trigger, measure: "bollingerBandwidth" })}
+                    >
+                      Bollinger bandwidth
+                    </Pill>
+                    <Pill
+                      active={trigger.measure === "atr"}
+                      onClick={() => setTrigger({ ...trigger, measure: "atr" })}
+                    >
+                      ATR
+                    </Pill>
+                  </PillRow>
+                ) : null}
+                <Slider
+                  label="Falls by"
+                  help={
+                    `Each rung is this many times the asset's own volatility, ` +
+                    `re-read every cycle — so the steps widen when it gets choppy and ` +
+                    `tighten when it calms. Measured from your average cost.` +
+                    (strategyClass === "spot" && trigger.measure === "atr"
+                      ? " ATR is the average true range over 14 bars."
+                      : " Bollinger bandwidth is how wide the 20-period bands are.")
+                  }
+                  value={trigger.multiple}
+                  min={0.5}
+                  max={10}
+                  step={0.5}
+                  // No percent, because there is not one until the cycle runs.
+                  // Showing "−2%" here would be a number the agent never uses.
+                  display={`−${trigger.multiple}× ${
+                    trigger.measure === "atr" ? "ATR" : "bandwidth"
+                  }`}
+                  onChange={(v) => setTrigger({ ...trigger, multiple: v })}
+                />
+              </>
             ) : trigger ? (
               <Slider
                 label={trigger.kind === "drawdown" ? "Falls by" : "Rises by"}
@@ -1099,7 +1179,13 @@ export function describeAddPlan(plan: AddPlan | null | undefined): string | null
         ? `every ${every(t.everySec)}`
         : t.kind === "drawdown"
           ? `when down ${t.pct}%`
-          : `when up ${t.pct}%`,
+          : t.kind === "drawdownVolatility"
+            ? // No percent, because the rung moves with the asset. Naming the
+              // measure is what keeps this honest — "down 2x" alone reads as 2%.
+              `when down ${t.multiple}× its ${
+                t.measure === "atr" ? "ATR" : "Bollinger bandwidth"
+              }`
+            : `when up ${t.pct}%`,
     );
 
   const guarded = plan.triggers.some((t) => t.kind === "rules");

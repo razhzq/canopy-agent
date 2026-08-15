@@ -754,10 +754,28 @@ export const composeAgent = (token: string, prompt: string) =>
  * validated there by resolveAddPlan, which is the authority. Absent means one
  * entry per asset.
  */
+/**
+ * The unit a volatility-spaced rung is measured in.
+ *
+ * `bollingerBandwidth` is close-based and works on every asset class. `atr`
+ * needs a high and a low per bar, which only the crypto feed carries — an ATR
+ * plan on a tokenized stock never fires at all, so the builder offers it only
+ * on a crypto strategy.
+ */
+export type VolatilityMeasure = "atr" | "bollingerBandwidth";
+
 export type AddTrigger =
   | { kind: "schedule"; everySec: number }
   | { kind: "drawdown"; pct: number }
   | { kind: "gain"; pct: number }
+  /**
+   * Down `multiple` × the asset's own volatility, recomputed every cycle.
+   *
+   * The dynamic-spacing rung: the step widens when the asset gets choppy and
+   * tightens when it calms, where a fixed `drawdown` percent is four rungs deep
+   * in a quiet week and never fires in a violent one.
+   */
+  | { kind: "drawdownVolatility"; measure: VolatilityMeasure; multiple: number }
   // Re-runs the strategy's own entry rules before each add. The only condition
   // that notices the situation changing while the price holds up.
   | { kind: "rules" };
