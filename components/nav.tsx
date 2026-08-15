@@ -185,10 +185,22 @@ function AccountMenu() {
         if (!token) return;
         const data = await getMyInvite(token);
         if (!cancelled) setInvite(data);
-      } catch {
-        // Silent. The invite row is one section of a menu whose main job is
-        // signing out — an error banner here would be louder than the feature.
+      } catch (err) {
+        // Silent IN THE UI. The invite row is one section of a menu whose main
+        // job is signing out, and an error banner there would be louder than
+        // the feature it is apologising for.
+        //
+        // Not silent in the console. Hiding the section and saying nothing
+        // anywhere makes "the code is missing" and "the request failed"
+        // indistinguishable from the outside — which costs far more time than
+        // the banner would have.
         if (!cancelled) setInviteFailed(true);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[nav] invite code unavailable — the section stays hidden.",
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
     })();
 
