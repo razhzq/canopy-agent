@@ -47,8 +47,16 @@ function sameAsset(a: UniverseAsset | null, b: UniverseAsset | null): boolean {
  * that silently omits what you are looking for reads as a missing asset.
  */
 
-const CLASSES = [
-  { key: "all", label: "All" },
+/**
+ * The chips, in the order they are offered.
+ *
+ * Which of these actually APPEAR is derived from the assets in hand — see
+ * `classes` below. A fixed list gave every RWA agent a "Funds" tab that always
+ * answered "Nothing matches", because the only ETF in the registry (SPY) fails
+ * resolution and never reaches the picker. A filter that can only ever return
+ * nothing is worse than no filter: it reads as a broken search.
+ */
+const ALL_CLASSES = [
   { key: "equity", label: "Equities" },
   { key: "commodity", label: "Commodities" },
   { key: "etf", label: "Funds" },
@@ -150,6 +158,21 @@ export function AddMarketModal({
         // pinning an issuer, which means every issuer of it.
         held.has(`${a.underlying}/${a.issuer}`) || held.has(`${a.underlying}/`);
 
+  /**
+   * Chips worth showing: only classes present in this list, and only when
+   * there is more than one to choose between.
+   *
+   * A crypto agent's universe is all tokens, so it gets no chips at all rather
+   * than three that subdivide nothing.
+   */
+  const classes = useMemo(() => {
+    const present = new Set(
+      assets.filter((a) => a.kind !== "crypto").map((a) => a.assetClass),
+    );
+    const shown = ALL_CLASSES.filter((c) => present.has(c.key));
+    return shown.length > 1 ? [{ key: "all", label: "All" } as const, ...shown] : [];
+  }, [assets]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter(
@@ -160,6 +183,9 @@ export function AddMarketModal({
         (klass === "all" || a.kind === "crypto" || a.assetClass === klass) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
+          // Name as well: a token is searched for by what it is called
+          // ("bitcoin"), not by its wrapped symbol ("WBTC").
+          (a.name ?? "").toLowerCase().includes(q) ||
           (a.underlying ?? "").toLowerCase().includes(q) ||
           (a.issuer ?? "").toLowerCase().includes(q)),
     );
@@ -305,7 +331,7 @@ export function AddMarketModal({
         {/* --------------------------------------------------------- filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-7 py-3.5">
           <div className="flex items-center gap-2">
-            {CLASSES.map((c) => (
+            {classes.map((c) => (
               <button
                 key={c.key}
                 type="button"
