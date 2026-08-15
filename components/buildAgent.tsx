@@ -18,13 +18,24 @@ import { NameAgentModal } from "@/components/nameAgent";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
-import { rulesForClass, toPayload } from "@/components/buildStrategy";
+import { rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
 import {
   DEFAULT_ROUTE,
   PickRoute,
   describeRoute,
   type RouteChoice,
 } from "@/components/pickRoute";
+
+/**
+ * The asset classes present in a selection, in a stable order.
+ *
+ * Stable so it can be compared as a string: the rule list only needs rebuilding
+ * when the SET changes, not every time an asset is added within a class.
+ */
+function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
+  const set = new Set(assets.map(classFor));
+  return (["rwa", "spot"] as const).filter((c) => set.has(c));
+}
 
 /**
  * The agent builder — wireframes 1d, 1e and 1f, after the naming modal.
@@ -134,8 +145,11 @@ export function BuildAgent() {
 
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
-        // The pick decides the specialist. A strategy has exactly one class.
-        strategyClass: asset ? classFor(asset) : "rwa",
+        // Still ONE value, because the column is one value — but it is no
+        // longer what decides the specialist. The tick reads the UNIVERSE and
+        // runs a specialist per class present (MultiSme), so this is the
+        // strategy's primary class: what it screens when nothing is named.
+        strategyClass: classesIn(markets)[0] ?? "rwa",
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
         // threshold still applies and still excludes things.
         rules: toPayload(activeRules),
@@ -256,20 +270,30 @@ export function BuildAgent() {
               <PickMarket
                 value={markets}
                 onChange={(next) => {
-                  const before = asset ? classFor(asset) : null;
-                  const after = next[0] ? classFor(next[0]) : null;
+                  const beforeClasses = classesIn(markets);
+                  const afterClasses = classesIn(next);
                   setMarkets(next);
-                  // Switching between classes changes which rules exist. Rules
-                  // the new specialist cannot evaluate are not merely hidden —
-                  // they are removed, because a rule left enabled in state
-                  // would be sent to a backend that now REJECTS the asset over
-                  // it rather than skipping it, which would stop the strategy
-                  // trading at all.
-                  if (after !== null && before !== after) {
-                    setLimits((l) => ({
-                      ...l,
-                      rules: rulesForClass(after).map((r) => ({ ...r, enabled: false })),
-                    }));
+
+                  // The rule LIST follows the classes being traded — the union,
+                  // since a mixed universe can carry rules from both.
+                  //
+                  // Enabled states are preserved across the change rather than
+                  // reset. This used to wipe them, because switching class
+                  // replaced the selection and a stale rule would be sent for
+                  // an asset that now REJECTS on it. Adding a class no longer
+                  // removes anything, so wiping would throw away work the
+                  // author had already done.
+                  if (afterClasses.join() !== beforeClasses.join()) {
+                    setLimits((l) => {
+                      const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
+                      return {
+                        ...l,
+                        rules: rulesForClasses(afterClasses).map((r) => ({
+                          ...r,
+                          enabled: enabled.get(r.key) ?? false,
+                        })),
+                      };
+                    });
                   }
                 }}
                 onNext={() => setStep(1)}

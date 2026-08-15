@@ -66,11 +66,17 @@ const CLASSES = [
  * and in one line of buildAgent. A strategy that says "buy RSI-oversold dips"
  * has no reason to be pinned to one ticker.
  *
- * ONE CLASS AT A TIME. A strategy carries a single `strategyClass`, which picks
- * the specialist, and the two evaluate different facts — a tokenized stock has
- * fundamentals and no ATR, a token the reverse. Mixing them would mean half the
- * universe silently failing rules the other half satisfies, so choosing a
- * second class replaces the selection rather than extending it, and says so.
+ * MIXED CLASSES ARE ALLOWED.
+ *
+ * This used to replace the selection when you crossed classes, because the loop
+ * ran ONE specialist and the two evaluate different facts — a tokenized stock
+ * has fundamentals and no ATR, a token the reverse. A mixed universe therefore
+ * meant half of it silently failing rules the other half satisfied.
+ *
+ * The loop now runs both and merges (see MultiSme), so the restriction is gone.
+ * What remains true is that a rule can only be measured on assets that carry
+ * the fact it names — a margin rule cannot screen a token — and that is
+ * surfaced when the strategy is composed, not by refusing the pick.
  */
 export function PickMarket({
   value,
@@ -190,8 +196,10 @@ export function PickMarket({
       onChange(value.filter((v) => idOf(v) !== idOf(a)));
       return;
     }
-    const mixes = value.length > 0 && classFor(value[0]) !== classFor(a);
-    onChange(mixes ? [a] : [...value, a]);
+    // Mixing is allowed. The tick screens each half with its own specialist
+    // (MultiSme), so a universe of tokenized equities AND tokens is a supported
+    // shape rather than one that would half-silently fail.
+    onChange([...value, a]);
   };
 
   return (

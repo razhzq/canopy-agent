@@ -525,7 +525,11 @@ export async function getUniverse(
   if (pending) return pending;
 
   const call = request<UniverseResponse>(
-    `/agents/universe?class=${encodeURIComponent(strategyClass)}`,
+    // No `class` param: the route answers with BOTH universes, because an
+    // agent may hold tokenized equities and SPL tokens at once. Passing a class
+    // still narrows it, which is what the creation flow does before an agent
+    // has one.
+    `/agents/universe`,
     token,
   )
     .then((data) => {

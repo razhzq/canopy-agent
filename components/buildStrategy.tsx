@@ -1071,3 +1071,22 @@ export function describeAddPlan(plan: AddPlan | null | undefined): string | null
 export function rulesForClass(strategyClass: "rwa" | "spot"): RuleSpec[] {
   return RWA_RULES.filter((r) => !r.classes || r.classes.includes(strategyClass));
 }
+
+/**
+ * Every rule available across the classes actually being traded.
+ *
+ * A mixed universe gets the UNION, not the intersection. A rule that only one
+ * class carries — a profit margin, a pool depth — is still worth offering: it
+ * simply excludes the assets that cannot answer it, which is what a rule is
+ * for. Offering only the overlap would silently drop the reason most people
+ * pick a class in the first place.
+ *
+ * The consequence is real and belongs in the UI, not hidden here: a margin rule
+ * on a mixed agent screens out every token, because a token has no margin.
+ */
+export function rulesForClasses(classes: ("rwa" | "spot")[]): RuleSpec[] {
+  if (classes.length === 0) return rulesForClass("rwa");
+  return RWA_RULES.filter(
+    (r) => !r.classes || classes.some((c) => r.classes!.includes(c)),
+  );
+}
