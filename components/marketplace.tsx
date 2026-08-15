@@ -322,8 +322,11 @@ function FeaturedCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           tone={ret === null ? "neutral" : ret >= 0 ? "accent" : "negative"}
         />
         <Metric label="Capital" value={money(Number(r.aum_usd))} />
-        <Metric label="Trades 30d" value={r.trades_30d} />
-        <Metric label="Open now" value={r.open_positions} />
+        {/* `?? "—"` rather than `?? "0"`: these are list-only aggregates, so on
+            this page they are always present, and if one ever is not, "0" would
+            be a claim about the agent where "—" is an admission about the data. */}
+        <Metric label="Trades 30d" value={r.trades_30d ?? "—"} />
+        <Metric label="Open now" value={r.open_positions ?? "—"} />
       </div>
 
       <div className="flex items-center justify-between gap-3 pt-3.5">

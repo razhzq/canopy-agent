@@ -225,27 +225,41 @@ export interface StrategyRow {
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
-  deployments: string;
-  aum_usd: string;
+
+  /* ---- present only on `listStrategies` -----------------------------------
+   *
+   * Aggregates the LIST query computes over a strategy's agents and positions.
+   * `getStrategy` selects s.*, which is columns on the strategy row and nothing
+   * derived, so every field in this block arrives undefined there.
+   *
+   * Optional because of a real bug, not for tidiness: the strategy page read
+   * `aum_usd` as a required string and rendered "$NaN" — Number(undefined) —
+   * for as long as anyone had been looking at it. Declared required, the type
+   * asserted a field the detail route has never once sent, so nothing could
+   * catch it. A reader on a page fed by `getStrategy` must treat these as
+   * absent, and show "—" rather than a number derived from nothing. */
+
+  deployments?: string;
+  aum_usd?: string;
   published_at: string | null;
   verification_started_at: string | null;
   /** Set when this strategy was created by editing a verifying one. */
   forked_from_id?: number | null;
   /** Realised only. Open positions are not marked into a listed record. */
-  realized_pnl_usd: string;
-  mandate_capital_usd: string;
-  closed_positions: string;
-  winning_positions: string;
+  realized_pnl_usd?: string;
+  mandate_capital_usd?: string;
+  closed_positions?: string;
+  winning_positions?: string;
   /** True while no agent under this strategy has ever traded real funds. */
-  all_paper: boolean;
+  all_paper?: boolean;
   /** Authored by the signed-in user. Decides the row's action, not its visibility. */
   is_mine: boolean;
   /** Live exposure right now. */
-  open_positions: string;
+  open_positions?: string;
   /** Positions opened in the trailing 30 days. */
-  trades_30d: string;
+  trades_30d?: string;
   /** Realised in the trailing 30 days only — old wins stop advertising themselves. */
-  realized_30d_usd: string;
+  realized_30d_usd?: string;
   /**
    * The record agent's equity readings, oldest last. Real: taken from the desk
    * decision rows, not generated from the row id.

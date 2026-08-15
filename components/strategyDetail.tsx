@@ -149,7 +149,15 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             value={ret === null ? "—" : signedPct(ret)}
             tone={ret === null ? "neutral" : ret >= 0 ? "accent" : "negative"}
           />
-          <Stat label="Capital deployed" value={money(Number(strategy.aum_usd))} />
+          {/* The record agent's own capital, off the record endpoint — the same
+              figure Return is measured against, so the two cannot disagree.
+              This used to read `strategy.aum_usd`, which is an aggregate the
+              LIST query computes and the detail route does not select, so it
+              arrived undefined and rendered "$NaN".
+              Just "Capital", not "Capital deployed": on a paper run nothing is
+              deployed, and the head already carries a Paper run badge saying
+              so. The plain noun is true of both books. */}
+          <Stat label="Capital" value={ready === null ? "—" : money(capital)} />
           <Stat
             label="Max drawdown"
             value={drawdown === 0 ? "—" : `−${drawdown.toFixed(2)}%`}
