@@ -1537,10 +1537,13 @@ function ahead(iso: string): string {
 /**
  * The warning before a delete.
  *
- * Deleting does three irreversible things, and a user who only reads the button
+ * Deleting does three irreversible things — four when the agent is the last one
+ * its author runs on a listed strategy — and a user who only reads the button
  * would expect one of them. So each is named, in the order it happens, with the
  * actual position count and cost rather than a general caution — "3 positions,
  * $4,513" is a fact somebody can weigh; "you may have open positions" is not.
+ * The fourth follows the same rule: it appears only when the server has said it
+ * will happen, never as a standing "this might also delist your strategy".
  *
  * What is NOT lost is stated too. The word "delete" implies the record goes,
  * and it does not: the point of saying so is that somebody deciding whether to
@@ -1605,6 +1608,17 @@ function DeleteAgentModal({
             </Step>
             <Step n="2">It revokes its own wallet authority. That cannot be undone here.</Step>
             <Step n="3">It disappears from your agents. Pausing is the reversible option.</Step>
+            {/* Named only when it will actually happen. The server decides that
+                — this is the author's last agent on the strategy — because the
+                page cannot see the other agents to work it out, and a delete
+                that quietly pulls a listing is the surprise worth spending a
+                line on. */}
+            {agent.delists_strategy ? (
+              <Step n="4">
+                <Num>{agent.strategy_name}</Num> comes off Explore with it — this is your last
+                agent on it. Anyone already deployed keeps running; nobody new can deploy.
+              </Step>
+            ) : null}
           </ol>
 
           <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">

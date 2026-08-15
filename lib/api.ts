@@ -912,6 +912,13 @@ export interface AgentRow {
   mandate?: AgentMandate;
   /** Unsettled messages needing a human. Drives the rail count. */
   needs_you?: string;
+  /**
+   * True when deleting this agent also takes its strategy off Explore —
+   * it is the author's own agent and the last one of theirs still alive on
+   * that strategy. Detail route only, and absent from an older backend, so a
+   * reader must treat `undefined` as unknown rather than as false.
+   */
+  delists_strategy?: boolean;
 }
 
 /** One turn in an agent's thread. */
@@ -1687,10 +1694,20 @@ export const flattenAgent = (token: string, agentId: number) =>
     { method: "POST" },
   );
 
+/**
+ * Deletes an agent, and delists its strategy if that was the author's last one.
+ *
+ * `strategyDelisted` reports the second half, which the owner would otherwise
+ * have to discover by going to look: deleting the agent that earned a strategy
+ * its place on Explore takes the listing down with it. Absent from an older
+ * backend, so a reader must treat it as unknown rather than false.
+ */
 export const deleteAgent = (token: string, agentId: number) =>
-  request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/delete`, token, {
-    method: "POST",
-  });
+  request<{ status: string; walletRevoked: boolean; strategyDelisted?: boolean }>(
+    `/agents/${agentId}/delete`,
+    token,
+    { method: "POST" },
+  );
 
 /* --------------------------------------------------------- notifications -- */
 

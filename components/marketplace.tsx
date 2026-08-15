@@ -30,14 +30,19 @@ import { useApi } from "@/lib/useApi";
  * and meant nothing.
  */
 
-type Tab = "all" | "published" | "verifying" | "delisted";
+/**
+ * No "delisted" tab, because no delisted strategy reaches this page: the list
+ * endpoint returns published and verifying only. A tab of strategies nobody can
+ * deploy — the deploy path refuses a delisted one — is a shelf of dead ends,
+ * and delisting is precisely the act of taking a listing down.
+ */
+type Tab = "all" | "published" | "verifying";
 type Sort = "return" | "newest" | "capital" | "users";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "published", label: "Listed" },
   { key: "verifying", label: "Paper run" },
-  { key: "delisted", label: "Delisted" },
 ];
 
 const SORTS: { key: Sort; label: string }[] = [
@@ -443,6 +448,10 @@ function Metric({
 
 function StatusBadge({ row: r }: { row: StrategyRow }) {
   if (r.status === "published") return <Badge tone="accent">Listed</Badge>;
+  // Unreachable while the list endpoint returns published and verifying only,
+  // and kept anyway: the fallback below says "Paper run", so dropping this
+  // would label a delisted strategy as a live paper record if one ever arrived.
+  // A branch that cannot fire costs a line; a badge that lies costs trust.
   if (r.status === "delisted") return <Badge tone="warning">Delisted</Badge>;
   return <Badge tone="muted">Paper run</Badge>;
 }
