@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   selectionKey,
   num,
   addAgentMarket,
+  removeAgentMarket,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
@@ -60,6 +61,7 @@ export function AddMarketModal({
   existing,
   loading,
   onClose,
+  onChanged,
 }: {
   agentId: number;
   agentName: string;
@@ -68,6 +70,14 @@ export function AddMarketModal({
   /** What the strategy already trades. Those rows render as taken. */
   existing: UniverseSelection[];
   loading?: boolean;
+  /**
+   * Called after a market is removed, so the page behind reloads.
+   *
+   * Removal happens WITHOUT closing: taking two markets off is one visit, not
+   * two, and closing after each would make the second removal a fresh trip
+   * through the same dialog.
+   */
+  onChanged?: () => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -77,6 +87,15 @@ export function AddMarketModal({
   const [klass, setKlass] = useState<string>("all");
   const [cursor, setCursor] = useState(0);
   const [picked, setPicked] = useState<UniverseAsset | null>(null);
+  /**
+   * Markets removed during THIS visit.
+   *
+   * `existing` is a prop and does not change until the page behind reloads, so
+   * without this a row stays labelled "Added" after being removed and the
+   * dialog contradicts what just happened.
+   */
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,11 +103,44 @@ export function AddMarketModal({
   const panel = useRef<HTMLDivElement>(null);
 
   const held = useMemo(
-    () =>
-      new Set(
-        existing.map(selectionKey),
-      ),
-    [existing],
+    () => new Set(existing.map(selectionKey).filter((k) => !removed.has(k))),
+    [existing, removed],
+  );
+
+  /**
+   * How many markets remain.
+   *
+   * An empty list means EVERY market in the class, so removing the last one
+   * widens the agent rather than narrowing it — the backend refuses, and the
+   * row below stays inert rather than offering an action that always fails.
+   */
+  const heldCount = held.size;
+
+  /** Removes one already-added market. Does not sell — the backend says so too. */
+  const remove = useCallback(
+    async (a: UniverseAsset) => {
+      const key = a.kind === "crypto" ? `mint:${a.mint}` : `${a.underlying}/${a.issuer ?? ""}`;
+      setRemovingKey(key);
+      setError(null);
+      try {
+        const token = await getAccessToken();
+        if (!token) throw new Error("Sign in to change this agent.");
+        await removeAgentMarket(
+          token,
+          agentId,
+          a.kind === "crypto"
+            ? { mint: a.mint! }
+            : { underlying: a.underlying ?? "", issuer: a.issuer },
+        );
+        setRemoved((prev) => new Set(prev).add(key));
+        onChanged?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setRemovingKey(null);
+      }
+    },
+    [agentId, getAccessToken, onChanged],
   );
 
   const isHeld = (a: UniverseAsset) =>
@@ -317,17 +369,43 @@ export function AddMarketModal({
                   key={a.mint ?? `${a.underlying}/${a.issuer}`}
                   type="button"
                   data-row={i}
-                  disabled={taken}
+                  // A held row is no longer inert. It was greyed out saying
+                  // "Added", which states a fact and offers nothing — the only
+                  // way to drop a market was the card on the page behind.
+                  //
+                  // Still disabled when it is the LAST one: an empty list means
+                  // every market in the class, so removing it widens the agent
+                  // instead of narrowing it. The backend refuses, and a row
+                  // that always fails is worse than one that does nothing.
+                  disabled={busy || (taken && heldCount <= 1)}
                   onMouseEnter={() => setCursor(i)}
-                  // Click the chosen row again to unchoose it. Without this
-                  // the only way out of a selection was to pick a different
-                  // market or close the dialog, and neither is "I changed my
-                  // mind about adding one".
-                  onClick={() => setPicked((prev) => (sameAsset(prev, a) ? null : a))}
+                  // Held: remove it. Otherwise pick it — and clicking the
+                  // chosen row again unchooses it, since the only way out of a
+                  // selection used to be picking a different market or closing
+                  // the dialog, and neither is "I changed my mind".
+                  onClick={() =>
+                    taken
+                      ? void remove(a)
+                      : setPicked((prev) => (sameAsset(prev, a) ? null : a))
+                  }
                   aria-pressed={chosen}
+                  aria-label={
+                    taken
+                      ? heldCount <= 1
+                        ? `${a.symbol} is the only market this agent trades and cannot be removed`
+                        : `Stop trading ${a.symbol}`
+                      : undefined
+                  }
+                  title={
+                    taken && heldCount > 1
+                      ? "Remove this market. Anything already held stays open."
+                      : undefined
+                  }
                   className={`grid w-full grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid px-7 py-3 text-left transition-colors ${
                     taken
-                      ? "cursor-not-allowed opacity-45"
+                      ? heldCount <= 1
+                        ? "cursor-not-allowed opacity-45"
+                        : "group opacity-70 hover:opacity-100"
                       : chosen
                         ? "bg-accent-wash"
                         : i === cursor
@@ -372,7 +450,25 @@ export function AddMarketModal({
                   </span>
                   <span className="text-right font-mono text-[9px] tracking-[0.12em] uppercase">
                     {taken ? (
-                      <span className="text-text-muted">Added</span>
+                      removingKey ===
+                      (a.kind === "crypto"
+                        ? `mint:${a.mint}`
+                        : `${a.underlying}/${a.issuer ?? ""}`) ? (
+                        <span className="text-text-muted">…</span>
+                      ) : heldCount <= 1 ? (
+                        // The only market. Says added, offers nothing, and the
+                        // title explains why rather than leaving a dead row.
+                        <span className="text-text-muted">Added</span>
+                      ) : (
+                        // "Added" until pointed at, "Remove" once it is
+                        // actionable — the label names what the click does.
+                        <>
+                          <span className="text-text-muted group-hover:hidden">Added</span>
+                          <span className="hidden text-negative group-hover:inline">
+                            Remove
+                          </span>
+                        </>
+                      )
                     ) : chosen ? (
                       <span className="text-accent">Picked</span>
                     ) : null}

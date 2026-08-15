@@ -703,6 +703,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           agentName={agent.strategy_name}
           assets={assets}
           existing={strategy?.universe ?? []}
+          // Reloads behind the open dialog, so the markets grid and the modal
+          // agree the moment a removal lands rather than only after closing.
+          onChanged={() => void load()}
           onClose={() => setAdding(false)}
         />
       ) : null}
