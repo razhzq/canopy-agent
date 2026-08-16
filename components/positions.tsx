@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tokenPrice, tokenQty, usd } from "@/lib/format";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   getAgentFills,
@@ -260,9 +261,14 @@ function OpenTable({
                     : `${h.lots.length} entries · since ${shortDate(h.openedAt)}`}
                 </span>
               </span>
-              <Cell>{h.qty.toFixed(4)}</Cell>
-              <Cell>${h.avgUsd.toFixed(2)}</Cell>
-              <Cell>{h.valueUsd === null ? "not priced" : `$${h.valueUsd.toFixed(2)}`}</Cell>
+              <Cell>{tokenQty(h.qty, h.markUsd)}</Cell>
+              {/* A PRICE, not a dollar amount. Two fixed decimals rendered a
+                  memecoin at $0.00005835 as "$0.00" — a wrong number, not a
+                  rounded one, and the owner reads it as worthless. */}
+              <Cell>
+                <span title={tokenPrice(h.avgUsd).label}>{tokenPrice(h.avgUsd).display}</span>
+              </Cell>
+              <Cell>{h.valueUsd === null ? "not priced" : usd(h.valueUsd)}</Cell>
               {/* Dollars lead, percent underneath. A percentage alone cannot be
                   weighed: −6% is a rounding error on one holding and the worst
                   loss on the book on another, and the reader had to work it out
@@ -280,7 +286,7 @@ function OpenTable({
                 <span className="tnum block font-mono text-[12.5px]">
                   {h.pnlUsd === null
                     ? "—"
-                    : `${h.pnlUsd >= 0 ? "+" : "−"}$${Math.abs(h.pnlUsd).toFixed(2)}`}
+                    : usd(h.pnlUsd, { sign: true })}
                 </span>
                 {h.pnlPct === null ? null : (
                   <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
@@ -330,8 +336,9 @@ function OpenTable({
                       {i + 1}. {shortDate(l.openedAt)}
                     </span>
                     <span className="tnum font-mono text-[11.5px] text-text-dim">
-                      {l.qty.toFixed(4)} @ ${(l.costUsd / (l.qty || 1)).toFixed(2)} ·{" "}
-                      ${l.costUsd.toFixed(2)}
+                      {tokenQty(l.qty, l.costUsd / (l.qty || 1))} @{" "}
+                      {tokenPrice(l.qty > 0 ? l.costUsd / l.qty : null).display} ·{" "}
+                      {usd(l.costUsd)}
                     </span>
                   </div>
                 ))}
@@ -491,9 +498,13 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
           {f.tick_seq ? ` · cycle ${f.tick_seq}` : ""}
         </span>
       </span>
-      <Cell>{Number(f.qty).toFixed(4)}</Cell>
-      <Cell>${Number(f.price_usd).toFixed(2)}</Cell>
-      <Cell>${Number(f.filled_usd).toFixed(2)}</Cell>
+      <Cell>{tokenQty(Number(f.qty), Number(f.price_usd))}</Cell>
+      <Cell>
+        <span title={tokenPrice(Number(f.price_usd)).label}>
+          {tokenPrice(Number(f.price_usd)).display}
+        </span>
+      </Cell>
+      <Cell>{usd(Number(f.filled_usd))}</Cell>
       <span
         className={`tnum text-right font-mono text-[12.5px] ${
           realised === null ? "text-text-muted" : realised >= 0 ? "text-accent" : "text-negative"
@@ -501,7 +512,7 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
       >
         {realised === null
           ? "—"
-          : `${realised >= 0 ? "+" : "−"}$${Math.abs(realised).toFixed(2)}`}
+          : usd(realised, { sign: true })}
       </span>
     </div>
   );
