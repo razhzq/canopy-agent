@@ -1418,6 +1418,18 @@ export interface AgentDetail {
   book: "paper" | "live";
   /** True once the agent has gone live, meaning there is a paper run to look back at. */
   hasPaperHistory: boolean;
+  /**
+   * Whether real-money trading is open at all, as reported by the server.
+   *
+   * NOT A CONTROL. The backend decides; this is how the page learns the answer
+   * instead of carrying its own copy of the switch, which is what it used to
+   * do — two independent constants for one decision, and no way to tell from
+   * here which was authoritative.
+   *
+   * Optional, and absent means false. An older client or a failed fetch then
+   * hides the promote button rather than offering one the server will refuse.
+   */
+  liveTradingEnabled?: boolean;
 }
 
 /**

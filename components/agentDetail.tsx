@@ -9,7 +9,6 @@ import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
 import { GrantDelegation } from "@/components/grantDelegation";
 import { FundingPanel } from "@/components/funding";
-import { LIVE_TRADING_ENABLED } from "@/lib/privy";
 import type { UniverseSelection } from "@/lib/api";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -324,7 +323,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // flag comes first: while real-money trading is closed, "not open yet" is the
   // true reason for every agent, and saying "hasn't gone live" would imply a
   // promotion the product will not currently perform.
-  const liveDisabledReason = !LIVE_TRADING_ENABLED
+  // From the server, not from a constant in this bundle. Absent means false,
+  // so a failed fetch or an older client hides the promotion rather than
+  // offering one the backend will refuse.
+  const liveTradingEnabled = detail.liveTradingEnabled === true;
+  const liveDisabledReason = !liveTradingEnabled
     ? "Real-money trading isn't open yet"
     : agent.is_paper
       ? "This agent hasn't gone live yet"
@@ -762,6 +765,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           agent={agent}
           wallet={wallet}
           openPositions={positions.length}
+          liveTradingEnabled={liveTradingEnabled}
           onChanged={() => void load()}
         />
       ) : null}
@@ -806,11 +810,14 @@ function GoLive({
   agent,
   wallet,
   openPositions,
+  liveTradingEnabled,
   onChanged,
 }: {
   agent: AgentDetailPayload["agent"];
   wallet: AgentDetailPayload["wallet"];
   openPositions: number;
+  /** Reported by the server. See AgentDetail.liveTradingEnabled. */
+  liveTradingEnabled: boolean;
   onChanged: () => void;
 }) {
   const { getAccessToken } = usePrivy();
@@ -890,7 +897,7 @@ function GoLive({
   // Closed for everyone right now. Stated as a product fact rather than shown
   // as a broken button: nothing here is misconfigured, real-money trading is
   // simply not open yet, and the agent is fine as it is.
-  if (!LIVE_TRADING_ENABLED) {
+  if (!liveTradingEnabled) {
     return (
       <section className="border-t border-grid px-8 py-6">
         <p className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase">

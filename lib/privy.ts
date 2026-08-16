@@ -34,24 +34,18 @@ export const AGENT_KEY_QUORUM_ID =
   process.env.NEXT_PUBLIC_PRIVY_AGENT_KEY_QUORUM_ID || "";
 export const AGENT_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_AGENT_POLICY_ID || "";
 
-/**
- * Whether going live is offered at all.
- *
- * NOT THE CONTROL. The backend refuses the promotion regardless of what this
- * says — a flag the browser can read is a flag the browser can ignore, and
- * anyone can POST the endpoint directly. The real switch is the constant in
- * canopy-be/src/config/liveTrading.ts. This one only decides whether the UI
- * offers the button or explains that live isn't open yet.
- *
- * A constant rather than NEXT_PUBLIC_*, matching the backend: real-money
- * trading turning on should be a reviewed code change on both sides, not a
- * value that could differ between two deploys of the same build.
- *
- * If the two disagree the backend wins, and the worst outcome is a button
- * that explains it cannot proceed — never a promotion the backend did not
- * intend to allow.
- */
-export const LIVE_TRADING_ENABLED = false;
+// Live trading is NOT switched here.
+//
+// This file used to carry its own `LIVE_TRADING_ENABLED` constant, mirroring
+// the backend's. Two switches for one decision: a deploy that changed one and
+// not the other shipped either a promote button the server refuses, or no
+// button for a promotion it would have allowed — and nothing in this file said
+// which copy was authoritative.
+//
+// The single switch is canopy-be/src/config/liveTrading.ts. The server reports
+// its value as `liveTradingEnabled` on GET /agents/:agentId, and the agent page
+// renders from that, treating an absent field as false.
+
 
 export const privyConfig: PrivyClientConfig = {
   // Matches canopy-fe so the login experience is the one users already know.
