@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { tokenPrice } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import { MARKET_CLASSES } from "@/components/pickMarket";
 import { usePrivy } from "@privy-io/react-auth";
@@ -426,7 +427,7 @@ export function AddMarketModal({
                     </span>
                   </span>
                   <span className="tnum text-right font-mono text-[12.5px] text-text-primary">
-                    {num(a.priceUsd) === null ? "—" : `$${fmt(num(a.priceUsd)!)}`}
+                    {tokenPrice(num(a.priceUsd)).display}
                   </span>
                   <span
                     className={`tnum text-right font-mono text-[12.5px] ${
@@ -543,9 +544,7 @@ function Note({
   );
 }
 
-function fmt(n: number): string {
-  return n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : n.toFixed(2);
-}
+
 
 function money(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;

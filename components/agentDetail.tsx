@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tokenPrice } from "@/lib/format";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -1482,7 +1483,7 @@ function MarketCard({
       </div>
 
       <p className="truncate pt-1 font-ui text-[11.5px] text-text-dim">
-        {price === null ? "not priced" : `$${price.toFixed(2)}`}
+        {price === null ? "not priced" : tokenPrice(price).display}
       </p>
 
       {/* The meter only means something for a dip rule: "distance to the

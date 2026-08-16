@@ -16,6 +16,8 @@
 // never a replacement for it.
 
 /** How a line reads: did this help, stop something, or just report? */
+import { tokenPrice } from "./format";
+
 export interface NarratedLine {
   outcome: "pass" | "drop" | "info" | "work";
   detail: string;
@@ -347,7 +349,7 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
           outcome: pnl >= 0 ? "pass" : "drop",
           symbol: str(o.symbol),
           detail:
-            `Closed at ${usd(o.priceUsd, 2)} — ${signed(pnl)} realised` +
+            `Closed at ${tokenPrice(num(o.priceUsd)).display} — ${signed(pnl)} realised` +
             feeClause(o) +
             `${o.deduped ? " (already closed — deduped)" : ""}.`,
           source: venue(o.venue),
@@ -377,7 +379,7 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
         symbol: str(o.symbol),
         detail:
           `${o.isPaper ? `Paper ${verb}` : `${verb[0].toUpperCase()}${verb.slice(1)}`} ` +
-          `${money(o.filledUsd)} at ${usd(o.priceUsd, 2)}` +
+          `${money(o.filledUsd)} at ${tokenPrice(num(o.priceUsd)).display}` +
           feeClause(o) +
           `${o.deduped ? " (already filled — deduped)" : ""}.`,
         source: venue(o.venue),

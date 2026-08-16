@@ -1,6 +1,7 @@
 "use client";
 
 import { num, type UniverseAsset } from "@/lib/api";
+import { tokenPrice } from "@/lib/format";
 
 /**
  * Step 3 — choose a venue. Wireframe 1f.
@@ -179,7 +180,7 @@ export function PickRoute({
                     price === null ? "text-text-muted" : "text-text-primary"
                   }`}
                 >
-                  {price === null ? "—" : fmt(price)}
+                  {tokenPrice(price).display}
                 </span>
 
                 {v.note ? (
@@ -294,9 +295,7 @@ function ModeCard({
   );
 }
 
-function fmt(n: number): string {
-  return n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : n.toFixed(2);
-}
+
 
 function money(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
