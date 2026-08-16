@@ -274,6 +274,27 @@ export interface StrategyRow {
 
   /** The rules the SME evaluates. The recipe — withheld from the public page. */
   rules?: DetectionRule[];
+  /**
+   * "Either of these" groups, ANDed with `rules` and with each other. Any one
+   * member of a group satisfies it.
+   *
+   * Absent on strategies written before rule groups existed, and on the public
+   * page for the same reason `rules` is withheld there.
+   */
+  anyOf?: DetectionRule[][];
+  /**
+   * A two-stage entry: watch for `arm`, then buy when the rules above hold on a
+   * LATER bar, within `expiresAfterBars`.
+   *
+   * Absent on single-stage strategies, which is every strategy written before
+   * this. When present, `rules` and `anyOf` are the ENTRY leg rather than the
+   * whole test — they only apply once the setup has appeared.
+   */
+  setup?: {
+    arm: DetectionRule[];
+    expiresAfterBars: number;
+    invalidateIf?: DetectionRule[];
+  };
   /** What the strategy may trade. Empty means the whole class. */
   universe?: UniverseSelection[];
   exits?: ExitRules | null;

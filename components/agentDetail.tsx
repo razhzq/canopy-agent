@@ -284,6 +284,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   }));
 
   const rules = strategy?.rules ?? [];
+  const anyOf = strategy?.anyOf ?? [];
+  const setup = strategy?.setup;
   // A stored rule means nothing without the bar size it was measured on:
   // "RSI ≤ 30" is a fortnight of selling on daily bars and about an hour on
   // 5-minute ones. Absent means daily, as it does everywhere else.
@@ -615,13 +617,55 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         <aside className="min-w-0 border-t border-grid px-8 py-6 lg:border-t-0">
           <Rule label="Strategy · applies to every market" />
 
+          {/* THE WATCH LEG, ABOVE THE ENTRY RULES AND VISUALLY BEFORE THEM.
+              A two-stage strategy does not evaluate the rules below until this
+              has happened on an earlier bar. Rendering them as one flat list
+              would read as "all of these at once", which is the single-stage
+              strategy this exists to be different from. */}
+          {setup ? (
+            <div className="mt-4 border border-accent/40">
+              <p className="border-b border-accent/25 px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-accent uppercase">
+                First, wait for
+              </p>
+              <div className="flex flex-wrap gap-2 p-3.5">
+                {setup.arm.map((r) => (
+                  <RuleChip key={r.key} rule={r} timeframe={timeframe} />
+                ))}
+              </div>
+              <p className="border-t border-grid px-3.5 py-2 font-ui text-[12px] text-text-muted">
+                Then the rules below apply, on a later bar, for up to{" "}
+                <Num>{setup.expiresAfterBars}</Num> bars. Nothing is bought on the bar the
+                setup appears.
+                {setup.invalidateIf?.length
+                  ? " The wait is cancelled if the setup breaks down first."
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-4 border border-grid">
+            {setup ? (
+              <p className="border-b border-grid px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-text-muted uppercase">
+                Then buy when
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2 p-3.5">
-              {rules.length === 0 ? (
+              {rules.length === 0 && anyOf.length === 0 ? (
                 <span className="font-ui text-[12.5px] text-text-muted">No rules returned.</span>
               ) : (
                 rules.map((r) => <RuleChip key={r.key} rule={r} timeframe={timeframe} />)
               )}
+              {/* Rendered as one chip per GROUP, not per member. Splitting a
+                  group into loose chips would show an either/or as a row of
+                  conditions indistinguishable from the ANDed ones above — the
+                  owner would read their strategy as stricter than it is. */}
+              {anyOf.map((group) => (
+                <AnyOfChip
+                  key={group.map((g) => g.key).join("|")}
+                  group={group}
+                  timeframe={timeframe}
+                />
+              ))}
               {exits ? (
                 <>
                   <Chip>
@@ -1489,6 +1533,39 @@ function RuleChip({
       {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
       {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
       <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
+    </Chip>
+  );
+}
+
+/**
+ * An "either of these" group.
+ *
+ * One chip for the whole group, with the alternatives joined by "or" and the
+ * word itself given the accent — the entire difference between this and the
+ * chips beside it is that ANY one of these satisfies the strategy, and that
+ * distinction has to survive a glance. A group rendered as separate chips reads
+ * as additional requirements, which is the opposite of what it means.
+ */
+function AnyOfChip({
+  group,
+  timeframe = DEFAULT_TIMEFRAME,
+}: {
+  group: DetectionRule[];
+  timeframe?: Timeframe;
+}) {
+  return (
+    <Chip>
+      {group.map((rule, i) => {
+        const spec = RWA_RULES.find((r) => r.key === rule.key);
+        return (
+          <span key={rule.key}>
+            {i > 0 ? <span className="px-1 text-accent uppercase">or</span> : null}
+            {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
+            {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
+            <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
+          </span>
+        );
+      })}
     </Chip>
   );
 }
