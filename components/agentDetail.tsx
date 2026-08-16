@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
@@ -88,6 +88,30 @@ import {
 
 export function AgentDetailView({ agentId }: { agentId: number }) {
   const { ready, authenticated, getAccessToken } = usePrivy();
+  /**
+   * The token getter, held still. Same hazard as MyAgents, same fix.
+   *
+   * `load` is the effect's only dependency and ends by calling setState, so a
+   * dependency that changes every render makes the page refetch itself for as
+   * long as it is open. Privy returns a fresh closure rather than a stable one,
+   * and exhaustive-deps asks for it by name, which is what makes this easy to
+   * write and invisible afterwards.
+   */
+  const tokenRef = useRef(getAccessToken);
+  tokenRef.current = getAccessToken;
+
+  /**
+   * Which load is the current one.
+   *
+   * A sequence rather than a cancelled flag, because a flag cannot survive a
+   * re-run: teardown would set it true and the new run would immediately set it
+   * false again, so a response still in flight from the PREVIOUS run would read
+   * "not cancelled" and write its labels over the new agent's. A number each
+   * run compares against is the same guard `useApi` uses, and it is proof
+   * against both re-runs and unmount.
+   */
+  const runSeq = useRef(0);
+
   const [adding, setAdding] = useState(false);
   /**
    * Which book to show. Null means "whichever the agent is in now", which is
@@ -115,34 +139,85 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       setState({ phase: "signed-out" });
       return;
     }
+    const seq = ++runSeq.current;
     try {
-      const token = await getAccessToken();
+      const token = await tokenRef.current();
       if (!token) {
         setState({ phase: "signed-out" });
         return;
       }
-      // The agent first: everything else keys off its strategy_id, and it is
-      // the one request whose failure means there is no page.
-      const detail = await getAgent(token, agentId, book ?? undefined);
-      const [strategy, equity, universe] = await Promise.allSettled([
-        getStrategy(token, detail.agent.strategy_id),
-        getEquity(token, agentId),
-        getMarketsForClass(token, detail.agent.strategy_class),
+      // BOTH START HERE, because only one of them needs anything from the other.
+      //
+      // `getStrategy` genuinely has to wait — it is keyed on the agent's
+      // strategy_id. `getEquity` is keyed on the agent ID we already have, so
+      // the old code's `await getAgent(...)` before requesting it bought a whole
+      // round trip for nothing.
+      //
+      // The `.catch` is attached at creation, not at the await. Without it, an
+      // agent request that throws leaves this promise rejecting with nobody
+      // listening — an unhandled rejection caused by the error path of a
+      // DIFFERENT request, which is a miserable thing to debug.
+      const agentPromise = getAgent(token, agentId, book ?? undefined);
+      const equityPromise = getEquity(token, agentId).catch(() => null);
+
+      // The agent is the one request whose failure means there is no page, so
+      // it alone is allowed to throw into the catch below.
+      const detail = await agentPromise;
+
+      const [strategy, equity] = await Promise.all([
+        getStrategy(token, detail.agent.strategy_id).catch(() => null),
+        equityPromise,
       ]);
+
       setState({
         phase: "ready",
         detail,
-        strategy: strategy.status === "fulfilled" ? strategy.value.strategy : null,
-        equity: equity.status === "fulfilled" ? equity.value : null,
-        assets: universe.status === "fulfilled" ? universe.value : [],
+        strategy: strategy?.strategy ?? null,
+        equity,
+        // Empty for now, filled below. See the universe fetch.
+        assets: [],
       });
+
+      // THE UNIVERSE IS NOT ON THE CRITICAL PATH.
+      //
+      // It is the most expensive request the product makes — the endpoint
+      // resolves the tradable universe, prices every mint through Jupiter and
+      // asks Wintel for each asset's activity, behind a sixty-second cache — and
+      // this page wants it for ONE thing: turning a stored selection into a
+      // symbol and a name. Blocking a page of real figures on a batch of labels
+      // is the wrong trade, and on a cold cache it is the whole wait.
+      //
+      // So the page renders without it and the labels arrive when they arrive.
+      // A market that has not resolved yet already renders from its selection
+      // (see `markets` below), which is the same fallback used for a market
+      // that cannot be priced at all — so nothing here is a new state.
+      //
+      // Failure stays silent for the same reason it was `allSettled` before: a
+      // universe lookup that 500s costs the page its labels, not its content.
+      void getMarketsForClass(token, detail.agent.strategy_class)
+        .then((assets) => {
+          if (seq !== runSeq.current) return;
+          setState((prev) => (prev.phase === "ready" ? { ...prev, assets } : prev));
+        })
+        .catch(() => {
+          /* labels stay as selections; the page is already usable */
+        });
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
     }
-  }, [ready, authenticated, getAccessToken, agentId, book]);
+    // `getAccessToken` is read through tokenRef, deliberately — see above.
+  }, [ready, authenticated, agentId, book]);
 
   useEffect(() => {
     void load();
+    // Bumped on teardown so anything still in flight — the universe fetch lands
+    // after the page has already rendered — finds itself outranked and drops
+    // its result. Switching book or navigating away mid-flight would otherwise
+    // write the previous agent's labels beside the new one's figures, which is
+    // worse than a warning: it is a wrong label that looks authoritative.
+    return () => {
+      runSeq.current++;
+    };
   }, [load]);
 
   // Which market is mid-removal, by its selection key. A single id rather than
@@ -306,7 +381,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       </section>
 
       {/* ------------------------------------------------------------ band -- */}
-      <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-4">
         <Cell
           label="Markets"
           value={
@@ -330,22 +405,19 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           note={agent.is_paper ? "simulated · nothing funded" : "mandate, set at deploy"}
         />
         <Cell
-          label="Return"
-          value={ret30 === null ? "—" : signedPct(ret30)}
-          tone={ret30 === null ? undefined : ret30 >= 0 ? "accent" : "negative"}
-          note={ret30 === null ? "no readings yet" : "since deployed"}
-        />
-        <Cell
           label="Live since"
           value={age(agent.created_at)}
           note={absolute(agent.created_at)}
         />
+        {/* Cadence is the band's clock face: "last ran / next" belongs with
+            how often it runs, so the rail's Agent-level list doesn't repeat
+            it. */}
         <Cell
           label="Cadence"
           value={cadenceSec ? cadence(cadenceSec) : "—"}
           note={
             agent.last_tick_at
-              ? `last ran ${when(agent.last_tick_at)}`
+              ? `last ran ${when(agent.last_tick_at)}${agent.next_tick_at ? ` · next ${ahead(agent.next_tick_at)}` : ""}`
               : "has not run yet"
           }
         />
@@ -354,11 +426,33 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         {/* ------------------------------------------------------- main -- */}
         <div className="min-w-0 lg:border-r lg:border-grid">
-          {/* performance — the series the band's Return · 30d cell already
-              summarises, drawn in full. No extra request: `equity` is loaded
-              with the rest of the page. */}
+          {/* performance — the series IS the page for an owner, so it gets
+              the hero treatment: the return figure moves here from the band
+              and reads as the page's second headline, with the curve it
+              summarises drawn directly under it. No extra request: `equity`
+              is loaded with the rest of the page. */}
           <section className="border-b border-grid px-8 py-6">
-            <Rule label="Performance" />
+            <Rule
+              label="Performance"
+              right={
+                <span className="flex items-baseline gap-2">
+                  <span
+                    className={`tnum font-mono text-[22px] leading-none ${
+                      ret30 === null
+                        ? "text-text-muted"
+                        : ret30 >= 0
+                          ? "text-accent"
+                          : "text-negative"
+                    }`}
+                  >
+                    {ret30 === null ? "—" : signedPct(ret30)}
+                  </span>
+                  <span className="font-ui text-[11px] text-text-dim">
+                    {ret30 === null ? "no readings yet" : "since deployed"}
+                  </span>
+                </span>
+              }
+            />
             <div className="pt-4">
               <EquityView series={equity} positions={positions} universe={assets} />
             </div>
@@ -469,6 +563,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                       key={selectionKey(m.sel)}
                       label={m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)}
                       asset={m.asset}
+                      selection={m.sel}
                       entry={entry}
                       // Not offered on the last one. An empty list means "every
                       // market in the class", so removing it would widen the
@@ -573,89 +668,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             </div>
           </div>
 
-          {/* per-market budgets */}
-          <div className="mt-6 border-t border-grid pt-5">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-                Per-market budgets
-              </span>
-              <span className="shrink-0 font-ui text-[11px] text-text-dim">
-                {markets.length} {markets.length === 1 ? "market" : "markets"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] gap-x-3 border-b border-grid-strong pt-3 pb-2 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-              <span>Market</span>
-              <span className="text-right">Position</span>
-              <span className="text-right">Open / max</span>
-              <span />
-            </div>
-
-            {markets.length === 0 ? (
-              <p className="py-3 font-ui text-[12px] text-text-muted">
-                No universe pinned — the cap below applies to whatever it screens into.
-              </p>
-            ) : (
-              markets.map((m) => {
-                const symbol = m.asset?.symbol ?? selectionLabel(m.sel);
-                const open = positions.filter(
-                  (p) => p.underlying === selectionLabel(m.sel) || p.symbol === symbol,
-                ).length;
-                return (
-                  <div
-                    key={selectionKey(m.sel)}
-                    className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid py-2.5"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <AssetLogo symbol={selectionLabel(m.sel)} issuer={selectionIssuer(m.sel) ?? m.asset?.issuer} />
-                      <span className="truncate font-ui text-[12.5px] text-text-primary">
-                        {m.asset ? `${symbol}/USDC` : symbol}
-                      </span>
-                    </span>
-                    <span className="tnum text-right font-mono text-[12px] text-text-primary">
-                      {positionCap === null ? "—" : `≤ ${money(positionCap)}`}
-                    </span>
-                    <span className="tnum text-right font-mono text-[12px] text-text-secondary">
-                      {open} / {constraints.maxTradesPerTick ?? "—"}
-                    </span>
-                    <Link
-                      href={`/workspace/${agentId}?tab=chat`}
-                      className="border border-border px-2 py-1 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent"
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                );
-              })
-            )}
-
-            <div className="grid grid-cols-[minmax(0,1.2fr)_0.9fr_0.7fr_auto] items-center gap-x-3 border-b border-grid-strong bg-panel px-2 py-2.5">
-              <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                Total capital
-              </span>
-              <span
-                className={`tnum text-right font-mono text-[12.5px] ${
-                  agent.is_paper ? "text-text-secondary" : "text-accent"
-                }`}
-              >
-                {money(capital)}
-              </span>
-              <span />
-              <span />
-            </div>
-
-            {/* Deployed lived here too until the curve moved onto this page —
-                EquityView carries it now, from the same cost bases. */}
-            <div className="pt-2">
-              <RailRow label="Open positions" value={String(positions.length)} />
-            </div>
-          </div>
-
           {/* + Add market */}
-          {/* Full width because it is a rail action, but otherwise the same
-              shape as every other action on this page — the taller, left-aligned
-              box it used to be was sized around a two-line caption that is no
-              longer there. */}
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -664,7 +677,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             + Add market
           </button>
 
-          {/* agent-level facts */}
+          {/* agent-level facts — the budget table that used to sit above the
+              add-market button folded into this: it drew a per-market grid of
+              caps that do not exist (the cap is agent-global), repeated the
+              cadence and capital the band already carries, and dead-listed a
+              route field nothing stores. What was true in it lives here as
+              rows. */}
           <div className="mt-6 border-t border-grid pt-5">
             <Rule label="Agent-level" />
             <div className="pt-3">
@@ -673,13 +691,22 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 value={agent.is_paper ? "Paper · simulated fills" : "Live · real capital"}
               />
               <RailRow label="Autonomy" value={agent.autonomy.replace(/_/g, " ")} />
-              <RailRow label="Cadence" value={cadenceSec ? cadence(cadenceSec) : "—"} />
+              <RailRow
+                label="Position cap"
+                value={positionCap === null ? "—" : `≤ ${money(positionCap)} per market`}
+              />
+              <RailRow
+                label="Open positions"
+                value={
+                  constraints.maxTradesPerTick
+                    ? `${positions.length} / ${constraints.maxTradesPerTick}`
+                    : String(positions.length)
+                }
+              />
               <RailRow
                 label="Compliance"
                 value={constraints.complianceProfile ?? "—"}
               />
-              {/* Route is a builder choice with nowhere to live yet. */}
-              <RailRow label="Route" value="Not stored yet" />
             </div>
           </div>
 
@@ -1056,13 +1083,6 @@ function Controls({
         </button>
       ) : null}
 
-      <Link
-        href={`/workspace/${agent.id}?tab=chat`}
-        className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
-      >
-        Edit limits
-      </Link>
-
       <div className="flex-1" />
 
       {notice ? (
@@ -1346,12 +1366,17 @@ function WalletTag({ address, isPaper }: { address: string | null; isPaper: bool
 function MarketCard({
   label,
   asset,
+  selection,
   entry,
   onRemove,
   removing,
 }: {
   label: string;
   asset: UniverseAsset | null;
+  /** The universe selection, so the logo resolves exactly the way the
+      universe did — issuer and identity come from the same source the rest
+      of the page uses. */
+  selection: UniverseSelection;
   entry: DetectionRule | null;
   /** Absent when removal is not offered — the last market, or a shared strategy. */
   onRemove?: () => void;
@@ -1371,7 +1396,14 @@ function MarketCard({
   return (
     <div className="group border border-grid p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="truncate font-mono text-[13px] text-text-primary">{label}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <AssetLogo
+            symbol={selectionLabel(selection)}
+            issuer={selectionIssuer(selection) ?? asset?.issuer}
+            src={asset?.iconUrl}
+          />
+          <span className="truncate font-mono text-[13px] text-text-primary">{label}</span>
+        </span>
         {onRemove ? (
           <button
             type="button"
@@ -1402,6 +1434,10 @@ function MarketCard({
         {price === null ? "not priced" : `$${price.toFixed(2)}`}
       </p>
 
+      {/* The meter only means something for a dip rule: "distance to the
+          trigger" is a one-dimensional fall. For any other entry the honest
+          thing is a line naming the condition, not an empty space where a
+          bar refuses to render. */}
       {pct !== null ? (
         <span className="mt-3 block h-1.5 w-full bg-grid">
           <span
@@ -1409,6 +1445,10 @@ function MarketCard({
             style={{ width: `${pct * 100}%` }}
           />
         </span>
+      ) : entry ? (
+        <p className="pt-2.5 font-mono text-[10.5px] tracking-[0.04em] text-text-dim">
+          waiting on: {entryHeadline(entry, asset?.symbol ?? selectionLabel(selection))}
+        </p>
       ) : null}
     </div>
   );

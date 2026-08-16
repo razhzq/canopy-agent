@@ -13,6 +13,34 @@ npm run start
 Next.js 16 (App Router) + React 19 + Tailwind v4. Standalone repo — extracted
 from `canopy-fe-mono/packages/canopy-agent` on 2026-08-04.
 
+## Gotcha: `npm run dev` runs on webpack, not Turbopack
+
+The `--webpack` flag in the `dev` script is load-bearing. **Do not remove it**
+without re-running the check below.
+
+On Next.js 16.2.6, Turbopack's HMR channel gets stuck asserting that the server
+components changed. The client believes it and refetches the route — forever.
+Measured on `/workspace/57` in a clean browser profile, doing nothing: **197
+RSC requests in 20 seconds against 0 on webpack.** Every one carries
+`next-hmr-refresh: 1`, so it is Next's own dev refresh looping, not a `<Link>`
+prefetch and nothing in this repo.
+
+It is worth knowing how it PRESENTS, because it looks like six other things:
+pages that never finish loading, requests that appear to take 8-9 seconds (they
+are queued behind hundreds of siblings, not slow), and a dev server log filling
+with `GET /<route> 200` for a page nobody is navigating to. It happens on every
+route, signed in or out, and never in `build` — so a production build looks
+perfectly healthy while local development is unusable.
+
+`npm run dev:turbo` keeps the Turbopack path for testing whether a later Next
+release has fixed it. To check:
+
+```bash
+npm run dev:turbo
+# then, with the page open and idle, watch the dev server log or the Network
+# tab filtered to `_rsc`. Repeats = still broken.
+```
+
 ## Routes
 
 | Design frame | Route |

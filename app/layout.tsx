@@ -34,8 +34,29 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${plexMono.variable} ${inter.variable}`}>
-      <body>
+    // `suppressHydrationWarning` on the document element and body, and ONLY
+    // there.
+    //
+    // Wallet extensions write to these two nodes before React loads — a
+    // TokenPocket build stamps `data-tp-bcm-channel-…` onto <html> — so the
+    // server HTML and the client tree disagree about an attribute no code here
+    // wrote. React reports that as a hydration mismatch at the ROOT, which is
+    // the worst place to have one: the failure is not local to a component, and
+    // it leaves the App Router initialising against a tree it has just been
+    // told not to trust. "Router action dispatched before initialization"
+    // follows from the same window.
+    //
+    // This is React's own escape hatch for exactly this case, and it is narrow:
+    // it forgives the ATTRIBUTES AND TEXT OF THIS ELEMENT ALONE. Children are
+    // still hydrated and still checked, so a genuine mismatch anywhere inside
+    // the app is reported exactly as before. It buys silence about the two
+    // nodes we do not control, and nothing else.
+    <html
+      lang="en"
+      className={`${plexMono.variable} ${inter.variable}`}
+      suppressHydrationWarning
+    >
+      <body suppressHydrationWarning>
         {/* Outside Providers: capturing a referral is not a signed-in concern,
             and it has to happen on the marketing page too — which is where a
             referral link actually lands. */}

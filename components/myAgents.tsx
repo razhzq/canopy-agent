@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
@@ -102,6 +102,24 @@ interface Enriched {
 
 export function MyAgents() {
   const { ready, authenticated, getAccessToken } = usePrivy();
+  /**
+   * The token getter, held still.
+   *
+   * `load` is a dependency of the effect that runs it, and `load` ends by
+   * calling setState. So anything in `load`'s dependency list that changes on
+   * every render turns "fetch once" into "fetch, re-render, fetch again" — and
+   * this fetch is `listAgents` plus two requests per agent.
+   *
+   * Privy hands back a new closure rather than a stable one, and listing it as
+   * a dependency is what the exhaustive-deps rule asks for, so the fragility is
+   * easy to write and invisible once written. A ref reads the current getter
+   * without being a reason to re-run. `useApi` sidesteps the same hazard by
+   * excluding it from its dependency array; this is the same decision, made
+   * explicit rather than by omission.
+   */
+  const tokenRef = useRef(getAccessToken);
+  tokenRef.current = getAccessToken;
+
   const [state, setState] = useState<
     | { phase: "loading" }
     | { phase: "signed-out" }
@@ -116,7 +134,7 @@ export function MyAgents() {
       return;
     }
     try {
-      const token = await getAccessToken();
+      const token = await tokenRef.current();
       if (!token) {
         setState({ phase: "signed-out" });
         return;
@@ -143,7 +161,8 @@ export function MyAgents() {
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
     }
-  }, [ready, authenticated, getAccessToken]);
+    // `getAccessToken` is read through tokenRef, deliberately — see above.
+  }, [ready, authenticated]);
 
   useEffect(() => {
     void load();
@@ -163,13 +182,37 @@ export function MyAgents() {
    */
   useEffect(() => {
     const id = setInterval(() => void load(), 45_000);
-    const onFocus = () => void load();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+
+    /**
+     * Come back to the page and it refetches — but only on the way IN, and only
+     * once.
+     *
+     * Two bugs lived in the naive version. `visibilitychange` fires on BOTH
+     * transitions, so leaving the tab started a full reload — `listAgents` plus
+     * two requests per agent — that nobody would ever see. And alt-tabbing back
+     * fires `focus` AND `visibilitychange`, so returning cost two of them.
+     * Between a terminal and a browser that is most of the traffic this page
+     * generates, and each one re-renders the list and re-prefetches every row's
+     * route.
+     *
+     * `document.hidden` settles the direction; the timestamp settles the
+     * duplicate. A second is far below any interval worth honouring and far
+     * above the gap between two events describing one switch.
+     */
+    let lastAt = 0;
+    const onReturn = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastAt < 1000) return;
+      lastAt = now;
+      void load();
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
     return () => {
       clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
     };
   }, [load]);
 
@@ -203,9 +246,22 @@ export function MyAgents() {
 
   /* ---------------------------------------------------------------- band -- */
 
-  const deployed = rows
-    .filter((r) => r.agent.status !== "stopped")
-    .reduce((s, r) => s + (Number(r.agent.capital_usd) || 0), 0);
+  /**
+   * Mandate capital across every agent still running.
+   *
+   * THE BAND TOTALS; THE ROWS AND THE AGENT PAGE DO NOT.
+   *
+   * Six agents at $10,000 read "$60k" here and "$10,000" one click later, and
+   * with both labelled some form of "capital" that looks like one of the two
+   * being wrong. Neither is: this is a portfolio sum and that is one agent's
+   * mandate. The note below carries the difference, because the number cannot.
+   */
+  const counted = rows.filter((r) => r.agent.status !== "stopped");
+  const deployed = counted.reduce((s, r) => s + (Number(r.agent.capital_usd) || 0), 0);
+  // Every agent here trades on paper until a signing rail exists, so "deployed"
+  // would otherwise claim real money is at work. The agent page already flips
+  // its own label to "Paper book" for exactly this; the band said nothing.
+  const allPaper = counted.length > 0 && counted.every((r) => r.agent.is_paper);
 
   const pnlWindow = sumWindow(rows);
 
@@ -223,7 +279,11 @@ export function MyAgents() {
   return (
     <div>
       <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
-        <Cell label="Capital deployed" value={money(deployed)} />
+        <Cell
+          label={allPaper ? "Paper capital" : "Capital deployed"}
+          value={money(deployed)}
+          note={`across ${counted.length} ${counted.length === 1 ? "agent" : "agents"}`}
+        />
         <Cell
           label="P&L · since deploy"
           value={pnlWindow === null ? "—" : signed(pnlWindow)}

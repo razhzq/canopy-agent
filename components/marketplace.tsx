@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonCards } from "@/components/skeleton";
 import { CapabilityNotices } from "@/components/capabilityNotice";
 import { Badge } from "@/components/ui";
-import { listStrategies, return30dPct, type StrategyRow } from "@/lib/api";
+import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 
 /**
@@ -414,25 +414,78 @@ function CompactCard({ row: r }: { row: StrategyRow }) {
       >
         {ret === null ? "—" : signedPct(ret)}
       </p>
-      <p className="pt-1.5 font-ui text-[12px] text-text-dim">{r.trades_30d} trades · 30d</p>
+      {/* `?? "—"`: a list-only aggregate, so it is always present here — but
+          rendered raw, an absent one prints the word "undefined" into the
+          sentence rather than failing visibly. */}
+      <p className="pt-1.5 font-ui text-[12px] text-text-dim">
+        {r.trades_30d ?? "—"} trades · 30d
+      </p>
     </Link>
   );
 }
 
 /* ------------------------------------------------------------------- pieces -- */
 
+/**
+ * The four figures above the shelf, each a SUM over every strategy on screen.
+ *
+ * Every one of them shares a name with a per-strategy figure on the cards
+ * below — capital, trades, positions — so each carries what it was counted
+ * over. Without that, "Capital deployed $120k" sitting above a card reading
+ * "Capital $10k" looks like one of the two being wrong, when they are a market
+ * total and one agent's mandate.
+ *
+ * The rail follows the FILTER, not the whole market: these are sums over the
+ * rows actually listed, so switching to Paper re-totals rather than continuing
+ * to describe everything. That is why the note says "listed" rather than
+ * naming the market.
+ */
 function StatRail({ rows }: { rows: StrategyRow[] | null }) {
-  const live = rows?.filter((r) => r.status === "published").length ?? 0;
-  const capital = rows?.reduce((s, r) => s + Number(r.aum_usd), 0) ?? 0;
-  const trades = rows?.reduce((s, r) => s + Number(r.trades_30d), 0) ?? 0;
-  const open = rows?.reduce((s, r) => s + Number(r.open_positions), 0) ?? 0;
+  const listed = rows?.filter((r) => r.status === "published").length ?? 0;
+  const n = rows?.length ?? 0;
+  const over = `across ${n} ${n === 1 ? "agent" : "agents"} listed`;
+
+  // `num()` rather than `Number()`, because these aggregates are optional on
+  // StrategyRow — they exist on the list route and not the detail one. A bare
+  // Number(undefined) is NaN, and one NaN poisons the whole sum into "$NaN",
+  // which is exactly how the strategy page's capital broke.
+  const sum = (pick: (r: StrategyRow) => string | undefined): number =>
+    rows?.reduce((s, r) => s + (num(pick(r)) ?? 0), 0) ?? 0;
+
+  const capital = sum((r) => r.aum_usd);
+  const trades = sum((r) => r.trades_30d);
+  const open = sum((r) => r.open_positions);
+
+  // Nothing on this shelf is funded until a strategy goes live, and "Capital
+  // deployed" claims real money is at work. Same correction the My Agents band
+  // needed. `all_paper` is the backend's own per-strategy flag.
+  //
+  // `=== true`, so an ABSENT flag falls back to the neutral label rather than
+  // claiming paper. Getting it wrong that way understates what is at stake;
+  // the other way round only costs a word.
+  const allPaper = n > 0 && (rows ?? []).every((r) => r.all_paper === true);
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-4 pt-6">
-      <Metric label="Listed agents" value={String(live)} big />
-      <Metric label="Capital deployed" value={money(capital)} big />
-      <Metric label="Trades · 30d" value={trades.toLocaleString("en-US")} big />
-      <Metric label="Positions open" value={String(open)} big />
+      <Metric
+        label="Listed agents"
+        value={String(listed)}
+        note={n === listed ? undefined : `of ${n} with a record`}
+        big
+      />
+      <Metric
+        label={allPaper ? "Paper capital" : "Capital deployed"}
+        value={money(capital)}
+        note={over}
+        big
+      />
+      <Metric
+        label="Trades · 30d"
+        value={trades.toLocaleString("en-US")}
+        note={over}
+        big
+      />
+      <Metric label="Positions open" value={String(open)} note={over} big />
     </div>
   );
 }
@@ -440,11 +493,21 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
 function Metric({
   label,
   value,
+  note,
   tone = "neutral",
   big = false,
 }: {
   label: string;
   value: string;
+  /**
+   * What the number is counted over.
+   *
+   * Only the rail passes it. A rail figure is a SUM across every strategy on
+   * screen while the identically-named figure on each card below is that one
+   * strategy's — the same trap the My Agents band had, where "$60k" sat one
+   * click above "$10,000" and both were labelled capital.
+   */
+  note?: string;
   tone?: "accent" | "negative" | "neutral";
   big?: boolean;
 }) {
@@ -466,6 +529,9 @@ function Metric({
       >
         {value}
       </p>
+      {note ? (
+        <p className="truncate font-ui text-[11px] text-text-dim">{note}</p>
+      ) : null}
     </div>
   );
 }
