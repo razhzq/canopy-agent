@@ -23,6 +23,21 @@ export interface NarratedLine {
   detail: string;
   symbol?: string;
   source?: string;
+  /**
+   * A supporting note rather than a decision — the agent showing its work.
+   *
+   * Set on the per-ticker screening steps: the rug-check note ("verified tier
+   * has a known issuer…") and the indicator readout ("120 bars · RSI 32…"),
+   * whose outcome is `info`. Their sibling pass/drop step is the actual verdict
+   * and is never marked.
+   *
+   * This changes nothing about the record. The activity log — a narrative
+   * replay — folds these behind an expander so a screen of forty steps does not
+   * bury the three decisions that came out of it. The cycle transcript, which
+   * is forensics, ignores the flag and shows every line. Progressive disclosure,
+   * not omission: the note is one caret away, and still in the raw JSON beneath.
+   */
+  secondary?: boolean;
 }
 
 /** The subset of a decision row the narrator needs. */
@@ -179,6 +194,11 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
           detail: s.detail,
           symbol: s.symbol,
           source: SOURCE_LABEL[s.sourceId ?? ""] ?? s.sourceId,
+          // The info steps are the agent showing its work — the rug-check note
+          // and the indicator readout. The pass/drop step for the same ticker is
+          // the verdict. Marking the former is what lets the log fold the noise
+          // without ever folding a decision.
+          secondary: s.outcome === "info",
         });
       }
       const found = Array.isArray(o.candidates) ? o.candidates.length : 0;

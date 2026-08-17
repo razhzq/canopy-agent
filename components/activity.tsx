@@ -25,25 +25,70 @@ export function ActivityLog({ agentId }: { agentId: number }) {
   const [tick, setTick] = useState(0);
   const state = useApi((t) => getActivity(t, agentId, 5), [agentId, tick]);
 
+  // THE LAST GOOD LOG, KEPT ACROSS REFETCHES.
+  //
+  // This is what stopped the log "restarting itself" mid-cycle. The poll below
+  // bumps `tick` every few seconds while a cycle is running; `useApi` answers a
+  // dep change by resetting to `loading`; and the loading branch returned a
+  // skeleton — tearing down every Cycle below it. On remount each Cycle's
+  // sequential reveal starts again from line zero, so a running cycle's trace
+  // flickered back to the top every 4 seconds, which is the "thinking list keeps
+  // restarting" the owner sees.
+  //
+  // Holding the previous cycles means a refetch is invisible: the log stays on
+  // screen and is simply replaced by the newer copy when it lands. Written
+  // during render on purpose — it caches a value already in hand, so an effect
+  // would only make it arrive one frame late.
+  const lastGood = useRef<ActivityCycle[] | null>(null);
+  if (state.phase === "ready") lastGood.current = state.data.cycles;
+  const cycles = state.phase === "ready" ? state.data.cycles : (lastGood.current ?? []);
+
   // Which cycle ids we have already shown. A cycle animates in only the first
   // time it appears — without this the whole list would re-animate on every
   // poll, which turns "something arrived" into visual noise.
   const seen = useRef<Set<string> | null>(null);
-  const [fresh, setFresh] = useState<Set<string>>(new Set());
+
+  // Border-flash markers: an id sits here for ~1.4s after it first appears,
+  // long enough for the log-flash animation to play. State, because it paints.
+  const [flashing, setFlashing] = useState<Set<string>>(new Set());
+
+  // Ids appearing for the FIRST time this render — computed SYNCHRONOUSLY, so a
+  // cycle is known to be new at its first mount rather than one effect-tick
+  // later.
+  //
+  // This is what turns "blink" into "fill". The line-by-line reveal below only
+  // runs when the cycle knows AT MOUNT that it is new (or still running).
+  // Locally a tick finishes between polls, so the cycle lands already-complete
+  // and — when freshness was set in an effect — the flag arrived a frame too
+  // late, after the reveal had already given up and shown every line at once.
+  // Production hid this only because its polls usually catch a cycle mid-run.
+  // Read against the same `seen` baseline the effect commits to, so the first
+  // page load stays silent and history does not replay.
+  const freshIds =
+    seen.current === null
+      ? new Set<string>()
+      : new Set(cycles.filter((c) => !seen.current!.has(c.id)).map((c) => c.id));
 
   // Joined into a string so the dependency is stable by value. Depending on the
   // array itself would re-run this on every render — and because React clears
   // the previous effect's timeout before re-running, a render that found no new
-  // cycles would cancel the pending reset and strand `fresh` permanently.
-  const cycleKey =
-    state.phase === "ready" ? state.data.cycles.map((c) => c.id).join(",") : "";
+  // cycles would cancel the pending reset and strand `flashing` permanently.
+  const cycleKey = cycles.map((c) => c.id).join(",");
+
+  // Only a real result may touch the baseline. A transient `loading` frame
+  // renders an empty `cycles`, and seeding the baseline from that would mark the
+  // history that lands next as brand-new and flash the whole list on arrival.
+  const ready = state.phase === "ready";
 
   useEffect(() => {
-    if (!cycleKey) return;
-    const ids = cycleKey.split(",");
+    if (!ready) return;
+    const ids = cycleKey ? cycleKey.split(",") : [];
 
-    // First successful load populates the baseline silently: everything is new
-    // to the component, but none of it is new to the user.
+    // First real load populates the baseline silently — EVEN WHEN IT IS EMPTY.
+    // Seeding an empty baseline here is what lets the very first cycle of a
+    // brand-new agent fill rather than blink: it then arrives as an addition to
+    // a known-empty baseline instead of being mistaken for pre-existing history
+    // (which is silent on purpose, so returning to a page does not replay it).
     if (seen.current === null) {
       seen.current = new Set(ids);
       return;
@@ -52,22 +97,21 @@ export function ActivityLog({ agentId }: { agentId: number }) {
     const added = ids.filter((id) => !seen.current!.has(id));
     if (added.length === 0) return;
     added.forEach((id) => seen.current!.add(id));
-    setFresh(new Set(added));
+    setFlashing(new Set(added));
 
-    // Drop the marker once the animation has played, so a later re-render does
-    // not leave the row flagged as new forever.
-    const t = setTimeout(() => setFresh(new Set()), 1400);
+    // Drop the marker once the flash has played, so a later re-render does not
+    // leave the row bordered as new forever.
+    const t = setTimeout(() => setFlashing(new Set()), 1400);
     return () => clearTimeout(t);
-  }, [cycleKey]);
+  }, [cycleKey, ready]);
 
   // Poll rate tracks what is actually in flight.
   //
   // A running cycle writes its decision rows as it goes, so its steps only
   // reach the page when we refetch — at the idle 45s that meant watching two
   // lines for most of a minute while the cycle had long since finished.
-  const empty = state.phase === "ready" && state.data.cycles.length === 0;
-  const anyRunning =
-    state.phase === "ready" && state.data.cycles.some((c) => c.status === "running");
+  const empty = cycles.length === 0;
+  const anyRunning = cycles.some((c) => c.status === "running");
   const pollMs = anyRunning ? 4_000 : empty ? 15_000 : 45_000;
 
   useEffect(() => {
@@ -75,11 +119,16 @@ export function ActivityLog({ agentId }: { agentId: number }) {
     return () => clearInterval(id);
   }, [pollMs]);
 
-  if (state.phase === "loading") return <SkeletonLog label="Loading activity" />;
+  // The skeleton is for the FIRST load only. Every later fetch is a background
+  // refresh of a log already on screen, held in `seen` above.
+  if (state.phase === "loading" && lastGood.current === null)
+    return <SkeletonLog label="Loading activity" />;
   if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
-  if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
-
-  const cycles = state.data.cycles;
+  // A failed poll must not destroy the log either. With nothing to fall back on
+  // the error screen is right; with cycles in hand, the honest thing is to keep
+  // showing them — they did not stop existing because one request timed out.
+  if (state.phase === "error" && lastGood.current === null)
+    return <ErrorState message={state.message} onRetry={state.reload} />;
 
   if (cycles.length === 0) {
     return (
@@ -101,7 +150,13 @@ export function ActivityLog({ agentId }: { agentId: number }) {
   return (
     <div className="space-y-4">
       {cycles.map((c, i) => (
-        <Cycle key={c.id} cycle={c} defaultOpen={i === 0} isNew={fresh.has(c.id)} />
+        <Cycle
+          key={c.id}
+          cycle={c}
+          defaultOpen={i === 0}
+          flash={flashing.has(c.id)}
+          fresh={freshIds.has(c.id)}
+        />
       ))}
     </div>
   );
@@ -204,34 +259,50 @@ function useDisclosure(defaultOpen: boolean) {
 function Cycle({
   cycle,
   defaultOpen,
-  isNew,
+  flash,
+  fresh,
 }: {
   cycle: ActivityCycle;
   defaultOpen: boolean;
-  isNew: boolean;
+  /** Show the one-shot "new cycle arrived" border flash (~1.4s). */
+  flash: boolean;
+  /** First appearance this session — drives the line-by-line reveal. */
+  fresh: boolean;
 }) {
   const { open, setOpen, mounted, expanded } = useDisclosure(defaultOpen);
   const panelId = useId();
   const lines = narrateCycle(cycle);
   const running = cycle.status === "running";
 
-  // Captured at mount and never updated. `isNew` is cleared by the parent after
-  // its border flash, and `running` becomes false when the cycle finishes —
-  // either flipping mid-replay would cut it short and snap the rest in at once.
+  // The reveal counts DECISIONS, not the working notes beneath them. A screen
+  // that touched forty tickers records most of that as `secondary` steps the log
+  // folds by default — animating through them would make the replay crawl and
+  // spend its whole run on lines the reader has to expand to see anyway.
+  const primary = lines.filter((l) => !l.secondary);
+
+  // Captured at mount and never updated — either flipping mid-replay would cut
+  // it short and snap the rest in at once. `fresh` is correct AT MOUNT now (the
+  // parent computes it synchronously), so a cycle that lands already-complete
+  // still animates instead of blinking in.
   //
-  // `running` is here because the first page load after creating an agent
+  // `running` is also here because the first page load after creating an agent
   // usually ALREADY contains cycle #1, still in flight. The parent treats a
   // first load as a silent baseline (correct when you return to the page later,
   // wrong when you are watching the thing you just made), so without this the
   // one cycle you actually want to watch is the one that never replays.
-  const [replay] = useState(isNew || running);
-  const shown = useSequentialReveal(lines.length, replay && defaultOpen);
-  const revealing = shown < lines.length;
+  const [replay] = useState(fresh || running);
+  const shown = useSequentialReveal(primary.length, replay && defaultOpen);
+  const revealing = shown < primary.length;
+
+  // The decision lines revealed so far, by identity. Every `run.lines` entry is
+  // the same object this slices from (both come from `lines` this render), so an
+  // identity Set is enough to ask "has this line been reached yet?".
+  const revealed = new Set(primary.slice(0, shown));
 
   return (
     <div
       className={`border border-l-2 border-grid transition-colors ${
-        isNew
+        flash
           ? "animate-[log-enter_320ms_ease-out,log-flash_1400ms_ease-out_forwards] border-l-accent"
           : "border-l-transparent"
       }`}
@@ -308,32 +379,11 @@ function Cycle({
         >
           {mounted ? (
             <ol className="border-t border-grid">
-              {/* Grouped AFTER the reveal slice, so the rail fills in with the replay
-                  rather than appearing whole at the first line. */}
-              {groupBySeat(lines.slice(0, shown)).map((run, r) => (
-                <li
-                  key={r}
-                  className="grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 sm:grid-cols-[68px_minmax(0,1fr)]"
-                >
-                  {/* On a phone the seat sits above its run: 68px of gutter is a
-                      fifth of the width there, and the lines are what matter. */}
-                  <span className="pb-1.5 sm:pt-0.5 sm:pb-0">
-                    <SeatTag role={run.role} variant="rail" />
-                  </span>
-                  <ol className="min-w-0 space-y-2">
-                    {run.lines.map((line, i) => (
-                      <li
-                        key={i}
-                        className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5"
-                      >
-                        <span className="mt-0.5">
-                          <OutcomeMark outcome={line.outcome} />
-                        </span>
-                        <NarratedLineBody line={line} />
-                      </li>
-                    ))}
-                  </ol>
-                </li>
+              {/* Grouped over the FULL trace, so each seat can carry its own
+                  folded notes; the reveal is applied per-line inside the run via
+                  `revealed`, and a run with nothing revealed yet renders nothing. */}
+              {groupBySeat(lines).map((run, r) => (
+                <SeatRun key={r} run={run} revealed={revealed} />
               ))}
 
               {/* Where the replay has reached. A caret, not a claim — the cycle has
@@ -349,7 +399,7 @@ function Cycle({
                       className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
                     />
                     <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
-                      {revealing ? `${shown} of ${lines.length}` : "still running"}
+                      {revealing ? `${shown} of ${primary.length}` : "still running"}
                     </span>
                   </span>
                 </li>
@@ -359,6 +409,99 @@ function Cycle({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One seat's run of lines, with its supporting notes folded away.
+ *
+ * DECISIONS ARE ALWAYS SHOWN; the working is one caret down. A screen step's
+ * verdict (a candidate, a failed rule) is a `pass`/`drop` line and renders
+ * inline; the rug-check note and indicator readout beside it are `secondary`
+ * and stay hidden until asked for. Almost every cycle has exactly one run with
+ * anything folded — the analyst's screen — so this is a single quiet expander,
+ * not a page of them.
+ *
+ * Order is preserved when expanded: the notes drop back into their original
+ * positions among the decisions rather than piling up in a block, because
+ * "rug-check, indicators, verdict" per ticker is the sequence that reads as
+ * reasoning. A run whose decisions have not been reached by the reveal yet
+ * renders nothing at all, which is what makes the seats appear one after another.
+ */
+function SeatRun({
+  run,
+  revealed,
+}: {
+  run: { role: SeatedLine["role"]; lines: SeatedLine[] };
+  revealed: Set<SeatedLine>;
+}) {
+  const [open, setOpen] = useState(false);
+  const shownDecisions = run.lines.filter((l) => !l.secondary && revealed.has(l));
+  // Nothing revealed here yet — the reveal has not reached this seat.
+  if (shownDecisions.length === 0) return null;
+
+  const notes = run.lines.filter((l) => l.secondary);
+  const body = open
+    ? run.lines.filter((l) => l.secondary || revealed.has(l))
+    : shownDecisions;
+
+  return (
+    <li className="grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 sm:grid-cols-[68px_minmax(0,1fr)]">
+      {/* On a phone the seat sits above its run: 68px of gutter is a fifth of
+          the width there, and the lines are what matter. */}
+      <span className="pb-1.5 sm:pt-0.5 sm:pb-0">
+        <SeatTag role={run.role} variant="rail" />
+      </span>
+      <ol className="min-w-0 space-y-2">
+        {body.map((line) => (
+          // Keyed by content, not index, so expanding the notes slots them in
+          // WITHOUT re-mounting (and re-animating) the decisions already on screen.
+          <li
+            key={`${line.symbol ?? ""}:${line.detail}`}
+            className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5"
+          >
+            <span className="mt-0.5">
+              <OutcomeMark outcome={line.outcome} />
+            </span>
+            <NarratedLineBody line={line} />
+          </li>
+        ))}
+
+        {/* The way into the working. Only when there is working to show, and only
+            once the decisions it supports have been revealed. */}
+        {notes.length > 0 ? (
+          <li>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                aria-hidden
+                className={`size-3 justify-self-center transition-transform duration-200 ${
+                  open ? "rotate-90" : ""
+                }`}
+              >
+                <path
+                  d="m6 4 4 4-4 4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>
+                {open
+                  ? "Hide screening notes"
+                  : `${notes.length} screening note${notes.length === 1 ? "" : "s"}`}
+              </span>
+            </button>
+          </li>
+        ) : null}
+      </ol>
+    </li>
   );
 }
 
