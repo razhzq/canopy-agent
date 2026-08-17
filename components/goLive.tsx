@@ -86,8 +86,18 @@ export function GoLiveModal({
    * be told they can move on.
    */
   const [justGranted, setJustGranted] = useState(false);
+  /**
+   * The address the grant just registered, held for the same reason.
+   *
+   * The funding step needs an address to read the chain with when canopy-be
+   * cannot answer — and in the window between granting and the page reload
+   * landing, `wallet` is still null, which is exactly the window the user
+   * spends on the funding step.
+   */
+  const [grantedAddress, setGrantedAddress] = useState<string | null>(null);
 
   const delegated = wallet?.status === "active" || justGranted;
+  const walletAddress = wallet?.address ?? grantedAddress;
   const step: Step = !delegated ? 1 : !funded ? 2 : 3;
 
   // The dialog owns Escape and keeps Tab inside the panel, so focus cannot
@@ -243,8 +253,9 @@ export function GoLiveModal({
                         ? new Date(agent.expires_at)
                         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                     }
-                    onGranted={() => {
+                    onGranted={(result) => {
                       setJustGranted(true);
+                      setGrantedAddress(result.address);
                       onChanged();
                     }}
                   />
@@ -265,7 +276,15 @@ export function GoLiveModal({
                     </>
                   }
                 >
-                  <FundingPanel agentId={agent.id} onFunded={() => setFunded(true)} />
+                  {/* The address is handed down so the panel can read the chain
+                      itself when canopy-be cannot. Without it a backend RPC
+                      outage blocks this step, and with it the whole go-live
+                      path — see the fallback note in funding.tsx. */}
+                  <FundingPanel
+                    agentId={agent.id}
+                    address={walletAddress}
+                    onFunded={() => setFunded(true)}
+                  />
                 </Section>
               ) : needsPayment ? (
                 <Section title="This agent isn't subscribed yet" body={needsPayment}>
@@ -316,7 +335,7 @@ export function GoLiveModal({
                 >
                   <Ledger
                     rows={[
-                      ["Wallet", wallet?.address ? short(wallet.address) : "—"],
+                      ["Wallet", walletAddress ? short(walletAddress) : "—"],
                       ["Spend cap", money(Number(agent.capital_usd) || 0)],
                       [
                         "Delegation ends",

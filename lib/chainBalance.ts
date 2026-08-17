@@ -1,0 +1,167 @@
+"use client";
+
+// Reading an agent wallet's balances from the chain, in the browser.
+//
+// THIS IS A FALLBACK, NOT A SECOND SOURCE OF TRUTH.
+//
+// canopy-be's `/agents/:id/funding` is the real answer, and it is the one to
+// prefer whenever it responds: it reads the SAME mint and the SAME lamport floor
+// the executor and the tick enforce, so its verdict and the agent's behaviour
+// cannot disagree. What is below necessarily hardcodes both, which means a
+// backend that changes either would leave this module quietly describing a
+// different wallet than the one that trades.
+//
+// It exists because that endpoint's failure mode is a 503 — it returns one
+// rather than reporting an RPC outage as `fundedForLive: false`, which would
+// tell someone to send money they have already sent — and a 503 there blocks
+// the whole go-live path. Deployed on a datacenter IP against a public RPC, that
+// 503 is routine: api.mainnet-beta.solana.com rate-limits and 403s cloud egress
+// far more aggressively than it does a residential browser. Which is exactly why
+// this fallback tends to succeed where the server failed — it runs on the user's
+// own connection.
+//
+// NO @solana/web3.js. It is not a dependency of this app and pulling one in for
+// two JSON-RPC calls would cost far more bundle than the calls are worth.
+
+/** Settlement currency for every agent trade. Mirrors canopy-be's USDC_MINT. */
+export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+/** SPL Token program — the owner of every token account we read. */
+const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+
+const LAMPORTS_PER_SOL = 1_000_000_000;
+
+/**
+ * The SOL floor, in whole SOL. Mirrors canopy-be's MIN_SOL_LAMPORTS.
+ *
+ * Duplicated rather than derived because the endpoint that would report it is
+ * the one that just failed. If the backend raises its floor and this is not
+ * raised with it, the fallback will call a wallet ready that the tick then
+ * pauses on — so the panel labels a fallback reading as one.
+ */
+export const FALLBACK_MIN_SOL = 0.01;
+
+/**
+ * Where the browser reads the chain when the backend cannot.
+ *
+ * Overridable so a deployment can point at its own paid endpoint instead of
+ * inheriting the public one's rate limits.
+ */
+export const FALLBACK_RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+
+export interface ChainFunding {
+  usdc: number;
+  sol: number;
+}
+
+interface RpcResponse<T> {
+  result?: T;
+  error?: { code: number; message: string };
+}
+
+/**
+ * One JSON-RPC call, with a deadline.
+ *
+ * The timeout is not optional politeness: this runs on the error path of a
+ * screen the user is already stuck on, and a public RPC that hangs rather than
+ * refusing would replace a visible failure with an invisible one.
+ */
+async function rpc<T>(method: string, params: unknown[], timeoutMs: number): Promise<T> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  try {
+    const res = await fetch(FALLBACK_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: abort.signal,
+      cache: "no-store",
+    });
+    // A rate-limited public endpoint answers 429 with a JSON-RPC error body, so
+    // the status alone is not the whole story — but a non-2xx with no body at
+    // all still has to become an error rather than an undefined result.
+    const body = (await res.json().catch(() => null)) as RpcResponse<T> | null;
+    if (body?.error) throw new Error(body.error.message);
+    if (!res.ok) throw new Error(`the network returned ${res.status}`);
+    if (!body || body.result === undefined) throw new Error("the network returned no result");
+    return body.result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * USDC and SOL held by one wallet, read straight from the chain.
+ *
+ * Both in one pass, so a caller cannot check one and forget the other — which
+ * is the mistake the SOL requirement invites, and the reason canopy-be pairs
+ * them too.
+ */
+export async function readChainFunding(
+  address: string,
+  timeoutMs = 8000,
+): Promise<ChainFunding> {
+  const [accounts, lamports] = await Promise.all([
+    rpc<{ value: TokenAccount[] }>(
+      "getTokenAccountsByOwner",
+      [address, { programId: TOKEN_PROGRAM }, { encoding: "jsonParsed" }],
+      timeoutMs,
+    ),
+    rpc<{ value: number }>("getBalance", [address], timeoutMs),
+  ]);
+
+  let usdc = 0;
+  for (const entry of accounts.value ?? []) {
+    const info = entry?.account?.data?.parsed?.info;
+    if (info?.mint !== USDC_MINT) continue;
+    const amount = info.tokenAmount?.uiAmount;
+    // A mint can have more than one token account. Summed, not overwritten —
+    // taking the last would under-report a wallet holding two.
+    if (typeof amount === "number") usdc += amount;
+  }
+
+  return { usdc, sol: (lamports.value ?? 0) / LAMPORTS_PER_SOL };
+}
+
+interface TokenAccount {
+  account?: {
+    data?: {
+      parsed?: {
+        info?: {
+          mint?: string;
+          tokenAmount?: { uiAmount?: number };
+        };
+      };
+    };
+  };
+}
+
+/**
+ * Why this wallet cannot trade yet, or null when it can.
+ *
+ * Deliberately the same shape and close to the same wording as the backend's
+ * `fundingState`, because the user may see either one depending on which read
+ * succeeded, and two different sentences for one condition read as two
+ * different problems.
+ */
+export function fallbackShortfall(f: ChainFunding): string | null {
+  const needsUsdc = f.usdc <= 0;
+  const needsSol = f.sol < FALLBACK_MIN_SOL;
+  if (needsUsdc && needsSol) {
+    return (
+      `this wallet holds no USDC and needs about ${FALLBACK_MIN_SOL} SOL ` +
+      `for transaction fees — send both to fund it`
+    );
+  }
+  if (needsUsdc) {
+    return "this wallet holds no USDC — send USDC to fund it (SOL cannot be swapped in)";
+  }
+  if (needsSol) {
+    return (
+      `this wallet holds USDC but only ${f.sol.toFixed(4)} SOL — ` +
+      `it needs about ${FALLBACK_MIN_SOL} SOL to pay transaction fees`
+    );
+  }
+  return null;
+}
