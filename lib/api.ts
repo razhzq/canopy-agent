@@ -1181,32 +1181,27 @@ export interface RegisteredWallet {
  * here is trusted: the backend re-reads the wallet from Privy and refuses
  * anything that does not match.
  */
-export interface ProvisionedWallet {
-  /** Privy's wallet id. The executor signs through this, not the address. */
-  walletId: string;
-  address: string;
+export interface ClaimedWallets {
+  /** Every address already registered to one of this user's agents. */
+  addresses: string[];
+  /** agentId → address, for the agent that already has one. */
+  byAgent: Record<string, string>;
 }
 
 /**
- * Creates the agent's OWN Solana wallet, owned by the signed-in user.
+ * Which of this user's wallets are already spoken for.
  *
- * Called BEFORE the grant, and it is what makes per-agent wallets possible:
- * every agent used to delegate from the account's single login wallet, so the
- * second agent to try collided on a unique index and the whole account was
- * stuck at one live agent.
+ * Read BEFORE granting, so the browser can hand an agent a wallet nobody has
+ * claimed instead of minting a fresh one. An account tends to have several
+ * embedded Solana wallets already — sign-in makes one, canopy-fe's backfill has
+ * made others — and a free one is exactly as good as a new one.
  *
- * The wallet comes back INERT — Canopy is not a signer on it yet. That is the
- * next step and it happens in the user's own session, because a signer the
- * backend attached to itself is not a delegation anybody granted.
- *
- * Idempotent at Privy, keyed on the agent. Calling it twice returns the same
- * wallet rather than minting a second one — which matters more than usual here,
- * since Privy has no way to delete a wallet.
+ * The point is not tidiness. Privy cannot delete a wallet, so a wallet created
+ * because the client could not see what was taken is permanent, and is a wallet
+ * someone may later fund by mistake.
  */
-export const provisionAgentWallet = (token: string, agentId: number) =>
-  request<ProvisionedWallet>(`/agents/${agentId}/wallet/provision`, token, {
-    method: "POST",
-  });
+export const getClaimedWallets = (token: string) =>
+  request<ClaimedWallets>(`/agents/wallets/claimed`, token);
 
 export const registerAgentWallet = (
   token: string,
