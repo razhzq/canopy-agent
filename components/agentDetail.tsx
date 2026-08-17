@@ -8,8 +8,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
-import { GrantDelegation } from "@/components/grantDelegation";
-import { FundingPanel } from "@/components/funding";
+import { GoLiveModal } from "@/components/goLive";
 import type { UniverseSelection } from "@/lib/api";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -38,10 +37,7 @@ import {
   resumeAgent,
   deleteAgent,
   flattenAgent,
-  goLive,
   removeAgentMarket,
-  isPaywallError,
-  startCheckout,
   type AgentDetail as AgentDetailPayload,
   type DetectionRule,
   type EquitySeries,
@@ -113,6 +109,15 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   const runSeq = useRef(0);
 
   const [adding, setAdding] = useState(false);
+  /**
+   * Whether the go-live dialog is open.
+   *
+   * Held here rather than inside the book switch because it must survive the
+   * reload each completed step triggers — the switch re-renders with fresh props
+   * on every one of them, and state owned by it would close the dialog at
+   * exactly the moment the user finished a step.
+   */
+  const [goingLive, setGoingLive] = useState(false);
   /**
    * Which book to show. Null means "whichever the agent is in now", which is
    * what a fresh page load should open on — a live agent's page opening on its
@@ -328,11 +333,15 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // so a failed fetch or an older client hides the promotion rather than
   // offering one the backend will refuse.
   const liveTradingEnabled = detail.liveTradingEnabled === true;
+  // Only the product-level closure disables the Live half now. A paper agent used
+  // to be refused here too — "this agent hasn't gone live yet" — which stated the
+  // problem and offered nothing, leaving the reader to hunt for the promotion
+  // panel further down the page. Pressing Live IS the request to go live, so it
+  // opens the dialog that performs it. See `goLiveIntent`.
   const liveDisabledReason = !liveTradingEnabled
     ? "Real-money trading isn't open yet"
-    : agent.is_paper
-      ? "This agent hasn't gone live yet"
-      : null;
+    : null;
+  const goLiveIntent = liveTradingEnabled && agent.is_paper ? () => setGoingLive(true) : null;
   // A live agent that was deployed straight to live has no paper run behind it.
   const paperDisabledReason =
     agent.is_paper || detail.hasPaperHistory ? null : "This agent has no paper run";
@@ -369,6 +378,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <BookSwitch
             book={detail.book}
             onChange={setBook}
+            onGoLive={goLiveIntent}
             paperDisabledReason={paperDisabledReason}
             liveDisabledReason={liveDisabledReason}
             note={
@@ -761,16 +771,6 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         </aside>
       </div>
 
-      {agent.is_paper ? (
-        <GoLive
-          agent={agent}
-          wallet={wallet}
-          openPositions={positions.length}
-          liveTradingEnabled={liveTradingEnabled}
-          onChanged={() => void load()}
-        />
-      ) : null}
-
       <Controls agent={agent} positions={positions} onChanged={() => void load()} />
 
       {adding ? (
@@ -785,268 +785,24 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           onClose={() => setAdding(false)}
         />
       ) : null}
+
+      {/* Opened from the Live half of the book switch. Reloads the page behind as
+          each step lands, so the header, the wallet tag and the dialog agree the
+          moment a delegation or a promotion takes effect. */}
+      {goingLive ? (
+        <GoLiveModal
+          agent={agent}
+          wallet={wallet}
+          openPositions={positions.length}
+          onChanged={() => void load()}
+          onClose={() => setGoingLive(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
 /* -------------------------------------------------------------- controls -- */
-
-/**
- * Paper → live, on the agent that has been running on paper.
- *
- * Two steps, and they are separate on purpose. Granting the delegation happens
- * in the user's own wallet and gives Canopy permission to sign; promoting the
- * agent is a second, deliberate act afterwards. Collapsing them into one
- * button would mean a single click both hands over signing authority and puts
- * real money behind a strategy — two decisions that deserve to be made
- * separately.
- *
- * WHAT CARRIES OVER IS SAID PLAINLY, because it is the part people get wrong.
- * The agent keeps its rules, its history and everything it learned. Its open
- * paper positions do not come with it: they are holdings it never actually
- * bought, so the backend settles them at real marks first and the live book
- * starts flat.
- */
-function GoLive({
-  agent,
-  wallet,
-  openPositions,
-  liveTradingEnabled,
-  onChanged,
-}: {
-  agent: AgentDetailPayload["agent"];
-  wallet: AgentDetailPayload["wallet"];
-  openPositions: number;
-  /** Reported by the server. See AgentDetail.liveTradingEnabled. */
-  liveTradingEnabled: boolean;
-  onChanged: () => void;
-}) {
-  const { getAccessToken } = usePrivy();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  /**
-   * Set when the backend answers the promotion with a 402.
-   *
-   * Live execution is billed per agent, so "this agent is not subscribed" is a
-   * distinct answer from "something went wrong" — and rendering it as a red
-   * error would tell someone their agent is broken when it is simply unpaid.
-   */
-  const [needsPayment, setNeedsPayment] = useState<string | null>(null);
-  /**
-   * Whether the wallet can actually trade.
-   *
-   * Starts false and is raised by the funding panel's own chain read. Starting
-   * true would show the promote button to an empty wallet for one frame, and
-   * that frame is the one someone clicks.
-   */
-  const [funded, setFunded] = useState(false);
-
-  const delegated = wallet?.status === "active";
-
-  async function promote() {
-    setBusy(true);
-    setError(null);
-    try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
-      await goLive(token, agent.id);
-      setConfirming(false);
-      onChanged();
-    } catch (err) {
-      if (isPaywallError(err) && err.detail.code === "live_not_allowed") {
-        // Not an error state. The confirm step is dismissed and the payment
-        // step takes its place, carrying the backend's own message — which
-        // already names the price.
-        setConfirming(false);
-        // The backend's own sentence, which already names the price. Held as
-        // the message rather than the parsed body so there is one string to
-        // render and no second copy of "$20/month" to drift from it.
-        setNeedsPayment(err.message);
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /**
-   * Sends the browser to BoomFi to start the subscription.
-   *
-   * Same tab, not a popup: payment pages get blocked as popups and a blocked
-   * one fails silently, so the user clicks Subscribe and nothing happens.
-   *
-   * Nothing is promoted here. The subscription begins on BoomFi's page, the
-   * webhook records it, and the user comes back and presses Go live again —
-   * which is why this does not try to be clever about resuming the flow.
-   */
-  async function subscribe() {
-    setBusy(true);
-    setError(null);
-    try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
-      const { url } = await startCheckout(token, agent.id);
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setBusy(false);
-    }
-  }
-
-  // Closed for everyone right now. Stated as a product fact rather than shown
-  // as a broken button: nothing here is misconfigured, real-money trading is
-  // simply not open yet, and the agent is fine as it is.
-  if (!liveTradingEnabled) {
-    return (
-      <section className="border-t border-grid px-8 py-6">
-        <p className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase">
-          Go live
-        </p>
-        <p className="max-w-[760px] pt-3 font-ui text-[13px] leading-relaxed text-text-secondary">
-          Real-money trading isn&apos;t open yet. This agent keeps running on paper, and
-          everything it learns counts — when live opens, it carries across with its
-          record intact.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="border-t border-grid px-8 py-6">
-      <p className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase">
-        Go live
-      </p>
-
-      {!delegated ? (
-        <>
-          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
-            This agent trades on paper. To trade real capital it needs your permission to
-            sign — granted from your own wallet, scoped to swaps, and revocable by you at
-            any time without asking Canopy.
-          </p>
-          <GrantDelegation
-            agentId={agent.id}
-            maxSpendUsd={Number(agent.capital_usd) || 0}
-            // Matches the mandate's own clock: an agent that has stopped
-            // running should not still hold signing authority. Falls back to
-            // 30 days only if the field is missing from an older build —
-            // never to something open-ended, because an unbounded delegation
-            // is the one shape this system does not allow.
-            expiresAt={
-              agent.expires_at
-                ? new Date(agent.expires_at)
-                : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-            }
-            onGranted={onChanged}
-          />
-        </>
-      ) : !funded ? (
-        <>
-          {/* Funding sits between delegation and promotion because that is
-              where it actually blocks: the wallet exists now, and an agent
-              promoted with an empty one pauses on its first tick with a message
-              about balances — which is a worse place to learn this. */}
-          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
-            Delegation granted. This wallet needs funding before the agent can trade —
-            USDC to trade with, and a little SOL to pay transaction fees.
-          </p>
-          <FundingPanel agentId={agent.id} onFunded={() => setFunded(true)} />
-        </>
-      ) : needsPayment ? (
-        <>
-          {/* The backend's own message, which names the price. Repeating the
-              figure here would be a second copy to drift from it. */}
-          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
-            {needsPayment}
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void subscribe()}
-              disabled={busy}
-              className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black disabled:opacity-40"
-            >
-              {busy ? "Opening…" : "Subscribe"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setNeedsPayment(null)}
-              disabled={busy}
-              className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase hover:text-text-primary disabled:opacity-40"
-            >
-              Not now
-            </button>
-          </div>
-          {/* Said plainly, because the return journey is not automatic: they
-              pay on BoomFi's page, come back, and press Go live again. */}
-          <p className="max-w-[760px] pt-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
-            You&apos;ll pay on BoomFi and come back here. Nothing changes for this agent
-            until you press Go live again — it keeps trading on paper in the meantime.
-          </p>
-        </>
-      ) : !confirming ? (
-        <>
-          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-text-secondary">
-            Delegation granted. Promoting keeps this agent&apos;s rules, history and
-            everything it learned on paper
-            {openPositions > 0 ? (
-              <>
-                {" "}
-                — but its {openPositions} open paper position
-                {openPositions === 1 ? "" : "s"} will be settled first, so the live book
-                starts flat.
-              </>
-            ) : (
-              "."
-            )}
-          </p>
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black"
-          >
-            Go live
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="max-w-[760px] pt-3 pb-5 font-ui text-[13px] leading-relaxed text-warning">
-            From the next tick this agent trades real money, up to{" "}
-            {money(Number(agent.capital_usd) || 0)}. You can pause it at any time, and
-            the paper book stays readable. This cannot be undone — an agent does not go
-            back to paper.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void promote()}
-              disabled={busy}
-              className="border border-warning px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-warning uppercase transition-colors hover:bg-warning hover:text-black disabled:opacity-40"
-            >
-              {busy ? "Settling…" : "Yes, trade real money"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={busy}
-              className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase hover:text-text-primary disabled:opacity-40"
-            >
-              Cancel
-            </button>
-          </div>
-        </>
-      )}
-
-      {error ? (
-        <p className="pt-4 font-ui text-[13px] text-negative" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </section>
-  );
-}
 
 function Controls({
   agent,
@@ -1281,12 +1037,20 @@ function StatusChip({ status }: { status: string }) {
 function BookSwitch({
   book,
   onChange,
+  onGoLive,
   paperDisabledReason,
   liveDisabledReason,
   note,
 }: {
   book: "paper" | "live";
   onChange: (book: "paper" | "live") => void;
+  /**
+   * What pressing Live means on an agent that has no live book yet: open the
+   * dialog that gives it one. Null when the agent already trades live — Live is
+   * then an ordinary filter — and when real-money trading is closed, where the
+   * half is disabled and carries its reason instead.
+   */
+  onGoLive: (() => void) | null;
   paperDisabledReason: string | null;
   liveDisabledReason: string | null;
   note: string | null;
@@ -1300,16 +1064,20 @@ function BookSwitch({
         aria-label="Paper or live book"
         className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
       >
-        {(["paper", "live"] as const).map((b) => (
-          <Half
-            key={b}
-            book={b}
-            current={book}
-            onChange={onChange}
-            disabledReason={b === "paper" ? paperDisabledReason : liveDisabledReason}
-            onHover={setHovered}
-          />
-        ))}
+        {(["paper", "live"] as const).map((b) => {
+          const promotes = b === "live" && onGoLive !== null;
+          return (
+            <Half
+              key={b}
+              book={b}
+              current={book}
+              onSelect={() => (promotes ? onGoLive!() : onChange(b))}
+              disabledReason={b === "paper" ? paperDisabledReason : liveDisabledReason}
+              promotes={promotes}
+              onHover={setHovered}
+            />
+          );
+        })}
       </div>
       {hovered ? (
         <p className="font-ui text-[12px] text-text-dim">{hovered}.</p>
@@ -1323,14 +1091,17 @@ function BookSwitch({
 function Half({
   book,
   current,
-  onChange,
+  onSelect,
   disabledReason,
+  promotes,
   onHover,
 }: {
   book: "paper" | "live";
   current: "paper" | "live";
-  onChange: (book: "paper" | "live") => void;
+  onSelect: () => void;
   disabledReason: string | null;
+  /** This half opens the go-live dialog rather than switching the book. */
+  promotes: boolean;
   onHover: (reason: string | null) => void;
 }) {
   const active = book === current;
@@ -1347,6 +1118,12 @@ function Half({
     );
   }
 
+  // What the hover line says. A disabled half explains why it cannot be pressed;
+  // a promoting one says what pressing it will DO, since "Live" on an agent that
+  // has never traded live is otherwise ambiguous between "show me the live book"
+  // and "make this live".
+  const hint = disabledReason ?? (promotes ? "Set this agent up to trade real capital" : null);
+
   // aria-disabled rather than `disabled`: a disabled button fires no pointer
   // events in most browsers and cannot be focused, so the reason would never
   // reach anyone — which is the one thing this half exists to say.
@@ -1355,19 +1132,29 @@ function Half({
       type="button"
       aria-disabled={disabledReason !== null}
       onClick={() => {
-        if (!disabledReason) onChange(book);
+        if (!disabledReason) onSelect();
       }}
-      onMouseEnter={() => onHover(disabledReason)}
+      onMouseEnter={() => onHover(hint)}
       onMouseLeave={() => onHover(null)}
-      onFocus={() => onHover(disabledReason)}
+      onFocus={() => onHover(hint)}
       onBlur={() => onHover(null)}
       className={
         disabledReason
           ? `${base} cursor-not-allowed text-text-dim/45`
-          : `${base} text-text-dim hover:text-text-primary`
+          : promotes
+            ? // An offer rather than the inert half of a filter. Not filled in:
+              // it sits inside a switch, and a solid button there would outrank
+              // the half that is actually selected.
+              `${base} text-text-secondary hover:bg-accent-wash hover:text-accent`
+            : `${base} text-text-dim hover:text-text-primary`
       }
     >
       {label}
+      {promotes ? (
+        <span aria-hidden className="font-mono text-[10px] text-text-muted">
+          →
+        </span>
+      ) : null}
     </button>
   );
 }
