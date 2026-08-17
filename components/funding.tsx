@@ -2,16 +2,26 @@
 
 // Funding the agent wallet.
 //
-// TWO ASSETS, AND THE SECOND ONE IS THE TRAP.
+// USDC IS WHAT IT TRADES WITH, AND IT HAS TO ARRIVE AS USDC.
 //
-//   USDC — what the agent trades with. It cannot swap its own way in: SOL →
-//          USDC needs the System program, which the delegation's allow-list
-//          refuses, so USDC has to ARRIVE as USDC.
-//   SOL  — what it pays fees with. A wallet holding only USDC looks funded on
-//          every dollar-denominated display and cannot transact at all.
+// `SOL → USDC` is refused by the delegation's program allow-list — wrapping SOL
+// needs the System program — so an agent cannot convert its own way in.
 //
-// So both are shown as separate figures with separate states, never summed into
-// one "balance". A single number is exactly what hides the missing half.
+// SOL IS SHOWN ONLY WHILE THE BACKEND STILL ASKS FOR IT.
+//
+// Fees used to be the trap on this screen: a wallet holding only USDC looks
+// funded on every dollar-denominated display and cannot transact at all. When
+// Canopy sponsors fees that stops being true, and the second figure becomes
+// noise about an asset nobody needs to send.
+//
+// The switch is `minSol` on the funding response, not a constant here. That
+// ordering matters: the runner pauses a live agent using the SAME floor, so a
+// client carrying its own copy could stop asking for SOL while the agent was
+// still being paused for the lack of it — telling someone their wallet is ready
+// and then silently refusing to trade. One number, one source.
+//
+// The two figures are never summed into one "balance". A single number is
+// exactly what hides a missing half.
 //
 // The balances are read from the chain, not from our records. "Has my deposit
 // landed" is the one question our own ledger cannot answer — the transfer is
@@ -67,7 +77,6 @@ interface View {
 export function FundingPanel({
   agentId,
   address,
-  onFunded,
 }: {
   agentId: number;
   /**
@@ -79,14 +88,6 @@ export function FundingPanel({
    * state they got before.
    */
   address?: string | null;
-  /**
-   * Called when the chain says this wallet can trade.
-   *
-   * Reported upward rather than decided by the parent, because the parent has
-   * no way to know without repeating this request — and two components asking
-   * the same question of an RPC is two answers that can disagree.
-   */
-  onFunded?: () => void;
 }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
   const [copied, setCopied] = useState(false);
@@ -140,15 +141,6 @@ export function FundingPanel({
             fundedForLive: fallbackShortfall(fallback.data) === null,
           }
         : null;
-
-  const ready = view?.fundedForLive === true;
-  useEffect(() => {
-    if (ready) onFunded?.();
-    // `onFunded` is deliberately not a dependency: an inline arrow from the
-    // parent is a new identity every render, and depending on it would fire
-    // this on every one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
 
   const recheck = useCallback(() => {
     setAttempt((n) => n + 1);
@@ -214,21 +206,32 @@ export function FundingPanel({
         </Callout>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-px border border-grid bg-grid">
+      {/* SOL is shown only while the backend still requires it.
+          `minSol` comes from the funding response, so when Canopy turns on fee
+          sponsorship the floor arrives as 0 and this collapses to the single
+          figure that matters — no client release needed, and no window where
+          the screen stops asking for an asset the runner still pauses for. */}
+      <div
+        className={`grid gap-px border border-grid bg-grid ${
+          view.minSol > 0 ? "grid-cols-2" : "grid-cols-1"
+        }`}
+      >
         <Figure
           label="USDC"
           value={view.usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           note={view.usdc > 0 ? "available to trade" : "none — send USDC"}
           ok={view.usdc > 0}
         />
-        <Figure
-          label="SOL"
-          value={view.sol.toFixed(4)}
-          // The threshold is stated, because "some SOL" is not actionable and
-          // this is the balance people forget entirely.
-          note={view.sol >= view.minSol ? "covers fees" : `needs ${view.minSol} for fees`}
-          ok={view.sol >= view.minSol}
-        />
+        {view.minSol > 0 ? (
+          <Figure
+            label="SOL"
+            value={view.sol.toFixed(4)}
+            // The threshold is stated, because "some SOL" is not actionable and
+            // this is the balance people forget entirely.
+            note={view.sol >= view.minSol ? "covers fees" : `needs ${view.minSol} for fees`}
+            ok={view.sol >= view.minSol}
+          />
+        ) : null}
       </div>
 
       {view.shortfall ? (
@@ -272,10 +275,16 @@ export function FundingPanel({
           Send <span className="text-text-secondary">USDC on Solana</span> — the agent
           trades against it and cannot convert other assets into it.
         </p>
-        <p>
-          Send at least <span className="text-text-secondary">{view.minSol} SOL</span> as
-          well. Without it the wallet cannot pay transaction fees, even holding USDC.
-        </p>
+        {view.minSol > 0 ? (
+          <p>
+            Send at least <span className="text-text-secondary">{view.minSol} SOL</span> as
+            well. Without it the wallet cannot pay transaction fees, even holding USDC.
+          </p>
+        ) : (
+          <p>
+            Transaction fees are covered by Canopy — this wallet does not need SOL.
+          </p>
+        )}
       </div>
 
       <button

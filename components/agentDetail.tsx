@@ -9,6 +9,7 @@ import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
 import { GoLiveModal } from "@/components/goLive";
+import { WalletBar } from "@/components/walletBar";
 import type { UniverseSelection } from "@/lib/api";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -367,7 +368,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               Both are facts about the agent's connection to the world, and this
               is where the eye already goes. */}
           <AlertsControl />
-          <WalletTag address={wallet?.address ?? null} isPaper={agent.is_paper} />
+          <WalletBar
+            agentId={agentId}
+            address={wallet?.address ?? null}
+            isPaper={agent.is_paper}
+          />
         </div>
 
         {/* Always both halves, so the reader can see that an agent has two books
@@ -1156,41 +1161,6 @@ function Half({
         </span>
       ) : null}
     </button>
-  );
-}
-
-function WalletTag({ address, isPaper }: { address: string | null; isPaper: boolean }) {
-  const [copied, setCopied] = useState(false);
-  if (!address) {
-    // Nothing at all on a paper agent: having no wallet is the correct state
-    // there, and a header slot that only ever says so is noise. On a LIVE agent
-    // it is worth saying — real capital with nowhere to sign from is a fault.
-    if (isPaper) return null;
-    return <span className="font-ui text-[12px] text-text-dim">No wallet provisioned</span>;
-  }
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="font-mono text-[12.5px] text-text-secondary">
-        {address.slice(0, 4)}…{address.slice(-4)}
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          void navigator.clipboard
-            ?.writeText(address)
-            .then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1200);
-            })
-            .catch(() => {
-              /* clipboard blocked */
-            });
-        }}
-        className="border border-border px-2 py-0.5 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent"
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
-    </span>
   );
 }
 

@@ -14,29 +14,35 @@
 // THE STEPS ARE DERIVED, NOT STORED.
 //
 // There is no `step` state. Which step is current is read off what is actually
-// true — is the wallet delegated, does it hold enough to trade — because those
-// facts are owned by Privy and by the chain, not by this component. A stored
-// cursor would let the dialog sit on "fund your wallet" for a wallet that was
-// funded in another tab, or worse, advance past a grant that silently failed.
+// true — is this agent's wallet delegated — because that fact is owned by Privy
+// and by our own record of it, not by this component. A stored cursor could
+// advance past a grant that silently failed.
 //
-// The order is not cosmetic either. Each step is blocked by the one before it:
-// there is no wallet to fund until the delegation creates one, and an agent
-// promoted with an empty wallet pauses on its first tick with a message about
-// balances — which is a much worse place to learn that it needs SOL.
+// FUNDING IS NOT A STEP, AND DELIBERATELY SO.
+//
+// It used to sit between the grant and the promotion, on the reasoning that an
+// agent promoted with an empty wallet pauses on its first tick. It does — and
+// that turns out to be the right behaviour rather than a problem to prevent.
+// `runner.ts` checks the balance before the council runs and pauses with the
+// shortfall, so an unfunded live agent costs nothing and explains itself.
+//
+// Making the deposit a gate meant holding someone inside a modal, watching a
+// balance, waiting on a transfer from somewhere we cannot see — and it made the
+// whole go-live path hostage to a chain read that fails routinely. Going live
+// is now a decision the user completes in one sitting; funding is a deposit
+// they make whenever, from the wallet bar on the agent's own page.
 
 import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
-import { FundingPanel } from "@/components/funding";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import { goLive, isPaywallError, startCheckout, type AgentDetail } from "@/lib/api";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
 const STEPS: { n: Step; label: string; purpose: string }[] = [
   { n: 1, label: "Delegate", purpose: "Give the agent permission to sign" },
-  { n: 2, label: "Fund", purpose: "Put USDC and SOL in its wallet" },
-  { n: 3, label: "Go live", purpose: "Promote the agent to real capital" },
+  { n: 2, label: "Go live", purpose: "Promote the agent to real capital" },
 ];
 
 export function GoLiveModal({
@@ -72,12 +78,6 @@ export function GoLiveModal({
    */
   const [needsPayment, setNeedsPayment] = useState<string | null>(null);
   /**
-   * Whether the wallet can actually trade, raised by the funding panel's own
-   * chain read. Starts false: starting true would show the promote step to an
-   * empty wallet for one frame, and that frame is the one someone clicks.
-   */
-  const [funded, setFunded] = useState(false);
-  /**
    * The grant landed in THIS dialog.
    *
    * `wallet` is a prop and only refreshes when the page behind reloads, so
@@ -89,16 +89,15 @@ export function GoLiveModal({
   /**
    * The address the grant just registered, held for the same reason.
    *
-   * The funding step needs an address to read the chain with when canopy-be
-   * cannot answer — and in the window between granting and the page reload
-   * landing, `wallet` is still null, which is exactly the window the user
-   * spends on the funding step.
+   * The promote step names the wallet it is about to put real money behind, and
+   * in the window between granting and the page reload landing, `wallet` is
+   * still null — which is exactly the window the user spends on that step.
    */
   const [grantedAddress, setGrantedAddress] = useState<string | null>(null);
 
   const delegated = wallet?.status === "active" || justGranted;
   const walletAddress = wallet?.address ?? grantedAddress;
-  const step: Step = !delegated ? 1 : !funded ? 2 : 3;
+  const step: Step = !delegated ? 1 : 2;
 
   // The dialog owns Escape and keeps Tab inside the panel, so focus cannot
   // wander onto the page behind a modal that is about to spend real money.
@@ -264,28 +263,6 @@ export function GoLiveModal({
                     executes a trade inside this scope.
                   </Assurance>
                 </Section>
-              ) : step === 2 ? (
-                <Section
-                  title="Fund the agent's wallet"
-                  body={
-                    <>
-                      Two assets, and both are needed. <Figure>USDC</Figure> is what the agent
-                      trades with — it cannot swap its own way in, so it has to arrive as
-                      USDC. <Figure>SOL</Figure> is what it pays transaction fees with, and a
-                      wallet holding only USDC cannot transact at all.
-                    </>
-                  }
-                >
-                  {/* The address is handed down so the panel can read the chain
-                      itself when canopy-be cannot. Without it a backend RPC
-                      outage blocks this step, and with it the whole go-live
-                      path — see the fallback note in funding.tsx. */}
-                  <FundingPanel
-                    agentId={agent.id}
-                    address={walletAddress}
-                    onFunded={() => setFunded(true)}
-                  />
-                </Section>
               ) : needsPayment ? (
                 <Section title="This agent isn't subscribed yet" body={needsPayment}>
                   <div className="flex flex-wrap items-center gap-3">
@@ -349,6 +326,17 @@ export function GoLiveModal({
                       ],
                     ]}
                   />
+
+                  {/* Said here rather than enforced as a step. An unfunded live
+                      agent is a safe, self-explaining state — `runner.ts` reads
+                      the balance before the council runs and pauses with the
+                      shortfall — so the honest thing is to name it and let the
+                      user go live now and deposit when it suits them. */}
+                  <Assurance>
+                    You can deposit before or after this. An empty wallet does not lose
+                    anything — the agent simply waits, and says it is waiting, until USDC
+                    arrives. Deposit from the wallet bar at the top of this page.
+                  </Assurance>
 
                   {confirming ? (
                     <>
