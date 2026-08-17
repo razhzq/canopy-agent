@@ -61,6 +61,37 @@ export const privyConfig: PrivyClientConfig = {
     ethereum: { createOnLogin: "users-without-wallets" },
     // Solana for every user: the agent stack is Solana-first, and the agent
     // wallet is provisioned against the same identity.
-    solana: { createOnLogin: "all-users" },
+    //
+    // `users-without-wallets`, NOT `all-users`. Three things create a Solana
+    // wallet on this Privy app — this config, canopy-fe's identical one (same
+    // app id, by design), and canopy-fe's SolanaWalletBackfill, which calls
+    // createWallet() outright. Each guards only against its own prior run, and
+    // `all-users` skips the "do they already have one" check entirely. A
+    // concurrent login across the two products created three Solana wallets on
+    // one account 386ms apart.
+    //
+    // That is not cosmetic. `Wallet.id` differs per wallet, so a grant that
+    // lands on one and a registration that describes another produce "this
+    // wallet has not delegated signing to Canopy" while the delegation sits
+    // safely on a sibling. grantDelegation.tsx now pins the wallet by address,
+    // which makes the product correct with duplicates present; this stops
+    // making more.
+    //
+    // The setting is chain-scoped despite what the SDK's own doc comment says.
+    // The prose claims `users-without-wallets` creates only for users with no
+    // wallet of ANY kind — which would starve anyone holding the Ethereum
+    // wallet above. The implementation filters `linkedAccounts` on
+    // `chainType === "solana"` alone, so a user with an Ethereum wallet and no
+    // Solana one still gets provisioned. Verified in the installed bundle
+    // rather than taken from the docs, because the difference is the whole
+    // safety of this line.
+    //
+    // Residual: two products opened at the same instant by a user with NO
+    // Solana wallet still race, because both check before either writes. Privy
+    // offers no cross-tab lock. This closes every other path — anyone who
+    // already has a wallet now provokes no second one — and the address pin
+    // covers what remains. Privy has no wallet delete, so accounts that already
+    // accumulated wallets keep them either way.
+    solana: { createOnLogin: "users-without-wallets" },
   },
 };
