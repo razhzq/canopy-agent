@@ -1,99 +1,90 @@
 "use client";
 
-// Granting an agent a scoped delegation, for real.
+// Giving an agent its own wallet, and giving Canopy permission to sign from it.
 //
-// Two steps against two different authorities, and they are not
+// Three steps against three different authorities, and they are not
 // interchangeable:
 //
-//   1. THE GRANT. The user's own Privy session adds Canopy's signer to their
+//   1. PROVISION. canopy-be asks Privy for a NEW Solana wallet whose owner is
+//      this user. The wallet is inert: nobody but the user can sign from it
+//      yet, and Canopy deliberately does not attach itself here.
+//   2. THE GRANT. The user's own Privy session adds Canopy's signer to that
 //      wallet, constrained by our policy. Canopy's backend is not involved and
 //      could not perform this step — which is exactly why the resulting wallet
 //      is the user's and not ours.
-//   2. THE REGISTRATION. Canopy notices. The backend re-reads the wallet from
+//   3. THE REGISTRATION. Canopy notices. The backend re-reads the wallet from
 //      Privy and refuses anything that does not match, so this step confers no
-//      authority; it only records what step 1 already made true.
+//      authority; it only records what step 2 already made true.
 //
-// THE WALLET ID DOES NOT EXIST UNTIL AFTER THE GRANT.
+// STEP 1 IS NEW, AND IT REPLACED A WHOLE CLASS OF BUG.
 //
-// Privy types `Wallet.id` as "null if the wallet is not delegated". The
-// backend needs that id, so it cannot be read before delegating, and it must
-// be read from the user object `addSigners` RETURNS rather than from the
-// `user` in hook state — the latter is the pre-grant snapshot and still holds
-// a null id. Reading the stale one produces a grant that succeeded followed by
-// a registration that cannot say what it granted.
+// This used to delegate from the account's LOGIN wallet — the one Privy mints
+// at sign-in. There is one of those per account, and it was resolved
+// deterministically, so every agent on an account resolved to the SAME wallet.
+// The first agent to delegate claimed it; the second collided on a unique index
+// and the user got a raw duplicate-key error. The account was capped at one
+// live agent and nothing said so.
 //
-// AN ACCOUNT CAN HOLD MORE THAN ONE SOLANA WALLET, SO THE TARGET IS PINNED.
+// It was also the wrong wallet on its own terms. Balances are read per wallet,
+// so the funding screen reported the user's entire personal balance as that
+// agent's tradable capital — and because canopy-agent and canopy-fe share a
+// Privy app, it was their exchange wallet too. One pot, presented as an agent's.
 //
-// This used to pick the wallet with `.find()` — "the" embedded Solana wallet —
-// and ran that pick TWICE: once on the pre-grant `user` to choose what to
-// grant, once on the user `addSigners` returned to choose what to register.
-// With one wallet those agree. With three they need not, and nothing ordered
-// the list.
+// So the wallet is created FOR this agent, and everything below is pinned to
+// the address step 1 returns. The old code had to guess which of the account's
+// wallets to use, ran that guess twice, and could grant on one wallet while
+// registering another. There is nothing left to guess.
 //
-// Three is not hypothetical. canopy-agent and canopy-fe share a Privy app and
-// both set `solana.createOnLogin: "all-users"` — which, unlike
-// `users-without-wallets`, is not gated on already having a wallet — and
-// canopy-fe additionally runs a backfill that calls `createWallet()`. Each
-// guards only against its own prior run, so a concurrent login created three
-// wallets 386ms apart on one account.
+// WHY THE BACKEND DOES NOT JUST ATTACH THE SIGNER ITSELF.
 //
-// When the two picks disagreed the grant landed on wallet A and registration
-// described wallet B. The backend's address check passes (B's address really
-// is B's), then its signer check fails, and the user is told they never
-// granted anything — while holding a wallet that carries the grant.
-//
-// So the address is chosen ONCE and everything downstream is looked up by it.
+// It could — Privy's create call takes `additional_signers` — and the user
+// would never see a prompt. That is the custodial-feeling shortcut: the backend
+// would be granting itself permission and then verifying its own work.
+// Registration exists to check that a HUMAN granted this. So the wallet arrives
+// inert and the grant stays where it belongs.
 
 import { useState } from "react";
-import { usePrivy, useSigners, type User } from "@privy-io/react-auth";
+import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
-import { registerAgentWallet, type RegisteredWallet } from "@/lib/api";
+import {
+  provisionAgentWallet,
+  registerAgentWallet,
+  type RegisteredWallet,
+} from "@/lib/api";
 
 type EmbeddedWallet = Extract<
   NonNullable<User["linkedAccounts"]>[number],
   { type: "wallet" }
 >;
 
-/** Every Privy-embedded Solana wallet on the account. Order not meaningful. */
-function embeddedSolanaWallets(user: User | null): EmbeddedWallet[] {
-  return (user?.linkedAccounts ?? []).filter(
-    (a): a is EmbeddedWallet =>
-      a.type === "wallet" &&
-      a.chainType === "solana" &&
-      (a.walletClientType === "privy" || a.walletClientType === "privy-v2"),
-  );
-}
-
 /**
- * The one wallet this agent delegates from.
+ * The wallet at exactly this address.
  *
- * Deterministic on purpose: the same account must resolve to the same wallet
- * on every render and in both halves of the grant. An already-delegated wallet
- * wins so a second attempt reuses the grant instead of spending a fourth
- * wallet's worth of user consent on it; ties break on `walletIndex`, and on
- * address where Privy reports no index.
+ * The only lookup left. Used to ask one question — is our signer already on
+ * it — and never to CHOOSE a wallet, which is what used to go wrong.
  */
-function agentSolanaWallet(user: User | null): EmbeddedWallet | undefined {
-  return [...embeddedSolanaWallets(user)].sort((a, b) => {
-    if (a.delegated !== b.delegated) return a.delegated ? -1 : 1;
-    const ai = a.walletIndex ?? Number.MAX_SAFE_INTEGER;
-    const bi = b.walletIndex ?? Number.MAX_SAFE_INTEGER;
-    if (ai !== bi) return ai - bi;
-    return a.address.localeCompare(b.address);
-  })[0];
-}
-
-/** The wallet at exactly this address — the pin that keeps both steps together. */
 function walletAt(user: User | null, address: string): EmbeddedWallet | undefined {
-  return embeddedSolanaWallets(user).find((w) => w.address === address);
+  return (user?.linkedAccounts ?? []).find(
+    (a): a is EmbeddedWallet => a.type === "wallet" && a.address === address,
+  );
 }
 
 type Phase =
   | { step: "idle" }
+  | { step: "provisioning" }
   | { step: "granting" }
   | { step: "registering" }
   | { step: "done"; result: RegisteredWallet }
   | { step: "error"; message: string };
+
+const LABEL: Record<Phase["step"], string> = {
+  idle: "Grant delegation",
+  provisioning: "Creating the agent's wallet…",
+  granting: "Approve in your wallet…",
+  registering: "Recording…",
+  done: "Grant delegation",
+  error: "Grant delegation",
+};
 
 export function GrantDelegation({
   agentId,
@@ -106,62 +97,75 @@ export function GrantDelegation({
   expiresAt: Date;
   onGranted?: (result: RegisteredWallet) => void;
 }) {
-  const { user, getAccessToken } = usePrivy();
+  const { getAccessToken } = usePrivy();
+  // Not on `usePrivy` — `useUser` is the hook Privy documents for picking up a
+  // change made by a backend, which is exactly what provisioning is.
+  const { refreshUser } = useUser();
   const { addSigners } = useSigners();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
-  const wallet = agentSolanaWallet(user);
   const misconfigured = !AGENT_KEY_QUORUM_ID || !AGENT_POLICY_ID;
 
   async function grant() {
     try {
-      if (!wallet) throw new Error("no Solana wallet on this account");
       if (misconfigured) {
-        // Without both ids the grant would attach a signer with no policy —
-        // an agent that may do anything the key allows. Refusing here keeps
-        // that from ever being granted, rather than relying on the backend to
-        // reject it after the user has already approved something broader
-        // than they were shown.
+        // Without both ids the grant would attach a signer with no policy — an
+        // agent that may do anything the key allows. Refusing here keeps that
+        // from ever being granted, rather than relying on the backend to reject
+        // it after the user has already approved something broader than they
+        // were shown.
         throw new Error("delegation is not configured — the signer and policy ids are missing");
       }
 
-      // Chosen once, before anything is granted. Every lookup below is by this
-      // string, so the wallet that receives the signer and the wallet that gets
-      // registered cannot come apart.
-      const address = wallet.address;
+      setPhase({ step: "provisioning" });
+      let token = await getAccessToken();
+      if (!token) throw new Error("your session expired — sign in and try again");
+
+      // Idempotent at Privy, keyed on the agent: a retry after any failure
+      // below returns the SAME wallet rather than minting a second one. That
+      // matters more than it looks — Privy cannot delete a wallet, so every
+      // duplicate is permanent, and a duplicate is a wallet a user might fund
+      // by mistake.
+      const { walletId, address } = await provisionAgentWallet(token, agentId);
+
+      // The wallet was created server-side, so this session has never heard of
+      // it. `addSigners` resolves by address against the client's user object,
+      // which would still be the pre-provision snapshot.
+      const refreshed = await refreshUser();
 
       setPhase({ step: "granting" });
-      let granted: User;
       try {
-        ({ user: granted } = await addSigners({
+        await addSigners({
           address,
           signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [AGENT_POLICY_ID] }],
-        }));
+        });
       } catch (err) {
-        // A wallet that already carries a signer can refuse the duplicate. That
-        // is not a failure to be delegated — it is the grant already existing,
-        // which is the state a retry after a failed registration lands in. Fall
-        // through on the pre-grant user and let registration decide: it re-reads
-        // the wallet from Privy and is the only authority on what is attached.
-        if (!wallet.delegated) throw err;
-        granted = user as User;
-      }
-
-      // Re-read from the RETURNED user: `id` was null before this call.
-      const delegated = walletAt(granted, address);
-      if (!delegated?.id) {
-        throw new Error(
-          "the grant completed but Privy did not return a wallet id — nothing was registered",
-        );
+        // A wallet that already carries the signer can refuse the duplicate.
+        // That is not a failure to be delegated — it is the grant already
+        // existing, which is the state a retry after a failed registration
+        // lands in. Confirmed against Privy rather than assumed: anything else
+        // is a real error and is rethrown.
+        const already =
+          walletAt(refreshed, address)?.delegated ??
+          walletAt(await refreshUser(), address)?.delegated ??
+          false;
+        if (!already) throw err;
       }
 
       setPhase({ step: "registering" });
-      const token = await getAccessToken();
+      // Re-read: provisioning and a wallet approval can take long enough for a
+      // token minted before them to be close to expiry.
+      token = await getAccessToken();
       if (!token) throw new Error("your session expired — sign in and try again");
 
+      // `walletId` comes from the backend's own create call, not from the
+      // client's view of the user. Privy types `Wallet.id` as null until a
+      // wallet is delegated, and reading it from session state is what used to
+      // produce a grant that succeeded followed by a registration that could
+      // not say what it granted.
       const result = await registerAgentWallet(token, agentId, {
-        walletId: delegated.id,
-        address: delegated.address,
+        walletId,
+        address,
         maxSpendUsd,
         expiresAt: expiresAt.toISOString(),
       });
@@ -202,28 +206,25 @@ export function GrantDelegation({
     );
   }
 
-  const busy = phase.step === "granting" || phase.step === "registering";
+  const busy =
+    phase.step === "provisioning" ||
+    phase.step === "granting" ||
+    phase.step === "registering";
 
   return (
     <div className="space-y-4">
       <button
         type="button"
         onClick={grant}
-        disabled={busy || !wallet || misconfigured}
+        disabled={busy || misconfigured}
         className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black disabled:cursor-not-allowed disabled:border-border disabled:text-text-dim disabled:hover:bg-transparent"
       >
-        {phase.step === "granting"
-          ? "Approve in your wallet…"
-          : phase.step === "registering"
-            ? "Recording…"
-            : "Grant delegation"}
+        {LABEL[phase.step]}
       </button>
 
-      {!wallet && (
-        <p className="font-ui text-[13px] text-text-dim">
-          No Solana wallet on this account yet. Sign in to create one.
-        </p>
-      )}
+      {/* No "you have no wallet yet" case any more: this flow CREATES the
+          wallet it delegates, so an account with none is the ordinary path
+          rather than a blocked one. */}
 
       {misconfigured && (
         <p className="font-ui text-[13px] text-warning">

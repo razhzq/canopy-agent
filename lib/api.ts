@@ -1181,6 +1181,33 @@ export interface RegisteredWallet {
  * here is trusted: the backend re-reads the wallet from Privy and refuses
  * anything that does not match.
  */
+export interface ProvisionedWallet {
+  /** Privy's wallet id. The executor signs through this, not the address. */
+  walletId: string;
+  address: string;
+}
+
+/**
+ * Creates the agent's OWN Solana wallet, owned by the signed-in user.
+ *
+ * Called BEFORE the grant, and it is what makes per-agent wallets possible:
+ * every agent used to delegate from the account's single login wallet, so the
+ * second agent to try collided on a unique index and the whole account was
+ * stuck at one live agent.
+ *
+ * The wallet comes back INERT — Canopy is not a signer on it yet. That is the
+ * next step and it happens in the user's own session, because a signer the
+ * backend attached to itself is not a delegation anybody granted.
+ *
+ * Idempotent at Privy, keyed on the agent. Calling it twice returns the same
+ * wallet rather than minting a second one — which matters more than usual here,
+ * since Privy has no way to delete a wallet.
+ */
+export const provisionAgentWallet = (token: string, agentId: number) =>
+  request<ProvisionedWallet>(`/agents/${agentId}/wallet/provision`, token, {
+    method: "POST",
+  });
+
 export const registerAgentWallet = (
   token: string,
   agentId: number,
