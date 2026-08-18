@@ -344,9 +344,10 @@ export function GoLiveModal({
                         <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                         <p className="font-ui text-[13px] leading-relaxed text-warning">
                           From the next tick this agent trades real money, up to{" "}
-                          {money(Number(agent.capital_usd) || 0)}. You can pause it at any
-                          time and the paper book stays readable — but this cannot be undone.
-                          An agent does not go back to paper.
+                          {money(Number(agent.capital_usd) || 0)}, and it stops trading on
+                          paper. You can pause it at any time. Its paper run is not lost —
+                          the book, the cycles and the thread stay readable from the Paper
+                          half of the switch — but the agent itself does not go back.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">

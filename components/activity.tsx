@@ -21,9 +21,19 @@ import { Badge } from "@/components/ui";
  * Refreshes on an interval because a live paper run is the main thing anyone
  * watches this page for.
  */
-export function ActivityLog({ agentId }: { agentId: number }) {
+export function ActivityLog({
+  agentId,
+  book,
+}: {
+  agentId: number;
+  /**
+   * Which book's cycles to show. Follows the page's book switch, so the log and
+   * the positions above it are always describing the same run.
+   */
+  book?: "paper" | "live";
+}) {
   const [tick, setTick] = useState(0);
-  const state = useApi((t) => getActivity(t, agentId, 5), [agentId, tick]);
+  const state = useApi((t) => getActivity(t, agentId, 5, book), [agentId, tick, book]);
 
   // THE LAST GOOD LOG, KEPT ACROSS REFETCHES.
   //

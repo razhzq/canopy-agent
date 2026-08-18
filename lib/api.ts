@@ -1438,8 +1438,16 @@ export interface AgentDetail {
    * book as live because a `book` value was defaulted or rejected.
    */
   book: "paper" | "live";
-  /** True once the agent has gone live, meaning there is a paper run to look back at. */
+  /**
+   * Which halves of the book switch have cycles behind them.
+   *
+   * Both can be true: the books coexist, and moving an agent back to paper does
+   * not take its live book away. Read from the cycles themselves rather than
+   * inferred from the current mode, which only worked while promotion was
+   * one-way.
+   */
   hasPaperHistory: boolean;
+  hasLiveHistory: boolean;
   /**
    * Whether real-money trading is open at all, as reported by the server.
    *
@@ -1645,9 +1653,23 @@ export interface ActivityCycle {
 }
 
 /** The last few cycles with their full transcript — the agent's activity log. */
-export const getActivity = (token: string, agentId: number, limit = 5) =>
+/**
+ * Recent cycles, for ONE book.
+ *
+ * `book` matters for the same reason it does on the equity curve: a paper cycle
+ * decided against simulated fills, and showing it inside the live view puts
+ * simulated reasoning in a real trading record — harder to spot than a mixed
+ * curve, because the cycles read identically either way. Omitted means the book
+ * the agent is in now.
+ */
+export const getActivity = (
+  token: string,
+  agentId: number,
+  limit = 5,
+  book?: "paper" | "live",
+) =>
   request<{ cycles: ActivityCycle[] }>(
-    `/agents/${agentId}/activity?limit=${limit}`,
+    `/agents/${agentId}/activity?limit=${limit}${book ? `&book=${book}` : ""}`,
     token,
   );
 
@@ -1713,8 +1735,19 @@ export interface StrategyRecord {
 export const getStrategyRecord = (token: string, strategyId: number) =>
   request<StrategyRecord>(`/agents/strategies/${strategyId}/record`, token);
 
-export const getEquity = (token: string, agentId: number) =>
-  request<EquitySeries>(`/agents/${agentId}/equity`, token);
+/**
+ * The equity curve, for ONE book.
+ *
+ * `book` matters now that an agent can move between paper and live: its cycles
+ * interleave, and an unfiltered curve would average simulated fills into a real
+ * track record and draw the result as performance. Omitted means the book the
+ * agent is in now, which is what a fresh page load should show.
+ */
+export const getEquity = (token: string, agentId: number, book?: "paper" | "live") =>
+  request<EquitySeries>(
+    `/agents/${agentId}/equity${book ? `?book=${book}` : ""}`,
+    token,
+  );
 
 /* -------------------------------------------------------------- proposals -- */
 

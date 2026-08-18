@@ -164,7 +164,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       // listening — an unhandled rejection caused by the error path of a
       // DIFFERENT request, which is a miserable thing to debug.
       const agentPromise = getAgent(token, agentId, book ?? undefined);
-      const equityPromise = getEquity(token, agentId).catch(() => null);
+      // Same book as the agent request. The curve sits directly above the
+      // positions it is supposed to explain, and now that an agent's cycles can
+      // interleave paper and live, letting these two disagree would put a paper
+      // curve over a live book without either label being wrong.
+      const equityPromise = getEquity(token, agentId, book ?? undefined).catch(() => null);
 
       // The agent is the one request whose failure means there is no page, so
       // it alone is allowed to throw into the catch below.
@@ -342,10 +346,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   const liveDisabledReason = !liveTradingEnabled
     ? "Real-money trading isn't open yet"
     : null;
-  const goLiveIntent = liveTradingEnabled && agent.is_paper ? () => setGoingLive(true) : null;
+  // Pressing Live means "go live" only on an agent that has never traded live —
+  // which, since the transition is one-way, is exactly every paper agent. One
+  // rule: the pill shows you a book when there is one, and stands in for the
+  // missing one when there is not.
+  const goLiveIntent =
+    liveTradingEnabled && agent.is_paper && !detail.hasLiveHistory
+      ? () => setGoingLive(true)
+      : null;
   // A live agent that was deployed straight to live has no paper run behind it.
-  const paperDisabledReason =
-    agent.is_paper || detail.hasPaperHistory ? null : "This agent has no paper run";
+  const paperDisabledReason = detail.hasPaperHistory || agent.is_paper
+    ? null
+    : "This agent has no paper run";
   const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
 
   return (
@@ -621,7 +633,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               }
             />
             <div className="pt-4">
-              <ActivityLog agentId={agentId} />
+              <ActivityLog agentId={agentId} book={detail.book} />
             </div>
             <p className="pt-4 font-ui text-[12px] text-text-dim">
               Append-only. Every check is recorded, whether it traded or not
@@ -1025,8 +1037,17 @@ function StatusChip({ status }: { status: string }) {
  * lots behind as a settled book. There is one id, one activity log, one set of
  * rules — and two books, told apart by `is_paper` on each position and fill.
  *
- * So this IS a display filter now, and switching refetches the same agent for
- * the other book rather than navigating anywhere.
+ * So this IS a display filter — switching refetches the same agent for the
+ * other book rather than navigating anywhere, and it never changes what the
+ * agent is doing. Both books survive: a live agent's paper run stays readable
+ * forever, which is why going live is not the one-way door it used to be
+ * described as.
+ *
+ * Nothing here changes what the agent is DOING. Going live is a real
+ * transition — it settles the paper book and stops paper trading — but it
+ * happens once, from the Live half of an agent that has no live book yet.
+ * Afterwards this is purely a reader: the paper run stays browsable forever,
+ * which is why going live costs you nothing you had already earned.
  *
  * Both halves always render. A half with no book behind it — live, while
  * real-money trading is closed — is disabled and carries its reason, which
