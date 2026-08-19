@@ -13,9 +13,9 @@ import { useApi } from "@/lib/useApi";
 /**
  * The agent marketplace — wireframe 1a.
  *
- * Three featured cards over a compact grid, twelve to a page. It replaced an
- * eleven-column table that read as a spreadsheet of strategies rather than a
- * shelf of agents somebody might deploy.
+ * One grid of identical cards, twelve to a page. It replaced an eleven-column
+ * table that read as a spreadsheet of strategies rather than a shelf of agents
+ * somebody might deploy.
  *
  * TRACK RECORD ONLY
  *
@@ -118,21 +118,22 @@ export function Marketplace() {
   const current = Math.min(page, pages - 1);
   const slice = visible.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
 
-  /**
-   * The three-over-a-grid split is wireframe 1a's, and it needs a shelf to work
-   * on. 1a draws it with twelve agents, where three cards with curves read as a
-   * promoted top row over a denser list. At four agents the same rule reads as a
-   * bug: one row of cards, then a lone one-line strip with no curve, and nothing
-   * on screen explains why those two agents are drawn differently.
+  /*
+   * EVERY AGENT GETS THE SAME CARD.
    *
-   * So promotion only turns on once there is a full compact row to sit beneath
-   * it — three featured plus at least three more. Below that every agent gets
-   * the same card, which is also the honest presentation: with four agents none
-   * of them is "featured" in any sense a viewer could act on.
+   * Wireframe 1a promoted the first three into richer cards over a denser
+   * grid, and it was dropped because the promotion was never real. `featured`
+   * was `slice.slice(0, 3)` — whichever agents happened to lead the current
+   * sort — so changing the sort dropdown handed the richer card to three
+   * different agents, and because `slice` is already paginated it re-promoted
+   * the top of every page. An agent was drawn one way or the other according
+   * to where the pagination boundary fell.
+   *
+   * Hierarchy has to be earned by a criterion the reader can act on. Position
+   * in the current sort is not one, and nothing on screen claimed it was — so
+   * the difference read as inconsistency rather than as ranking. The one
+   * genuinely defined distinction, most-deployed, survives as the HOT badge.
    */
-  const promoted = slice.length >= 6;
-  const featured = promoted ? slice.slice(0, 3) : slice;
-  const rest = promoted ? slice.slice(3) : [];
 
   const reset = (fn: () => void) => {
     fn();
@@ -242,21 +243,11 @@ export function Marketplace() {
           </div>
         ) : (
           <div className="space-y-4">
-            {featured.length > 0 ? (
-              <div className="grid gap-4 lg:grid-cols-3">
-                {featured.map((r) => (
-                  <FeaturedCard key={r.id} row={r} hot={r.id === hottest} />
-                ))}
-              </div>
-            ) : null}
-
-            {rest.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {rest.map((r) => (
-                  <CompactCard key={r.id} row={r} />
-                ))}
-              </div>
-            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {slice.map((r) => (
+                <AgentCard key={r.id} row={r} hot={r.id === hottest} />
+              ))}
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4 pt-3">
               <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
@@ -297,7 +288,7 @@ export function Marketplace() {
 
 /* -------------------------------------------------------------------- cards -- */
 
-function FeaturedCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
+function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
   const ret = return30dPct(r);
   const points = (r.spark ?? []).map(Number).filter(Number.isFinite);
   const capital = Number(r.mandate_capital_usd);
@@ -327,7 +318,7 @@ function FeaturedCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
 
       <div className="py-4">
         {points.length > 1 ? (
-          <EquityCurve values={points} baseline={capital || undefined} height={56} />
+          <EquityCurve values={points} baseline={capital || undefined} height={56} hoverAnimate />
         ) : (
           // No curve rather than a flat line pretending to be one.
           <div className="flex h-[56px] items-center font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
@@ -336,7 +327,13 @@ function FeaturedCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-3 border-t border-grid pt-3.5">
+      {/* Two-up until the cards go three-across.
+          The four metrics used to sit in one row of four because this card was
+          full width below lg; it is two-up from sm now, which leaves each
+          column about 63px — narrow enough that "Return 30d" and "Trades 30d"
+          both truncate to an ellipsis. A 2x2 block holds the same four figures
+          without abbreviating any of their labels. */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-4 border-t border-grid pt-3.5 lg:grid-cols-4">
         <Metric
           label="Return 30d"
           value={ret === null ? "—" : signedPct(ret)}
@@ -356,70 +353,6 @@ function FeaturedCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           non-custodial
         </span>
       </div>
-    </Link>
-  );
-}
-
-/**
- * The rest of the shelf.
- *
- * NOT a one-line strip. In 1a these carry the same 56px chart as the promoted
- * three and differ only below it: one headline return figure and a trade count,
- * where a featured card spends four columns on return, capital, trades and open
- * positions. An earlier version dropped the chart and squeezed the card onto a
- * single row, which made two agents on the same page look like two different
- * kinds of object with nothing on screen explaining the difference.
- */
-function CompactCard({ row: r }: { row: StrategyRow }) {
-  const ret = return30dPct(r);
-  const points = (r.spark ?? []).map(Number).filter(Number.isFinite);
-  const capital = Number(r.mandate_capital_usd);
-
-  return (
-    <Link
-      href={`/agents/${r.id}`}
-      className="group flex flex-col border border-grid p-5 transition-colors hover:border-grid-strong"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-mono text-[14px] text-text-primary group-hover:text-accent">
-            {r.name}
-          </span>
-          {isNew(r) ? <Badge tone="accent">New</Badge> : null}
-        </span>
-        {r.is_mine ? <Badge tone="muted">Yours</Badge> : null}
-      </div>
-
-      <p className="truncate pt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
-        {r.strategy_class} · {recordDays(r)} days
-      </p>
-
-      <div className="py-3.5">
-        {points.length > 1 ? (
-          <EquityCurve values={points} baseline={capital || undefined} height={56} />
-        ) : (
-          // Same reservation as the featured card: hold the height so a shelf of
-          // new agents keeps its grid, but never draw a flat line as if it were
-          // a record.
-          <div className="flex h-[56px] items-center font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-            Not enough cycles yet
-          </div>
-        )}
-      </div>
-
-      <p
-        className={`tnum font-mono text-[22px] leading-none ${
-          ret === null ? "text-text-dim" : ret >= 0 ? "text-accent" : "text-negative"
-        }`}
-      >
-        {ret === null ? "—" : signedPct(ret)}
-      </p>
-      {/* `?? "—"`: a list-only aggregate, so it is always present here — but
-          rendered raw, an absent one prints the word "undefined" into the
-          sentence rather than failing visibly. */}
-      <p className="pt-1.5 font-ui text-[12px] text-text-dim">
-        {r.trades_30d ?? "—"} trades · 30d
-      </p>
     </Link>
   );
 }

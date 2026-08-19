@@ -281,7 +281,14 @@ function AccountMenu() {
     // Shaped like the button it becomes, not a circle: a placeholder of the
     // wrong width shoves the whole right-hand side of the navbar sideways the
     // moment Privy resolves.
-    return <div className="h-9 w-[112px] rounded-md bg-surface-2 sm:w-[148px]" aria-hidden />;
+    // Outlined rather than a filled slab: at this size a solid block is the
+    // loudest thing in the bar, and it stands in for a bordered button.
+    return (
+      <div
+        className="h-9 w-[60px] rounded-md border border-border bg-surface-2/50 sm:w-[148px]"
+        aria-hidden
+      />
+    );
   }
 
   if (!authenticated) {
@@ -348,7 +355,10 @@ function AccountMenu() {
       >
         <Avatar label={email ?? primary} />
         <span
-          className={`max-w-[92px] truncate text-[13px] text-text-primary sm:max-w-[180px] ${
+          // The avatar and the chevron alone say "your account" on a phone;
+          // the address or email is the first thing that can go when the bar
+          // runs out of room.
+          className={`hidden max-w-[92px] truncate text-[13px] text-text-primary sm:inline sm:max-w-[180px] ${
             primaryIsAddress ? "font-mono" : "font-ui"
           }`}
         >
@@ -430,7 +440,7 @@ function AccountMenu() {
                       className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
                         copied === w.address
                           ? "text-accent opacity-100"
-                          : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                          : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                       }`}
                       aria-hidden
                     >
@@ -482,7 +492,7 @@ function AccountMenu() {
                     className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
                       copied === invite.code
                         ? "text-accent opacity-100"
-                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                     }`}
                     aria-hidden
                   >
@@ -510,7 +520,7 @@ function AccountMenu() {
                     className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
                       copied === inviteLink(invite.code)
                         ? "text-accent opacity-100"
-                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                     }`}
                     aria-hidden
                   >
@@ -631,7 +641,11 @@ export function TopNav() {
           <Link
             href="/agents"
             aria-label="Canopy — home"
-            className={`flex shrink-0 items-center rounded-sm ${FOCUS}`}
+            // Hidden on a phone. The bar is 575px of content at a 375px
+            // viewport and every item in it is shrink-0, so something has to
+            // go; the wordmark is the only element that is decoration rather
+            // than a control, and "My agents" is the home destination anyway.
+            className={`hidden shrink-0 items-center rounded-sm sm:flex ${FOCUS}`}
           >
             <Image
               src="/canopy-wordmark.png"
@@ -650,9 +664,18 @@ export function TopNav() {
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`shrink-0 rounded-md px-3 py-1.5 font-ui text-[15px] transition-colors sm:px-3.5 ${FOCUS} ${
+                  // h-9 rather than vertical padding: every other control in
+                  // the bar — Create agent, the bell, the account button — is
+                  // 36px, and a nav link three pixels short of that broke the
+                  // one row the eye reads across.
+                  //
+                  // The weight is `font-medium` in BOTH states. It used to bold
+                  // only when active, which re-flowed the label a pixel or two
+                  // wider and nudged its neighbour sideways on every route
+                  // change; the fill and text colour already say which is live.
+                  className={`flex h-9 shrink-0 items-center rounded-md px-2.5 font-ui text-[14px] font-medium transition-colors sm:px-3.5 ${FOCUS} ${
                     active
-                      ? "bg-surface-2 font-medium text-text-primary"
+                      ? "bg-surface-2 text-text-primary"
                       : // Inactive links get a background on hover too, so the
                         // hit target is legible before the click, not only the
                         // label colour shifting.
@@ -669,7 +692,11 @@ export function TopNav() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-4">
           <Link
             href="/build/new"
-            className={`flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 font-ui text-[14px] font-semibold text-bg transition-colors hover:bg-accent/85 active:bg-accent/75 sm:pr-4 ${FOCUS}`}
+            // Brightness rather than opacity for the hover. Fading the accent
+            // toward an almost-black background darkens it, so the primary
+            // action of the whole app dimmed on hover and read as disabled;
+            // lifting it is the response the pointer is asking for.
+            className={`flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 font-ui text-[14px] font-semibold text-bg transition-[filter,background-color] hover:brightness-110 active:brightness-95 sm:pr-4 ${FOCUS}`}
           >
             <PlusIcon className="size-3.5 shrink-0" />
             {/* On a phone the plus alone carries it; the label stays in the

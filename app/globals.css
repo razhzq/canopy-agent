@@ -30,13 +30,27 @@
   --color-positive: #3ddc91;
   --color-negative: #f2705f;
   --color-warning: #e8b54a;
-  --color-simulated: #6e7c75;
+  --color-simulated: #77867e;
 
-  /* Type */
+  /* Type
+   *
+   * The quiet end of this ramp was below WCAG AA. text-dim (#68746d) came to
+   * 3.56:1 and text-muted (#5a665f) to 2.89:1 against surface-2, and both are
+   * used almost exclusively on 9-13px labels — the copy that most needs to be
+   * legible, set in the greys least able to carry it. `simulated` (#6e7c75,
+   * 3.97:1) is the Badge tone and is likewise text, so it moved with them.
+   *
+   * The floor is 4.5:1 on #141c19, the lightest ground any of these sit on.
+   * (accent-wash is lighter still, but only ever carries text-accent at 9.2:1.)
+   * That leaves headroom of exactly one stop between the floor and secondary,
+   * so the three quiet greys are spaced evenly in L* — 62.0 / 58.3 / 54.8 —
+   * rather than by raw ratio, which is what keeps the steps perceptible now
+   * that they are packed into 5.8:1 → 4.6:1. Hue and saturation are unchanged;
+   * only lightness moved. */
   --color-text-primary: #e9efec;
   --color-text-secondary: #8b9992;
-  --color-text-dim: #68746d;
-  --color-text-muted: #5a665f;
+  --color-text-dim: #838f88;
+  --color-text-muted: #77877d;
 
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
   --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -129,6 +143,59 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------- equity curve hover ---- */
+
+/*
+ * The marketplace cards blank their curve and redraw it when you point at one.
+ *
+ * The point is not decoration: a shelf of cards is a wall of near-identical
+ * green squiggles, and re-drawing one from nothing separates the card under
+ * the cursor from its neighbours by showing the series being traced in time
+ * rather than by making it brighter — which is what every other card already
+ * does on hover, via the border and the title.
+ *
+ * A LEFT-TO-RIGHT CLIP, NOT A DASH OFFSET.
+ *
+ * The obvious way to draw an SVG path is stroke-dasharray + stroke-dashoffset,
+ * and it was the first thing here. It does not survive this particular chart:
+ * the curve carries vector-effect="non-scaling-stroke" (so the 1.75px line
+ * stays 1.75px under a stretched viewBox) inside preserveAspectRatio="none",
+ * and normalising its length with pathLength on top of that puts three
+ * features into a combination browsers disagree about. Dashes are measured in
+ * a coordinate space the other two are busy redefining.
+ *
+ * clip-path answers to none of that. It is applied to the <svg> box in CSS
+ * pixels, so the reveal is exactly "how much of this element is showing" —
+ * and it takes the area wash and the end dot with it, which a dash on the
+ * line alone never could. It also needs no id, so it cannot collide the way
+ * the fill gradients in this file once did.
+ *
+ * Linear, deliberately. An ease-out spends most of its time crawling through
+ * the last few percent, which is the opposite of watching a line be drawn.
+ */
+@keyframes curve-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* One ring off the latest point, delayed to fire as the wipe uncovers it. It
+   is the same gesture the headline figure makes on the card below — this is
+   where that number comes from. */
+@keyframes curve-mark {
+  from {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
   }
 }
 

@@ -573,11 +573,21 @@ export function EquityCurve({
   values,
   baseline,
   height = 200,
+  hoverAnimate = false,
 }: {
   values: number[];
   /** Starting capital. Drawn as a dashed rule so gains and losses read against it. */
   baseline?: number;
   height?: number;
+  /**
+   * Redraw the curve when an ancestor carrying `group` is hovered.
+   *
+   * Opt-in rather than always-on. The detail pages render this chart as the
+   * subject of the page, where a curve that redraws whenever the pointer
+   * crosses some enclosing element would be motion with nothing to say; on a
+   * marketplace card the redraw is the card answering the pointer.
+   */
+  hoverAnimate?: boolean;
 }) {
   if (values.length === 0) return <div style={{ height }} />;
 
@@ -601,51 +611,75 @@ export function EquityCurve({
   const stroke = up ? "var(--color-accent)" : "var(--color-negative)";
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      style={{ height, width: "100%" }}
-      aria-hidden
+    // The wipe rides on a plain div rather than on the <svg>. An inset()
+    // percentage resolves against the element's reference box, and for SVG
+    // elements that box is not the same one HTML uses — a wrapper makes the
+    // reveal unambiguously "this many percent of the chart's width".
+    <div
+      style={{ height }}
+      className={hoverAnimate ? "group-hover:animate-[curve-wipe_1200ms_linear]" : undefined}
     >
-      {/* Keyed by tone, not a single fixed id: two curves on one page (the
-          marketplace cards) both emit these defs, and duplicate ids resolve to
-          whichever came first — a losing card was picking up the winning card's
-          green wash. One id per tone means a collision is always with an
-          identical gradient. */}
-      <defs>
-        <linearGradient id={`equityFill-${up ? "up" : "down"}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
-        </linearGradient>
-      </defs>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        style={{ height, width: "100%" }}
+        aria-hidden
+      >
+        {/* Keyed by tone, not a single fixed id: two curves on one page (the
+            marketplace cards) both emit these defs, and duplicate ids resolve to
+            whichever came first — a losing card was picking up the winning card's
+            green wash. One id per tone means a collision is always with an
+            identical gradient. */}
+        <defs>
+          <linearGradient id={`equityFill-${up ? "up" : "down"}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
 
-      <path d={area} fill={`url(#equityFill-${up ? "up" : "down"})`} />
+        <path d={area} fill={`url(#equityFill-${up ? "up" : "down"})`} />
 
-      {baseline !== undefined ? (
-        <line
-          x1="0"
-          x2={W}
-          y1={y(baseline)}
-          y2={y(baseline)}
-          stroke="var(--color-grid-strong)"
-          strokeWidth="1"
-          strokeDasharray="4 4"
+        {baseline !== undefined ? (
+          <line
+            x1="0"
+            x2={W}
+            y1={y(baseline)}
+            y2={y(baseline)}
+            stroke="var(--color-grid-strong)"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
+
+        <path
+          d={line}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="1.75"
+          strokeLinejoin="round"
+          strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
-      ) : null}
 
-      <path
-        d={line}
-        fill="none"
-        stroke={stroke}
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
+        {/* The ring, behind the dot and only on the cards. `transform-box:
+            fill-box` so the scale is about the dot's own centre — the default
+            origin is the SVG's, which would fling it off the corner. */}
+        {hoverAnimate ? (
+          <circle
+            cx={pts[pts.length - 1][0]}
+            cy={pts[pts.length - 1][1]}
+            r="3.5"
+            fill={stroke}
+            opacity="0"
+            style={{ transformBox: "fill-box", transformOrigin: "center" }}
+            className="group-hover:animate-[curve-mark_620ms_1050ms_ease-out]"
+          />
+        ) : null}
 
-      {/* The latest point, marked — it is the number in the headline. */}
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="3.5" fill={stroke} />
-    </svg>
+        {/* The latest point, marked — it is the number in the headline. */}
+        <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="3.5" fill={stroke} />
+      </svg>
+    </div>
   );
 }

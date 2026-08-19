@@ -545,7 +545,7 @@ function Turn({
   }
 
   return (
-    <Row role="agent" tone={open ? "accent" : undefined} style={enter}>
+    <Row role="agent" style={enter}>
       {/* The answer is the content of this page, so it is set at reading
           contrast and reading measure — not at the secondary grey used for
           labels around it. This was the single cheapest legibility win here. */}
@@ -693,30 +693,18 @@ function Turn({
  * messages stay contained and right-aligned. That asymmetry is what makes a
  * transcript scannable — you can find your own questions without reading.
  *
- * Containment is kept for the one case that earns it: a turn waiting on a
- * decision, which gets an accent rail so it is findable in peripheral vision
- * while scrolling.
+ * A turn waiting on a decision is not marked at the row level either — the
+ * proposal card inside it already carries the accent, and a rail around the
+ * whole turn only doubled that signal.
  */
 function Row({
   children,
-  tone,
   style,
 }: {
   role: "agent";
   children: React.ReactNode;
-  tone?: "accent";
   style?: React.CSSProperties;
 }) {
-  if (tone === "accent") {
-    return (
-      <div
-        style={style}
-        className="min-w-0 border-l-2 border-accent bg-accent-wash/50 py-3.5 pr-5 pl-4"
-      >
-        {children}
-      </div>
-    );
-  }
   return (
     <div style={style} className="min-w-0 py-1.5">
       {children}
