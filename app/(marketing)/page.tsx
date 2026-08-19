@@ -41,10 +41,13 @@ export default function Landing() {
     <main className="cnp dark">
       <div className="grid-tex" />
       <CanopyNav onLogin={handleLogin} />
-      {/* Directly under the nav rather than under the hero, where it used to
-          sit as the first block of CanopyBody. */}
-      <CanopyTicker />
-      <HeroTerminal onLogin={handleLogin} />
+      {/* Ticker and hero together own the first screen — see `.fold` in
+          landing.css. The ticker sits directly under the nav rather than under
+          the hero, where it used to be the first block of CanopyBody. */}
+      <div className="fold">
+        <CanopyTicker />
+        <HeroTerminal onLogin={handleLogin} />
+      </div>
       <CanopyBody onLogin={handleLogin} />
     </main>
   );

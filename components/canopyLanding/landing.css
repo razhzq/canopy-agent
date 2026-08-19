@@ -34,6 +34,10 @@
   --accent:#5ED3B3;--accent-2:#3AAE92;--accent-dim:#1A3D33;--accent-glow:rgba(94,211,179,.10);
   --text:#EDEDED;--text-2:#8A8A8A;--text-3:#555555;
   --loss:#E5484D;--hot:#F2A64D;--maxw:1200px;
+  /* Declared once because two rules have to agree about it: the nav sets its
+     own height from this, and .fold subtracts it to fill the rest of the
+     screen. Change it here or the hero stops reaching the fold exactly. */
+  --nav-h:64px;
   --mono:var(--font-jetbrains),"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --sans:var(--font-inter-tight),"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   position:relative;min-height:100vh;overflow-x:hidden;
@@ -74,7 +78,7 @@
 
 /* nav */
 .cnp nav{position:sticky;top:0;z-index:60;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:rgba(5,5,5,.72);border-bottom:1px solid var(--border)}
-.cnp .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
+.cnp .nav-in{display:flex;align-items:center;justify-content:space-between;height:var(--nav-h)}
 .cnp .nav-logo{font-family:"NT Brick Sans",var(--sans);color:var(--accent);font-size:26px;line-height:1;text-shadow:2px 3px 0 rgba(0,0,0,.5)}
 .cnp .nav-links{display:flex;gap:30px;align-items:center}
 .cnp .nav-links a{font-size:14px;color:var(--text-2);transition:color .18s}
@@ -100,6 +104,39 @@
 .cnp .tick .px{color:var(--text-2)}
 .cnp .up{color:var(--accent)}
 .cnp .down{color:var(--loss)}
+
+/* The first screen: ticker + hero, and nothing else.
+ *
+ * The hero was tall enough to look finished but not tall enough to fill the
+ * viewport, so the top of the next section — its eyebrow and the first line of
+ * "One marketplace" — sat visible under the fold on a normal laptop. Two
+ * sections sharing the first screen reads as the page having been cut off
+ * mid-thought rather than as an invitation to scroll.
+ *
+ * A flex column pinned to the viewport with the hero taking whatever is left,
+ * rather than a hand-tuned padding: the ticker's height comes from its own type
+ * and padding and would drift the moment either changed. The only number here
+ * is the nav, which is explicit anyway (--nav-h), plus the 1px of its border.
+ *
+ * The nav deliberately stays OUTSIDE this wrapper. It is position:sticky, and a
+ * sticky element only sticks within its containing block — moving it in here
+ * would unstick it the moment you scrolled past the first screen.
+ *
+ * min-height, not height: on a short viewport the hero content is taller than
+ * the space available, and it must push the page down rather than be clipped.
+ * The hero's own padding shrinks first so the squeeze is felt there and not as
+ * an overflow.
+ */
+.cnp .fold{
+  display:flex;
+  flex-direction:column;
+  min-height:calc(100vh - var(--nav-h) - 1px);
+  min-height:calc(100svh - var(--nav-h) - 1px);
+}
+.cnp .fold .hero{flex:1;display:flex;align-items:center;padding-top:0;padding-bottom:0}
+/* .wrap is the hero's only in-flow child (.aurora is absolute), and a flex item
+   does not stretch along the main axis on its own. */
+.cnp .fold .hero > .wrap{width:100%;padding-top:56px;padding-bottom:56px}
 
 /* hero */
 .cnp .hero{padding:74px 0 40px;position:relative;overflow:hidden}
@@ -339,5 +376,10 @@
 }
 @media(max-width:860px){
   .cnp .hero-a{grid-template-columns:1fr;gap:38px}
+  /* Stacked, the hero is taller than the screen on its own — pinning it to
+     the viewport would only add dead space above the stack. */
+  .cnp .fold{min-height:0}
+  .cnp .fold .hero{display:block;padding:56px 0 40px}
+  .cnp .fold .hero > .wrap{padding-top:0;padding-bottom:0}
   .cnp .sec{padding:70px 0}
 }
