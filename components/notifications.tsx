@@ -16,7 +16,6 @@
 //   reply yes?" — and the answer has a reason.
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useApi } from "@/lib/useApi";
 import {
@@ -214,87 +213,5 @@ export function NotificationSettings() {
         </p>
       ) : null}
     </div>
-  );
-}
-
-/**
- * The alerts bell, beside the agent's name.
- *
- * WHY A BELL AND NOT A LABELLED BUTTON
- *
- * It sits in the page title row, which is the most valuable space on the
- * screen and already holds the name, the status and the wallet. A control that
- * reads "Get alerts" competes with those for attention every time the page is
- * opened, forever, to say something most people need to act on once. A bell is
- * the one icon nobody has to be taught, and it states the same thing in the
- * space of a character.
- *
- * COLOUR CARRIES THE STATE, AND IT IS NOT THE ONLY THING THAT DOES
- *
- * Green for on, grey for off — but the title and the aria-label say it too,
- * and the off state gets a slash through the bell. Roughly one man in twelve
- * cannot reliably separate those two hues, and "is my agent able to reach me"
- * is not a question to answer in colour alone.
- *
- * It renders nothing when the deployment has no bot configured. Advertising a
- * channel that cannot be connected is worse than staying quiet.
- */
-export function AlertsControl() {
-  const state = useApi(getTelegramStatus, []);
-
-  // Nothing while loading or signed out: this sits in the title row, and a
-  // control that pops in mid-read shifts the heading under the cursor.
-  if (state.phase !== "ready" || !state.data.configured) return null;
-
-  const { linked, enabled } = state.data;
-  const on = linked && enabled;
-
-  const label = on
-    ? "Alerts on — trades and breaches are sent to your Telegram"
-    : linked
-      ? "Alerts muted — click to manage"
-      : "Alerts off — connect Telegram to hear about trades";
-
-  return (
-    <Link
-      href="/settings"
-      title={label}
-      aria-label={label}
-      className={`flex size-8 shrink-0 items-center justify-center rounded-md transition-colors ${
-        on
-          ? "text-accent hover:bg-accent-wash"
-          : "text-text-muted hover:bg-surface hover:text-text-secondary"
-      }`}
-    >
-      <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
-        {/* One outline, drawn once. A filled bell for "on" and an outline for
-            "off" would change the icon's WEIGHT as well as its colour, which
-            reads as two different controls rather than two states of one. */}
-        <path
-          d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6c0 2.6-.9 3.6-1.3 4.1-.2.2 0 .6.3.6h9.2c.3 0 .5-.4.3-.6-.4-.5-1.3-1.5-1.3-4.1A3.6 3.6 0 0 0 8 2.2Z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M6.6 12.4a1.5 1.5 0 0 0 2.8 0"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-        {/* The slash is what makes "off" legible without colour. */}
-        {on ? null : (
-          <path
-            d="m3.4 3.4 9.2 9.2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-          />
-        )}
-      </svg>
-    </Link>
   );
 }

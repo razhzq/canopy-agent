@@ -3,6 +3,15 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { RemoteIcon } from "@/components/remoteIcon";
+import {
+  Ban,
+  Check,
+  Info,
+  Lock,
+  TriangleAlert,
+  ArrowRight as LucideArrowRight,
+  ChevronRight as LucideChevronRight,
+} from "lucide-react";
 
 /* ---------------------------------------------------------------- tone ---- */
 
@@ -601,134 +610,56 @@ export function Columns({
   );
 }
 
+/* --------------------------------------------------------------- icons -- */
+
+/*
+ * Drawn by lucide, wrapped here.
+ *
+ * These were seven hand-drawn SVGs on a 16 grid. The glyphs are lucide's now —
+ * one icon set instead of two, once `lucide-react` arrived for the notification
+ * bell — but the WRAPPERS stay, and that is the point of the shape below: every
+ * call site keeps passing `className` to a `size-3.5` default, so this is a
+ * change of geometry and nothing else. Around fifty usages did not have to be
+ * touched, and none of them can drift on sizing.
+ *
+ * WEIGHT SURVIVED THE MOVE, which is the part that could have gone wrong. The
+ * originals drew at stroke 1.3 on a 16 grid, which at the shared 14px default
+ * renders ~1.14. Lucide draws at stroke 2 on a 24 grid, which at 14px is ~1.17.
+ * Close enough that nothing beside them shifts in apparent weight — and the
+ * reason there are no per-icon `strokeWidth` overrides here. Adding those would
+ * rebuild by hand the inconsistency that adopting one set removes.
+ */
+
 export function CheckIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <path
-        d="M3 8.5 6.2 11.7 13 5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Check className={`size-3.5 ${className}`} aria-hidden />;
 }
 
 export function LockIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <rect
-        x="3.5"
-        y="7"
-        width="9"
-        height="6.5"
-        rx="1"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-    </svg>
-  );
+  return <Lock className={`size-3.5 ${className}`} aria-hidden />;
 }
 
+/** A circle with a bar through it: not "an error", but "cannot happen". */
 export function BlockIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <circle
-        cx="8"
-        cy="8"
-        r="5.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M4.5 4.5 11.5 11.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Ban className={`size-3.5 ${className}`} aria-hidden />;
 }
 
 export function InfoIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <circle
-        cx="8"
-        cy="8"
-        r="6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M8 7.2v4M8 4.8v.9"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Info className={`size-3.5 ${className}`} aria-hidden />;
 }
 
 export function WarnIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <path
-        d="M8 2.5 14.5 13.5h-13L8 2.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8 6.6v3.1M8 11.4v.6"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <TriangleAlert className={`size-3.5 ${className}`} aria-hidden />;
 }
 
+// Kept under the names the app already uses. Aliased on import because lucide
+// exports these two names itself, and renaming ~20 call sites to say
+// `LucideArrowRight` would be churn in service of nothing.
 export function ArrowRight({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-3.5 ${className}`} aria-hidden>
-      <path
-        d="M2.5 8h11M9.5 4l4 4-4 4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <LucideArrowRight className={`size-3.5 ${className}`} aria-hidden />;
 }
 
 export function ChevronRight({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={`size-4 ${className}`} aria-hidden>
-      <path
-        d="M6 3.5 10.5 8 6 12.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <LucideChevronRight className={`size-3.5 ${className}`} aria-hidden />;
 }
 
 /** What kind of thing this is, in the reader's terms. */

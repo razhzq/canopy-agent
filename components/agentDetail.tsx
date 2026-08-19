@@ -15,7 +15,6 @@ import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
-import { AlertsControl } from "@/components/notifications";
 import { returnSinceDeployPct } from "@/lib/perf";
 import {
   DEFAULT_TIMEFRAME,
@@ -376,10 +375,6 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           </h1>
           <StatusChip status={agent.status} />
           <div className="flex-1" />
-          {/* Whether the agent can reach you, next to whether it is running.
-              Both are facts about the agent's connection to the world, and this
-              is where the eye already goes. */}
-          <AlertsControl />
           <WalletBar
             agentId={agentId}
             address={wallet?.address ?? null}

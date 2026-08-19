@@ -1025,6 +1025,12 @@ export interface AgentMessage {
   run_id: string | null;
   requires_action: boolean;
   acted_at: string | null;
+  /**
+   * Which way an actioned message went. TRUE applied, FALSE declined, null
+   * settled without a choice — auto-resolved, or acknowledged when there was no
+   * diff to decide on. Null is also every message predating the column.
+   */
+  approved: boolean | null;
   created_at: string;
 }
 
@@ -1149,9 +1155,25 @@ export const applyProposal = (token: string, agentId: number, messageId: string)
   );
 
 /** Settles an actionable message so it drops out of the rail count. */
-export const ackMessage = (token: string, agentId: number, messageId: string) =>
+/**
+ * Settles an actionable message without applying it.
+ *
+ * `approved` is optional, and leaving it out is a distinct answer rather than a
+ * shorthand for false. Declining a proposal that had a diff to refuse sends
+ * `false`; acknowledging one that never carried a choice sends nothing, and the
+ * record keeps NULL. The thread reads those differently — "Declined" against
+ * "Settled" — so collapsing them here would put a refusal in the history that
+ * nobody made.
+ */
+export const ackMessage = (
+  token: string,
+  agentId: number,
+  messageId: string,
+  approved?: boolean,
+) =>
   request<{ ok: boolean }>(`/agents/${agentId}/messages/${messageId}/ack`, token, {
     method: "POST",
+    body: JSON.stringify(approved === undefined ? {} : { approved }),
   });
 
 export const listAgents = (token: string) =>
@@ -1886,6 +1908,61 @@ export interface TelegramStatus {
   username: string | null;
   enabled: boolean;
 }
+
+/* -------------------------------------------------- notification centre -- */
+
+export type NotificationKind =
+  | "fill"
+  | "proposal"
+  | "breach"
+  | "risk_hold"
+  | "state_change"
+  | "cycle";
+
+export interface NotificationItem {
+  id: string;
+  kind: NotificationKind;
+  agentId: number | null;
+  /** The strategy's name. Null for account-level notices with no agent. */
+  agentName: string | null;
+  /** Plain text. The server strips the Telegram HTML — never render as markup. */
+  text: string;
+  createdAt: string;
+  read: boolean;
+  /** Whether Telegram accepted it. False is ordinary for an unlinked account. */
+  delivered: boolean;
+  /** Delivery was abandoned — the chat blocked us, or the retries ran out. */
+  undeliverable: boolean;
+}
+
+export interface NotificationFeed {
+  unread: number;
+  items: NotificationItem[];
+}
+
+/**
+ * The notification centre's feed.
+ *
+ * The SAME outbox Telegram is delivered from — one list, two deliveries — so
+ * the panel and the phone cannot describe an agent's day differently. Rows are
+ * queued whether or not a chat is linked, so an account that has never touched
+ * Telegram still has a full history here.
+ */
+export const getNotificationFeed = (token: string, limit = 30) =>
+  request<NotificationFeed>(`/agents/notifications/feed?limit=${limit}`, token);
+
+/**
+ * Marks everything up to and including `upToId` read.
+ *
+ * Bounded rather than "mark all": the panel can be open when a new row lands,
+ * and clearing everything would mark that arrival read before it was ever on
+ * screen. Pass the newest id actually rendered.
+ */
+export const markNotificationsRead = (token: string, upToId: string) =>
+  request<{ marked: number }>("/agents/notifications/read", token, {
+    method: "POST",
+    body: JSON.stringify({ upToId }),
+  });
 
 export const getTelegramStatus = (token: string) =>
   request<TelegramStatus>("/agents/notifications/telegram", token);

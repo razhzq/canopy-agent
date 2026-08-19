@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -675,6 +676,10 @@ export function TopNav() {
                 accessibility tree so the control is still named. */}
             <span className="max-sm:sr-only">Create agent</span>
           </Link>
+
+          {/* Between "create" and the account: notifications are about work
+              already in flight, which sits nearer identity than action. */}
+          <NotificationCentre />
 
           <AccountMenu />
         </div>

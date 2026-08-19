@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { getActivity, type ActivityCycle } from "@/lib/api";
 import { narrateCycle, type SeatedLine } from "@/lib/narrate";
@@ -393,7 +394,14 @@ function Cycle({
                   folded notes; the reveal is applied per-line inside the run via
                   `revealed`, and a run with nothing revealed yet renders nothing. */}
               {groupBySeat(lines).map((run, r) => (
-                <SeatRun key={r} run={run} revealed={revealed} />
+                <SeatRun
+                  key={r}
+                  run={run}
+                  revealed={revealed}
+                  // Only while the replay is actually moving. A finished cycle
+                  // has no active step — every one of them is complete.
+                  active={revealing || running ? (primary[shown - 1] ?? null) : null}
+                />
               ))}
 
               {/* Where the replay has reached. A caret, not a claim — the cycle has
@@ -438,22 +446,95 @@ function Cycle({
  * reasoning. A run whose decisions have not been reached by the reveal yet
  * renders nothing at all, which is what makes the seats appear one after another.
  */
+/**
+ * One step in the chain, in the shape shadcn's Chain of Thought uses.
+ *
+ * Ported rather than installed. That component is built on Radix and styles
+ * against `--background` / `--muted-foreground`; this app has neither, and
+ * pulling in a second design system to draw a vertical line would cost more
+ * than the line is worth. What is taken is the part that makes it read well:
+ * an icon column with a rule running between the icons, so a cycle looks like a
+ * sequence rather than a list, and the content indented off that column.
+ *
+ * WHAT IS DELIBERATELY NOT TAKEN: the icon itself. Theirs defaults to a dot;
+ * ours is `OutcomeMark`, which says whether the step passed, dropped or is
+ * still working. That column is where this log carries its meaning, and a
+ * decorative dot would be a downgrade dressed as a port.
+ *
+ * STATUS follows their three states, mapped onto tokens this app already has:
+ *
+ *   complete  as written — the step happened and the body says what it decided
+ *   active    the step the replay is on, marked in the gutter rather than by
+ *             recolouring the body, whose colours already mean something else
+ *   pending   dimmed, NOT hidden. This is the change worth having: the reader
+ *             sees the whole shape of the cycle immediately and watches it
+ *             light up, instead of lines popping in from nowhere and the panel
+ *             growing under the cursor.
+ */
+function Step({
+  status,
+  mark,
+  connect,
+  children,
+}: {
+  status: "complete" | "active" | "pending";
+  mark: React.ReactNode;
+  /** Draw the rule down to the next step. False on the last one. */
+  connect: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li
+      aria-current={status === "active" ? "step" : undefined}
+      className={`grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5 transition-opacity duration-300 ${
+        status === "pending" ? "opacity-35" : "opacity-100"
+      }`}
+    >
+      <span className="relative mt-0.5 flex justify-center">
+        {mark}
+        {/* Their connector: from just under the icon to just past the row, so
+            it bridges the 8px gap and reads as one continuous rule. */}
+        {connect ? (
+          <span
+            aria-hidden
+            className="absolute top-[18px] -bottom-2.5 left-1/2 w-px -translate-x-1/2 bg-grid-strong"
+          />
+        ) : null}
+        {/* The active ring sits in the gutter, so the body keeps the colours
+            that already distinguish a buy from a stop-out. */}
+        {status === "active" ? (
+          <span
+            aria-hidden
+            className="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 animate-[live-pulse_1.4s_ease-in-out_infinite] rounded-full ring-1 ring-accent/40"
+          />
+        ) : null}
+      </span>
+      <div className="min-w-0 space-y-2 overflow-hidden">{children}</div>
+    </li>
+  );
+}
+
 function SeatRun({
   run,
   revealed,
+  active,
 }: {
   run: { role: SeatedLine["role"]; lines: SeatedLine[] };
   revealed: Set<SeatedLine>;
+  /** The line the replay is currently on, if it is in this seat. */
+  active: SeatedLine | null;
 }) {
   const [open, setOpen] = useState(false);
-  const shownDecisions = run.lines.filter((l) => !l.secondary && revealed.has(l));
+  const decisions = run.lines.filter((l) => !l.secondary);
+  const shownDecisions = decisions.filter((l) => revealed.has(l));
   // Nothing revealed here yet — the reveal has not reached this seat.
   if (shownDecisions.length === 0) return null;
 
   const notes = run.lines.filter((l) => l.secondary);
-  const body = open
-    ? run.lines.filter((l) => l.secondary || revealed.has(l))
-    : shownDecisions;
+  // EVERY decision in this seat, revealed or not. The unrevealed ones render
+  // dimmed rather than absent — see `Step`. Screening notes stay behind the
+  // disclosure, because those are the ones there can be forty of.
+  const body = open ? run.lines : decisions;
 
   return (
     <li className="grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 sm:grid-cols-[68px_minmax(0,1fr)]">
@@ -463,18 +544,21 @@ function SeatRun({
         <SeatTag role={run.role} variant="rail" />
       </span>
       <ol className="min-w-0 space-y-2">
-        {body.map((line) => (
+        {body.map((line, i) => (
           // Keyed by content, not index, so expanding the notes slots them in
           // WITHOUT re-mounting (and re-animating) the decisions already on screen.
-          <li
+          <Step
             key={`${line.symbol ?? ""}:${line.detail}`}
-            className="grid animate-[line-enter_240ms_ease-out] grid-cols-[18px_minmax(0,1fr)] items-start gap-3.5"
+            status={
+              line === active ? "active" : revealed.has(line) || line.secondary ? "complete" : "pending"
+            }
+            // Runs to the next step, and on to the notes button when there is
+            // one, so the rule does not stop short of the run's last row.
+            connect={i < body.length - 1 || notes.length > 0}
+            mark={<OutcomeMark outcome={line.outcome} />}
           >
-            <span className="mt-0.5">
-              <OutcomeMark outcome={line.outcome} />
-            </span>
             <NarratedLineBody line={line} />
-          </li>
+          </Step>
         ))}
 
         {/* The way into the working. Only when there is working to show, and only
@@ -486,22 +570,12 @@ function SeatRun({
               onClick={() => setOpen((o) => !o)}
               className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
             >
-              <svg
-                viewBox="0 0 16 16"
+              <ChevronRight
                 aria-hidden
                 className={`size-3 justify-self-center transition-transform duration-200 ${
                   open ? "rotate-90" : ""
                 }`}
-              >
-                <path
-                  d="m6 4 4 4-4 4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              />
               <span>
                 {open
                   ? "Hide screening notes"

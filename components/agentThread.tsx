@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, CornerDownLeft, Loader2, X } from "lucide-react";
+import { StickToBottom, type StickToBottomContext } from "use-stick-to-bottom";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -59,8 +61,6 @@ export function AgentThread({
   const [live, setLive] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
   const router = useRouter();
-  const foot = useRef<HTMLDivElement>(null);
-  const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
   const state = useApi((t) => getMessages(t, agentId), [agentId, nonce]);
@@ -83,37 +83,21 @@ export function AgentThread({
   const messages = state.phase === "ready" ? state.data.messages : seen.current;
 
   /**
-   * Whether the view is pinned to the newest turn.
+   * The stick-to-bottom controller, for the one caller outside the scroll area.
    *
-   * False the moment the reader scrolls up, so an answer arriving cannot yank
-   * them away from the message they went back to read. True again as soon as
-   * they return to the bottom. 80px of slack because "at the bottom" is a
-   * feeling rather than an exact scroll position.
-   */
-  const pinned = useRef(true);
-  /**
-   * Whether to offer a way back to the newest turn.
+   * Following the newest turn used to be hand-rolled here: a `pinned` ref set
+   * false on any upward scroll, an `adrift` flag to offer the way back, and an
+   * effect re-pinning on every dependency that might have grown the thread.
+   * That last part is what the library replaces properly — it watches the
+   * CONTENT with a ResizeObserver rather than guessing at which state changes
+   * imply new height, which is the case the old deps list kept missing (an
+   * answer typing itself out grows the box without changing any of them).
    *
-   * The pinning above fixed one problem and created another: scroll up to
-   * re-read something and you are no longer followed down, which is right —
-   * but there was then no way back except scrolling by hand, and no sign that
-   * anything new had arrived while you were reading. React state rather than a
-   * ref because this one has to paint.
+   * A ref rather than the hook because `send` lives out here, outside the
+   * provider. Reading `isAtBottom` for the pill still goes through the render
+   * prop below — that one has to paint.
    */
-  const [adrift, setAdrift] = useState(false);
-
-  const toEnd = useCallback((force = false) => {
-    const el = scroller.current;
-    if (!el || (!pinned.current && !force)) return;
-    // Instant, never smooth. A smooth scroll during a streaming answer never
-    // catches up with the text growing above it, so the view lags a line or two
-    // behind the words for the whole reply.
-    el.scrollTop = el.scrollHeight;
-    if (force) {
-      pinned.current = true;
-      setAdrift(false);
-    }
-  }, []);
+  const stick = useRef<StickToBottomContext>(null);
 
   // The composer grows to fit what is in it. Reset to `auto` first — without
   // that, scrollHeight only ever reports the current height and the box can
@@ -132,9 +116,6 @@ export function AgentThread({
   // you press send. Your own message appears as `echo` and the status line as
   // `stage`, neither of which changes the message count, so the thread grew
   // under the fold and you had to scroll to find your own question.
-  useEffect(() => {
-    toEnd();
-  }, [messages.length, live, echo, stage, typing, toEnd]);
 
   // Poll while something is pending: an approval that expires unseen is the
   // failure this whole surface exists to prevent.
@@ -153,8 +134,7 @@ export function AgentThread({
     // Sending is an explicit request to be at the bottom. Someone who scrolled
     // up to re-read something and then asked a question wants to watch the
     // answer, not to stay where they were reading.
-    pinned.current = true;
-    setAdrift(false);
+    stick.current?.scrollToBottom();
     // Shown immediately, in its final position. Waiting for the round trip to
     // echo it back is what made sending feel like nothing had happened — the
     // box emptied and the thread sat unchanged for several seconds.
@@ -189,11 +169,11 @@ export function AgentThread({
     }
   }
 
-  async function ack(id: string) {
+  async function ack(id: string, approved?: boolean) {
     try {
       const token = await getAccessToken();
       if (!token) return;
-      await ackMessage(token, agentId, id);
+      await ackMessage(token, agentId, id, approved);
       setNonce((n) => n + 1);
     } catch {
       /* the count is a convenience; failing to clear it is not worth a dialog */
@@ -213,16 +193,20 @@ export function AgentThread({
 
   return (
     <div className="mx-auto flex h-[calc(100vh-152px)] max-w-[820px] flex-col px-8">
-      <div
-        ref={scroller}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-          pinned.current = atEnd;
-          setAdrift((was) => (was === !atEnd ? was : !atEnd));
-        }}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-7 [&::-webkit-scrollbar-thumb]:bg-grid-strong [&::-webkit-scrollbar]:w-1.5"
+      {/* shadcn's Conversation: the library owns the scroll box and keeps it
+          pinned as content grows, so nothing here listens for scroll events.
+          `instant` on both, not their `smooth` — the note this replaced was
+          right that an eased scroll never catches up with text being typed in
+          above it, and the spring would be racing the `Typed` animation. */}
+      <StickToBottom
+        contextRef={stick}
+        initial="instant"
+        resize="instant"
+        className="relative min-h-0 flex-1 overflow-y-hidden [&::-webkit-scrollbar-thumb]:bg-grid-strong [&::-webkit-scrollbar]:w-1.5"
       >
+        {({ isAtBottom, scrollToBottom }) => (
+          <>
+            <StickToBottom.Content className="flex flex-col gap-8 py-7">
         <Opening agent={agent} />
         {messages.map((m, i) => (
           <Turn
@@ -233,7 +217,7 @@ export function AgentThread({
             // log-enter's comment in globals.css warns about.
             fresh={i === messages.length - 1}
             message={m}
-            onAck={() => void ack(m.id)}
+            onAck={(approved) => void ack(m.id, approved)}
             // Stays put: the agent that just changed is the one on screen.
             // This used to navigate to the fork's replacement agent.
             onApplied={() => setNonce((n) => n + 1)}
@@ -246,13 +230,16 @@ export function AgentThread({
         {/* The user's own words, before the server has echoed them. Suppressed
             once the refetch lands so the message does not appear twice. */}
         {echo && !messages.some((m) => m.role === "user" && m.body === echo) ? (
-          <div className="flex justify-end">
-            {/* Identical to a settled message except for the text colour.
-                It used to be 60% opacity, which dimmed the whole bubble and
-                then snapped to full when the refetch landed — a visible
-                flinch on every send, drawing the eye to the one thing that
-                had not changed. */}
-            <div className="max-w-[78%] rounded-xl rounded-br-sm bg-surface-2 px-5 py-3">
+          <div className="flex w-full max-w-[95%] justify-end self-end">
+            {/* Identical to a settled message except for the text colour, and
+                it has to STAY identical — these two render the same words a
+                few hundred milliseconds apart, so any difference between them
+                is a flinch the eye catches on every send. It used to be 60%
+                opacity for that reason.
+                The shape below is therefore a copy of the settled bubble, not
+                a variation on it: same rounded-lg, same px-4 py-3, same 95%.
+                It drifted once already when the settled one moved. */}
+            <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
               <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-secondary">
                 {echo}
               </p>
@@ -272,20 +259,19 @@ export function AgentThread({
         ) : null}
 
         {/* Stages stop once prose starts: the answer arriving IS the progress. */}
-        {stage && !live ? <Thinking stage={stage} /> : null}
-        <div ref={foot} />
-      </div>
+            {stage && !live ? <Thinking stage={stage} /> : null}
+            </StickToBottom.Content>
 
-      {/* The way back. Only while adrift, and only when there is something to
-          go back TO — offering it on an already-complete thread would be a
-          button that does nothing visible. */}
-      {adrift && messages.length > 0 ? (
-        <div className="pointer-events-none relative">
+      {/* The way back. Only while away from the bottom, and only when there is
+          something to go back TO — offering it on an already-complete thread
+          would be a button that does nothing visible. */}
+      {!isAtBottom && messages.length > 0 ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4">
           <button
             type="button"
-            onClick={() => toEnd(true)}
+            onClick={() => void scrollToBottom()}
             style={{ animation: "pill-enter 180ms ease-out" }}
-            className="pointer-events-auto absolute -top-12 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
+            className="pointer-events-auto absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
           >
             <svg viewBox="0 0 16 16" className="size-3" aria-hidden>
               <path
@@ -301,6 +287,9 @@ export function AgentThread({
           </button>
         </div>
       ) : null}
+          </>
+        )}
+      </StickToBottom>
 
       <div
         className={`mb-6 rounded-xl border bg-panel/60 transition-colors duration-150 ${
@@ -329,7 +318,11 @@ export function AgentThread({
           // to 8% and stop trading equities" becomes — was composed through a
           // slot showing two-thirds of itself. The cap keeps a long paste from
           // eating the conversation above it.
-          className="max-h-[180px] w-full resize-none bg-transparent px-5 pt-4 pb-2 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
+          // min-h-16 / max-h-48 are shadcn's PromptInputTextarea sizes. The
+          // floor is the visible change: this rested at a single row, so the
+          // composer read as a search field rather than somewhere to write a
+          // paragraph to your agent.
+          className="max-h-48 min-h-16 w-full resize-none bg-transparent px-5 pt-4 pb-2 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
         />
         <div className="flex items-center justify-between gap-4 px-4 pb-3">
           <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
@@ -353,25 +346,17 @@ export function AgentThread({
             className="flex size-9 items-center justify-center rounded-lg bg-accent text-bg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim"
           >
             {sending ? (
-              <span
-                className="block size-3.5 rounded-full border-[1.5px] border-current border-t-transparent motion-safe:animate-spin"
-                aria-hidden
-              />
+              <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />
             ) : (
-              // An arrow, not the word "Send". The control sits beside a hint
-              // that already says Enter sends — a second instruction in the same
-              // 40 pixels is noise, and every chat on earth has taught this
-              // glyph.
-              <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
-                <path
-                  d="M8 13V3m0 0L4 7m4-4 4 4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              // shadcn's PromptInputSubmit glyph. Not the word "Send": the hint
+              // beside it already says Enter sends, and a second instruction in
+              // the same 40 pixels is noise. Their return-key arrow says the
+              // same thing as the old up-arrow while naming the actual key.
+              //
+              // Their third state — a Square that stops a stream — is left out
+              // on purpose: nothing here can abort an answer in flight, and a
+              // stop button that does not stop is worse than none.
+              <CornerDownLeft className="size-4" aria-hidden />
             )}
           </button>
         </div>
@@ -525,7 +510,7 @@ function Turn({
   fresh = false,
 }: {
   message: AgentMessage;
-  onAck: () => void;
+  onAck: (approved?: boolean) => void;
   onApplied: () => void;
   agentId: number;
   /** Reveal this reply a character at a time rather than all at once. */
@@ -541,13 +526,16 @@ function Turn({
 
   if (m.role === "user") {
     return (
-      <div className="flex justify-end" style={enter}>
-        {/* Filled rather than outlined, and softened at the corners. An
-            outlined box on a dark ground reads as an input waiting to be
-            filled; a filled one reads as something already said. The radius
-            matches the buttons in the nav — this page is not the place to
-            invent a second corner language. */}
-        <div className="max-w-[78%] rounded-xl rounded-br-sm bg-surface-2 px-5 py-3">
+      <div className="group flex w-full max-w-[95%] justify-end self-end" style={enter}>
+        {/* Filled rather than outlined: an outlined box on a dark ground reads
+            as an input waiting to be filled; a filled one reads as something
+            already said.
+            shadcn's MessageContent shape — `w-fit`, uniform `rounded-lg`,
+            `px-4 py-3`. The tail (`rounded-br-sm`) goes with it: their bubble
+            has none, and once the gap between turns is 32px the tail is doing
+            work nothing needs done. Width now comes from the wrapper at 95%
+            rather than 78%, so a long question wraps later. */}
+        <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
           <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-primary">
             {m.body}
           </p>
@@ -565,14 +553,41 @@ function Turn({
         {typing ? <Typed text={m.body} onDone={onTyped} /> : m.body}
       </p>
 
-      {/* The diff. Rendered as before → after so what is actually changing is
-          legible without reading prose, and nothing is applied by reading it. */}
+      {/* The proposal, as one block: what changes, and the decision about it.
+          shadcn's Confirmation is a single Alert holding the request and its
+          actions, and that is the improvement worth taking — this was a
+          bordered diff table with a separate row of buttons floating beneath
+          it, which read as two things when it is one. An outstanding decision
+          is now visibly a container waiting on you, and it keeps its border
+          after settling so the record of what was proposed stays whole.
+
+          The diff itself stays as before → after. Nothing is applied by
+          reading it, and prose cannot say "8% became 5%" as quickly. */}
       {changes.length > 0 ? (
-        <div className="mt-3 border border-grid">
+        <div
+          // rounded-lg and overflow-hidden together: the radius is shadcn's
+          // Alert, and the clip is what makes it read as one object — the row
+          // rules run edge to edge, so without it they would cut across the
+          // corners and the softening would be undone by the first divider.
+          //
+          // The open state lifts rather than shouting: a thinner accent border,
+          // a wash at a quarter strength, and a shadow. It was a hard 45%
+          // border on a square box, which is most of what made this feel like a
+          // table dropped into a conversation.
+          className={`mt-3 overflow-hidden rounded-lg border transition-colors duration-200 ${
+            open
+              ? "border-accent/30 bg-accent-wash/20 shadow-[0_8px_24px_-14px_rgba(0,0,0,0.8)]"
+              : "border-grid"
+          }`}
+        >
           {changes.map((c) => (
             <div
               key={c.field}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-grid px-4 py-2.5 last:border-b-0"
+              // Dividers at 55%: full-strength rules between every row is what
+              // gives a small table its grid, and there are rarely more than
+              // three of these. py-3 for the same reason — the rhythm was tight
+              // enough to read as data rather than as a proposal.
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-grid/55 px-4 py-3 last:border-b-0"
             >
               <span className="truncate font-mono text-[11.5px] text-text-primary">{c.label}</span>
               <span className="flex shrink-0 items-baseline gap-2 font-mono text-[11.5px]">
@@ -582,11 +597,41 @@ function Turn({
               </span>
             </div>
           ))}
-        </div>
-      ) : null}
 
-      {open && changes.length > 0 ? (
-        <ApplyBar agentId={agentId} messageId={m.id} onApplied={onApplied} onDismiss={onAck} />
+          {open ? (
+            <ApplyBar
+              agentId={agentId}
+              messageId={m.id}
+              onApplied={onApplied}
+              // A refusal, and recorded as one.
+              onDismiss={() => onAck(false)}
+            />
+          ) : (
+            /* shadcn's ConfirmationAccepted / ConfirmationRejected, off the
+               `approved` column. Three states, not two: null is a real answer —
+               a message settled without anyone choosing, and every message
+               older than the column. Saying "Applied" there would be a guess
+               printed as a fact on a screen about changing a trading agent. */
+            <p
+              // Tinted, so the outcome reads as the foot of the block rather
+              // than one more row of the table above it.
+              className={`flex items-center gap-2 border-t border-grid/55 bg-surface/30 px-4 py-3 font-mono text-[10px] tracking-[0.1em] uppercase ${
+                m.approved === true
+                  ? "text-accent"
+                  : m.approved === false
+                    ? "text-text-dim"
+                    : "text-text-muted"
+              }`}
+            >
+              {m.approved === true ? (
+                <Check className="size-3" aria-hidden />
+              ) : m.approved === false ? (
+                <X className="size-3" aria-hidden />
+              ) : null}
+              {m.approved === true ? "Applied" : m.approved === false ? "Declined" : "Settled"}
+            </p>
+          )}
+        </div>
       ) : null}
 
       {/* "Looked at", not "source". The cycles are what retrieval put in front
@@ -618,7 +663,9 @@ function Turn({
           {open && changes.length === 0 ? (
             <button
               type="button"
-              onClick={onAck}
+              // Acknowledged, NOT declined — there was no diff to refuse. Sends
+              // no verdict, so the record stays neutral.
+              onClick={() => onAck()}
               className="font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
             >
               Mark handled
@@ -717,30 +764,46 @@ function ApplyBar({
   }
 
   return (
-    <div className="pt-3">
+    // Same footer treatment as the settled line — a softened rule and a tint,
+    // so the decision sits at the foot of the block instead of reading as a
+    // final table row with buttons in it.
+    <div className="border-t border-grid/55 bg-surface/30 px-4 py-3">
       {error ? (
         <p className="pb-2 font-ui text-[12px] leading-relaxed text-negative">{error}</p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void apply()}
-          disabled={busy}
-          className="flex h-9 items-center border border-accent bg-accent-wash px-5 font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
-        >
-          {busy ? "Applying…" : "Apply"}
-        </button>
+      {/* shadcn's ConfirmationActions: `justify-end`, the decision at the end
+          of what it is a decision about. The note keeps its place at the start
+          of the row rather than being dropped — "takes effect from the next
+          cycle" is the answer to the question someone asks with the cursor
+          already over Apply. */}
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <span className="mr-auto font-ui text-[11.5px] text-text-muted">
+          Takes effect from the next cycle. Same agent, same positions.
+        </span>
+        {/* Decline first, confirm last — the order shadcn's ConfirmationActions
+            renders and the one every dialog on the platform has taught, so the
+            rightmost button is the one the hand is already moving toward.
+            h-8 is theirs too; h-9 beside a 12px diff row was a button from a
+            different screen. */}
         <button
           type="button"
           onClick={onDismiss}
           disabled={busy}
-          className="font-mono text-[10.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-50"
+          className="flex h-8 items-center rounded-md px-2.5 font-mono text-[10.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
         >
           Leave it
         </button>
-        <span className="font-ui text-[11.5px] text-text-muted">
-          Takes effect from the next cycle. Same agent, same positions.
-        </span>
+        <button
+          type="button"
+          onClick={() => void apply()}
+          disabled={busy}
+          // rounded-md, matching the container it now sits inside. A square
+          // button in a rounded box is the corner that gives the whole thing
+          // away.
+          className="flex h-8 items-center rounded-md border border-accent bg-accent-wash px-3.5 font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
+        >
+          {busy ? "Applying…" : "Apply"}
+        </button>
       </div>
     </div>
   );
