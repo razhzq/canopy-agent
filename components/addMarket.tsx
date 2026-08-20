@@ -146,6 +146,40 @@ export function AddMarketModal({
         // pinning an issuer, which means every issuer of it.
         held.has(`${a.underlying}/${a.issuer}`) || held.has(`${a.underlying}/`);
 
+  /**
+   * The class chips worth offering, which is not the same list the creation
+   * picker shows.
+   *
+   * `agentDetail` feeds this dialog the whole resolved universe, but a class
+   * within it can still be empty — the crypto half fails its own fetch, or the
+   * hourly refresh behind it has not run. Rendering the full MARKET_CLASSES row
+   * regardless hands you chips that cannot match anything: clicking Crypto
+   * emptied the list, and the empty state then blamed the search box for it.
+   *
+   * Derived from the assets rather than from `strategy_class`, because the
+   * class→chip mapping would be a second copy of `admits` and the two would
+   * drift. A chip is offered iff something in this universe satisfies it.
+   */
+  const classes = useMemo(
+    () => MARKET_CLASSES.filter((c) => c.key === "all" || assets.some((a) => c.admits(a))),
+    [assets],
+  );
+
+  /**
+   * One class plus "All" is the same list twice. The row only earns its space
+   * when there is a real choice to make.
+   */
+  const showClasses = classes.length > 2;
+
+  /**
+   * `assets` arrives after the first render, so a chip can stop being offered
+   * under a selection that already points at it — which would show an empty
+   * list with no chip lit to explain why.
+   */
+  useEffect(() => {
+    if (!classes.some((c) => c.key === klass)) setKlass("all");
+  }, [classes, klass]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter(
@@ -304,7 +338,7 @@ export function AddMarketModal({
         {/* --------------------------------------------------------- filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-7 py-3.5">
           <div className="flex items-center gap-2">
-            {MARKET_CLASSES.map((c) => (
+            {(showClasses ? classes : []).map((c) => (
               <button
                 key={c.key}
                 type="button"
@@ -354,11 +388,11 @@ export function AddMarketModal({
           {loading ? (
             <Note>Resolving tradable markets…</Note>
           ) : rows.length === 0 ? (
-            <Note tone="warning">
-              {assets.length === 0
-                ? "No market currently resolves as tradable."
-                : `Nothing matches “${query}”.`}
-            </Note>
+            // Three different emptinesses, and the reader can act on only two
+            // of them. Blaming the search box unconditionally produced the
+            // nonsense `Nothing matches “”.` whenever a class chip was the
+            // thing that emptied the list.
+            <Note tone="warning">{emptyReason(assets.length, klass, query, classes)}</Note>
           ) : (
             rows.map((a, i) => {
               const taken = isHeld(a);
@@ -545,6 +579,32 @@ function Note({
 }
 
 
+
+/**
+ * Why the list is empty, in the reader's terms.
+ *
+ * Order matters: the narrower cause is named first, because "nothing matches
+ * your search" is the actionable sentence when a search is what emptied it,
+ * and the class is only worth mentioning when it is still narrowing.
+ */
+function emptyReason(
+  total: number,
+  klass: string,
+  query: string,
+  classes: readonly { key: string; label: string }[],
+): string {
+  if (total === 0) return "No market currently resolves as tradable.";
+  const q = query.trim();
+  const label = classes.find((c) => c.key === klass && c.key !== "all")?.label.toLowerCase();
+  if (q) {
+    return label
+      ? `Nothing in ${label} matches “${q}”.`
+      : `Nothing matches “${q}”.`;
+  }
+  return label
+    ? `This agent trades no ${label}.`
+    : "No market currently resolves as tradable.";
+}
 
 function money(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;

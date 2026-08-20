@@ -154,10 +154,6 @@ export function EquityView({
         <ReadableCurve points={points} capitalUsd={capitalUsd} height={220} />
         <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
           <span>Cycle {points[0].tickSeq}</span>
-          <span className="text-text-muted">
-            {points.length} {points.length === 1 ? "cycle" : "cycles"} · dashed line is starting
-            capital
-          </span>
           <span>Cycle {points[points.length - 1].tickSeq}</span>
         </div>
       </div>

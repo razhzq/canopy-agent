@@ -502,6 +502,26 @@ export function selectionIssuer(u: UniverseSelection): string | undefined {
   return u.kind === "rwa" ? u.issuer : undefined;
 }
 
+/**
+ * Does this resolved asset satisfy this stored selection?
+ *
+ * The ONE definition of that question, because it is asked in two shapes and
+ * neither `selectionKey` nor `marketKey` can answer it: an RWA selection may
+ * name an underlying WITHOUT an issuer, which means every issuer of it, and a
+ * key comparison has no way to express that wildcard.
+ *
+ * Tolerant of a selection with no `kind`. Rows written before the discriminator
+ * existed carry none and are all RWA — the same rule `mergeMarkets` applies to
+ * assets, and the reason a gold pick stored back then resolved to nothing and
+ * rendered as "not priced".
+ */
+export function assetMatchesSelection(a: UniverseAsset, sel: UniverseSelection): boolean {
+  if (sel.kind === "crypto") return Boolean(a.mint) && a.mint === sel.mint;
+  const rwa = sel as { underlying?: string; issuer?: string };
+  if (!rwa.underlying) return false;
+  return a.underlying === rwa.underlying && (!rwa.issuer || a.issuer === rwa.issuer);
+}
+
 export interface UniverseResponse {
   assets: UniverseAsset[];
   note?: string;
