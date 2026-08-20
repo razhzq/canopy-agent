@@ -119,6 +119,19 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
    */
   const [goingLive, setGoingLive] = useState(false);
   /**
+   * This page was loaded by the return from BoomFi's checkout.
+   *
+   * The go-live dialog sends the customer to BoomFi with a return path pointing
+   * back here, because subscribing is step one of going live rather than an
+   * errand of its own — being dropped on a generic page after paying leaves the
+   * user to find their own way back to a flow they were halfway through.
+   *
+   * Read once and stripped from the URL immediately, for two reasons: a reload
+   * should not re-enter the flow, and a link someone pastes to a colleague
+   * should not open a payment-shaped dialog on their screen.
+   */
+  const [resumedCheckout, setResumedCheckout] = useState(false);
+  /**
    * Which book to show. Null means "whichever the agent is in now", which is
    * what a fresh page load should open on — a live agent's page opening on its
    * paper history would be showing simulated numbers where real ones belong.
@@ -145,6 +158,34 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         assetsPending: boolean;
       }
   >({ phase: "loading" });
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("checkout") !== "return") return;
+    setResumedCheckout(true);
+    url.searchParams.delete("checkout");
+    window.history.replaceState(
+      null,
+      "",
+      url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "") + url.hash,
+    );
+  }, []);
+
+  /**
+   * Reopens the dialog once the agent is actually loaded.
+   *
+   * Waits for the data rather than opening on mount, and re-checks the same
+   * three conditions the Live pill uses — the product-level switch, still on
+   * paper, never been live. A stale return link must not open a promotion dialog
+   * on an agent that has since been promoted, or while live trading is closed.
+   */
+  useEffect(() => {
+    if (!resumedCheckout || state.phase !== "ready") return;
+    const { detail } = state;
+    if (detail.liveTradingEnabled === true && detail.agent.is_paper && !detail.hasLiveHistory) {
+      setGoingLive(true);
+    }
+  }, [resumedCheckout, state]);
 
   const load = useCallback(async () => {
     if (!ready) return;
@@ -783,8 +824,15 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           agent={agent}
           wallet={wallet}
           openPositions={positions.length}
+          // Only true for the dialog the return from checkout opened. Cleared on
+          // close so reopening by hand is an ordinary read rather than another
+          // round trip to the payment provider.
+          resumedFromCheckout={resumedCheckout}
           onChanged={() => void load()}
-          onClose={() => setGoingLive(false)}
+          onClose={() => {
+            setGoingLive(false);
+            setResumedCheckout(false);
+          }}
         />
       ) : null}
     </div>

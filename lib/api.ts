@@ -1427,11 +1427,23 @@ export const getEntitlement = (token: string) =>
  * Deliberately returns the URL instead of navigating: the caller decides
  * between a redirect and a new tab, and a function that navigates as a side
  * effect cannot be tested or cancelled.
+ *
+ * `returnPath` is where the customer lands after paying — a path on this app,
+ * never a URL. The backend resolves it against its own BILLING_RETURN_URL, so
+ * an absolute URL would simply be ignored; sending one is not a way to redirect
+ * someone off-origin. Passing nothing lands on whatever the backend has
+ * configured, which is the right default for the settings screen and the wrong
+ * one for a flow that has to resume where it left off.
  */
-export const startCheckout = (token: string, agentId: number, planCode = "live_agent") =>
+export const startCheckout = (
+  token: string,
+  agentId: number,
+  planCode = "live_agent",
+  returnPath?: string,
+) =>
   request<{ url: string }>("/billing/checkout", token, {
     method: "POST",
-    body: JSON.stringify({ planCode, agentId }),
+    body: JSON.stringify({ planCode, agentId, returnPath }),
   });
 
 export const cancelSubscription = (token: string, subscriptionId: string) =>
