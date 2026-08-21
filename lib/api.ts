@@ -1245,6 +1245,31 @@ export interface ClaimedWallets {
 export const getClaimedWallets = (token: string) =>
   request<ClaimedWallets>(`/agents/wallets/claimed`, token);
 
+/**
+ * The ceiling put on a delegation, in USD.
+ *
+ * NOT a budget, and deliberately not derived from the agent's declared capital.
+ * What an agent may spend is what its wallet actually holds — deposit $1,000
+ * and it manages $1,000, deposit $20,000 and it manages $20,000 — and how much
+ * of that goes into any one trade is the portfolio manager's and the strategy
+ * desk's decision, made per trade with the book in front of them. A second
+ * figure fixed at grant time can only disagree with both.
+ *
+ * It used to be `agent.capital_usd`, a build-time default that was $10,000 on
+ * every agent nobody edited. That number bounded nothing anyone had chosen: it
+ * was unrelated to the deposit, and because `spent_usd` counts cumulative buys
+ * and is never credited back on a sell, it was a LIFETIME purchase budget. A
+ * $1,000 wallet therefore stopped trading after ten entries while still fully
+ * funded, refusing with "concurrent spend consumed the remaining delegation".
+ *
+ * So this is a ceiling, not a cap: high enough never to be the binding
+ * constraint, present because `CANOPY_036` enforces `max_spend_usd > 0` and an
+ * absent limit is not a state the schema can hold. The bounds that actually
+ * bite are the wallet balance, the allow-listed programs, the expiry, and the
+ * desk's own sizing.
+ */
+export const DELEGATION_CEILING_USD = 1_000_000_000;
+
 export const registerAgentWallet = (
   token: string,
   agentId: number,

@@ -53,6 +53,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import {
+  DELEGATION_CEILING_USD,
   getEntitlement,
   goLive,
   isPaywallError,
@@ -418,15 +419,19 @@ export function GoLiveModal({
                   body={
                     <>
                       The grant happens in your own wallet, not on Canopy&apos;s servers —
-                      which is why the wallet stays yours. It is scoped to swaps, capped at{" "}
-                      <Figure>{money(Number(agent.capital_usd) || 0)}</Figure>, and you can
-                      revoke it at any time without asking us.
+                      which is why the wallet stays yours. It is scoped to{" "}
+                      <Figure>swaps only</Figure>, reaches no further than what you deposit
+                      in this wallet, and you can revoke it at any time without asking us.
                     </>
                   }
                 >
                   <GrantDelegation
                     agentId={agent.id}
-                    maxSpendUsd={Number(agent.capital_usd) || 0}
+                    // Not the agent's declared capital — see
+                    // DELEGATION_CEILING_USD. What it may spend is what the
+                    // wallet holds; how much of that per trade is the desk's
+                    // call, not a number frozen at grant time.
+                    maxSpendUsd={DELEGATION_CEILING_USD}
                     // Matches the mandate's own clock: an agent that has stopped
                     // running should not still hold signing authority. Falls back to
                     // 30 days only if the field is missing from an older build —
@@ -471,7 +476,11 @@ export function GoLiveModal({
                   <Ledger
                     rows={[
                       ["Wallet", walletAddress ? short(walletAddress) : "—"],
-                      ["Spend cap", money(Number(agent.capital_usd) || 0)],
+                      // Was "Spend cap" against the agent's declared capital, a
+                      // figure the delegation does not enforce and the deposit
+                      // does not follow. What the grant actually restricts is
+                      // the kind of instruction it will sign.
+                      ["Scope", "Swaps only"],
                       [
                         "Delegation ends",
                         wallet?.expiresAt
@@ -501,9 +510,8 @@ export function GoLiveModal({
                       <div className="flex gap-3 border border-warning bg-warning/[0.04] px-5 py-4">
                         <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                         <p className="font-ui text-[13px] leading-relaxed text-warning">
-                          From the next tick this agent trades real money, up to{" "}
-                          {money(Number(agent.capital_usd) || 0)}, and it stops trading on
-                          paper. You can pause it at any time. Its paper run is not lost —
+                          From the next tick this agent trades real money — whatever this
+                          wallet holds — and it stops trading on paper. You can pause it at any time. Its paper run is not lost —
                           the book, the cycles and the thread stay readable from the Paper
                           half of the switch — but the agent itself does not go back.
                         </p>
