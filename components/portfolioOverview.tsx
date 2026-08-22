@@ -19,6 +19,7 @@ import {
   type EquitySeries,
   type UniverseAsset,
 } from "@/lib/api";
+import { useUsername } from "@/lib/useUsername";
 import {
   aggregateEquityPath,
   markAgent,
@@ -89,6 +90,7 @@ const RANGES = [
 
 export function PortfolioOverview() {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
+  const { username } = useUsername();
 
   // Held in a ref for the same reason MyAgents does it: `load` is a dependency
   // of the effect that runs it, and Privy hands back a new closure every
@@ -223,6 +225,7 @@ export function PortfolioOverview() {
     <div>
       <PortfolioHeader
         user={user}
+        username={username}
         totals={totals}
         onExport={() => exportCsv(holdings)}
       />
@@ -428,14 +431,18 @@ function summarise(holdings: Holding[]): Totals {
 
 function PortfolioHeader({
   user,
+  username,
   totals,
   onExport,
 }: {
   user: ReturnType<typeof usePrivy>["user"];
+  username: string | null;
   totals: Totals;
   onExport: () => void;
 }) {
   const identity = identityOf(user);
+  // The page is titled with who you are, not with how you signed in.
+  const title = username ?? identity.name;
 
   return (
     <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-8 pt-6 pb-6">
@@ -444,7 +451,7 @@ function PortfolioHeader({
 
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-[28px] leading-none tracking-[-0.02em] text-text-primary">
-            {identity.name}
+            {title}
           </h1>
           {/* Says what the money actually is. The badge is not decoration: a
               paper portfolio and a funded one look identical on this page. */}

@@ -2064,3 +2064,65 @@ export const closePosition = (token: string, agentId: number, mint: string) =>
     token,
     { method: "POST", body: JSON.stringify({ mint }) },
   );
+
+/* ------------------------------------------------------------- username -- */
+
+/**
+ * The account row, as canopy-fe's user endpoints return it.
+ *
+ * SHARED WITH canopy-fe, and read-only from here where it matters. One Privy
+ * app means one `users` row, so a username set on the DEX is this account's
+ * username too — inventing a second one on this side would put two names on one
+ * identity and race for the same UNIQUE column.
+ *
+ * These endpoints live under /user rather than /agents and predate the agent
+ * stack, which is why they take `privyId` in the payload instead of reading it
+ * from the bearer token. Passing the token anyway costs nothing and means this
+ * client behaves the same as every other call here.
+ */
+export interface UserProfile {
+  id: number;
+  privy_id: string;
+  username: string | null;
+  email: string | null;
+  wallet_address: string | null;
+  display_name: string | null;
+  onboarding_done: boolean;
+}
+
+/** Null when this identity has no row yet — a first visit, not an error. */
+export const getUserProfile = async (
+  token: string,
+  privyId: string,
+): Promise<UserProfile | null> => {
+  try {
+    const { user } = await request<{ user: UserProfile }>(
+      `/user/profile?privyId=${encodeURIComponent(privyId)}`,
+      token,
+    );
+    return user;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+};
+
+/**
+ * Is this name free?
+ *
+ * The server owns the rules and returns its own `reason` — 3-20 characters
+ * today. That string is rendered as-is rather than re-worded here: two products
+ * explaining one constraint differently is how users learn to distrust both.
+ */
+export const checkUsername = (token: string, username: string) =>
+  request<{ available: boolean; reason?: string }>(
+    `/user/check-username/${encodeURIComponent(username)}`,
+    token,
+  );
+
+/** Claims a username. 409 when someone took it between the check and this. */
+export const setUsername = (token: string, privyId: string, username: string) =>
+  request<{ user: UserProfile }>(`/user/username`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ privyId, username }),
+  });

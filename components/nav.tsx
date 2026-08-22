@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
+import { UsernameModal } from "@/components/usernameModal";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
+import { useUsername } from "@/lib/useUsername";
 import { isAgentWallet, personalWallet } from "@/lib/wallets";
 import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
@@ -348,6 +350,8 @@ function AccountMenu() {
   >({ at: "loading" });
   const [modal, setModal] = useState<"deposit" | "withdraw" | null>(null);
   const [balanceNonce, setBalanceNonce] = useState(0);
+  const [namingOpen, setNamingOpen] = useState(false);
+  const { username, loaded: usernameLoaded } = useUsername();
   const pathname = usePathname() ?? "";
 
   // Derived up here, not below the early returns, because the balance effect
@@ -584,13 +588,17 @@ function AccountMenu() {
   // What the button shows. An external wallet is the more identifying thing
   // for someone who signed in that way; email is the identity for everyone
   // else. Falls back to the Canopy-created wallet so the button is never blank.
+  // The username is the identity once there is one. Email is what a person
+  // signed in WITH, not what they are called — and it is the thing most people
+  // would rather not have on screen in a shared window.
   const primary =
-    external.length > 0
+    username ??
+    (external.length > 0
       ? short(external[0].address)
-      : (email ?? (mine ? short(mine.address) : "Account"));
+      : (email ?? (mine ? short(mine.address) : "Account")));
   // An address is set in mono because its characters have to be comparable
   // digit by digit; an email is prose and reads better in the UI face.
-  const primaryIsAddress = external.length > 0 || !email;
+  const primaryIsAddress = !username && (external.length > 0 || !email);
   // Which of the two ways in this was. Named in the menu header so the account
   // is identifiable without expanding a wallet row.
   const method = email ? "Email" : external.length > 0 ? walletLabel(external[0]) : "Wallet";
@@ -642,7 +650,7 @@ function AccountMenu() {
             : "border-border hover:border-grid-strong hover:bg-surface"
         }`}
       >
-        <Avatar label={email ?? primary} />
+        <Avatar label={username ?? email ?? primary} />
         <span
           // The avatar and the chevron alone say "your account" on a phone;
           // the address or email is the first thing that can go when the bar
@@ -687,7 +695,7 @@ function AccountMenu() {
               with the account; this is the answer to "whose account is this",
               which the old header ("Signed in") never actually gave. */}
           <div className="flex items-center gap-3 border-b border-grid px-4 py-3.5">
-            <Avatar label={email ?? primary} size={32} />
+            <Avatar label={username ?? email ?? primary} size={32} />
             <div className="min-w-0">
               <p
                 className={`truncate text-[13.5px] text-text-primary ${
@@ -696,9 +704,34 @@ function AccountMenu() {
               >
                 {primary}
               </p>
-              <p className="pt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase">
-                Signed in · {method}
-              </p>
+              {/* The handle, where "Signed in · Email" used to be. That line
+                  named the login METHOD, which is a fact about the door rather
+                  than about the person — and it was the only thing here that
+                  never changed no matter who was looking at it. */}
+              {username ? (
+                <p className="truncate pt-0.5 font-mono text-[11px] text-text-dim">
+                  @{username}
+                </p>
+              ) : usernameLoaded ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setNamingOpen(true);
+                    setOpen(false);
+                  }}
+                  className={`-mx-1 mt-0.5 rounded px-1 py-0.5 text-left font-ui text-[11.5px] text-accent transition-colors hover:underline ${FOCUS}`}
+                >
+                  + Set a username
+                </button>
+              ) : (
+                // Neither name nor prompt until the profile has been read —
+                // flashing "set a username" at someone who has one is worse
+                // than a beat of nothing.
+                <p className="pt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase">
+                  Signed in · {method}
+                </p>
+              )}
             </div>
           </div>
 
@@ -1025,6 +1058,7 @@ function AccountMenu() {
       {modal === "withdraw" && personalWalletAddress ? (
         <WithdrawModal address={personalWalletAddress} onClose={() => setModal(null)} />
       ) : null}
+      {namingOpen ? <UsernameModal onClose={() => setNamingOpen(false)} /> : null}
     </div>
   );
 }
