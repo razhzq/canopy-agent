@@ -10,10 +10,12 @@ import { getMyInvite, listAgents, num, type AgentRow, type PersonalInvite } from
 import { usd } from "@/lib/format";
 
 const NAV = [
-  // "My agents" is the workspace — the rail plus one agent open beside it. It
-  // matches /portfolio too, which still serves older deep links into the same
-  // agents.
-  { label: "My agents", href: "/workspace", match: ["/workspace", "/portfolio"] },
+  // "My agents" is the workspace — the rail plus one agent open beside it.
+  // /portfolio is NOT matched here any more: it used to redirect straight back
+  // to /workspace, and now it is the portfolio overview in its own right,
+  // reached from the account menu. Leaving it in this match would light up
+  // "My agents" while you were reading a different page.
+  { label: "My agents", href: "/workspace", match: ["/workspace"] },
   { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
 ];
 

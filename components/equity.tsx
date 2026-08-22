@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
-import { markOpenBook, pnlSinceDeployUsd } from "@/lib/perf";
+import { markAgent } from "@/lib/perf";
 import {
   num,
   type AgentDetail,
@@ -78,33 +78,24 @@ export function EquityView({
     );
   }
 
-  const values = points.map((p) => p.equityUsd);
   const last = points[points.length - 1];
-  // A series with no capital figure is measured from its first reading, which
-  // is what was deployed — the desk records equity before it acts.
-  const deployedCapital = capitalUsd || points[0].equityUsd;
-  const drawdown = maxDrawdownPct(values);
 
-  // Unrealised is what the open book is carrying: everything not yet booked.
-  // Marked HERE, against the same prices the positions table below uses, so
-  // the two cannot disagree. See markOpenBook for why it is not read off the
-  // curve any more.
-  const book = markOpenBook(positions, universe);
-  const marked = book.unpriced.length === 0;
-
-  // The snapshot figure, still the answer whenever a holding cannot be priced:
-  // half a book marked live is worse than a whole one marked one cycle late.
-  const snapshotPnl = pnlSinceDeployUsd(series) ?? 0;
-
-  const unrealized = marked ? book.unrealizedPnlUsd : snapshotPnl - realizedPnlUsd;
-  // Realised plus unrealised IS the total — the stat rail has to add up, and on
-  // the snapshot path this reduces to exactly what the curve's last point says.
-  const pnl = marked ? realizedPnlUsd + unrealized : snapshotPnl;
-  const equity = deployedCapital + pnl;
-  const returnPct = deployedCapital ? (pnl / deployedCapital) * 100 : 0;
-  // Same book, same marks: what the open positions are worth now.
-  const deployed = marked ? book.marketValueUsd : deployedUsd(last);
-  const hitRate = closedPositions > 0 ? (winningPositions / closedPositions) * 100 : null;
+  // The figures come from lib/perf so the portfolio overview, which sums them
+  // across every agent, cannot end up computing one agent differently from the
+  // way this panel does. `markAgent` only returns null for an empty series,
+  // which the guard above has already handled.
+  const mark = markAgent(series, positions, universe)!;
+  const {
+    deployedCapitalUsd: deployedCapital,
+    unrealizedPnlUsd: unrealized,
+    pnlUsd: pnl,
+    equityUsd: equity,
+    returnPct,
+    openBookUsd: deployed,
+    maxDrawdownPct: drawdown,
+    hitRatePct: hitRate,
+    marked,
+  } = mark;
 
   return (
     <div className="space-y-5">
@@ -324,35 +315,7 @@ function when(at: string): string {
 
 /* ---------------------------------------------------------------- helpers -- */
 
-/**
- * Worst peak-to-trough fall across the series, in percent.
- *
- * Measured against the running peak of the curve itself rather than against
- * the stored high-water mark: the stored mark is the breaker's state and can be
- * reset, while this is what the record actually shows.
- */
-function maxDrawdownPct(values: number[]): number {
-  let peak = values[0];
-  let worst = 0;
-  for (const v of values) {
-    if (v > peak) peak = v;
-    if (peak > 0) {
-      const fall = ((peak - v) / peak) * 100;
-      if (fall > worst) worst = fall;
-    }
-  }
-  return worst;
-}
 
-/** Capital minus uninvested cash. Null when the cycle recorded no cash figure. */
-function deployedUsd(p: EquityPoint): number | null {
-  // `=== null` missed an absent field, and `equity - undefined` is NaN, which
-  // rendered as "$NaN" rather than as the unknown it actually is.
-  const cash = num(p.cashUsd);
-  const equity = num(p.equityUsd);
-  if (cash === null || equity === null) return null;
-  return Math.max(equity - cash, 0);
-}
 
 function toneOf(n: number): "accent" | "negative" | "neutral" {
   return n > 0 ? "accent" : n < 0 ? "negative" : "neutral";

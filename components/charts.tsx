@@ -683,3 +683,84 @@ export function EquityCurve({
     </div>
   );
 }
+
+/**
+ * A row-sized equity curve.
+ *
+ * A LINE, not `Sparkline`'s bars. Bars from a zero baseline answer "how big",
+ * and an equity series is not asking that — every reading is roughly the size
+ * of the one before it, so a bar chart of an account that fell 12% and one that
+ * rose 12% are the same picture with a different last bar. The line is scaled
+ * to the series' own range, so the shape of the movement IS the reading.
+ *
+ * Same `equityScale`/`curvePath` as the full-size curve, so a row and the panel
+ * it links to draw the same account the same way — including the monotone
+ * smoothing that stops a spline inventing peaks the account never reached.
+ */
+export function MiniCurve({
+  values,
+  tone = "accent",
+  width = 120,
+  height = 30,
+}: {
+  values: number[];
+  tone?: "accent" | "negative" | "muted";
+  width?: number;
+  height?: number;
+}) {
+  if (values.length === 0) {
+    return (
+      <div style={{ width, height }} aria-hidden>
+        <span className="sr-only">No readings</span>
+      </div>
+    );
+  }
+
+  const color =
+    tone === "negative"
+      ? "var(--color-negative)"
+      : tone === "muted"
+        ? "var(--color-text-dim)"
+        : "var(--color-accent)";
+
+  const { W, H, x, y } = equityScale(values);
+  const pts: number[][] =
+    values.length === 1
+      ? [
+          [0, y(values[0])],
+          [W, y(values[0])],
+        ]
+      : values.map((v, i) => [x(i), y(v)]);
+
+  const d = curvePath(pts);
+  // The fill is the same path closed to the floor. A flat, faint tint rather
+  // than a gradient: a gradient needs an id, an id in a file with no "use
+  // client" has to come from useId, and that would make every chart in here a
+  // client component to soften one 30px-tall shape.
+  const area = `${d} L${W} ${H} L0 ${H} Z`;
+  const lastX = pts[pts.length - 1][0];
+  const lastY = pts[pts.length - 1][1];
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ width, height }}
+      aria-hidden
+      className="overflow-visible"
+    >
+      <path d={area} fill={color} fillOpacity="0.13" />
+      <path
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      {/* Where the series ends — the reading everything else is relative to. */}
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
