@@ -340,8 +340,14 @@ function AccountMenu() {
   // Addresses registered to an agent. Used to keep agent wallets OUT of this
   // menu — they belong on the agent's own page.
   const [agentAddrs, setAgentAddrs] = useState<ReadonlySet<string>>(new Set());
-  const [balance, setBalance] = useState<ChainFunding | null>(null);
+  // Three states, not two. A failed read and an empty wallet are different
+  // facts, and collapsing them prints "$0.00" over funds the app simply could
+  // not see — the exact mistake lib/chainBalance was written to avoid.
+  const [balance, setBalance] = useState<
+    { at: "loading" } | { at: "ready"; funds: ChainFunding } | { at: "failed" }
+  >({ at: "loading" });
   const [modal, setModal] = useState<"deposit" | "withdraw" | null>(null);
+  const [balanceNonce, setBalanceNonce] = useState(0);
   const pathname = usePathname() ?? "";
 
   // Derived up here, not below the early returns, because the balance effect
@@ -454,14 +460,26 @@ function AccountMenu() {
   useEffect(() => {
     if (!open || !walletAddress) return;
     let cancelled = false;
-    setBalance(null);
+    setBalance({ at: "loading" });
     void readChainFunding(walletAddress)
-      .then((b) => !cancelled && setBalance(b))
-      .catch(() => undefined);
+      .then((funds) => !cancelled && setBalance({ at: "ready", funds }))
+      .catch((err) => {
+        if (cancelled) return;
+        setBalance({ at: "failed" });
+        // Silent in the UI beyond the failed state, loud here. A balance that
+        // will not load is worth a line in the console — this went unnoticed
+        // precisely because the failure was swallowed.
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[nav] balance read failed",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      });
     return () => {
       cancelled = true;
     };
-  }, [open, walletAddress]);
+  }, [open, walletAddress, balanceNonce]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -749,25 +767,49 @@ function AccountMenu() {
                 <span className="font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
                   Balance
                 </span>
-                {balance ? (
+                {balance.at === "ready" ? (
                   <span className="tnum font-mono text-[10px] text-text-dim">
-                    {balance.sol.toLocaleString("en-US", { maximumFractionDigits: 4 })} SOL
+                    {balance.funds.sol.toLocaleString("en-US", {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    SOL
                   </span>
                 ) : null}
               </div>
 
-              <p className="tnum pt-1.5 font-mono text-[22px] leading-none text-text-primary">
-                {balance ? (
-                  <>
-                    ${balance.usdc.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </>
-                ) : (
-                  // A dash, not a zero. "$0.00" while the read is in flight
-                  // says the wallet is empty, which is a different and alarming
-                  // claim from "not known yet".
-                  <span className="text-text-dim">—</span>
-                )}
-              </p>
+              {balance.at === "failed" ? (
+                // Never a zero here. The wallet may be full; this only knows
+                // that the chain could not be reached.
+                <div className="flex items-baseline gap-2 pt-1.5">
+                  <span className="font-mono text-[13px] text-text-dim">Couldn&rsquo;t load</span>
+                  <button
+                    type="button"
+                    onClick={() => setBalanceNonce((n) => n + 1)}
+                    className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <p className="flex items-baseline gap-1.5 pt-1.5">
+                  <span className="tnum font-mono text-[22px] leading-none text-text-primary">
+                    {balance.at === "ready" ? (
+                      `$${balance.funds.usdc.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    ) : (
+                      // A dash only while the read is in flight — brief, and
+                      // never mistaken for a balance.
+                      <span className="text-text-dim">—</span>
+                    )}
+                  </span>
+                  <span className="font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
+                    USDC
+                  </span>
+                </p>
+              )}
 
               <div className="flex gap-2 pt-3">
                 <button

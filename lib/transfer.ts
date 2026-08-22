@@ -37,7 +37,7 @@ import {
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
 
-import { FALLBACK_RPC_URL, USDC_MINT } from "@/lib/chainBalance";
+import { rpcUrl, USDC_MINT } from "@/lib/chainBalance";
 
 /** USDC is a 6-decimal mint. Hardcoding it is safe; it is a fixed property. */
 const USDC_DECIMALS = 6;
@@ -132,7 +132,7 @@ export async function planTransfer(args: {
 
   let createsRecipientAccount = false;
   if (args.asset === "USDC") {
-    const rpc = createSolanaRpc(FALLBACK_RPC_URL);
+    const rpc = createSolanaRpc(rpcUrl());
     const [ata] = await findAssociatedTokenPda({
       owner: to,
       mint: address(USDC_MINT),
@@ -160,7 +160,7 @@ export async function sendTransfer(
   plan: TransferPlan,
   sign: (wire: Uint8Array) => Promise<string>,
 ): Promise<string> {
-  const rpc = createSolanaRpc(FALLBACK_RPC_URL);
+  const rpc = createSolanaRpc(rpcUrl());
   const from = address(plan.from);
   const to = address(plan.to);
 

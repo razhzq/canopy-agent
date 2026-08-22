@@ -44,11 +44,37 @@ export const FALLBACK_MIN_SOL = 0.01;
 /**
  * Where the browser reads the chain when the backend cannot.
  *
- * Overridable so a deployment can point at its own paid endpoint instead of
- * inheriting the public one's rate limits.
+ * NOT the public endpoint by default, any more. api.mainnet-beta.solana.com
+ * returns 403 to any request carrying an `Origin` header — a flat refusal of
+ * browser traffic, not rate limiting — so every call from here failed, and the
+ * panels that depend on it degraded to "unknown" permanently. `/api/solana-rpc`
+ * is this app's own server forwarding the same call, which the endpoint
+ * accepts.
+ *
+ * The header above says this fallback "tends to succeed where the server
+ * failed", because it runs on the user's own connection. That is true of rate
+ * limiting and false of this 403, which keys on the browser rather than on the
+ * IP.
+ *
+ * A deployment with a browser-capable RPC should set
+ * NEXT_PUBLIC_SOLANA_RPC_URL; the proxy is then skipped entirely.
  */
-export const FALLBACK_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+export const FALLBACK_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "/api/solana-rpc";
+
+/**
+ * The same, absolute.
+ *
+ * `createSolanaRpc` builds a transport that wants a parseable URL, and a
+ * relative path is not one. Resolved against the current origin in the browser
+ * and left as-is on the server, where a relative default would be meaningless
+ * anyway.
+ */
+export function rpcUrl(): string {
+  if (FALLBACK_RPC_URL.startsWith("/") && typeof window !== "undefined") {
+    return new URL(FALLBACK_RPC_URL, window.location.origin).toString();
+  }
+  return FALLBACK_RPC_URL;
+}
 
 export interface ChainFunding {
   usdc: number;
@@ -71,7 +97,7 @@ async function rpc<T>(method: string, params: unknown[], timeoutMs: number): Pro
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    const res = await fetch(FALLBACK_RPC_URL, {
+    const res = await fetch(rpcUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
