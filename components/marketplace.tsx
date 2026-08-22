@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonCards } from "@/components/skeleton";
 import { CapabilityNotices } from "@/components/capabilityNotice";
 import { Badge } from "@/components/ui";
+import { HomeFeed } from "@/components/homeFeed";
 import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 
@@ -142,6 +143,16 @@ export function Marketplace() {
 
   return (
     <>
+      {/* Below lg this route is wireframe M01 — the home screen. Explore IS the
+          home: you open the app to see what is worth deploying, which is why
+          the performers strip leads. Your own agents are on the profile, where
+          the wireframe puts them.
+
+          Fed the same `listStrategies` response the grid below uses, so the two
+          cannot disagree and the page still costs one request. */}
+      <HomeFeed strategies={rows ?? []} />
+
+      <div className="hidden lg:block">
       {/* Above the fold and above the heading: it answers a question the reader
           asked weeks ago and has probably stopped expecting an answer to. It
           renders nothing at all when there is nothing to say. */}
@@ -282,6 +293,7 @@ export function Marketplace() {
           </div>
         )}
       </section>
+      </div>
     </>
   );
 }

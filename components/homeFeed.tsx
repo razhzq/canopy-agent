@@ -6,102 +6,71 @@ import { Bell, Flame, Plus, ScanLine, SlidersHorizontal, Trees, TrendingUp } fro
 
 import { DepositModal } from "@/components/walletModals";
 import { EmptyState } from "@/components/states";
-import { returnSinceDeployPct } from "@/lib/perf";
+import { MiniCurve } from "@/components/charts";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
-import type { AgentRow, EquitySeries } from "@/lib/api";
+import { useAccountBalance } from "@/lib/useAccountBalance";
+import { hitRatePct, num, return30dPct, type StrategyRow } from "@/lib/api";
 
 /**
  * The mobile home — wireframe M01.
  *
- * NOT the desktop table at a narrower width. The wireframe puts three things
- * above the list that the table has nowhere to say: what the account is worth,
- * a way to fund it, and which agents are actually working. On a phone those are
- * the whole first screen, and the list is what you scroll to.
+ * THIS IS EXPLORE, NOT MY AGENTS. The list is every published strategy, which
+ * is what makes it a home screen rather than a dashboard: you open the app to
+ * see what is worth deploying, and the weekly performers strip is the whole
+ * point of the design. Your own agents live on the profile, which is where the
+ * wireframe puts them.
+ *
+ * What is yours here is the headline — the balance and the way to add to it —
+ * because the one thing a discovery screen still owes you is what you have to
+ * spend.
  *
  * Measurements are the .pen's: 34px balance with the cents dropped to
  * $text-muted, a 196-wide card strip, 34px chips at radius 10, and 44px agent
  * glyphs at radius 13. They are written out rather than approximated because
  * "close enough" is what made the first attempt look like a different product.
- *
- * IT DOES NOT FETCH. `MyAgents` already fans out one request per agent for the
- * table; a second fan-out for the same rows on the same route would double the
- * page's cost to show the same numbers.
  */
 
-export interface FeedRow {
-  agent: AgentRow;
-  equity: EquitySeries | null;
-}
-
-type Chip = "all" | "live" | "top" | "paused";
+type Chip = "all" | "top" | "new" | "held";
 
 const CHIPS: { key: Chip; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "live", label: "Live" },
   { key: "top", label: "Top PnL" },
-  { key: "paused", label: "Paused" },
+  { key: "new", label: "New" },
+  { key: "held", label: "Most deployed" },
 ];
 
-export function HomeFeed({ rows }: { rows: FeedRow[] }) {
+export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
   const wallet = usePersonalWallet();
+  const balance = useAccountBalance();
   const [depositing, setDepositing] = useState(false);
   const [chip, setChip] = useState<Chip>("all");
 
-  const totals = useMemo(() => {
-    const counted = rows.filter((r) => r.agent.status !== "stopped" && r.agent.status !== "draft");
-    let deployed = 0;
-    let pnl = 0;
-    let moved24h = 0;
-    let any = false;
-    for (const r of counted) {
-      deployed += Number(r.agent.capital_usd) || 0;
-      const points = r.equity?.points ?? [];
-      if (points.length === 0) continue;
-      const base = r.equity?.capitalUsd || points[0].equityUsd;
-      pnl += points[points.length - 1].equityUsd - base;
-      any = true;
-      // Measured against the last reading at or before the cutoff, not the
-      // first inside it — agents tick at different cadences.
-      const cutoff = Date.now() - 86_400_000;
-      let ref: number | null = null;
-      for (const p of points) {
-        if (new Date(p.at).getTime() <= cutoff) ref = p.equityUsd;
-        else break;
-      }
-      if (ref !== null) moved24h += points[points.length - 1].equityUsd - ref;
-    }
-    return {
-      equity: deployed + pnl,
-      moved24h: any ? moved24h : null,
-      agents: counted.length,
-      allPaper: counted.length > 0 && counted.every((r) => r.agent.is_paper),
-    };
-  }, [rows]);
-
+  // Ranked on the trailing 30 days — the shortest window `listStrategies`
+  // reports. The heading does not name a window, so nothing here claims to
+  // cover a period the data does not.
   const top = useMemo(
     () =>
-      [...rows]
-        .filter((r) => r.equity && (r.equity.points?.length ?? 0) > 0)
-        .sort((a, b) => (returnSinceDeployPct(b.equity) ?? 0) - (returnSinceDeployPct(a.equity) ?? 0))
+      [...strategies]
+        .filter((x) => return30dPct(x) !== null)
+        .sort((a, b) => (return30dPct(b) ?? 0) - (return30dPct(a) ?? 0))
         .slice(0, 4),
-    [rows],
+    [strategies],
   );
 
   const shown = useMemo(() => {
-    const list =
-      chip === "live"
-        ? rows.filter((r) => r.agent.status === "active")
-        : chip === "paused"
-          ? rows.filter((r) => r.agent.status === "paused" || r.agent.status === "liquidating")
-          : rows;
-    return chip === "top"
-      ? [...list].sort(
-          (a, b) => (returnSinceDeployPct(b.equity) ?? 0) - (returnSinceDeployPct(a.equity) ?? 0),
-        )
-      : list;
-  }, [rows, chip]);
+    const list = [...strategies];
+    if (chip === "top") return list.sort((a, b) => (return30dPct(b) ?? 0) - (return30dPct(a) ?? 0));
+    if (chip === "new")
+      return list.sort(
+        (a, b) =>
+          new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime(),
+      );
+    if (chip === "held")
+      return list.sort((a, b) => (num(b.deployments) ?? 0) - (num(a.deployments) ?? 0));
+    return list;
+  }, [strategies, chip]);
 
-  const [whole, cents] = splitMoney(totals.equity);
+  const [whole, cents] = splitMoney(balance.equityUsd);
 
   return (
     <div className="lg:hidden">
@@ -130,19 +99,21 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
             {/* Cents in $text-muted: the figure people read is the dollars, and
                 dropping the cents back stops two decimal places competing with
                 four significant ones. */}
-            <span className="text-text-primary">{whole}</span>
-            <span className="text-text-muted">{cents}</span>
+            {/* A dash until the fan-out lands, never a zero — an account
+                with money in it must not render as empty for a beat. */}
+            <span className="text-text-primary">{balance.loaded ? whole : "—"}</span>
+            <span className="text-text-muted">{balance.loaded ? cents : ""}</span>
           </p>
           <p className="flex items-center gap-1.5">
             <span
               className={`font-mono text-[13px] font-semibold ${
-                (totals.moved24h ?? 0) >= 0 ? "text-accent" : "text-negative"
+                (balance.moved24hUsd ?? 0) >= 0 ? "text-accent" : "text-negative"
               }`}
             >
-              {totals.moved24h === null ? "—" : signed(totals.moved24h)}
+              {balance.moved24hUsd === null ? "—" : signed(balance.moved24hUsd)}
             </span>
             <span className="font-mono text-[9.5px] font-semibold tracking-[0.7px] text-text-dim uppercase">
-              24H · ACROSS {totals.agents} {totals.agents === 1 ? "AGENT" : "AGENTS"}
+              24H · ACROSS {balance.agents} {balance.agents === 1 ? "AGENT" : "AGENTS"}
             </span>
           </p>
         </div>
@@ -163,18 +134,18 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
           <div className="flex items-center gap-[7px] px-[18px]">
             <Flame className="size-[15px] text-warning" aria-hidden />
             <span className="font-mono text-[10.5px] font-semibold tracking-[0.9px] text-text-secondary uppercase">
-              Weekly top performers
+              Top performers
             </span>
           </div>
           {/* Overflows on purpose — a card clipped at the right edge is what
               says there are more. */}
           <div className="flex gap-2.5 overflow-x-auto px-[18px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {top.map((r) => {
-              const pct = returnSinceDeployPct(r.equity) ?? 0;
+            {top.map((x) => {
+              const pct = return30dPct(x) ?? 0;
               return (
                 <Link
-                  key={r.agent.id}
-                  href={`/workspace/${r.agent.id}`}
+                  key={x.id}
+                  href={`/agents/${x.id}`}
                   className="w-[196px] shrink-0 space-y-[11px] rounded-[14px] border border-border bg-panel px-3.5 py-[13px]"
                 >
                   <div className="flex items-center gap-2">
@@ -182,7 +153,7 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
                       <TrendingUp className="size-[13px] text-accent" aria-hidden />
                     </span>
                     <span className="truncate font-ui text-[13.5px] font-semibold tracking-[-0.2px] text-text-primary">
-                      {r.agent.strategy_name}
+                      {x.name}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -190,7 +161,7 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
                       {signedPct(pct)}
                     </span>
                     <span className="font-mono text-[8.5px] font-semibold tracking-[0.6px] text-text-dim uppercase">
-                      {r.agent.strategy_class}
+                      {x.strategy_class}
                     </span>
                   </div>
                 </Link>
@@ -204,7 +175,7 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
       <div className="flex border-b border-grid">
         {[
           { label: "Agents", href: null },
-          { label: "Explore", href: "/agents" },
+          { label: "My agents", href: "/workspace" },
           { label: "Activity", href: "/activity" },
         ].map((t) =>
           t.href === null ? (
@@ -250,19 +221,15 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
       {shown.length === 0 ? (
         <div className="px-[18px] py-8">
           <EmptyState
-            title={rows.length === 0 ? "No agents yet" : "Nothing here"}
-            body={
-              rows.length === 0
-                ? "Build one and it starts on live data in paper mode — free, with no time limit and nothing funded."
-                : "No agents match this filter."
-            }
-            action={rows.length === 0 ? { label: "Create agent", href: "/build/new" } : undefined}
+            title="Nothing listed yet"
+            body="Published strategies show up here with a live record. Build one and it starts on live data in paper mode."
+            action={{ label: "Create agent", href: "/build/new" }}
           />
         </div>
       ) : (
         <ul className="px-[18px] pt-0.5">
-          {shown.map((r, i) => (
-            <AgentFeedRow key={r.agent.id} row={r} first={i === 0} />
+          {shown.map((x, i) => (
+            <StrategyFeedRow key={x.id} row={x} first={i === 0} />
           ))}
         </ul>
       )}
@@ -274,23 +241,16 @@ export function HomeFeed({ rows }: { rows: FeedRow[] }) {
   );
 }
 
-function AgentFeedRow({ row, first }: { row: FeedRow; first: boolean }) {
-  const { agent, equity } = row;
-  const pct = returnSinceDeployPct(equity);
-  const points = equity?.points ?? [];
-  const cycles = points.length;
-  const hit =
-    equity && equity.closedPositions > 0
-      ? Math.round((equity.winningPositions / equity.closedPositions) * 100)
-      : null;
-  const value = points.length
-    ? (equity?.capitalUsd || points[0].equityUsd) +
-      (points[points.length - 1].equityUsd - (equity?.capitalUsd || points[0].equityUsd))
-    : Number(agent.capital_usd) || 0;
+function StrategyFeedRow({ row, first }: { row: StrategyRow; first: boolean }) {
+  const pct = return30dPct(row);
+  const hit = hitRatePct(row);
+  const deployments = num(row.deployments) ?? 0;
+  const aum = num(row.aum_usd);
+  const spark = (row.spark ?? []).map(Number).filter(Number.isFinite);
 
   return (
     <li className={first ? "" : "border-t border-grid"}>
-      <Link href={`/workspace/${agent.id}`} className="flex items-center gap-3 py-[11px]">
+      <Link href={`/agents/${row.id}`} className="flex items-center gap-3 py-[11px]">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-[13px] border border-border bg-surface-2">
           <TrendingUp className="size-5 text-accent" aria-hidden />
         </span>
@@ -298,22 +258,27 @@ function AgentFeedRow({ row, first }: { row: FeedRow; first: boolean }) {
         <span className="min-w-0 flex-1 space-y-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate font-ui text-[15px] font-semibold tracking-[-0.2px] text-text-primary">
-              {agent.strategy_name}
+              {row.name}
             </span>
-            <span className="shrink-0 rounded border-0 bg-surface-2 px-[5px] py-0.5 font-mono text-[8.5px] font-semibold tracking-[0.6px] text-text-secondary uppercase">
-              {agent.is_paper ? "paper" : agent.strategy_class}
+            <span className="shrink-0 rounded bg-surface-2 px-[5px] py-0.5 font-mono text-[8.5px] font-semibold tracking-[0.6px] text-text-secondary uppercase">
+              {row.all_paper ? "paper" : row.strategy_class}
             </span>
           </span>
           <span className="block font-mono text-[11.5px] text-text-dim">
-            {cycles === 0
-              ? "no cycles yet"
-              : `${cycles} ${cycles === 1 ? "cycle" : "cycles"}${hit === null ? "" : ` · ${hit}% win`}`}
+            {deployments} deployed{hit === null ? "" : ` · ${hit.toFixed(0)}% win`}
           </span>
         </span>
 
+        {/* The strategy's own equity readings, not a generated shape. */}
+        {spark.length > 1 ? (
+          <span className="hidden shrink-0 sm:block">
+            <MiniCurve values={spark} tone={(pct ?? 0) >= 0 ? "accent" : "negative"} width={64} height={24} />
+          </span>
+        ) : null}
+
         <span className="shrink-0 space-y-1 text-right">
           <span className="block font-mono text-[15px] font-semibold text-text-primary">
-            {money(value)}
+            {aum === null ? "—" : money(aum)}
           </span>
           <span
             className={`block font-mono text-[12.5px] font-semibold ${
