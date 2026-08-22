@@ -16,6 +16,7 @@ import {
   type EquitySeries,
 } from "@/lib/api";
 import { CONCURRENCY, pooled } from "@/lib/pool";
+import { HomeFeed } from "@/components/homeFeed";
 import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
 
 /**
@@ -209,7 +210,7 @@ export function MyAgents() {
 
   if (rows.length === 0) {
     return (
-      <div className="px-5 sm:px-8 py-8">
+      <div className="px-5 py-8 sm:px-8">
         <EmptyState
           title="No agents yet"
           body="Build one and it starts on live data in paper mode — free, with no time limit and nothing funded."
@@ -253,7 +254,14 @@ export function MyAgents() {
 
   return (
     <div>
-      <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
+      {/* Below lg this route is wireframe M01, not the table at a narrower
+          width — a phone's first screen is the balance, a way to fund it, and
+          what is working, with the list underneath. Fed the SAME rows the table
+          uses, so the two cannot show different numbers and the page still
+          costs one fan-out. */}
+      <HomeFeed rows={rows.map((r) => ({ agent: r.agent, equity: r.equity }))} />
+
+      <div className="hidden grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid lg:grid-cols-5">
         <Cell
           label={allPaper ? "Paper capital" : "Capital deployed"}
           value={money(deployed)}
@@ -278,7 +286,7 @@ export function MyAgents() {
       {stoppedItself.map((r) => (
         <div
           key={r.agent.id}
-          className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-grid bg-negative/10 px-5 sm:px-8 py-3.5"
+          className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-grid bg-negative/10 px-5 py-3.5 sm:px-8"
         >
           <span className="size-2 shrink-0 bg-negative" />
           <p className="min-w-0 flex-1 font-ui text-[13.5px] text-text-secondary">
@@ -299,7 +307,7 @@ export function MyAgents() {
 
       {/* --------------------------------------------------------- table -- */}
 
-      <div className="grid grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] gap-x-4 border-b border-grid px-5 sm:px-8 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden">
+      <div className="grid grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] gap-x-4 border-b border-grid px-5 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden sm:px-8">
         <span>Agent</span>
         <span>Wallet</span>
         <span>Status</span>
@@ -313,7 +321,7 @@ export function MyAgents() {
         <Row key={r.agent.id} row={r} onChanged={() => void load()} />
       ))}
 
-      <p className="px-5 sm:px-8 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim">
+      <p className="hidden px-5 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim sm:px-8 lg:block">
         Your agent&apos;s rules are yours to change — take profit, stop loss, what it trades,
         any of it — and the change applies to the agent you are already running, from its
         next cycle. That happens in the agent&apos;s chat, which is where &ldquo;edit
@@ -353,7 +361,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
   const ret = returnSinceDeployPct(equity);
 
   return (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-5 sm:px-8 py-4 lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
+    <div className="hidden grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-5 py-4 sm:px-8 lg:grid lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
       <div className="min-w-0">
         <Link
           href={`/workspace/${agent.id}`}

@@ -197,7 +197,7 @@ function Panel({
           </p>
         ) : (
           items.map((n) => (
-            <Row key={n.id} n={n} onNavigate={onClose} onActed={onActed} />
+            <NotificationRow key={n.id} n={n} onNavigate={onClose} onActed={onActed} />
           ))
         )}
       </div>
@@ -219,7 +219,7 @@ function Panel({
  * somewhere arbitrary. Rendered as an <article> in that case, so the whole row
  * does not advertise itself as pressable.
  */
-function Row({
+export function NotificationRow({
   n,
   onNavigate,
   onActed,
@@ -379,7 +379,7 @@ function ApproveBar({
  * lives on the settings panel; repeating it here would bury the feed under
  * policy the reader did not open this for.
  */
-function TelegramSection() {
+export function TelegramSection() {
   const { getAccessToken } = usePrivy();
   const status = useApi(getTelegramStatus, []);
   const [busy, setBusy] = useState(false);

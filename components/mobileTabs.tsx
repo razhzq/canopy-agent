@@ -3,32 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Activity, Bot, Compass, LineChart, Plus } from "lucide-react";
+import { Bell, GitBranch, House, Search, User } from "lucide-react";
 
 /**
- * The bottom tab bar — the app's navigation below `lg`.
+ * The bottom tab bar, below `lg`.
  *
- * The top nav's links are hidden on a phone (they never fitted beside the
- * search field and the account button), which left small screens with a logo
- * and no way to move between sections. This is that way.
+ * BUILT TO THE .pen, NOT APPROXIMATED. The measurements below are the ones in
+ * `M/Tab Bar`, and they are what give it its shape — a floating pill rather
+ * than a bar welded to the bottom edge:
  *
- * FOUR TABS, NOT THE FIVE IN THE WIREFRAME. The design draws Home / Search /
- * Cycles / Squads / Profile. Squads has no backend at all, so it would be a tab
- * leading nowhere. Notifications and the account are already reachable from the
- * top bar on every screen, so they are not duplicated here; what is left is the
- * four places you actually go — with the wireframe's "Cycles" landing as
- * Activity, which is what it turned out to be.
+ *   bar    390 x 84, fill #080B0AE6, padding 8 / 16 / 0 / 16
+ *   pill   fill x 60, radius 30, fill $surface, 1px $border, padding 0 / 8
+ *   tab    fill x 44, radius 22, active fill $surface-2
+ *   icon   21px, $text-primary active / $text-muted at rest
  *
- * Deploy sits in the middle as the one filled control. It is the action the
- * product exists for, and on a phone the top-right "Create agent" button is the
- * first thing to get squeezed out.
+ * The bar's fill is the page background at 90%, which is the glass: content
+ * scrolling under the pill stays faintly legible through it, and that is what
+ * tells you the page moved rather than the bar. The opaque fallback keeps
+ * browsers without `backdrop-filter` from showing text through solid chrome.
  */
 
 const TABS = [
-  { href: "/workspace", label: "Agents", icon: Bot, match: ["/workspace"] },
-  { href: "/agents", label: "Explore", icon: Compass, match: ["/agents"] },
-  { href: "/activity", label: "Activity", icon: Activity, match: ["/activity"] },
-  { href: "/portfolio", label: "Portfolio", icon: LineChart, match: ["/portfolio"] },
+  { href: "/workspace", label: "Agents", icon: House, match: ["/workspace"] },
+  { href: "/agents", label: "Explore", icon: Search, match: ["/agents", "/deploy"] },
+  { href: "/activity", label: "Activity", icon: GitBranch, match: ["/activity"] },
+  // The wireframe's fourth slot is Squads, which has no backend. Rather than
+  // drop the slot — the pill's five-up spacing IS the design — it carries
+  // notifications, which are real, and which otherwise only existed behind a
+  // bell in a top bar that a thumb never reaches.
+  { href: "/notifications", label: "Alerts", icon: Bell, match: ["/notifications"] },
+  { href: "/portfolio", label: "Profile", icon: User, match: ["/portfolio"] },
 ] as const;
 
 function isActive(pathname: string, match: readonly string[]): boolean {
@@ -39,61 +43,35 @@ export function MobileTabs() {
   const pathname = usePathname() ?? "";
   const { ready, authenticated } = usePrivy();
 
-  // Nothing to navigate between until there is a session — and a bar of tabs
-  // that all bounce off a sign-in prompt is worse than no bar.
+  // Nothing to navigate between until there is a session, and a row of tabs
+  // that all bounce off a sign-in prompt is worse than no row.
   if (!ready || !authenticated) return null;
 
   return (
     <nav
       aria-label="Sections"
-      // `pb-[env(safe-area-inset-bottom)]` keeps the row clear of the iOS home
-      // indicator; without it the last few pixels of every tab sit under it.
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] supports-[backdrop-filter]:bg-surface/90 supports-[backdrop-filter]:backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 bg-bg/90 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] supports-[backdrop-filter]:bg-bg/70 supports-[backdrop-filter]:backdrop-blur-md lg:hidden"
     >
-      <ul className="mx-auto flex max-w-[520px] items-stretch">
-        {TABS.slice(0, 2).map((t) => (
-          <Tab key={t.href} tab={t} active={isActive(pathname, t.match)} />
-        ))}
-
-        <li className="flex shrink-0 items-center justify-center px-2">
-          <Link
-            href="/build/new"
-            aria-label="Create an agent"
-            className="flex size-11 items-center justify-center rounded-full bg-accent text-bg transition-opacity hover:opacity-90"
-          >
-            <Plus className="size-5" aria-hidden />
-          </Link>
-        </li>
-
-        {TABS.slice(2).map((t) => (
-          <Tab key={t.href} tab={t} active={isActive(pathname, t.match)} />
-        ))}
+      <ul className="mx-auto flex h-[60px] max-w-[520px] items-center justify-between rounded-[30px] border border-border bg-surface px-2 supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-xl">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const active = isActive(pathname, t.match);
+          return (
+            <li key={t.href} className="min-w-0 flex-1">
+              <Link
+                href={t.href}
+                aria-label={t.label}
+                aria-current={active ? "page" : undefined}
+                className={`flex h-11 items-center justify-center rounded-[22px] transition-colors ${
+                  active ? "bg-surface-2 text-text-primary" : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                <Icon className="size-[21px] shrink-0" aria-hidden />
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
 }
-
-function Tab({
-  tab,
-  active,
-}: {
-  tab: (typeof TABS)[number];
-  active: boolean;
-}) {
-  const Icon = tab.icon;
-  return (
-    <li className="min-w-0 flex-1">
-      <Link
-        href={tab.href}
-        aria-current={active ? "page" : undefined}
-        className={`flex flex-col items-center gap-1 py-2.5 transition-colors ${
-          active ? "text-accent" : "text-text-dim hover:text-text-secondary"
-        }`}
-      >
-        <Icon className="size-5 shrink-0" aria-hidden />
-        <span className="font-mono text-[9px] tracking-[0.08em] uppercase">{tab.label}</span>
-      </Link>
-    </li>
-  );
-}
-

@@ -34,7 +34,7 @@ export default function AppLayout({
             the account menu (and its sign out) stays reachable. */}
         {/* Padded for the tab bar, which is fixed and would otherwise sit on
             top of the last rows of every page. */}
-        <div className="pb-[calc(env(safe-area-inset-bottom)+68px)] lg:pb-0">
+        <div className="pb-[calc(env(safe-area-inset-bottom)+84px)] lg:pb-0">
           <InviteGate>{children}</InviteGate>
         </div>
       </div>

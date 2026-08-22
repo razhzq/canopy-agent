@@ -11,6 +11,8 @@ import { AddMarketModal } from "@/components/addMarket";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
 import type { UniverseSelection } from "@/lib/api";
+import { useIsMobile } from "@/lib/useIsMobile";
+import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
@@ -109,6 +111,17 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   const runSeq = useRef(0);
 
   const [adding, setAdding] = useState(false);
+  /**
+   * Below lg this screen is wireframe M03, MOUNTED rather than hidden: its
+   * phase bar needs a cycle the desktop layout never asks for, and a hidden
+   * component still fetches.
+   *
+   * Called here, with the other hooks, and NOT beside the branch that uses it.
+   * Every early return below this point is conditional, so a hook after one is
+   * a hook that runs on some renders and not others — React throws on the
+   * render where the count changes, which is the one where loading resolves.
+   */
+  const mobile = useIsMobile();
   /**
    * Whether the go-live dialog is open.
    *
@@ -420,6 +433,21 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
     ? null
     : "This agent has no paper run";
   const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
+
+  if (mobile === null) return null;
+
+  if (mobile) {
+    return (
+      <AgentDetailMobile
+        agent={agent}
+        detail={detail}
+        equity={equity}
+        positions={positions}
+        assets={assets}
+        onChanged={() => void load()}
+      />
+    );
+  }
 
   return (
     <div>

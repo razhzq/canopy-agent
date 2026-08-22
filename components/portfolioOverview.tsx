@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve, MiniCurve } from "@/components/charts";
+import { ProfileMobile } from "@/components/profileMobile";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { Badge, Breadcrumb, Columns, RailSection } from "@/components/ui";
@@ -48,7 +49,7 @@ import {
 
 
 
-interface Holding {
+export interface Holding {
   agent: AgentRow;
   positions: AgentDetail["positions"];
   series: EquitySeries | null;
@@ -206,6 +207,13 @@ export function PortfolioOverview() {
 
   return (
     <div>
+      {/* Below lg this route is wireframe M02 — identity, the curve, then the
+          agents — rather than the two-column workspace narrowed. Same holdings,
+          same totals, so the two views cannot disagree and the page still costs
+          one fan-out. */}
+      <ProfileMobile holdings={holdings} totals={totals} />
+
+      <div className="hidden lg:block">
       <PortfolioHeader
         user={user}
         username={username}
@@ -329,13 +337,14 @@ export function PortfolioOverview() {
           </>
         }
       />
+      </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------- summary --- */
 
-interface Totals {
+export interface Totals {
   capitalUsd: number;
   equityUsd: number;
   pnlUsd: number;
