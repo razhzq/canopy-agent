@@ -6,7 +6,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMyInvite, listAgents, num, type AgentRow, type PersonalInvite } from "@/lib/api";
+import {
+  getClaimedWallets,
+  getMyInvite,
+  listAgents,
+  num,
+  type AgentRow,
+  type PersonalInvite,
+} from "@/lib/api";
 import { usd } from "@/lib/format";
 
 const NAV = [
@@ -46,6 +53,18 @@ interface LinkedWallet {
   /** "privy" for the wallet Canopy created; anything else is the user's own. */
   client: string;
   chain: string;
+  /**
+   * Privy's creation order. The wallet made at sign-in is index 0, which is
+   * what identifies the PERSONAL wallet among several embedded ones — see
+   * `personalWallet`.
+   */
+  index: number | null;
+  /**
+   * Whether a signer has been attached. Canopy's key quorum is the only thing
+   * that ever adds one, so `true` means "this is an agent's wallet" — known on
+   * the client, without asking the backend anything.
+   */
+  delegated: boolean;
 }
 
 /**
@@ -75,10 +94,61 @@ export function readAccounts(user: unknown): { email: string | null; wallets: Li
         address: a.address,
         client: typeof a.walletClientType === "string" ? a.walletClientType : "unknown",
         chain: typeof a.chainType === "string" ? a.chainType : "",
+        index: typeof a.walletIndex === "number" ? a.walletIndex : null,
+        delegated: a.delegated === true,
       });
     }
   }
   return { email, wallets };
+}
+
+/**
+ * The user's OWN wallet, out of the several this account holds.
+ *
+ * An account legitimately carries more than one embedded Solana wallet: the one
+ * made at sign-in, which the user deposits FROM, and one per live agent, which
+ * they deposit INTO. CANOPY_036 keeps them separate on purpose — an agent
+ * trades from its own wallet and nothing else, so a trading bug cannot reach
+ * the personal balance. This menu is about the person, so it shows theirs and
+ * leaves an agent's wallet on that agent's page, where its balance is the
+ * agent's capital and means something.
+ *
+ * Identified by exclusion and then by age: not an agent's, then lowest
+ * `walletIndex`. Privy does not flag which wallet sign-in created, and index is
+ * the only ordering it gives — the same signal grantDelegation sorts on.
+ * Duplicates from the old login race sit behind the real one on that ordering,
+ * so they fall away without needing to be told apart.
+ *
+ * "AN AGENT'S" IS THE UNION OF TWO SIGNALS, because each alone has a hole:
+ *
+ *   registered  — a row in trading_agent_wallets. Authoritative, but arrives
+ *                 over the network, and misses a wallet whose grant landed and
+ *                 whose registration then failed.
+ *   delegated   — a signer is attached, per Privy. Free and synchronous, and
+ *                 covers that half-finished case, but a REVOKED delegation
+ *                 clears it while the row lives on.
+ *
+ * Either one saying "agent" is enough. Erring toward excluding a wallet is the
+ * safe direction: the cost is showing the second-oldest wallet, against showing
+ * someone an agent's wallet as their own and inviting a deposit into it.
+ *
+ * `claimed` empty — not yet loaded, or the request failed — still leaves the
+ * `delegated` half working, which is why this degrades quietly instead of
+ * putting every agent wallet back on screen.
+ */
+function personalWallet(
+  wallets: LinkedWallet[],
+  claimed: ReadonlySet<string>,
+): LinkedWallet | null {
+  return (
+    wallets
+      .filter((w) => w.client === "privy" && !claimed.has(w.address) && !w.delegated)
+      .sort(
+        (a, b) =>
+          (a.index ?? Number.MAX_SAFE_INTEGER) - (b.index ?? Number.MAX_SAFE_INTEGER) ||
+          a.address.localeCompare(b.address),
+      )[0] ?? null
+  );
 }
 
 function short(address: string): string {
@@ -313,6 +383,9 @@ function AccountMenu() {
   const [inviteFailed, setInviteFailed] = useState(false);
   const [agents, setAgents] = useState<AgentRow[] | null>(null);
   const [agentsFailed, setAgentsFailed] = useState(false);
+  // Addresses registered to an agent. Used to keep agent wallets OUT of this
+  // menu — they belong on the agent's own page.
+  const [agentAddrs, setAgentAddrs] = useState<ReadonlySet<string>>(new Set());
   const pathname = usePathname() ?? "";
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -376,8 +449,18 @@ function AccountMenu() {
       try {
         const token = await getAccessToken();
         if (!token) return;
-        const data = await listAgents(token);
-        if (!cancelled) setAgents(data.agents);
+        // Settled, not all: the counts and the wallet filter fail
+        // independently. Losing the agent-wallet list would otherwise blank
+        // the row counts, and losing the counts would put agent wallets back
+        // in the menu.
+        const [list, claimed] = await Promise.allSettled([
+          listAgents(token),
+          getClaimedWallets(token),
+        ]);
+        if (cancelled) return;
+        if (list.status === "fulfilled") setAgents(list.value.agents);
+        else throw list.reason;
+        if (claimed.status === "fulfilled") setAgentAddrs(new Set(claimed.value.addresses));
       } catch (err) {
         // Silent in the UI, loud in the console — the rows still navigate,
         // they just lose their trailing figure. Same trade as the invite
@@ -493,13 +576,22 @@ function AccountMenu() {
 
   const { email, wallets } = readAccounts(user);
   const external = wallets.filter((w) => w.client !== "privy");
-  const embedded = wallets.filter((w) => w.client === "privy");
+  // One embedded wallet — the person's own. Agent wallets are deliberately not
+  // here; see `personalWallet`. External wallets the user linked themselves are
+  // theirs by definition and always shown.
+  const mine = personalWallet(wallets, agentAddrs);
+  const shown = [...external, ...(mine ? [mine] : [])];
+  const agentWalletCount = wallets.filter(
+    (w) => agentAddrs.has(w.address) || w.delegated,
+  ).length;
 
   // What the button shows. An external wallet is the more identifying thing
   // for someone who signed in that way; email is the identity for everyone
   // else. Falls back to the Canopy-created wallet so the button is never blank.
   const primary =
-    external.length > 0 ? short(external[0].address) : (email ?? (embedded[0] ? short(embedded[0].address) : "Account"));
+    external.length > 0
+      ? short(external[0].address)
+      : (email ?? (mine ? short(mine.address) : "Account"));
   // An address is set in mono because its characters have to be comparable
   // digit by digit; an email is prose and reads better in the UI face.
   const primaryIsAddress = external.length > 0 || !email;
@@ -618,10 +710,10 @@ function AccountMenu() {
               The other way round — label first, address as a subtitle — is how
               this read before, and it buried the one string anyone opens this
               menu to copy. */}
-          {wallets.length > 0 ? (
+          {shown.length > 0 ? (
             <div className="border-b border-grid pb-1.5">
-              <MenuGroupLabel>{wallets.length === 1 ? "Wallet" : "Wallets"}</MenuGroupLabel>
-              {[...external, ...embedded].map((w) => (
+              <MenuGroupLabel>{shown.length === 1 ? "Your wallet" : "Your wallets"}</MenuGroupLabel>
+              {shown.map((w) => (
                 <button
                   key={w.address}
                   type="button"
@@ -655,10 +747,21 @@ function AccountMenu() {
                   </p>
                 </button>
               ))}
+
+              {/* Said once, quietly, so the count here never reads as "where
+                  did my other wallets go". An agent's wallet is on that agent's
+                  page, where its balance is the agent's capital rather than a
+                  number with no context. */}
+              {agentWalletCount > 0 ? (
+                <p className="px-3.5 pt-1.5 font-ui text-[11px] leading-relaxed text-text-dim">
+                  {agentWalletCount} agent {agentWalletCount === 1 ? "wallet" : "wallets"} —
+                  each on its own agent&rsquo;s page.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
-          {!email && wallets.length === 0 ? (
+          {!email && shown.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
               <p className="font-ui text-[13px] text-text-dim">No linked account details.</p>
             </div>
