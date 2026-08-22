@@ -6,7 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMyInvite, type PersonalInvite } from "@/lib/api";
+import { getMyInvite, listAgents, num, type AgentRow, type PersonalInvite } from "@/lib/api";
+import { usd } from "@/lib/format";
 
 const NAV = [
   // "My agents" is the workspace — the rail plus one agent open beside it. It
@@ -157,6 +158,149 @@ function inviteLink(code: string): string {
   return `${origin}/?ref=${code}`;
 }
 
+/* --------------------------------------------------------- menu pieces -- */
+
+function PortfolioIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <path
+        d="M2 13.2h12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M2.6 10.4 6 7l2.4 2.4L13.4 4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AgentsIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <rect
+        x="2.8"
+        y="5.2"
+        width="10.4"
+        height="8"
+        rx="1.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <path d="M8 2.4v2.8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M6 8.6v1.4M10 8.6v1.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SettingsIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8m10.6-4.4-1.1 1.1M4.7 11.3l-1.1 1.1m0-8.8 1.1 1.1m6.6 6.6 1.1 1.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SignOutIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden>
+      <path
+        d="M6.5 3.5h-3v9h3M9 5.5l2.5 2.5L9 10.5M11 8H5.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The label over a group of menu rows.
+ *
+ * The menu grew from a flat list into sections, and a section that is only a
+ * gap reads as an accident of spacing. This says what the rows below it are.
+ */
+function MenuGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-3.5 pt-2.5 pb-1 font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
+      {children}
+    </p>
+  );
+}
+
+/**
+ * One destination row.
+ *
+ * Inset and rounded rather than full-bleed: the active row is filled, and a
+ * fill that runs edge to edge inside a bordered panel reads as a new section
+ * of the panel rather than as one selected item.
+ *
+ * `value` is the row's own number — deliberately in mono beside a UI-face
+ * label, because it is a figure to compare, not prose to read.
+ */
+function MenuRow({
+  href,
+  icon,
+  label,
+  value,
+  active,
+  onNavigate,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  value?: string | null;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      aria-current={active ? "page" : undefined}
+      onClick={onNavigate}
+      className={`mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors -outline-offset-2 ${FOCUS} ${
+        active
+          ? "bg-accent-wash text-accent"
+          : "text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary"
+      }`}
+    >
+      <span className={`shrink-0 ${active ? "text-accent" : "text-text-dim"}`}>{icon}</span>
+      <span className="min-w-0 flex-1 truncate font-ui text-[12.5px] font-medium">{label}</span>
+      {value ? (
+        <span
+          className={`tnum shrink-0 font-mono text-[11.5px] ${active ? "text-accent" : "text-text-dim"}`}
+        >
+          {value}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
@@ -165,6 +309,9 @@ function AccountMenu() {
   const [copied, setCopied] = useState<string | null>(null);
   const [invite, setInvite] = useState<PersonalInvite | null>(null);
   const [inviteFailed, setInviteFailed] = useState(false);
+  const [agents, setAgents] = useState<AgentRow[] | null>(null);
+  const [agentsFailed, setAgentsFailed] = useState(false);
+  const pathname = usePathname() ?? "";
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -209,6 +356,45 @@ function AccountMenu() {
       cancelled = true;
     };
   }, [open, authenticated, invite, inviteFailed, getAccessToken]);
+
+  // The numbers on the ACCOUNT rows. Same on-open, once-per-session shape as
+  // the invite fetch above, and for the same reason: the navbar is on every
+  // page, and a menu nobody opens should cost nothing.
+  //
+  // One request, and only figures that request actually contains. Deployed
+  // capital is the sum of the mandates; it is NOT portfolio equity, which
+  // would need every agent's open positions marked against the live universe —
+  // N+1 requests from a navbar, and the one number in this app that is
+  // easiest to state wrongly. See markOpenBook in lib/perf.
+  useEffect(() => {
+    if (!open || !authenticated || agents || agentsFailed) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const data = await listAgents(token);
+        if (!cancelled) setAgents(data.agents);
+      } catch (err) {
+        // Silent in the UI, loud in the console — the rows still navigate,
+        // they just lose their trailing figure. Same trade as the invite
+        // block: a broken count must not become a banner over a menu whose
+        // main job is getting you somewhere else.
+        if (!cancelled) setAgentsFailed(true);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[nav] agent counts unavailable — the rows render without them.",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, authenticated, agents, agentsFailed, getAccessToken]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -319,6 +505,19 @@ function AccountMenu() {
   // is identifiable without expanding a wallet row.
   const method = email ? "Email" : external.length > 0 ? walletLabel(external[0]) : "Wallet";
 
+  // A row claims a number only once the request carrying it has landed.
+  const agentCount = agents ? agents.length : null;
+  // What is under mandate right now. `draft` was never deployed and
+  // `stopped`/`deleted` no longer hold anything, so counting either would
+  // overstate what is actually at work.
+  const deployedUsd = agents
+    ? agents
+        .filter(
+          (a) => a.status === "active" || a.status === "paused" || a.status === "liquidating",
+        )
+        .reduce((total, a) => total + (num(a.capital_usd) ?? 0), 0)
+    : null;
+
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -413,11 +612,13 @@ function AccountMenu() {
             </div>
           </div>
 
+          {/* The address is the row; what kind of wallet it is sits under it.
+              The other way round — label first, address as a subtitle — is how
+              this read before, and it buried the one string anyone opens this
+              menu to copy. */}
           {wallets.length > 0 ? (
-            <div className="border-b border-grid py-1.5">
-              <p className="px-4 pt-1.5 pb-1 font-mono text-[9px] tracking-[0.12em] text-text-muted uppercase">
-                {wallets.length === 1 ? "Wallet" : "Wallets"}
-              </p>
+            <div className="border-b border-grid pb-1.5">
+              <MenuGroupLabel>{wallets.length === 1 ? "Wallet" : "Wallets"}</MenuGroupLabel>
               {[...external, ...embedded].map((w) => (
                 <button
                   key={w.address}
@@ -425,16 +626,15 @@ function AccountMenu() {
                   role="menuitem"
                   onClick={() => copy(w.address)}
                   aria-label={`Copy ${walletLabel(w)} address ${w.address}`}
-                  // `group` so the copy affordance can stay quiet until the row
-                  // is pointed at: a permanent "COPY" on every row competed
-                  // with the addresses themselves for attention. It also shows
-                  // on focus, or the keyboard path has no affordance at all.
-                  className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                  // `group` so the copy affordance stays quiet until the row is
+                  // pointed at: a permanent "COPY" on every row competed with
+                  // the addresses themselves. It shows on focus too, or the
+                  // keyboard path has no affordance at all.
+                  className={`group mx-1.5 block w-[calc(100%-0.75rem)] rounded-md px-2 py-1.5 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="truncate font-ui text-[12px] text-text-secondary">
-                      {walletLabel(w)}
-                      {w.chain ? <span className="text-text-muted"> · {w.chain}</span> : null}
+                    <span className="truncate font-mono text-[12.5px] text-text-primary">
+                      {w.address}
                     </span>
                     <span
                       className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
@@ -447,7 +647,10 @@ function AccountMenu() {
                       {copied === w.address ? "Copied" : <CopyIcon className="size-3" />}
                     </span>
                   </div>
-                  <p className="truncate font-mono text-[12.5px] text-text-primary">{w.address}</p>
+                  <p className="truncate pt-0.5 font-ui text-[11px] text-text-dim">
+                    {walletLabel(w)}
+                    {w.chain ? ` · ${w.chain}` : ""}
+                  </p>
                 </button>
               ))}
             </div>
@@ -458,6 +661,48 @@ function AccountMenu() {
               <p className="font-ui text-[13px] text-text-dim">No linked account details.</p>
             </div>
           ) : null}
+
+          {/* Where this account can go. The rows above say who you are; these
+              are the places you own. Labelled groups rather than one flat run,
+              because the menu now carries three different kinds of thing —
+              identity, destinations, and a code to hand out — and undifferentiated
+              rows made them read as a single list. */}
+          <div className="border-b border-grid pb-1.5">
+            <MenuGroupLabel>Account</MenuGroupLabel>
+            <MenuRow
+              href="/portfolio"
+              icon={<PortfolioIcon className="size-3.5" />}
+              label="Portfolio"
+              // Deployed capital, NOT portfolio equity. The suffix is load-bearing:
+              // a bare "$2,650" beside the word "Portfolio" reads as what the
+              // portfolio is worth, and that is a different — and more expensive —
+              // number. See the fetch above.
+              value={deployedUsd === null ? null : `${usd(deployedUsd)} deployed`}
+              active={isActive(pathname, ["/portfolio"])}
+              onNavigate={() => close(false)}
+            />
+            <MenuRow
+              href="/workspace"
+              icon={<AgentsIcon className="size-3.5" />}
+              label="My agents"
+              value={agentCount === null ? null : String(agentCount)}
+              active={isActive(pathname, ["/workspace"])}
+              onNavigate={() => close(false)}
+            />
+          </div>
+
+          <div className="border-b border-grid pb-1.5">
+            <MenuGroupLabel>Settings</MenuGroupLabel>
+            <MenuRow
+              href="/settings"
+              icon={<SettingsIcon className="size-3.5" />}
+              // Named for what the page actually holds. "Settings" over a group
+              // already labelled SETTINGS says nothing twice.
+              label="Plan & notifications"
+              active={isActive(pathname, ["/settings"])}
+              onNavigate={() => close(false)}
+            />
+          </div>
 
           {/* Your invite code.
               Below the wallets because it is about other people, not about
@@ -568,53 +813,24 @@ function AccountMenu() {
             </div>
           ) : null}
 
-          {/* Above sign-out, and inside the same bordered group, because it is
-              a destination rather than an action on the session. */}
-          <Link
-            href="/settings"
-            role="menuitem"
-            onClick={() => close(false)}
-            className={`group flex w-full items-center gap-2.5 border-b border-grid px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors -outline-offset-2 hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary ${FOCUS}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-3.5 shrink-0" aria-hidden>
-              <path
-                d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-              />
-              <path
-                d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8m10.6-4.4-1.1 1.1M4.7 11.3l-1.1 1.1m0-8.8 1.1 1.1m6.6 6.6 1.1 1.1"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-              />
-            </svg>
-            Settings
-          </Link>
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              close(true);
-              void logout();
-            }}
-            className={`group flex w-full items-center gap-2.5 px-4 py-3 text-left font-ui text-[13px] text-text-secondary transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-3.5 shrink-0" aria-hidden>
-              <path
-                d="M6.5 3.5h-3v9h3M9 5.5l2.5 2.5L9 10.5M11 8H5.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Sign out
-          </button>
+          {/* Last, and the only row here that is not a place to go. Named for
+              what it does to a wallet-backed session rather than for what it
+              does to a password one: the keys stop being reachable from this
+              browser. */}
+          <div className="py-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                close(true);
+                void logout();
+              }}
+              className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
+            >
+              <SignOutIcon className="size-3.5 shrink-0" />
+              <span className="font-ui text-[12.5px] font-medium">Disconnect</span>
+            </button>
+          </div>
         </div>
       ) : null}
     </div>
