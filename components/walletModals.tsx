@@ -8,6 +8,7 @@ import { getBase58Decoder } from "@solana/kit";
 
 import { readChainFunding, USDC_MINT, type ChainFunding } from "@/lib/chainBalance";
 import {
+  formatAmountInput,
   formatUnits,
   isValidAddress,
   planTransfer,
@@ -375,7 +376,7 @@ export function WithdrawModal({
               sendable === null ? null : (
                 <button
                   type="button"
-                  onClick={() => setAmount(String(sendable))}
+                  onClick={() => setAmount(formatAmountInput(sendable, asset === "SOL" ? 9 : 6))}
                   className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
                 >
                   Max {sendable.toLocaleString("en-US", { maximumFractionDigits: 6 })}

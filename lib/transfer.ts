@@ -101,6 +101,28 @@ export function toBaseUnits(amount: string, decimals: number): bigint {
   return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(padded || "0");
 }
 
+/**
+ * A float balance, rendered as an amount string the form will accept.
+ *
+ * The "Max" button used to write `String(sendable)` straight into the field.
+ * Balances arrive as floats and the SOL reserve is subtracted from one, so
+ * `0.043 - 0.002` is `0.040999999999999995` — eighteen decimal places, which
+ * `toBaseUnits` then refuses. Pressing Max produced an error rather than an
+ * amount.
+ *
+ * `toFixed` at the asset's own precision recovers the intended value (a lamport
+ * is the ninth decimal, so nothing below it is real), and the trailing zeros
+ * come off for display. The strip is anchored to a decimal point on purpose:
+ * a naive /0+$/ turns "100" into "1".
+ */
+export function formatAmountInput(value: number, decimals: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  return value
+    .toFixed(decimals)
+    .replace(/(\.\d*?)0+$/, "$1")
+    .replace(/\.$/, "");
+}
+
 export interface TransferPlan {
   asset: Asset;
   from: string;
