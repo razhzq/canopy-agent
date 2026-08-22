@@ -6,6 +6,7 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonPanel } from "@/components/skeleton";
 import { Badge, Breadcrumb } from "@/components/ui";
 import { getClaimedWallets, type ClaimedWallets } from "@/lib/api";
+import { assignableWallets, isAgentWallet, personalWallet } from "@/lib/wallets";
 import { useApi } from "@/lib/useApi";
 
 /**
@@ -37,9 +38,11 @@ export function WalletAudit() {
   const solana = wallets.filter((w) => w.chain === "solana");
   // The same ordering `firstFreeWallet` uses in grantDelegation — so this shows
   // the wallet the NEXT agent to go live would be handed.
-  const nextUp = solana.find((w) => !claimedSet.has(w.address) && !w.delegated);
+  // Same call grantDelegation makes, so this shows what would ACTUALLY happen.
+  const nextUp = assignableWallets(wallets, claimedSet)[0] ?? null;
+  const yours = personalWallet(wallets, claimedSet);
 
-  const spares = solana.filter((w) => !claimedSet.has(w.address) && !w.delegated);
+  const spares = solana.filter((w) => !isAgentWallet(w, claimedSet));
 
   const verdict =
     distinct.length === 0
@@ -98,14 +101,14 @@ export function WalletAudit() {
                   </span>
                   {isClaimed ? (
                     <Badge tone="accent">agent {agentFor(claimed, w.address) ?? "?"}</Badge>
+                  ) : w.address === yours?.address ? (
+                    <Badge tone="accent">yours · never assignable</Badge>
                   ) : w.delegated ? (
                     // Signer attached but no row: a grant that landed and then
                     // failed to register. Still an agent's wallet.
                     <Badge tone="warning">delegated · not registered</Badge>
                   ) : w.address === nextUp?.address ? (
-                    // grantDelegation picks the lowest-index unclaimed wallet,
-                    // so this is the one the next agent to go live would take.
-                    <Badge tone="warning">unclaimed · next agent takes this</Badge>
+                    <Badge tone="muted">spare · next agent takes this</Badge>
                   ) : (
                     <Badge tone="muted">unclaimed</Badge>
                   )}

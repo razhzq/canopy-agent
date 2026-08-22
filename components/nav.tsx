@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
+import { isAgentWallet, personalWallet } from "@/lib/wallets";
 import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -102,55 +103,6 @@ export function readAccounts(user: unknown): { email: string | null; wallets: Li
     }
   }
   return { email, wallets };
-}
-
-/**
- * The user's OWN wallet, out of the several this account holds.
- *
- * An account legitimately carries more than one embedded Solana wallet: the one
- * made at sign-in, which the user deposits FROM, and one per live agent, which
- * they deposit INTO. CANOPY_036 keeps them separate on purpose — an agent
- * trades from its own wallet and nothing else, so a trading bug cannot reach
- * the personal balance. This menu is about the person, so it shows theirs and
- * leaves an agent's wallet on that agent's page, where its balance is the
- * agent's capital and means something.
- *
- * Identified by exclusion and then by age: not an agent's, then lowest
- * `walletIndex`. Privy does not flag which wallet sign-in created, and index is
- * the only ordering it gives — the same signal grantDelegation sorts on.
- * Duplicates from the old login race sit behind the real one on that ordering,
- * so they fall away without needing to be told apart.
- *
- * "AN AGENT'S" IS THE UNION OF TWO SIGNALS, because each alone has a hole:
- *
- *   registered  — a row in trading_agent_wallets. Authoritative, but arrives
- *                 over the network, and misses a wallet whose grant landed and
- *                 whose registration then failed.
- *   delegated   — a signer is attached, per Privy. Free and synchronous, and
- *                 covers that half-finished case, but a REVOKED delegation
- *                 clears it while the row lives on.
- *
- * Either one saying "agent" is enough. Erring toward excluding a wallet is the
- * safe direction: the cost is showing the second-oldest wallet, against showing
- * someone an agent's wallet as their own and inviting a deposit into it.
- *
- * `claimed` empty — not yet loaded, or the request failed — still leaves the
- * `delegated` half working, which is why this degrades quietly instead of
- * putting every agent wallet back on screen.
- */
-function personalWallet(
-  wallets: LinkedWallet[],
-  claimed: ReadonlySet<string>,
-): LinkedWallet | null {
-  return (
-    wallets
-      .filter((w) => w.client === "privy" && !claimed.has(w.address) && !w.delegated)
-      .sort(
-        (a, b) =>
-          (a.index ?? Number.MAX_SAFE_INTEGER) - (b.index ?? Number.MAX_SAFE_INTEGER) ||
-          a.address.localeCompare(b.address),
-      )[0] ?? null
-  );
 }
 
 function short(address: string): string {
@@ -609,9 +561,7 @@ function AccountMenu() {
   // here; see `personalWallet`. External wallets the user linked themselves are
   // theirs by definition and always shown.
   const shown = [...external, ...(mine ? [mine] : [])];
-  const agentWalletCount = wallets.filter(
-    (w) => agentAddrs.has(w.address) || w.delegated,
-  ).length;
+  const agentWalletCount = wallets.filter((w) => isAgentWallet(w, agentAddrs)).length;
 
   // What the button shows. An external wallet is the more identifying thing
   // for someone who signed in that way; email is the identity for everyone

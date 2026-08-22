@@ -47,6 +47,7 @@ import { usePrivy, useSigners, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
 import { getClaimedWallets, registerAgentWallet, type RegisteredWallet } from "@/lib/api";
+import { assignableWallets, type WalletFacts } from "@/lib/wallets";
 
 type EmbeddedWallet = Extract<
   NonNullable<User["linkedAccounts"]>[number],
@@ -68,24 +69,37 @@ function walletAt(user: User | null, address: string): EmbeddedWallet | undefine
   return embeddedSolanaWallets(user).find((w) => w.address === address);
 }
 
+/** Privy's wallet, described in the terms lib/wallets reasons about. */
+function facts(w: EmbeddedWallet): WalletFacts & { wallet: EmbeddedWallet } {
+  return {
+    address: w.address,
+    // Both are always set — embeddedSolanaWallets filtered on them — but the
+    // SDK types them optional, and a cast here would be a lie for no gain.
+    client: w.walletClientType ?? "",
+    chain: w.chainType ?? "",
+    index: w.walletIndex ?? null,
+    delegated: w.delegated === true,
+    wallet: w,
+  };
+}
+
 /**
- * A wallet no other agent has claimed, in a stable order.
+ * A wallet this agent may be given.
  *
- * Deterministic so a retry lands on the SAME wallet: nothing is claimed until
- * registration succeeds, so an unstable pick would grant on one wallet, fail,
- * and grant on a different one next time — spending a fresh wallet's worth of
- * user consent per attempt. Ties break on `walletIndex`, then address, which is
- * the ordering the old code used for the same reason.
+ * THE USER'S PERSONAL WALLET IS NOT A CANDIDATE. That rule lives in
+ * lib/wallets, shared with the account menu, so the wallet the menu calls
+ * "yours" and the wallet this refuses to hand out cannot come apart — which is
+ * exactly how the personal wallet became assignable in the first place. This
+ * used to be "lowest unclaimed wallet", and the login wallet is index 0 and
+ * unclaimed, so it was always first in line.
+ *
+ * Still deterministic, so a retry lands on the SAME wallet: nothing is claimed
+ * until registration succeeds, so an unstable pick would grant on one wallet,
+ * fail, and grant on a different one next time — spending a fresh wallet's
+ * worth of user consent per attempt.
  */
 function firstFreeWallet(user: User | null, claimed: Set<string>): EmbeddedWallet | undefined {
-  return embeddedSolanaWallets(user)
-    .filter((w) => !claimed.has(w.address))
-    .sort((a, b) => {
-      const ai = a.walletIndex ?? Number.MAX_SAFE_INTEGER;
-      const bi = b.walletIndex ?? Number.MAX_SAFE_INTEGER;
-      if (ai !== bi) return ai - bi;
-      return a.address.localeCompare(b.address);
-    })[0];
+  return assignableWallets(embeddedSolanaWallets(user).map(facts), claimed)[0]?.wallet;
 }
 
 type Phase =
@@ -139,9 +153,12 @@ export function GrantDelegation({
     const free = firstFreeWallet(user, new Set(claimed.addresses));
     if (free) return { address: free.address, from: "reused" };
 
-    // Nothing spare. `createAdditional` is required: without it Privy refuses
-    // for a user who already has an embedded wallet, which by this point is
-    // everyone.
+    // Nothing spare — which is the NORMAL path for an account that only ever
+    // had its login wallet, now that the login wallet is off limits. A fresh
+    // wallet per agent is the architecture (CANOPY_036), not a fallback.
+    //
+    // `createAdditional` is required: without it Privy refuses for a user who
+    // already has an embedded wallet, which by this point is everyone.
     const { wallet } = await createWallet({ createAdditional: true });
     return { address: wallet.address, from: "created" };
   }
