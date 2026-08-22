@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
@@ -27,6 +28,16 @@ import {
  * screen reader treats the page behind it as inert. None of that is optional on
  * a surface that moves money — a dialog you cannot leave by keyboard is one
  * people click through to escape.
+ *
+ * PORTALLED TO THE BODY, AND IT HAS TO BE.
+ *
+ * The trigger lives in the navbar, and that <header> carries `backdrop-blur-md`.
+ * A `backdrop-filter` makes an element a containing block for fixed-position
+ * descendants — so `fixed inset-0` resolved against a 64px-tall header instead
+ * of the viewport, and the dialog rendered centred on that strip with its title
+ * and close button clipped off the top of the screen. Rendering into the body
+ * escapes it. The same is true of `transform` and `filter` on any ancestor,
+ * which is why this must not be "fixed" by nudging offsets.
  */
 function Modal({
   title,
@@ -57,9 +68,12 @@ function Modal({
     };
   }, [onClose]);
 
-  return (
+  // Nothing to portal into during the server render.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-bg/80 p-4 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -70,7 +84,10 @@ function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="w-full max-w-[420px] border border-grid-strong bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+        // `my-auto` with a scrollable backdrop keeps it centred on a tall
+        // screen and scrollable on a short one, rather than centring it off the
+        // top edge where the header is unreachable.
+        className="my-auto w-full max-w-[420px] border border-grid-strong bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
       >
         <div className="flex items-center justify-between border-b border-grid px-5 py-4">
           <h2 className="font-mono text-[12px] tracking-[0.1em] text-text-primary uppercase">
@@ -87,7 +104,8 @@ function Modal({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
