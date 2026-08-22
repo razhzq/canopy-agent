@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { DepositModal, WithdrawModal } from "@/components/walletModals";
+import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
 import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -386,7 +388,16 @@ function AccountMenu() {
   // Addresses registered to an agent. Used to keep agent wallets OUT of this
   // menu — they belong on the agent's own page.
   const [agentAddrs, setAgentAddrs] = useState<ReadonlySet<string>>(new Set());
+  const [balance, setBalance] = useState<ChainFunding | null>(null);
+  const [modal, setModal] = useState<"deposit" | "withdraw" | null>(null);
   const pathname = usePathname() ?? "";
+
+  // Derived up here, not below the early returns, because the balance effect
+  // depends on the address. Pure reads off the Privy user object — safe to run
+  // before `ready`, when they simply come back empty.
+  const { email, wallets } = readAccounts(user);
+  const mine = personalWallet(wallets, agentAddrs);
+  const personalWalletAddress = mine?.address ?? null;
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,6 +492,25 @@ function AccountMenu() {
     };
   }, [open, authenticated, agents, agentsFailed, getAccessToken]);
 
+  // The balance, read from the chain rather than from our records.
+  //
+  // Keyed to the address, so it refetches if the resolved personal wallet
+  // changes underneath — which it does once `getClaimedWallets` lands and rules
+  // one out. Read on every open, not once: a balance is the one number here
+  // that is stale the moment someone deposits.
+  const walletAddress = personalWalletAddress;
+  useEffect(() => {
+    if (!open || !walletAddress) return;
+    let cancelled = false;
+    setBalance(null);
+    void readChainFunding(walletAddress)
+      .then((b) => !cancelled && setBalance(b))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, walletAddress]);
+
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     // Never strand focus on a panel that no longer exists — put it back where
@@ -574,12 +604,10 @@ function AccountMenu() {
     );
   }
 
-  const { email, wallets } = readAccounts(user);
   const external = wallets.filter((w) => w.client !== "privy");
   // One embedded wallet — the person's own. Agent wallets are deliberately not
   // here; see `personalWallet`. External wallets the user linked themselves are
   // theirs by definition and always shown.
-  const mine = personalWallet(wallets, agentAddrs);
   const shown = [...external, ...(mine ? [mine] : [])];
   const agentWalletCount = wallets.filter(
     (w) => agentAddrs.has(w.address) || w.delegated,
@@ -761,6 +789,63 @@ function AccountMenu() {
             </div>
           ) : null}
 
+          {/* Balance, then the two things you can do with it. Read from the
+              chain rather than from our records — "has my deposit arrived" is a
+              question about the chain, and answering it from a database is how
+              a UI tells someone their money has not landed when it has. */}
+          {mine ? (
+            <div className="border-b border-grid px-3.5 pt-3 pb-3.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
+                  Balance
+                </span>
+                {balance ? (
+                  <span className="tnum font-mono text-[10px] text-text-dim">
+                    {balance.sol.toLocaleString("en-US", { maximumFractionDigits: 4 })} SOL
+                  </span>
+                ) : null}
+              </div>
+
+              <p className="tnum pt-1.5 font-mono text-[22px] leading-none text-text-primary">
+                {balance ? (
+                  <>
+                    ${balance.usdc.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </>
+                ) : (
+                  // A dash, not a zero. "$0.00" while the read is in flight
+                  // says the wallet is empty, which is a different and alarming
+                  // claim from "not known yet".
+                  <span className="text-text-dim">—</span>
+                )}
+              </p>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setModal("deposit");
+                    setOpen(false);
+                  }}
+                  className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
+                >
+                  Deposit
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setModal("withdraw");
+                    setOpen(false);
+                  }}
+                  className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
+                >
+                  Withdraw
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {!email && shown.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
               <p className="font-ui text-[13px] text-text-dim">No linked account details.</p>
@@ -937,6 +1022,16 @@ function AccountMenu() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {/* Rendered as a sibling of the menu, not inside it: the menu closes when
+          a modal opens, and a dialog that unmounts with its trigger would shut
+          mid-transfer. */}
+      {modal === "deposit" && personalWalletAddress ? (
+        <DepositModal address={personalWalletAddress} onClose={() => setModal(null)} />
+      ) : null}
+      {modal === "withdraw" && personalWalletAddress ? (
+        <WithdrawModal address={personalWalletAddress} onClose={() => setModal(null)} />
       ) : null}
     </div>
   );
