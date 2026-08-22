@@ -333,6 +333,24 @@ function TelegramSection() {
       >
         {busy ? "…" : !linked ? "Connect" : enabled ? "Mute" : "Unmute"}
       </button>
+      {/* Mute was the ONLY control here, so a strip that said "Sending to
+          @you" while nothing arrived offered no way out at all — not even the
+          Disconnect → Connect detour the settings panel had. Shown only when
+          linked, because the button beside it already says Connect otherwise.
+          Titled rather than labelled at length: this strip sits inside a
+          dropdown and a second full-width word would push the status text out
+          of its line. */}
+      {linked ? (
+        <button
+          type="button"
+          onClick={() => void connect()}
+          disabled={busy}
+          title="Issue a fresh link. The current chat keeps working until the new one is confirmed."
+          className={`shrink-0 border border-border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40 ${FOCUS}`}
+        >
+          Reconnect
+        </button>
+      ) : null}
     </div>
   );
 }

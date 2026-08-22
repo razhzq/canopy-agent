@@ -169,6 +169,26 @@ export function NotificationSettings() {
                 >
                   {enabled ? "Mute" : "Unmute"}
                 </button>
+                {/* RECONNECT, FOR THE PERSON WHO KNOWS BEFORE WE DO.
+                    A link dies for reasons this panel cannot see — the chat was
+                    blocked, the account deactivated, or the bot itself was
+                    replaced, which invalidates every chat it ever had. We only
+                    learn on the first send that fails, and the user learns by
+                    not being told something that mattered.
+                    Without this the only way back was Disconnect → Connect, and
+                    nobody whose alerts have gone quiet reaches for the button
+                    that says it will forget the chat. Minting is safe while
+                    connected: `offerLink` leaves the existing link working until
+                    the new code is actually claimed, so pressing this and
+                    changing your mind costs nothing. */}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void connect()}
+                  className={`${BTN} border-border text-text-secondary hover:border-accent hover:text-accent`}
+                >
+                  {busy ? "Opening Telegram…" : "Reconnect"}
+                </button>
                 <button
                   type="button"
                   disabled={busy}
@@ -183,7 +203,10 @@ export function NotificationSettings() {
                   difference matters to someone acting on a lost phone. */}
               <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
                 Muting keeps the connection and stops the messages. Disconnecting
-                forgets the chat entirely — reconnecting needs a new link.
+                forgets the chat entirely — reconnecting needs a new link. If
+                messages have stopped arriving and you did not mute them, use
+                Reconnect: it issues a fresh code without losing this one until
+                the new chat is confirmed.
               </p>
             </div>
           ) : (
