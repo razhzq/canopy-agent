@@ -1,4 +1,5 @@
 import { InviteGate } from "@/components/inviteGate";
+import { MobileTabs } from "@/components/mobileTabs";
 import { TopNav } from "@/components/nav";
 import { RouteMemory } from "@/components/routeMemory";
 
@@ -31,8 +32,13 @@ export default function AppLayout({
         <TopNav />
         {/* Around children only — the nav keeps rendering behind the gate so
             the account menu (and its sign out) stays reachable. */}
-        <InviteGate>{children}</InviteGate>
+        {/* Padded for the tab bar, which is fixed and would otherwise sit on
+            top of the last rows of every page. */}
+        <div className="pb-[calc(env(safe-area-inset-bottom)+68px)] lg:pb-0">
+          <InviteGate>{children}</InviteGate>
+        </div>
       </div>
+      <MobileTabs />
     </>
   );
 }

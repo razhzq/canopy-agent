@@ -49,7 +49,7 @@ export function EquityView({
 }) {
   if (series === null) {
     return (
-      <div className="border border-grid bg-panel px-8 py-10 text-center">
+      <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           Performance unavailable
         </p>
@@ -66,7 +66,7 @@ export function EquityView({
 
   if (points.length === 0) {
     return (
-      <div className="border border-grid bg-panel px-8 py-10 text-center">
+      <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           No curve yet
         </p>

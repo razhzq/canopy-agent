@@ -33,7 +33,7 @@ export default function WalletPage() {
         main={
           <>
             {/* ---------------------------------------------- source wallet */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
                 title="SOURCE WALLET"
@@ -90,7 +90,7 @@ export default function WalletPage() {
             </section>
 
             {/* ----------------------------------------------------- scope */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="DELEGATION SCOPE"
@@ -135,7 +135,7 @@ export default function WalletPage() {
             </section>
 
             {/* ------------------------------------------------ impossible */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="03"
                 title="OUTSIDE THE BOUNDARY"
@@ -160,7 +160,7 @@ export default function WalletPage() {
             </section>
 
             {/* ------------------------------------------------ revocation */}
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="04"
                 title="REVOCATION"

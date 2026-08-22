@@ -424,7 +424,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   return (
     <div>
       {/* ------------------------------------------------------------ head -- */}
-      <section className="border-b border-grid px-8 pt-5 pb-5">
+      <section className="border-b border-grid px-5 sm:px-8 pt-5 pb-5">
         <Link
           href="/workspace"
           className="font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
@@ -482,7 +482,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               capital it is measured against and beside the realised, unrealised
               and drawdown figures that qualify it. One return figure, in the
               block that can show its working. */}
-          <section className="border-b border-grid px-8 py-6">
+          <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label="Performance" line={false} />
             <div className="pt-4">
               <EquityView series={equity} positions={positions} universe={assets} />
@@ -490,7 +490,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           </section>
 
           {/* markets */}
-          <section className="border-b border-grid px-8 py-6">
+          <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label="Positions" />
             <Positions
               agentId={agentId}
@@ -501,7 +501,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           </section>
 
           {/* watching now */}
-          <section className="border-b border-grid px-8 py-6">
+          <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule
               label="Watching now"
               right={
@@ -573,7 +573,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           </section>
 
           {/* activity */}
-          <section className="px-8 py-6">
+          <section className="px-5 sm:px-8 py-6">
             <Rule
               label="Activity"
               right={
@@ -598,7 +598,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         </div>
 
         {/* ------------------------------------------------------- rail -- */}
-        <aside className="min-w-0 border-t border-grid px-8 py-6 lg:border-t-0">
+        <aside className="min-w-0 border-t border-grid px-5 sm:px-8 py-6 lg:border-t-0">
           <Rule label="Strategy · applies to every market" />
 
           {/* THE WATCH LEG, ABOVE THE ENTRY RULES AND VISUALLY BEFORE THEM.
@@ -903,7 +903,7 @@ function Controls({
   const deletable = agent.status !== "deleted";
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-grid px-8 py-4">
+    <div className="flex flex-wrap items-center gap-3 border-t border-grid px-5 sm:px-8 py-4">
       {agent.status === "active" || paused ? (
         <button
           type="button"

@@ -225,7 +225,7 @@ export function RailSection({
   className?: string;
 }) {
   return (
-    <div className={`border-b border-grid px-8 py-7 ${className}`}>
+    <div className={`border-b border-grid px-5 py-6 sm:px-8 sm:py-7 ${className}`}>
       <div className="flex items-center justify-between gap-4 pb-2">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           {title}
@@ -594,7 +594,18 @@ export function Breadcrumb({ parts }: { parts: Crumb[] }) {
   );
 }
 
-/** Two-column page body: 1004px main + 436px rail, matching the design grid. */
+/**
+ * Two-column page body: 1004px main + 436px rail, matching the design grid.
+ *
+ * STACKS BELOW lg, and the rail goes UNDER the main column rather than beside
+ * it. A 436px rail that never yields is what made every page using this
+ * horizontally scrollable on a phone — the one structural reason the app could
+ * not be read on mobile at all.
+ *
+ * Stacked, the divider has to move with it: a left border on a full-width
+ * block draws a stray vertical line down the page, so it becomes a top border
+ * and the rail reads as the next section rather than as a severed column.
+ */
 export function Columns({
   main,
   rail,
@@ -603,9 +614,11 @@ export function Columns({
   rail: ReactNode;
 }) {
   return (
-    <div className="flex items-stretch">
+    <div className="flex flex-col items-stretch lg:flex-row">
       <div className="min-w-0 flex-1">{main}</div>
-      <aside className="w-[436px] shrink-0 border-l border-grid">{rail}</aside>
+      <aside className="w-full shrink-0 border-t border-grid lg:w-[436px] lg:border-t-0 lg:border-l">
+        {rail}
+      </aside>
     </div>
   );
 }

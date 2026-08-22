@@ -44,7 +44,7 @@ export default function DescribePage() {
         main={
           <>
             {/* ---------------------------------------------------- intent */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
                 title="INTENT"
@@ -118,7 +118,7 @@ export default function DescribePage() {
             </section>
 
             {/* --------------------------------------------------- capital */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="CAPITAL"
@@ -169,7 +169,7 @@ export default function DescribePage() {
             </section>
 
             {/* ------------------------------------------------ risk posture */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="03"
                 title="RISK POSTURE"
@@ -203,7 +203,7 @@ export default function DescribePage() {
             </section>
 
             {/* ---------------------------------------------------- limits */}
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="04"
                 title="LIMITS"
@@ -234,7 +234,7 @@ export default function DescribePage() {
         }
         rail={
           <>
-            <div className="border-b border-grid px-8 py-7">
+            <div className="border-b border-grid px-5 sm:px-8 py-7">
               <p className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                 Target agent
               </p>

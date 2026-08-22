@@ -62,7 +62,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
   }, [points, range]);
 
   const crumbs = (name?: string) => (
-    <div className="px-8 pt-6">
+    <div className="px-5 sm:px-8 pt-6">
       <Breadcrumb parts={[{ label: "Agents", href: "/agents" }, name ?? "Strategy"]} />
     </div>
   );
@@ -100,7 +100,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       {crumbs(strategy.name)}
 
       {/* ------------------------------------------------------------ head */}
-      <section className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 px-8 pt-4 pb-6">
+      <section className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 px-5 sm:px-8 pt-4 pb-6">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-mono text-[28px] leading-none text-text-primary">
@@ -157,7 +157,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       </section>
 
       {/* ----------------------------------------------------------- stats */}
-      <section className="border-y border-grid px-8 py-6">
+      <section className="border-y border-grid px-5 sm:px-8 py-6">
         <div className="flex flex-wrap gap-x-12 gap-y-5">
           <Stat
             label="Return"
@@ -188,7 +188,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       </section>
 
       {/* ----------------------------------------------------------- curve */}
-      <section className="px-8 py-7">
+      <section className="px-5 sm:px-8 py-7">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
           <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
             Equity
@@ -215,7 +215,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
         ) : record.phase === "error" ? (
           <ErrorState message={record.message} onRetry={record.reload} />
         ) : windowed.length < 2 ? (
-          <div className="border border-grid bg-panel px-8 py-10 text-center">
+          <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
             <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
               Not enough cycles yet
             </p>
@@ -239,7 +239,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       {/* 1fr / 1.6fr, per the wireframe: the facts are a short list and the
           record is a table, so equal columns would leave one half empty and
           crush the other. */}
-      <section className="grid gap-8 px-8 pb-10 lg:grid-cols-[1fr_1.6fr]">
+      <section className="grid gap-8 px-5 sm:px-8 pb-10 lg:grid-cols-[1fr_1.6fr]">
         <div className="min-w-0">
           <h2 className="pb-3.5 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             Public information

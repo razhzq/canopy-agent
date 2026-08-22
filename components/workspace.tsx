@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ActivityLog } from "@/components/activity";
 import { AgentDetailView } from "@/components/agentDetail";
+import { AgentChatSheet, ChatButton } from "@/components/agentChatSheet";
 import { AgentThread } from "@/components/agentThread";
 import { Badge } from "@/components/ui";
 import { listAgents, type AgentRow } from "@/lib/api";
@@ -45,15 +47,31 @@ const TABS: { key: WorkspaceTab; label: string }[] = [
 
 export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab }) {
   const router = useRouter();
+  const [chatOpen, setChatOpen] = useState(false);
   // Only for the compact header the non-overview tabs need. Overview fetches
   // the agent itself, in far more detail than the list row carries.
   const state = useApi<{ agents: AgentRow[] }>((t) => listAgents(t));
+
+  // A `?tab=chat` link opened on a phone becomes the sheet.
+  //
+  // The link is real — a notification deep-links to it, and so does anything
+  // bookmarked before the sheet existed. Without this, one product would have
+  // two mobile chat experiences: the sheet from the icon and a full-page thread
+  // from a link, which behave differently on dismiss. Runs once on mount and
+  // only below `lg`, where the tab is hidden.
+  useEffect(() => {
+    if (tab !== "chat") return;
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    setChatOpen(true);
+    router.replace(`/workspace/${agentId}?tab=overview`);
+  }, [tab, agentId, router]);
   const agent =
     state.phase === "ready" ? (state.data.agents.find((a) => a.id === agentId) ?? null) : null;
 
   return (
     <div className="min-h-[calc(100vh-64px)]">
-      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-8 py-3">
+      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 py-3 sm:px-8">
         {/* On Overview the name and status are the page's own headline, so the
             bar carries only the back link — repeating them here would give the
             screen two titles. */}
@@ -83,6 +101,8 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
           </div>
         )}
 
+        <ChatButton agent={agent} onOpen={() => setChatOpen(true)} />
+
         <nav
           aria-label="Agent views"
           className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
@@ -93,7 +113,11 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
               type="button"
               aria-current={t.key === tab ? "page" : undefined}
               onClick={() => router.push(`/workspace/${agentId}?tab=${t.key}`)}
-              className={`flex h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${
+              // Chat is the sheet below lg — see AgentChatSheet — so its tab
+              // is hidden there rather than offering a second door to one room.
+              className={`h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${
+                t.key === "chat" ? "hidden lg:flex" : "flex"
+              } ${
                 t.key === tab
                   ? "bg-accent-wash text-accent"
                   : "text-text-dim hover:text-text-primary"

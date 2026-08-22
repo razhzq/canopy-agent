@@ -29,6 +29,7 @@ const NAV = [
   // "My agents" while you were reading a different page.
   { label: "My agents", href: "/workspace", match: ["/workspace"] },
   { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
+  { label: "Activity", href: "/activity", match: ["/activity"] },
 ];
 
 /**

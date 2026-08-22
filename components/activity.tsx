@@ -143,7 +143,7 @@ export function ActivityLog({
 
   if (cycles.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-8 py-12 text-center">
+      <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           Nothing yet
         </p>
@@ -590,7 +590,14 @@ function SeatRun({
 }
 
 /** A one-line summary of the cycle, for the collapsed header. */
-function headline(c: ActivityCycle): string {
+/**
+ * One line describing what a cycle did.
+ *
+ * Exported because the account-wide activity feed shows the same cycles as the
+ * agent's own log, and two summarisers would eventually disagree about the same
+ * tick — the drift `lib/perf` exists to prevent, in a different costume.
+ */
+export function headline(c: ActivityCycle): string {
   if (c.status === "running") return "Running now…";
   if (c.status === "error") return "Cycle failed";
   if (c.status === "skipped") return SKIP_LABEL[c.skip_reason ?? ""] ?? "Skipped";
@@ -620,14 +627,14 @@ function headline(c: ActivityCycle): string {
 
 /* ---------------------------------------------------------------- lookups -- */
 
-const STATUS_LABEL: Record<ActivityCycle["status"], string> = {
+export const STATUS_LABEL: Record<ActivityCycle["status"], string> = {
   running: "Running",
   ok: "Complete",
   error: "Failed",
   skipped: "Skipped",
 };
 
-const STATUS_TONE: Record<ActivityCycle["status"], "accent" | "warning" | "negative" | "neutral"> = {
+export const STATUS_TONE: Record<ActivityCycle["status"], "accent" | "warning" | "negative" | "neutral"> = {
   running: "accent",
   ok: "neutral",
   error: "negative",

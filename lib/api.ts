@@ -1990,6 +1990,15 @@ export interface NotificationItem {
   delivered: boolean;
   /** Delivery was abandoned — the chat blocked us, or the retries ran out. */
   undeliverable: boolean;
+  /**
+   * The thread message this is about, when there is one.
+   *
+   * Only an approval carries it. Its presence is what lets a row offer Apply
+   * instead of only a link into the thread — see CANOPY_081. Absent on an older
+   * backend, so a reader must treat `undefined` as "no action here" rather than
+   * rendering a button that has nothing to call.
+   */
+  messageId?: string | null;
 }
 
 export interface NotificationFeed {

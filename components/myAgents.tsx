@@ -15,6 +15,7 @@ import {
   type AgentRow,
   type EquitySeries,
 } from "@/lib/api";
+import { CONCURRENCY, pooled } from "@/lib/pool";
 import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
 
 /**
@@ -56,33 +57,7 @@ import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
  * thing you would actually act on.
  */
 
-/** How many per-agent requests are in flight at once. */
-const CONCURRENCY = 6;
 
-/**
- * Runs `work` over every item, at most `limit` at a time, in order.
- *
- * Plain `Promise.all` over a list opens one socket per agent; the browser queues
- * them anyway, and the API sees a burst. This keeps the burst to a width the
- * server is happy with while still finishing in a fraction of the time a
- * sequential loop would take.
- */
-async function pooled<T, R>(
-  items: T[],
-  limit: number,
-  work: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let next = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await work(items[i], i);
-    }
-  });
-  await Promise.all(runners);
-  return out;
-}
 
 interface Enriched {
   agent: AgentRow;
@@ -234,7 +209,7 @@ export function MyAgents() {
 
   if (rows.length === 0) {
     return (
-      <div className="px-8 py-8">
+      <div className="px-5 sm:px-8 py-8">
         <EmptyState
           title="No agents yet"
           body="Build one and it starts on live data in paper mode — free, with no time limit and nothing funded."
@@ -303,7 +278,7 @@ export function MyAgents() {
       {stoppedItself.map((r) => (
         <div
           key={r.agent.id}
-          className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-grid bg-negative/10 px-8 py-3.5"
+          className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-grid bg-negative/10 px-5 sm:px-8 py-3.5"
         >
           <span className="size-2 shrink-0 bg-negative" />
           <p className="min-w-0 flex-1 font-ui text-[13.5px] text-text-secondary">
@@ -324,7 +299,7 @@ export function MyAgents() {
 
       {/* --------------------------------------------------------- table -- */}
 
-      <div className="grid grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] gap-x-4 border-b border-grid px-8 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden">
+      <div className="grid grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] gap-x-4 border-b border-grid px-5 sm:px-8 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden">
         <span>Agent</span>
         <span>Wallet</span>
         <span>Status</span>
@@ -338,7 +313,7 @@ export function MyAgents() {
         <Row key={r.agent.id} row={r} onChanged={() => void load()} />
       ))}
 
-      <p className="px-8 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim">
+      <p className="px-5 sm:px-8 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim">
         Your agent&apos;s rules are yours to change — take profit, stop loss, what it trades,
         any of it — and the change applies to the agent you are already running, from its
         next cycle. That happens in the agent&apos;s chat, which is where &ldquo;edit
@@ -378,7 +353,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
   const ret = returnSinceDeployPct(equity);
 
   return (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-8 py-4 lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
+    <div className="grid grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-5 sm:px-8 py-4 lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
       <div className="min-w-0">
         <Link
           href={`/workspace/${agent.id}`}

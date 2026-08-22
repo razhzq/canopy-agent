@@ -115,7 +115,7 @@ export function SkeletonRows({
 export function SkeletonCards({ label, count = 6 }: { label: string; count?: number }) {
   return (
     <Screen label={label}>
-      <div className="grid gap-4 px-8 py-8 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 px-5 sm:px-8 py-8 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: count }, (_, i) => (
           <div key={i} className="space-y-4 border border-grid bg-panel p-5">
             <Bar className="h-[13px] w-[62%]" />
@@ -160,7 +160,7 @@ export function SkeletonLog({ label, rows = 8 }: { label: string; rows?: number 
 export function SkeletonAgentDetail({ label = "Loading agent" }: { label?: string }) {
   return (
     <Screen label={label}>
-      <section className="border-b border-grid px-8 pt-6 pb-7">
+      <section className="border-b border-grid px-5 sm:px-8 pt-6 pb-7">
         <Bar className="h-[7px] w-[90px]" />
         <div className="flex flex-wrap items-center gap-4 pt-4">
           <Bar className="h-[24px] w-[240px]" />
@@ -171,7 +171,7 @@ export function SkeletonAgentDetail({ label = "Loading agent" }: { label?: strin
 
       <Band />
 
-      <div className="grid gap-6 px-8 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 px-5 sm:px-8 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
           {Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="space-y-3.5 border border-grid bg-panel p-6">

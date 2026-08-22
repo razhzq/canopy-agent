@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useApi } from "@/lib/useApi";
 import {
+  applyProposal,
   getNotificationFeed,
   getTelegramStatus,
   linkTelegram,
@@ -119,6 +120,9 @@ export function NotificationCentre() {
           loading={feed.phase === "loading"}
           failed={feed.phase === "error" ? feed.message : null}
           onRead={() => feed.reload()}
+          // Same refetch, named for the other reason to do it: an applied
+          // proposal changes the agent, so the row it came from is stale.
+          onActed={() => feed.reload()}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -131,12 +135,14 @@ function Panel({
   loading,
   failed,
   onRead,
+  onActed,
   onClose,
 }: {
   items: NotificationItem[];
   loading: boolean;
   failed: string | null;
   onRead: () => void;
+  onActed: () => void;
   onClose: () => void;
 }) {
   const { getAccessToken } = usePrivy();
@@ -190,7 +196,9 @@ function Panel({
             means they looked and found nothing worth doing.
           </p>
         ) : (
-          items.map((n) => <Row key={n.id} n={n} onNavigate={onClose} />)
+          items.map((n) => (
+            <Row key={n.id} n={n} onNavigate={onClose} onActed={onActed} />
+          ))
         )}
       </div>
 
@@ -211,8 +219,19 @@ function Panel({
  * somewhere arbitrary. Rendered as an <article> in that case, so the whole row
  * does not advertise itself as pressable.
  */
-function Row({ n, onNavigate }: { n: NotificationItem; onNavigate: () => void }) {
+function Row({
+  n,
+  onNavigate,
+  onActed,
+}: {
+  n: NotificationItem;
+  onNavigate: () => void;
+  onActed: () => void;
+}) {
   const kind = KIND[n.kind] ?? FALLBACK_KIND;
+  // An approval can be answered here. Everything else is a report of something
+  // already done, and a button on those would be a button with nothing to do.
+  const approvable = n.kind === "proposal" && !!n.messageId && n.agentId !== null;
 
   const inner = (
     <>
@@ -239,6 +258,9 @@ function Row({ n, onNavigate }: { n: NotificationItem; onNavigate: () => void })
             Couldn&apos;t reach your Telegram — you&apos;re seeing this here instead.
           </p>
         ) : null}
+        {approvable ? (
+          <ApproveBar agentId={n.agentId!} messageId={n.messageId!} onActed={onActed} />
+        ) : null}
       </div>
     </>
   );
@@ -247,7 +269,10 @@ function Row({ n, onNavigate }: { n: NotificationItem; onNavigate: () => void })
     n.read ? "" : "bg-surface/60"
   }`;
 
-  if (n.agentId === null) {
+  // A row with its own buttons cannot also BE a link: a tap on Apply would
+  // navigate as well as act, and nesting interactive elements inside an anchor
+  // is invalid anyway. The approval row carries its own "Why?" link instead.
+  if (n.agentId === null || approvable) {
     return <article className={shell}>{inner}</article>;
   }
 
@@ -261,6 +286,89 @@ function Row({ n, onNavigate }: { n: NotificationItem; onNavigate: () => void })
     >
       {inner}
     </Link>
+  );
+}
+
+/**
+ * Apply or decline, without leaving the panel.
+ *
+ * The decision is small and the diff is already on screen, so sending someone
+ * to another page to press one button is the whole cost of the feature. "Why?"
+ * stays, because the REASONING is not here — it is in the thread, and that is
+ * the one thing worth navigating for.
+ *
+ * Declining is local. There is no decline endpoint for a thread proposal: the
+ * message simply goes unapplied and settles on its own. So this dismisses the
+ * bar rather than pretending to have told the agent something.
+ */
+function ApproveBar({
+  agentId,
+  messageId,
+  onActed,
+}: {
+  agentId: number;
+  messageId: string;
+  onActed: () => void;
+}) {
+  const { getAccessToken } = usePrivy();
+  const [state, setState] = useState<"idle" | "applying" | "applied" | "dismissed" | "error">(
+    "idle",
+  );
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (state === "applied") {
+    return <p className="pt-1 font-mono text-[11px] text-accent">Applied — it follows the new rule from its next cycle.</p>;
+  }
+  if (state === "dismissed") {
+    return <p className="pt-1 font-mono text-[11px] text-text-dim">Left as it was.</p>;
+  }
+
+  async function apply() {
+    setState("applying");
+    setMessage(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("your session expired — sign in and try again");
+      await applyProposal(token, agentId, messageId);
+      setState("applied");
+      // The feed's unread count and this row's state both live upstream.
+      onActed();
+    } catch (err) {
+      setState("error");
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return (
+    <div className="space-y-1.5 pt-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setState("dismissed")}
+          disabled={state === "applying"}
+          className={`border border-border px-3 py-1.5 font-ui text-[12px] text-text-secondary transition-colors hover:bg-surface disabled:opacity-40 ${FOCUS}`}
+        >
+          Decline
+        </button>
+        <button
+          type="button"
+          onClick={() => void apply()}
+          disabled={state === "applying"}
+          className={`bg-accent px-3.5 py-1.5 font-ui text-[12px] font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-50 ${FOCUS}`}
+        >
+          {state === "applying" ? "Applying…" : "Apply"}
+        </button>
+        <Link
+          href={`/workspace/${agentId}`}
+          className={`ml-auto font-ui text-[12px] text-text-secondary underline-offset-4 hover:underline ${FOCUS}`}
+        >
+          Why?
+        </Link>
+      </div>
+      {state === "error" && message ? (
+        <p className="font-ui text-[11px] text-negative">{message}</p>
+      ) : null}
+    </div>
   );
 }
 

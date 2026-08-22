@@ -46,7 +46,7 @@ export default function AutonomyPage() {
         main={
           <>
             {/* --------------------------------------------------- levels */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
                 title="AUTONOMY LEVEL"
@@ -90,7 +90,7 @@ export default function AutonomyPage() {
             </section>
 
             {/* -------------------------------------------------- what changes */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="WHAT ACTUALLY CHANGES"
@@ -140,7 +140,7 @@ export default function AutonomyPage() {
             </section>
 
             {/* ------------------------------------------------------ term */}
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="03"
                 title="MANDATE TERM"

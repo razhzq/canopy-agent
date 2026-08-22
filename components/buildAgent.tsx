@@ -220,7 +220,7 @@ export function BuildAgent() {
     <main>
       <StepBar steps={BUILD_STAGES} current={0} />
 
-      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-8 py-3.5">
+      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 sm:px-8 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             New agent · Draft ·
@@ -265,7 +265,7 @@ export function BuildAgent() {
 
       <Columns
         main={
-          <div className="px-8 py-8">
+          <div className="px-5 sm:px-8 py-8">
             {step === 0 || !asset ? (
               <PickMarket
                 value={markets}
@@ -319,7 +319,7 @@ export function BuildAgent() {
           <>
             {/* "Your agent so far", per the wireframe: what has been decided
                 stays visible while the next thing is being decided. */}
-            <div className="border-b border-grid px-8 py-7">
+            <div className="border-b border-grid px-5 sm:px-8 py-7">
               <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                 Your agent so far
               </h3>
@@ -369,7 +369,7 @@ export function BuildAgent() {
               ) : null}
             </div>
 
-            <div className="px-8 py-7">
+            <div className="px-5 sm:px-8 py-7">
               <div className="flex items-center justify-between pb-4">
                 <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                   Proceed

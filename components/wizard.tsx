@@ -29,7 +29,7 @@ export function StepBar({
         // Slimmer than it was: this is the lifecycle rail, not the page's
         // subject, and at 18px of vertical padding it was competing with the
         // content under it.
-        const className = `flex flex-1 items-center gap-2.5 border-r border-grid px-8 py-3 last:border-r-0 ${
+        const className = `flex flex-1 items-center gap-2.5 border-r border-grid px-5 sm:px-8 py-3 last:border-r-0 ${
           active ? "bg-accent-wash" : ""
         }`;
         const content = (
@@ -81,7 +81,7 @@ export function WizardHeader({
   meta: { label: string; value: string; tone?: "accent" | "warning" }[];
 }) {
   return (
-    <section className="flex items-end justify-between gap-8 border-b border-grid px-8 pt-6 pb-[22px]">
+    <section className="flex items-end justify-between gap-8 border-b border-grid px-5 sm:px-8 pt-6 pb-[22px]">
       <div className="space-y-3">
         <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
           {eyebrow}
@@ -170,7 +170,7 @@ export function Proceed({
   noteIcon?: "lock" | "info";
 }) {
   return (
-    <div className="px-8 py-7">
+    <div className="px-5 sm:px-8 py-7">
       <div className="flex items-center justify-between pb-4">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           Proceed

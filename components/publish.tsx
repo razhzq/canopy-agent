@@ -99,7 +99,7 @@ function Body({
 
   return (
     <>
-      <section className="flex flex-wrap items-end justify-between gap-6 border-b border-grid px-8 pt-6 pb-6">
+      <section className="flex flex-wrap items-end justify-between gap-6 border-b border-grid px-5 sm:px-8 pt-6 pb-6">
         <div className="space-y-3">
           <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             {strategy.name} · {live ? "Listed" : "Unlisted"}
@@ -129,7 +129,7 @@ function Body({
       <Columns
         main={
           <>
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
                 title="LIVE PAPER RECORD"
@@ -155,7 +155,7 @@ function Body({
               </Note>
             </section>
 
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="WHAT THE RECORD SHOWS"
@@ -188,7 +188,7 @@ function Body({
               onPublished={onPublished}
             />
 
-            <div className="px-8 py-7">
+            <div className="px-5 sm:px-8 py-7">
               <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                 Actions
               </h3>
@@ -262,7 +262,7 @@ function PublishPanel({
   }
 
   return (
-    <div className="border-b border-grid px-8 py-7">
+    <div className="border-b border-grid px-5 sm:px-8 py-7">
       <div className="flex items-center justify-between pb-4">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           Publication

@@ -19,6 +19,7 @@ import {
   type EquitySeries,
   type UniverseAsset,
 } from "@/lib/api";
+import { CONCURRENCY, pooled } from "@/lib/pool";
 import { useUsername } from "@/lib/useUsername";
 import {
   aggregateEquityPath,
@@ -45,25 +46,7 @@ import {
  * spreadsheet to find.
  */
 
-/** How many per-agent requests are in flight at once. */
-const CONCURRENCY = 6;
 
-async function pooled<T, R>(
-  items: T[],
-  limit: number,
-  work: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let next = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await work(items[i]);
-    }
-  });
-  await Promise.all(runners);
-  return out;
-}
 
 interface Holding {
   agent: AgentRow;
@@ -190,7 +173,7 @@ export function PortfolioOverview() {
 
   if (holdings.length === 0) {
     return (
-      <div className="px-8 py-10">
+      <div className="px-5 py-10 sm:px-8">
         <EmptyState
           title="Nothing deployed yet"
           body="Your portfolio is the sum of your agents. Build one and it starts on live data in paper mode — free, and nothing funded."
@@ -234,14 +217,14 @@ export function PortfolioOverview() {
         main={
           <>
             {/* ------------------------------------------------- curve -- */}
-            <section className="border-b border-grid px-8 py-7">
+            <section className="border-b border-grid px-5 py-6 sm:px-8 sm:py-7">
               <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
                 <div className="space-y-2">
                   <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
                     Aggregate equity · settled per cycle ·{" "}
                     {totals.counted} {totals.counted === 1 ? "agent" : "agents"}
                   </p>
-                  <p className="tnum font-mono text-[32px] leading-none text-text-primary">
+                  <p className="tnum font-mono text-[27px] leading-none text-text-primary sm:text-[32px]">
                     {money(totals.equityUsd)}
                   </p>
                   <p
@@ -277,7 +260,7 @@ export function PortfolioOverview() {
                 <EquityCurve
                   values={drawn.map((p) => p.equityUsd)}
                   baseline={totals.capitalUsd}
-                  height={240}
+                  height={200}
                 />
                 <div className="flex items-center justify-between pt-3 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase">
                   <span>{drawn.length > 0 ? day(drawn[0].at) : "—"}</span>
@@ -301,7 +284,7 @@ export function PortfolioOverview() {
 
             {/* ------------------------------------------------ agents -- */}
             <section>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-8">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 sm:px-8">
                 <div className="flex">
                   {(Object.keys(TAB_STATUS) as Tab[]).map((t) => {
                     const n = holdings.filter((h) =>
@@ -445,7 +428,7 @@ function PortfolioHeader({
   const title = username ?? identity.name;
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-8 pt-6 pb-6">
+    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-5 pt-6 pb-6 sm:px-8">
       <div className="min-w-0 space-y-3">
         <Breadcrumb parts={["Portfolio", "Overview"]} />
 
@@ -499,16 +482,15 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 /* --------------------------------------------------------------- table --- */
 
-/* Stacked in two columns on a narrow screen, the real table from lg up.
-   Written as a class rather than an inline style so the responsive variant can
-   actually win — an inline `gridTemplateColumns` beats every breakpoint. */
-const COLS =
-  "grid-cols-2 gap-y-2 lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px] lg:gap-y-0";
+/* The table grid, from lg up only. Below that the row is not a grid at all —
+   see AgentRowLine. Written as a class rather than an inline style so the
+   breakpoint can win; an inline `gridTemplateColumns` beats every variant. */
+const COLS = "lg:grid lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px]";
 
 function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
   if (rows.length === 0) {
     return (
-      <p className="px-8 py-10 text-center font-ui text-[13px] text-text-dim">
+      <p className="px-5 py-10 text-center font-ui text-[13px] text-text-dim sm:px-8">
         {tab === "live"
           ? "No agents running right now."
           : tab === "paused"
@@ -539,65 +521,120 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
   );
 }
 
+/**
+ * One agent, as a table row from lg up and as a card below it.
+ *
+ * Two layouts rather than one that flexes. Seven columns cannot fold into a
+ * phone gracefully — the honest small-screen shape puts the figure that matters
+ * first and lets the rest sit under it, which is a different arrangement of the
+ * same facts, not a squeezed version of the table. Trying to express both with
+ * one set of classes is what produced the previous two-column grid, where the
+ * agent's name sat beside its deployed capital and the sparkline landed under
+ * the 24h figure.
+ *
+ * The values are computed once and rendered by both, so the two can never
+ * disagree.
+ */
 function AgentRowLine({ holding }: { holding: Holding }) {
   const { agent, mark } = holding;
   const moved = mark ? movedOverUsd(mark.points, Date.now() - 86_400_000) : null;
   const up = (mark?.pnlUsd ?? 0) >= 0;
 
+  const sub = `${agent.strategy_class} · ${agent.is_paper ? "paper" : "live"}${
+    mark ? ` · cycle ${mark.points[mark.points.length - 1].tickSeq}` : ""
+  }`;
+  const equity = mark ? money(mark.equityUsd) : "—";
+  const deployed = money(num(agent.capital_usd) ?? 0);
+  const movedText = moved === null ? "—" : signed(moved);
+  const movedTone =
+    moved === null ? "text-text-dim" : moved >= 0 ? "text-accent" : "text-negative";
+  const returnText = mark ? signedPct(mark.returnPct) : "—";
+  const returnTone = mark
+    ? mark.returnPct >= 0
+      ? "text-accent"
+      : "text-negative"
+    : "text-text-dim";
+
+  const curve =
+    mark && mark.points.length > 1 ? (
+      <MiniCurve
+        values={mark.points.map((p) => p.equityUsd)}
+        tone={up ? "accent" : "negative"}
+        width={120}
+        height={28}
+      />
+    ) : (
+      <span className="font-mono text-[10px] text-text-dim">no readings</span>
+    );
+
   return (
     <Link
       href={`/workspace/${agent.id}`}
-      className={`grid items-center gap-x-4 border-b border-grid px-8 py-4 transition-colors hover:bg-surface ${COLS}`}
+      className={`block border-b border-grid px-5 py-4 transition-colors hover:bg-surface sm:px-8 lg:items-center lg:gap-x-4 ${COLS}`}
     >
-      <>
-        <div className="min-w-0">
-          <p className="truncate font-mono text-[13px] text-text-primary">
-            {agent.strategy_name}
-          </p>
-          <p className="truncate pt-1 font-mono text-[9.5px] tracking-[0.06em] text-text-dim uppercase">
-            {agent.strategy_class} · {agent.is_paper ? "paper" : "live"}
-            {mark ? ` · cycle ${mark.points[mark.points.length - 1].tickSeq}` : ""}
-          </p>
+      {/* ---------------------------------------------------------- card -- */}
+      <div className="space-y-3 lg:hidden">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-mono text-[14px] text-text-primary">
+              {agent.strategy_name}
+            </p>
+            <p className="truncate pt-1 font-mono text-[9.5px] tracking-[0.06em] text-text-dim uppercase">
+              {sub}
+            </p>
+          </div>
+          <Badge tone={STATUS_TONE[agent.status]}>{agent.status}</Badge>
         </div>
 
-        <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
-          {money(num(agent.capital_usd) ?? 0)}
-        </span>
-        <span className="tnum text-right font-mono text-[13px] text-text-primary">
-          {mark ? money(mark.equityUsd) : "—"}
-        </span>
-        <span
-          className={`tnum text-right font-mono text-[12.5px] ${
-            moved === null ? "text-text-dim" : moved >= 0 ? "text-accent" : "text-negative"
-          }`}
-        >
-          {moved === null ? "—" : signed(moved)}
-        </span>
-        <span
-          className={`tnum text-right font-mono text-[12.5px] ${
-            mark ? (mark.returnPct >= 0 ? "text-accent" : "text-negative") : "text-text-dim"
-          }`}
-        >
-          {mark ? signedPct(mark.returnPct) : "—"}
-        </span>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            {/* Equity leads, because on a phone you get one number before the
+                fold and this is the one people open the page for. */}
+            <p className="tnum font-mono text-[19px] leading-none text-text-primary">{equity}</p>
+            <p className="pt-1.5 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
+              {deployed} deployed
+            </p>
+          </div>
+          <div className="shrink-0">{curve}</div>
+        </div>
 
-        <span className="flex items-center">
-          {mark && mark.points.length > 1 ? (
-            <MiniCurve
-              values={mark.points.map((p) => p.equityUsd)}
-              tone={up ? "accent" : "negative"}
-              width={120}
-              height={28}
-            />
-          ) : (
-            <span className="font-mono text-[10px] text-text-dim">no readings</span>
-          )}
-        </span>
+        <div className="flex items-center gap-4 font-mono text-[11.5px]">
+          <span className={`tnum ${movedTone}`}>
+            <span className="text-text-dim">24h </span>
+            {movedText}
+          </span>
+          <span className={`tnum ${returnTone}`}>
+            <span className="text-text-dim">return </span>
+            {returnText}
+          </span>
+        </div>
+      </div>
 
-        <span className="flex justify-end">
-          <Badge tone={STATUS_TONE[agent.status]}>{agent.status}</Badge>
-        </span>
-      </>
+      {/* --------------------------------------------------------- table -- */}
+      <div className="hidden min-w-0 lg:block">
+        <p className="truncate font-mono text-[13px] text-text-primary">
+          {agent.strategy_name}
+        </p>
+        <p className="truncate pt-1 font-mono text-[9.5px] tracking-[0.06em] text-text-dim uppercase">
+          {sub}
+        </p>
+      </div>
+      <span className="tnum hidden text-right font-mono text-[12.5px] text-text-secondary lg:block">
+        {deployed}
+      </span>
+      <span className="tnum hidden text-right font-mono text-[13px] text-text-primary lg:block">
+        {equity}
+      </span>
+      <span className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${movedTone}`}>
+        {movedText}
+      </span>
+      <span className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${returnTone}`}>
+        {returnText}
+      </span>
+      <span className="hidden items-center lg:flex">{curve}</span>
+      <span className="hidden justify-end lg:flex">
+        <Badge tone={STATUS_TONE[agent.status]}>{agent.status}</Badge>
+      </span>
     </Link>
   );
 }

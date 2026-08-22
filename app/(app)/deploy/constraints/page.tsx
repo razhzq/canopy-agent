@@ -48,7 +48,7 @@ export default function ConstraintsPage() {
         main={
           <>
             {/* -------------------------------------------------- universe */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
                 title="ASSET UNIVERSE"
@@ -106,7 +106,7 @@ export default function ConstraintsPage() {
             </section>
 
             {/* ------------------------------------------------ compliance */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="COMPLIANCE PROFILE"
@@ -138,7 +138,7 @@ export default function ConstraintsPage() {
             </section>
 
             {/* --------------------------------------------------- cadence */}
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead index="03" title="CADENCE" note="How often it looks" />
               <div className="flex border border-grid">
                 {CONSTRAINTS.cadence.map((c) => (

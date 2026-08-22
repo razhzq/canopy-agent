@@ -147,7 +147,7 @@ export function Marketplace() {
           renders nothing at all when there is nothing to say. */}
       <CapabilityNotices />
 
-      <section className="border-b border-grid px-8 pt-7 pb-6">
+      <section className="border-b border-grid px-5 sm:px-8 pt-7 pb-6">
         <h1 className="font-mono text-[34px] leading-none text-text-primary">Agents</h1>
         <p className="max-w-[70ch] pt-2.5 font-ui text-[14px] text-text-secondary">
           Every strategy with a live record — published, and still on paper. Deploy a listed one
@@ -156,7 +156,7 @@ export function Marketplace() {
         <StatRail rows={rows} />
       </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-x-6 border-b border-grid px-8">
+      <section className="flex flex-wrap items-center justify-between gap-x-6 border-b border-grid px-5 sm:px-8">
         <div className="flex flex-wrap items-center">
           {TABS.map((t) => {
             const active = t.key === tab;
@@ -206,7 +206,7 @@ export function Marketplace() {
         </div>
       </section>
 
-      <section className="px-8 py-7">
+      <section className="px-5 sm:px-8 py-7">
         {state.phase === "loading" ? (
           <SkeletonCards label="Loading marketplace" />
         ) : state.phase === "signed-out" ? (
@@ -220,7 +220,7 @@ export function Marketplace() {
             action={{ label: "Build an agent", href: "/build/new" }}
           />
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-8 py-12 text-center">
+          <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
             <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
               Nothing matches
             </p>

@@ -29,10 +29,23 @@ export function Modal({
   title,
   onClose,
   children,
+  variant = "dialog",
+  headless = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /**
+   * `sheet` rises from the bottom edge and fills the height it needs.
+   *
+   * A centred dialog is wrong for anything with a text input on a phone: the
+   * keyboard takes the lower half of the screen and shoves a centred box off
+   * the top. A sheet is already anchored to the bottom, so the composer stays
+   * where the thumb is and the content above it simply gets shorter.
+   */
+  variant?: "dialog" | "sheet";
+  /** Suppresses the title bar for content that brings its own. */
+  headless?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
@@ -59,7 +72,11 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-bg/80 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex bg-bg/80 backdrop-blur-sm ${
+        variant === "sheet"
+          ? "items-end justify-center sm:items-center sm:p-4"
+          : "items-center justify-center overflow-y-auto p-4"
+      }`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -73,21 +90,30 @@ export function Modal({
         // `my-auto` with a scrollable backdrop keeps it centred on a tall
         // screen and scrollable on a short one, rather than centring it off the
         // top edge where the header is unreachable.
-        className="my-auto w-full max-w-[420px] border border-grid-strong bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+        className={
+          variant === "sheet"
+            ? // `dvh`, not `vh`: on iOS Safari `vh` counts the URL bar's height
+              // whether or not it is showing, so a 90vh sheet is taller than the
+              // screen and its composer sits under the browser chrome.
+              "flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-grid-strong bg-panel shadow-[0_-16px_48px_-16px_rgba(0,0,0,0.9)] outline-none sm:h-[80dvh] sm:max-w-[520px] sm:rounded-2xl"
+            : "my-auto w-full max-w-[420px] border border-grid-strong bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+        }
       >
-        <div className="flex items-center justify-between border-b border-grid px-5 py-4">
-          <h2 className="font-mono text-[12px] tracking-[0.1em] text-text-primary uppercase">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="font-mono text-[16px] leading-none text-text-dim transition-colors hover:text-text-primary"
-          >
-            ×
-          </button>
-        </div>
+        {headless ? null : (
+          <div className="flex shrink-0 items-center justify-between border-b border-grid px-5 py-4">
+            <h2 className="font-mono text-[12px] tracking-[0.1em] text-text-primary uppercase">
+              {title}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="font-mono text-[16px] leading-none text-text-dim transition-colors hover:text-text-primary"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {children}
       </div>
     </div>,

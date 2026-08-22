@@ -28,7 +28,7 @@ export default function FundPage() {
         main={
           <>
             {/* --------------------------------------------------- balance */}
-            <section className="border-b border-grid px-8 py-8">
+            <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead index="01" title="BALANCE" note="Wallet 7xKX…9mQt" />
 
               <div className="flex border border-grid">
@@ -57,7 +57,7 @@ export default function FundPage() {
             </section>
 
             {/* ------------------------------------------------- adequacy */}
-            <section className="px-8 py-8">
+            <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
                 title="CAPITAL ADEQUACY"
@@ -91,7 +91,7 @@ export default function FundPage() {
         }
         rail={
           <>
-            <div className="border-b border-grid px-8 py-7">
+            <div className="border-b border-grid px-5 sm:px-8 py-7">
               <div className="flex items-center justify-between pb-2">
                 <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                   Readiness
@@ -118,7 +118,7 @@ export default function FundPage() {
               ))}
             </div>
 
-            <div className="border-b border-grid px-8 py-7">
+            <div className="border-b border-grid px-5 sm:px-8 py-7">
               <div className="flex items-center justify-between pb-4">
                 <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
                   First run
