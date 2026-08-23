@@ -14,6 +14,7 @@ import {
 import { useApi } from "@/lib/useApi";
 import {
   describeClass, AssetLogo } from "@/components/ui";
+import { RouteBadge, routeOf } from "@/components/routeBadge";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -317,6 +318,9 @@ export function PickMarket({
                 >
                   {a.symbol}/USDC
                 </span>
+                {/* Where it settles and who fills it. Per row, because that
+                    stops being one answer as soon as a second chain lands. */}
+                <RouteBadge {...routeOf(a)} size={15} />
                 <span className="truncate font-ui text-[11px] text-text-dim">
                   {describeClass(a)}
                   {a.issuer ? ` · ${a.issuer}` : ""}

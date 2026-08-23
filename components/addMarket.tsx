@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import {
   describeClass, AssetLogo } from "@/components/ui";
+import { RouteBadge, routeOf } from "@/components/routeBadge";
 
 /**
  * Whether two rows are the same market.
@@ -455,6 +456,10 @@ export function AddMarketModal({
                     >
                       {a.symbol}/USDC
                     </span>
+                    {/* Same pair as the builder's picker, from the same
+                        source — this list adds markets to a running agent, so
+                        it must not describe an asset differently. */}
+                    <RouteBadge {...routeOf(a)} size={15} />
                     <span className="truncate font-ui text-[11px] text-text-dim">
                       {describeClass(a)}
                       {a.issuer ? ` · ${a.issuer}` : ""}
