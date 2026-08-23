@@ -1,4 +1,3 @@
-import type { UniverseAsset } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -675,16 +674,6 @@ export function ChevronRight({ className = "" }: { className?: string }) {
   return <LucideChevronRight className={`size-3.5 ${className}`} aria-hidden />;
 }
 
-/** What kind of thing this is, in the reader's terms. */
-export function describeClass(a: UniverseAsset): string {
-  if (a.kind === "crypto") {
-    // The tier is the honest caveat on a token nobody vouches for.
-    return a.tier === "pool" ? "Crypto · unverified" : "Crypto";
-  }
-  if (a.assetClass === "commodity") return "Tokenized commodity";
-  if (a.assetClass === "etf") return "Tokenized fund";
-  return "Tokenized equity";
-}
 
 /** The two-letter stand-in for an asset with no artwork. */
 function Monogram({ symbol, size }: { symbol: string; size: number }) {

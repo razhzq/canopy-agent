@@ -12,8 +12,7 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import {
-  describeClass, AssetLogo } from "@/components/ui";
+import { AssetLogo } from "@/components/ui";
 import { RouteBadge, routeOf } from "@/components/routeBadge";
 
 /**
@@ -321,19 +320,32 @@ export function PickMarket({
                 {/* Where it settles and who fills it. Per row, because that
                     stops being one answer as soon as a second chain lands. */}
                 <RouteBadge {...routeOf(a)} size={15} />
-                <span className="truncate font-ui text-[11px] text-text-dim">
-                  {describeClass(a)}
-                  {a.issuer ? ` · ${a.issuer}` : ""}
-                  {/*
-                    Only when the ticker is genuinely ambiguous on screen. The
-                    name comes first because it is what a person recognises;
-                    the mint prefix is the tiebreak for the case the name does
-                    not settle, since two tokens may share both.
-                  */}
-                  {ambiguous.has(a.symbol.toUpperCase())
-                    ? ` · ${a.name ?? `${a.mint?.slice(0, 4)}…`}`
-                    : ""}
-                </span>
+                {/*
+                  The asset class used to lead this line — "Crypto", "Tokenized
+                  commodity". It went because the class is already the tab the
+                  reader is standing in, and repeating it on every row spent the
+                  only line of secondary text on the one fact the list does not
+                  vary by.
+
+                  What is left is what DOES vary: who wrapped it, and — only
+                  when the ticker is genuinely ambiguous on screen — the name.
+                  The name comes first because it is what a person recognises;
+                  the mint prefix is the tiebreak for the case the name does not
+                  settle, since two tokens may share both.
+                */}
+                {(() => {
+                  const parts = [
+                    a.issuer,
+                    ambiguous.has(a.symbol.toUpperCase())
+                      ? (a.name ?? `${a.mint?.slice(0, 4)}…`)
+                      : null,
+                  ].filter(Boolean);
+                  return parts.length ? (
+                    <span className="truncate font-ui text-[11px] text-text-dim">
+                      {parts.join(" · ")}
+                    </span>
+                  ) : null;
+                })()}
               </span>
               <span className="tnum text-right font-mono text-[12.5px] text-text-primary">
                 {tokenPrice(num(a.priceUsd)).display}
@@ -374,10 +386,7 @@ export function PickMarket({
                   "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision. */}
               {value.length <= 4
                 ? value.map((a) => a.symbol).join(", ")
-                : `${value.length} markets`}{" "}
-              <span className="text-text-dim">
-                · {describeClass(value[0])}
-              </span>
+                : `${value.length} markets`}
             </span>
           ) : null}
           <button

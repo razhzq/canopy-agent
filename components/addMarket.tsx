@@ -13,8 +13,7 @@ import {
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
-import {
-  describeClass, AssetLogo } from "@/components/ui";
+import { AssetLogo } from "@/components/ui";
 import { RouteBadge, routeOf } from "@/components/routeBadge";
 
 /**
@@ -460,10 +459,14 @@ export function AddMarketModal({
                         source — this list adds markets to a running agent, so
                         it must not describe an asset differently. */}
                     <RouteBadge {...routeOf(a)} size={15} />
-                    <span className="truncate font-ui text-[11px] text-text-dim">
-                      {describeClass(a)}
-                      {a.issuer ? ` · ${a.issuer}` : ""}
-                    </span>
+                    {/* The class no longer leads this line — see pickMarket.
+                        The issuer is what varies between two rows in the same
+                        list; the class is the tab you are already in. */}
+                    {a.issuer ? (
+                      <span className="truncate font-ui text-[11px] text-text-dim">
+                        {a.issuer}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="tnum text-right font-mono text-[12.5px] text-text-primary">
                     {tokenPrice(num(a.priceUsd)).display}
