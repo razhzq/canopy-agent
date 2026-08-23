@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tokenPrice } from "@/lib/format";
 import { useRouter } from "next/navigation";
-import { MARKET_CLASSES } from "@/components/pickMarket";
+import { MARKET_CLASSES, VENUE_LABEL } from "@/components/pickMarket";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   selectionKey,
@@ -14,7 +14,7 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { AssetLogo } from "@/components/ui";
-import { RouteBadge, routeOf } from "@/components/routeBadge";
+import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 
 /**
  * Whether two rows are the same market.
@@ -81,6 +81,9 @@ export function AddMarketModal({
 
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
+  /** A router key, or "all" — the second filter axis. See `venues` below. */
+  const [venue, setVenue] = useState<Router | "all">("all");
+  const venueSelect = useRef<HTMLSelectElement>(null);
   const [cursor, setCursor] = useState(0);
   const [picked, setPicked] = useState<UniverseAsset | null>(null);
   /**
@@ -180,6 +183,35 @@ export function AddMarketModal({
     if (!classes.some((c) => c.key === klass)) setKlass("all");
   }, [classes, klass]);
 
+  /**
+   * The venues present in this universe.
+   *
+   * The second axis, exactly as in the creation picker: class picks WHAT, venue
+   * picks WHERE, and a venue is not a class — a KalqiX cbBTC is crypto AND an
+   * order book, so it can never be a chip in the row above without putting the
+   * same row under two of them.
+   *
+   * A DROPDOWN rather than chips, and that is the only thing that differs from
+   * the picker. This bar is inside a dialog with a header, a search box and a
+   * count already competing for one line; a second row of pills is what pushes
+   * it from dense to crowded. A closed dropdown costs one control's width and
+   * still says which venue is active.
+   */
+  const venues = useMemo(() => {
+    const seen = new Set<Router>();
+    for (const a of assets) seen.add(routeOf(a).router);
+    return (Object.keys(VENUE_LABEL) as Router[]).filter((r) => seen.has(r));
+  }, [assets]);
+
+  /** Same reason as the chips: a filter offering one option is furniture. */
+  const showVenues = venues.length > 1;
+
+  // And the same hazard: a venue can stop being offered under a selection that
+  // still points at it.
+  useEffect(() => {
+    if (venue !== "all" && !venues.includes(venue)) setVenue("all");
+  }, [venue, venues]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter(
@@ -188,6 +220,7 @@ export function AddMarketModal({
         // two copies of "what counts as a commodity" drift the moment either
         // is edited.
         (MARKET_CLASSES.find((c) => c.key === klass)?.admits(a) ?? true) &&
+        (venue === "all" || routeOf(a).router === venue) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
           // Name as well: a token is searched for by what it is called
@@ -196,7 +229,7 @@ export function AddMarketModal({
           (a.underlying ?? "").toLowerCase().includes(q) ||
           (a.issuer ?? "").toLowerCase().includes(q)),
     );
-  }, [assets, query, klass]);
+  }, [assets, query, klass, venue]);
 
   // The dialog owns the keyboard while it is open. Escape closes, arrows drive
   // the list wherever focus sits, and Tab is wrapped inside the panel so focus
@@ -206,6 +239,15 @@ export function AddMarketModal({
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+        return;
+      }
+      // A native select owns ↑↓ and ⏎ while it has focus. The list handler
+      // preventDefaults both, so without this the venue dropdown could be
+      // opened by keyboard and then never changed with one.
+      if (
+        document.activeElement === venueSelect.current &&
+        (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")
+      ) {
         return;
       }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -226,7 +268,7 @@ export function AddMarketModal({
       }
       if (e.key === "Tab" && panel.current) {
         const focusable = panel.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input, [href], [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), input, select, [href], [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
         const first = focusable[0];
@@ -337,7 +379,7 @@ export function AddMarketModal({
 
         {/* --------------------------------------------------------- filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-7 py-3.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             {(showClasses ? classes : []).map((c) => (
               <button
                 key={c.key}
@@ -355,6 +397,34 @@ export function AddMarketModal({
                 {c.label}
               </button>
             ))}
+
+            {/* The venue axis, in the same bar and deliberately quieter: a
+                dropdown states the current filter in one control's width,
+                where a second row of pills would crowd a dialog that already
+                carries a header, a search box and a count. */}
+            {showVenues ? (
+              <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                Venue
+                <select
+                  ref={venueSelect}
+                  value={venue}
+                  onChange={(e) => {
+                    setVenue(e.target.value as Router | "all");
+                    setCursor(0);
+                  }}
+                  className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
+                >
+                  <option value="all" className="bg-bg">
+                    All
+                  </option>
+                  {venues.map((v) => (
+                    <option key={v} value={v} className="bg-bg">
+                      {VENUE_LABEL[v]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
           <div className="flex items-center gap-3">
             <input
@@ -392,7 +462,15 @@ export function AddMarketModal({
             // of them. Blaming the search box unconditionally produced the
             // nonsense `Nothing matches “”.` whenever a class chip was the
             // thing that emptied the list.
-            <Note tone="warning">{emptyReason(assets.length, klass, query, classes)}</Note>
+            <Note tone="warning">
+              {emptyReason(
+                assets.length,
+                klass,
+                query,
+                classes,
+                venue === "all" ? null : VENUE_LABEL[venue],
+              )}
+            </Note>
           ) : (
             rows.map((a, i) => {
               const taken = isHeld(a);
@@ -593,25 +671,30 @@ function Note({
  *
  * Order matters: the narrower cause is named first, because "nothing matches
  * your search" is the actionable sentence when a search is what emptied it,
- * and the class is only worth mentioning when it is still narrowing.
+ * and a filter is only worth mentioning while it is still narrowing.
+ *
+ * Every active narrowing is named, not just the first one. Two filters can each
+ * be innocent and empty the list together — crypto and Jupiter both have rows,
+ * crypto ON Jupiter may not — and a sentence blaming one of them sends the
+ * reader to clear the wrong control.
  */
 function emptyReason(
   total: number,
   klass: string,
   query: string,
   classes: readonly { key: string; label: string }[],
+  venueLabel: string | null,
 ): string {
   if (total === 0) return "No market currently resolves as tradable.";
   const q = query.trim();
   const label = classes.find((c) => c.key === klass && c.key !== "all")?.label.toLowerCase();
+  const scope = [label, venueLabel ? `on ${venueLabel}` : null].filter(Boolean).join(" ");
   if (q) {
-    return label
-      ? `Nothing in ${label} matches “${q}”.`
-      : `Nothing matches “${q}”.`;
+    return scope ? `Nothing in ${scope} matches “${q}”.` : `Nothing matches “${q}”.`;
   }
-  return label
-    ? `This agent trades no ${label}.`
-    : "No market currently resolves as tradable.";
+  if (label) return `This agent trades no ${scope}.`;
+  if (venueLabel) return `Nothing here fills on ${venueLabel}.`;
+  return "No market currently resolves as tradable.";
 }
 
 function money(n: number): string {

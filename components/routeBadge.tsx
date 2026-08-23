@@ -25,12 +25,14 @@ interface Mark {
   /**
    * Scale applied inside the disc.
    *
-   * The two logos are packaged differently and neither is wrong. Jupiter ships
+   * The logos are packaged differently and none of them is wrong. Jupiter ships
    * a transparent circular mark that already fills its box, so it needs none.
    * Solana ships a square with roughly a quarter of padding on every side,
    * which on a 15px disc leaves a mark under 8px — legible as a smudge and
-   * nothing more. Scaling past the crop is what makes the two read as the same
-   * size, rather than one looking recessed.
+   * nothing more, so it scales UP past the crop to read the same size as its
+   * neighbour. Base is the opposite case and scales DOWN: its mark is a solid
+   * square with no padding at all, and a disc that crops it flush turns the
+   * square into a circle.
    */
   scale: number;
   /** Solana's art is on opaque black; Jupiter's is transparent and needs a bed. */
@@ -40,10 +42,13 @@ interface Mark {
 const CHAIN: Record<Chain, Mark> = {
   solana: { label: "Solana", src: "/venues/solana.png", scale: 1.5, bg: "bg-black" },
   // Base's brand kit ships no pictorial symbol — "TheSquare" is a rounded
-  // square in Base Blue, and that IS the mark. Clipped to a disc it reads as a
-  // blue dot, which is also how wallets show the chain, so nothing is lost at
-  // 17px that a glyph would have carried.
-  base: { label: "Base", src: "/venues/base.png", scale: 1, bg: "bg-[#0000FF]" },
+  // square in Base Blue, and that IS the mark. The art fills its canvas edge to
+  // edge, so at scale 1 the disc crops it into a plain blue circle and the one
+  // distinguishing thing about the mark is the thing that gets cut off. Sized
+  // down to sit INSIDE the disc instead, on the same dark bed as its
+  // neighbours: a blue square in a ring, which is what Base actually looks
+  // like, and which survives the 15px the market rows draw it at.
+  base: { label: "Base", src: "/venues/base.png", scale: 0.58, bg: "bg-black" },
 };
 
 /**

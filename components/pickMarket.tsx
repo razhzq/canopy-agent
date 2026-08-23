@@ -64,8 +64,12 @@ import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
  * the filter and the brand in the results.
  *
  * The key order is the order of the buttons.
+ *
+ * Exported for the add-market dialog, which filters the same universe and must
+ * not invent a second name for the same venue — the dialog draws the control as
+ * a dropdown rather than chips, but the words have to match.
  */
-const VENUE_LABEL: Record<Router, string> = {
+export const VENUE_LABEL: Record<Router, string> = {
   jupiter: "Jupiter",
   kalqix: "CLOB DEX",
 };
@@ -212,6 +216,19 @@ export function PickMarket({
           const next = e.key === "ArrowDown" ? c + 1 : c - 1;
           return Math.max(0, Math.min(next, rows.length - 1));
         });
+        return;
+      }
+      // A focused FILTER owns ⏎. Without this, tabbing to a class or venue
+      // button and pressing Enter toggles a market instead of the control the
+      // reader is standing on. Row buttons are the exception and keep the old
+      // behaviour: ⏎ takes the row the CURSOR is on, which is not necessarily
+      // the row that happens to hold focus after a click.
+      const focused = document.activeElement;
+      if (
+        e.key === "Enter" &&
+        focused instanceof HTMLButtonElement &&
+        !focused.hasAttribute("data-row")
+      ) {
         return;
       }
       if (e.key === "Enter" && rows[cursor]) {
