@@ -629,7 +629,11 @@ function AccountMenu() {
   };
 
   return (
-    <div ref={ref} className="relative">
+    // Desktop only, and only ONCE SIGNED IN. The Profile tab carries all of
+    // this below lg. The signed-out branches above deliberately stay visible on
+    // every width: hiding those would leave a phone with no way to sign in at
+    // all, since the tab bar itself renders nothing without a session.
+    <div ref={ref} className="relative max-lg:hidden">
       <button
         ref={trigger}
         type="button"
@@ -1029,10 +1033,15 @@ function AccountMenu() {
             </div>
           ) : null}
 
-          {/* Last, and the only row here that is not a place to go. Named for
-              what it does to a wallet-backed session rather than for what it
-              does to a password one: the keys stop being reachable from this
-              browser. */}
+          {/* Last, and the only row here that is not a place to go.
+              "Sign out", not "Disconnect". The rename undoes a bad call: the
+              old label named a WALLET action, and `privyConfig` sets
+              `loginMethods: ["email"]` — nobody connects a wallet to get in
+              here, Privy mints one afterwards. Worse, "Disconnect" means
+              "unlink my wallet" everywhere else in crypto, and this does the
+              opposite of that: the wallets are permanent and stay on the
+              account. Reading it beside a balance, it looked like a button that
+              detaches the wallet holding the money. */}
           <div className="py-1.5">
             <button
               type="button"
@@ -1044,7 +1053,7 @@ function AccountMenu() {
               className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
             >
               <SignOutIcon className="size-3.5 shrink-0" />
-              <span className="font-ui text-[12.5px] font-medium">Disconnect</span>
+              <span className="font-ui text-[12.5px] font-medium">Sign out</span>
             </button>
           </div>
         </div>
@@ -1084,11 +1093,12 @@ export function TopNav() {
           <Link
             href="/agents"
             aria-label="Canopy — home"
-            // Hidden on a phone. The bar is 575px of content at a 375px
-            // viewport and every item in it is shrink-0, so something has to
-            // go; the wordmark is the only element that is decoration rather
-            // than a control, and "My agents" is the home destination anyway.
-            className={`hidden shrink-0 items-center rounded-sm sm:flex ${FOCUS}`}
+            // Shown on a phone again. It used to be dropped there because the
+            // bar was 575px of shrink-0 content at a 375px viewport and the
+            // wordmark was the only thing in it that was not a control. The
+            // primary links have since moved to the bottom tab bar, which frees
+            // the room — and left the mobile bar with no brand on it at all.
+            className={`flex shrink-0 items-center rounded-sm ${FOCUS}`}
           >
             <Image
               src="/canopy-wordmark.png"
@@ -1099,7 +1109,10 @@ export function TopNav() {
               className="h-[21px] w-auto"
             />
           </Link>
-          <nav aria-label="Primary" className="flex min-w-0 items-center gap-1">
+          {/* Desktop only. Below lg the bottom tab bar owns navigation, and
+              these links were a second set of destinations competing with it
+              for the narrowest bar in the app. */}
+          <nav aria-label="Primary" className="hidden min-w-0 items-center gap-1 lg:flex">
             {NAV.map((item) => {
               const active = isActive(pathname, item.match);
               return (
@@ -1148,8 +1161,14 @@ export function TopNav() {
           </Link>
 
           {/* Between "create" and the account: notifications are about work
-              already in flight, which sits nearer identity than action. */}
-          <NotificationCentre />
+              already in flight, which sits nearer identity than action.
+
+              Desktop only — the bottom tab bar carries Alerts below lg, and a
+              bell in the top corner is a duplicate of it that a thumb cannot
+              comfortably reach anyway. */}
+          <div className="hidden lg:block">
+            <NotificationCentre />
+          </div>
 
           <AccountMenu />
         </div>

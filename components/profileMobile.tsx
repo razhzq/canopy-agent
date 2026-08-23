@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Ellipsis, Gift, History, Pencil, Plus, Settings, Timer, Trees, Wallet } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
+import { Ellipsis, Gift, History, LogOut, Pencil, Plus, Settings, Timer, Trees, Wallet } from "lucide-react";
 
 import { EquityCurve } from "@/components/charts";
 import { UsernameModal } from "@/components/usernameModal";
@@ -44,6 +45,7 @@ export function ProfileMobile({
   holdings: Holding[];
   totals: Totals;
 }) {
+  const { logout } = usePrivy();
   const { username, loaded: nameLoaded } = useUsername();
   const wallet = usePersonalWallet();
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("24H");
@@ -300,6 +302,24 @@ export function ProfileMobile({
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Signing out lives here now.
+          It used to exist only in the top bar's account menu, which is hidden
+          below lg — so removing that menu from a phone without this would have
+          left no way to sign out at all.
+
+          "Sign out", not "Disconnect": sign-in is by email, and "Disconnect"
+          reads as "unlink my wallet", which this does not do. See nav.tsx. */}
+      <div className="px-[18px] pt-6 pb-2">
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3.5 text-negative/90 transition-colors hover:bg-surface hover:text-negative"
+        >
+          <LogOut className="size-4" aria-hidden />
+          <span className="font-ui text-[14px] font-semibold">Sign out</span>
+        </button>
       </div>
 
       {modal === "deposit" && wallet ? (

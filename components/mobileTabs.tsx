@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Bell, Bot, GitBranch, House, User } from "lucide-react";
+import { Bell, GitBranch, House, User } from "lucide-react";
 
 /**
  * The bottom tab bar, below `lg`.
@@ -24,17 +24,12 @@ import { Bell, Bot, GitBranch, House, User } from "lucide-react";
  */
 
 const TABS = [
-  // Home is EXPLORE — the feed with the performers strip. Your own agents are
-  // the second slot and the profile, which is where the wireframe puts them.
+  // Home is EXPLORE — the feed with the performers strip.
   { href: "/agents", label: "Home", icon: House, match: ["/agents", "/deploy"] },
-  { href: "/workspace", label: "My agents", icon: Bot, match: ["/workspace"] },
   { href: "/activity", label: "Activity", icon: GitBranch, match: ["/activity"] },
-  // The wireframe's second slot is Search and its fourth is Squads. There is no
-  // search screen and no squads backend, so those two slots carry the
-  // destinations that are real and would otherwise be homeless: your agents,
-  // and notifications — which only existed behind a bell in a top bar that a
-  // thumb never reaches. The pill's five-up spacing IS the design, so the slots
-  // stay.
+  // The wireframe's Squads slot has no backend, so notifications take it —
+  // real, and otherwise only reachable behind a bell in a top bar a thumb
+  // never comfortably reaches.
   { href: "/notifications", label: "Alerts", icon: Bell, match: ["/notifications"] },
   { href: "/portfolio", label: "Profile", icon: User, match: ["/portfolio"] },
 ] as const;

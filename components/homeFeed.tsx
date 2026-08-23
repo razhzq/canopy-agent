@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bell, Flame, Plus, ScanLine, SlidersHorizontal, Trees, TrendingUp } from "lucide-react";
+import { Flame, SlidersHorizontal, TrendingUp } from "lucide-react";
 
-import { DepositModal } from "@/components/walletModals";
 import { EmptyState } from "@/components/states";
 import { MiniCurve } from "@/components/charts";
-import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useAccountBalance } from "@/lib/useAccountBalance";
 import { hitRatePct, num, return30dPct, type StrategyRow } from "@/lib/api";
 
@@ -40,9 +38,7 @@ const CHIPS: { key: Chip; label: string }[] = [
 ];
 
 export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
-  const wallet = usePersonalWallet();
   const balance = useAccountBalance();
-  const [depositing, setDepositing] = useState(false);
   const [chip, setChip] = useState<Chip>("all");
 
   // Ranked on the trailing 30 days — the shortest window `listStrategies`
@@ -74,26 +70,8 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
 
   return (
     <div className="lg:hidden">
-      {/* ------------------------------------------------------- header -- */}
-      <div className="flex items-center justify-between px-[18px] pt-2.5 pb-1">
-        <div className="flex items-center gap-[7px]">
-          <Trees className="size-5 text-accent" aria-hidden />
-          <span className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
-            Canopy
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/notifications" aria-label="Notifications">
-            <Bell className="size-[19px] text-text-secondary" aria-hidden />
-          </Link>
-          <Link href="/agents" aria-label="Explore strategies">
-            <ScanLine className="size-[19px] text-text-secondary" aria-hidden />
-          </Link>
-        </div>
-      </div>
-
       {/* ------------------------------------------------------ balance -- */}
-      <div className="flex items-center justify-between px-[18px] pt-3.5 pb-[18px]">
+      <div className="px-[18px] pt-3.5 pb-[18px]">
         <div className="space-y-[5px]">
           <p className="flex items-end font-mono text-[34px] leading-none font-semibold tracking-[-1.2px]">
             {/* Cents in $text-muted: the figure people read is the dollars, and
@@ -117,15 +95,6 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
             </span>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setDepositing(true)}
-          disabled={!wallet}
-          className="flex shrink-0 items-center gap-1.5 rounded-[11px] bg-accent px-5 py-[13px] transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          <Plus className="size-[15px] text-bg" aria-hidden />
-          <span className="font-ui text-[14px] font-semibold text-bg">Fund</span>
-        </button>
       </div>
 
       {/* ---------------------------------------------- top performers -- */}
@@ -171,27 +140,6 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
         </div>
       ) : null}
 
-      {/* --------------------------------------------------------- tabs -- */}
-      <div className="flex border-b border-grid">
-        {[
-          { label: "Agents", href: null },
-          { label: "My agents", href: "/workspace" },
-          { label: "Activity", href: "/activity" },
-        ].map((t) =>
-          t.href === null ? (
-            <span key={t.label} className="flex flex-1 flex-col items-center gap-[11px]">
-              <span className="font-ui text-[14.5px] font-semibold text-text-primary">{t.label}</span>
-              <span className="h-0.5 w-full bg-accent" />
-            </span>
-          ) : (
-            <Link key={t.label} href={t.href} className="flex flex-1 flex-col items-center gap-[11px]">
-              <span className="font-ui text-[14.5px] font-medium text-text-muted">{t.label}</span>
-              <span className="h-0.5 w-full" />
-            </Link>
-          ),
-        )}
-      </div>
-
       {/* -------------------------------------------------------- chips -- */}
       <div className="flex h-[60px] items-center gap-2 overflow-x-auto px-[18px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <span className="flex size-9 h-[34px] w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-surface">
@@ -234,9 +182,6 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
         </ul>
       )}
 
-      {depositing && wallet ? (
-        <DepositModal address={wallet} onClose={() => setDepositing(false)} />
-      ) : null}
     </div>
   );
 }
