@@ -17,6 +17,7 @@ import { EquityView } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
+import { ModelBadge } from "@/components/modelBadge";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -468,6 +469,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <h1 className="font-mono text-[28px] leading-none text-text-primary">
             {agent.strategy_name}
           </h1>
+          <ModelBadge />
           <StatusChip status={agent.status} />
           <div className="flex-1" />
           <WalletBar

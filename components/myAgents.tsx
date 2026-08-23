@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { CONCURRENCY, pooled } from "@/lib/pool";
 import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
+import { ModelBadge } from "@/components/modelBadge";
 
 /**
  * "My agents" — wireframe 1j.
@@ -355,12 +356,19 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-3 border-b border-grid px-5 py-4 sm:px-8 lg:grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] lg:items-center">
       <div className="min-w-0">
-        <Link
-          href={`/workspace/${agent.id}`}
-          className="block truncate font-mono text-[14px] text-text-primary transition-colors hover:text-accent"
-        >
-          {agent.strategy_name}
-        </Link>
+        {/* The pill sits beside the name here as it does everywhere else. The
+            name is the flexible half and truncates first: it repeats in the
+            row's link target and on the page it opens, where the model does
+            not appear at all until you get there. */}
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href={`/workspace/${agent.id}`}
+            className="truncate font-mono text-[14px] text-text-primary transition-colors hover:text-accent"
+          >
+            {agent.strategy_name}
+          </Link>
+          <ModelBadge />
+        </div>
         <p className="truncate font-ui text-[11.5px] text-text-dim">
           {agent.strategy_class} · {agent.autonomy.replace(/_/g, " ")}
           {agent.is_paper ? " · paper" : ""}

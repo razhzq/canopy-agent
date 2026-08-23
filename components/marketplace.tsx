@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonCards } from "@/components/skeleton";
 import { CapabilityNotices } from "@/components/capabilityNotice";
 import { Badge } from "@/components/ui";
+import { ModelBadge } from "@/components/modelBadge";
 import { HomeFeed } from "@/components/homeFeed";
 import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -320,6 +321,11 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           ) : isNew(r) ? (
             <Badge tone="accent">New</Badge>
           ) : null}
+          {/* Beside the name, where the reader is already looking to tell one
+              card from another. `min-w-0` on the wrapper means the NAME is what
+              gives way when the card is narrow — the pill is shrink-0, so it
+              survives the truncation that a 15-character agent name causes. */}
+          <ModelBadge />
         </span>
         {r.is_mine ? <Badge tone="muted">Yours</Badge> : null}
       </div>

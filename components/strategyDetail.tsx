@@ -6,6 +6,7 @@ import { EquityCurve } from "@/components/charts";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { Badge, Breadcrumb } from "@/components/ui";
+import { ModelBadge } from "@/components/modelBadge";
 import {
   getStrategy,
   getStrategyRecord,
@@ -106,6 +107,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             <h1 className="font-mono text-[28px] leading-none text-text-primary">
               {strategy.name}
             </h1>
+            {/* Straight after the name, ahead of the state badges: what it is
+                made of, before what it is currently doing. */}
+            <ModelBadge />
             {live ? <Badge tone="accent">Listed</Badge> : null}
             {/* Draft and verifying are both paper, and the page says so the
                 same way for both. A draft only reaches a non-author at all

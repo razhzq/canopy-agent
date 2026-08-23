@@ -26,6 +26,7 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { markAgent } from "@/lib/perf";
+import { ModelBadge } from "@/components/modelBadge";
 
 /**
  * One agent, on a phone — wireframe M03.
@@ -144,6 +145,11 @@ export function AgentDetailMobile({
             <h1 className="truncate font-ui text-[21px] font-semibold tracking-[-0.5px] text-text-primary">
               {agent.strategy_name}
             </h1>
+            {/* Beside the name here too, so the phone and the desktop agree
+                about where this fact lives. The name truncates before the pill
+                does, which is the right order: the name has a second copy in
+                the header bar above, the model has none. */}
+            <ModelBadge />
             {agent.status === "active" ? (
               <span className="flex shrink-0 items-center gap-1.5 rounded-[5px] bg-accent-wash px-1.5 py-[3px]">
                 <span className="size-[5px] rounded-full bg-accent" />
