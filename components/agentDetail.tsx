@@ -444,6 +444,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         equity={equity}
         positions={positions}
         assets={assets}
+        assetsPending={assetsPending}
+        universe={strategy?.universe ?? []}
         onChanged={() => void load()}
       />
     );

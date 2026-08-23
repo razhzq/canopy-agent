@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Gavel, Pause, Play, Plus, Share2, Star, TrendingUp } from "lucide-react";
+
+import { AddMarketModal } from "@/components/addMarket";
+import { RouteBadge, routeOf } from "@/components/routeBadge";
+import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve } from "@/components/charts";
@@ -11,6 +15,7 @@ import { headline } from "@/components/activity";
 import {
   getActivity,
   num,
+  selectionLabel,
   pauseAgent,
   resumeAgent,
   type ActivityCycle,
@@ -18,6 +23,7 @@ import {
   type AgentRow,
   type EquitySeries,
   type UniverseAsset,
+  type UniverseSelection,
 } from "@/lib/api";
 import { markAgent } from "@/lib/perf";
 
@@ -44,6 +50,8 @@ export function AgentDetailMobile({
   equity,
   positions,
   assets,
+  assetsPending,
+  universe,
   onChanged,
 }: {
   agent: AgentRow;
@@ -51,6 +59,9 @@ export function AgentDetailMobile({
   equity: EquitySeries | null;
   positions: AgentDetail["positions"];
   assets: UniverseAsset[];
+  assetsPending: boolean;
+  /** What the strategy is allowed to trade, not what it currently holds. */
+  universe: UniverseSelection[];
   onChanged: () => void;
 }) {
   const { getAccessToken } = usePrivy();
@@ -58,6 +69,7 @@ export function AgentDetailMobile({
   const [chatOpen, setChatOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cycle, setCycle] = useState<ActivityCycle | null>(null);
+  const [adding, setAdding] = useState(false);
 
   // The newest cycle, for the phase bar. One request, one cycle deep.
   useEffect(() => {
@@ -319,6 +331,50 @@ export function AgentDetailMobile({
         )}
       </div>
 
+      {/* ------------------------------------------------------ markets -- */}
+      <div className="border-b border-grid pt-[18px]">
+        <div className="flex items-center justify-between px-[18px] pb-3">
+          <p className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
+            Markets it may trade
+          </p>
+          <span className="font-mono text-[13px] font-semibold text-text-muted">
+            {universe.length}
+          </span>
+        </div>
+
+        {/* The mandate, not the book. A market can sit here with nothing open
+            against it — that is the agent having looked and declined, which is
+            a different fact from not being allowed to look. */}
+        <ul className="px-[18px]">
+          {universe.map((sel, i) => (
+            <li
+              key={selectionLabel(sel)}
+              className={`flex items-center gap-2.5 py-2.5 ${i ? "border-t border-grid" : ""}`}
+            >
+              <AssetLogo symbol={selectionLabel(sel)} size={22} />
+              <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">
+                {selectionLabel(sel)}
+              </span>
+              {/* Same pair as the pickers — where this one settles and fills. */}
+              <RouteBadge chain="solana" router="jupiter" size={15} />
+            </li>
+          ))}
+        </ul>
+
+        {/* Attached to the list rather than spaced off it: adding a market is
+            the same act as the rows above, not a separate section. */}
+        <div className="px-[18px] pt-2 pb-4">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-accent hover:text-accent"
+          >
+            <Plus className="size-4" aria-hidden />
+            <span className="font-ui text-[13.5px] font-semibold">Add a market</span>
+          </button>
+        </div>
+      </div>
+
       {/* --------------------------------------------------------- CTA -- */}
       <div className="flex gap-2.5 px-[18px] pt-[18px] pb-4">
         <button
@@ -347,6 +403,20 @@ export function AgentDetailMobile({
 
       {chatOpen ? (
         <AgentChatSheet agentId={agent.id} agent={agent} onClose={() => setChatOpen(false)} />
+      ) : null}
+
+      {adding ? (
+        <AddMarketModal
+          agentId={agent.id}
+          agentName={agent.strategy_name}
+          assets={assets}
+          loading={assetsPending}
+          existing={universe}
+          // Reloads behind the open dialog, so the list and the modal agree the
+          // moment a change lands rather than only after closing.
+          onChanged={onChanged}
+          onClose={() => setAdding(false)}
+        />
       ) : null}
     </div>
   );

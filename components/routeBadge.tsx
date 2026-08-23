@@ -1,15 +1,16 @@
+import Image from "next/image";
+
 import type { UniverseAsset } from "@/lib/api";
 
 /**
  * Where an asset trades: the chain it settles on and the router that fills it,
- * as two overlapping discs.
+ * as two overlapping discs carrying the real marks.
  *
  * PER ASSET, NOT PER PAGE, and deliberately so. Today every market here is a
- * Solana spot swap through Jupiter, which makes this five copies of one fact —
- * a strip at the top of the list would say it once and be shorter. The pair is
- * on the row because the moment a second chain or a second router lands, two
- * rows in the same list differ, and this is the only thing that will say which
- * is which. Stating it globally now means rebuilding it per-row then.
+ * Solana spot swap through Jupiter, which makes this one fact repeated down the
+ * list — a strip at the top would say it once and be shorter. The pair is on the
+ * row because the moment a second chain or a second router lands, two rows in
+ * the same list differ, and this is the only thing that will say which is which.
  *
  * The ring matters: without a background-coloured stroke the two discs merge
  * into one shape on a dark surface, and "stacked" is the whole point.
@@ -18,17 +19,30 @@ import type { UniverseAsset } from "@/lib/api";
 export type Chain = "solana";
 export type Router = "jupiter";
 
-const CHAIN: Record<Chain, { label: string; className: string }> = {
-  // Solana's own gradient. Written as a class rather than an inline style so it
-  // travels with the theme like everything else.
-  solana: {
-    label: "Solana",
-    className: "bg-[linear-gradient(315deg,#9945FF_0%,#14F195_100%)]",
-  },
+interface Mark {
+  label: string;
+  src: string;
+  /**
+   * Scale applied inside the disc.
+   *
+   * The two logos are packaged differently and neither is wrong. Jupiter ships
+   * a transparent circular mark that already fills its box, so it needs none.
+   * Solana ships a square with roughly a quarter of padding on every side,
+   * which on a 15px disc leaves a mark under 8px — legible as a smudge and
+   * nothing more. Scaling past the crop is what makes the two read as the same
+   * size, rather than one looking recessed.
+   */
+  scale: number;
+  /** Solana's art is on opaque black; Jupiter's is transparent and needs a bed. */
+  bg: string;
+}
+
+const CHAIN: Record<Chain, Mark> = {
+  solana: { label: "Solana", src: "/venues/solana.png", scale: 1.5, bg: "bg-black" },
 };
 
-const ROUTER: Record<Router, { label: string; className: string }> = {
-  jupiter: { label: "Jupiter", className: "bg-[#C7F284]" },
+const ROUTER: Record<Router, Mark> = {
+  jupiter: { label: "Jupiter", src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
 };
 
 /**
@@ -40,6 +54,27 @@ const ROUTER: Record<Router, { label: string; className: string }> = {
  */
 export function routeOf(_asset: UniverseAsset): { chain: Chain; router: Router } {
   return { chain: "solana", router: "jupiter" };
+}
+
+function Disc({ mark, size }: { mark: Mark; size: number }) {
+  return (
+    <span
+      className={`absolute top-0 overflow-hidden rounded-full ring-[1.5px] ring-bg ${mark.bg}`}
+      style={{ width: size, height: size }}
+    >
+      <Image
+        src={mark.src}
+        alt=""
+        width={size}
+        height={size}
+        // Decorative: the pair carries one label on the wrapper, so neither
+        // image should announce itself.
+        aria-hidden
+        className="size-full object-cover"
+        style={mark.scale === 1 ? undefined : { transform: `scale(${mark.scale})` }}
+      />
+    </span>
+  );
 }
 
 export function RouteBadge({
@@ -68,14 +103,10 @@ export function RouteBadge({
       role="img"
       aria-label={`${r.label} on ${c.label}`}
     >
-      <span
-        className={`absolute top-0 rounded-full ring-[1.5px] ring-bg ${c.className}`}
-        style={{ left: size - overlap, width: size, height: size }}
-      />
-      <span
-        className={`absolute top-0 left-0 rounded-full ring-[1.5px] ring-bg ${r.className}`}
-        style={{ width: size, height: size }}
-      />
+      <span className="absolute top-0" style={{ left: size - overlap }}>
+        <Disc mark={c} size={size} />
+      </span>
+      <Disc mark={r} size={size} />
     </span>
   );
 }
