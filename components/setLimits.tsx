@@ -1199,7 +1199,7 @@ function RuleChip({
   const label = ruleLabel(r, timeframe);
   const basisNote = ruleBasisNote(r, timeframe);
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}>
           {label} <span className="text-text-dim">{r.op === "gte" ? "at least" : "at most"}</span>
@@ -1291,7 +1291,7 @@ function ExitChip({
   const off = value <= 0;
 
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className="font-mono text-[12px] text-text-primary">{label}</p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">

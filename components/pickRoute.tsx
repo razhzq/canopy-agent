@@ -130,7 +130,7 @@ export function PickRoute({
         </p>
 
         <div className="border border-grid">
-          <div className="grid grid-cols-[minmax(0,1.4fr)_90px_110px_minmax(0,1.4fr)] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_90px_110px_minmax(0,1.4fr)] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
             <span>Venue</span>
             <span className="text-right">Fee</span>
             <span className="text-right">Price</span>
@@ -204,7 +204,7 @@ export function PickRoute({
               </>
             );
 
-            const className = `grid w-full grid-cols-[minmax(0,1.4fr)_90px_110px_minmax(0,1.4fr)] items-center gap-x-4 border-b border-grid px-4 py-3 text-left last:border-b-0 ${
+            const className = `grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_90px_110px_minmax(0,1.4fr)] items-center gap-x-4 border-b border-grid px-4 py-3 text-left last:border-b-0 ${
               pinned ? "bg-accent-wash" : ""
             }`;
 

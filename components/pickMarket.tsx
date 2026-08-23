@@ -283,7 +283,7 @@ export function PickMarket({
         </Note>
       ) : (
         <div ref={listRef} className="border border-grid">
-          <div className="grid grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
             <span>Market</span>
             <span className="text-right">Price</span>
             <span className="text-right">24h</span>
@@ -304,7 +304,7 @@ export function PickMarket({
               data-row={i}
               onMouseEnter={() => setCursor(i)}
               onClick={() => toggle(a)}
-              className={`grid w-full grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
+              className={`grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
                 i === cursor ? "bg-panel" : ""
               } ${chosen(a) ? "bg-accent-wash" : ""}`}
             >

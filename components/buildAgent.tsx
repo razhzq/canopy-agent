@@ -14,7 +14,9 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { BUILD_STAGES } from "@/lib/data";
+import { BuildName, BuildReview, BuildFrame, BuildCta } from "@/components/buildAgentMobile";
 import { NameAgentModal } from "@/components/nameAgent";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
@@ -101,6 +103,17 @@ export function BuildAgent() {
   // warnings. The id is kept so confirming starts THAT strategy rather than
   // creating a second one.
   const [pending, setPending] = useState<{ id: number; warnings: string[] } | null>(null);
+  /**
+   * Below lg the builder is wireframes B1–B6: full screens with one action,
+   * rather than the two-column rail.
+   *
+   * Called here with the other hooks and never beside the branch that uses it —
+   * every return below is conditional, and a hook after one runs on some
+   * renders and not others.
+   */
+  const mobile = useIsMobile();
+  /** Mobile only: the review screen sits between step 3 and creating. */
+  const [reviewing, setReviewing] = useState(false);
 
   const activeRules = limits.rules.filter((r) => r.enabled !== false);
 
@@ -201,6 +214,170 @@ export function BuildAgent() {
     }
   }
 
+  /**
+   * Picking markets, shared by both layouts.
+   *
+   * The rule LIST follows the classes being traded — the union, since a mixed
+   * universe can carry rules from both.
+   *
+   * Enabled states are preserved across the change rather than reset. This used
+   * to wipe them, because switching class replaced the selection and a stale
+   * rule would be sent for an asset that now REJECTS on it. Adding a class no
+   * longer removes anything, so wiping would throw away work the author had
+   * already done.
+   */
+  function onMarketsChange(next: UniverseAsset[]): void {
+    const beforeClasses = classesIn(markets);
+    const afterClasses = classesIn(next);
+    setMarkets(next);
+    if (afterClasses.join() !== beforeClasses.join()) {
+      setLimits((l) => {
+        const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
+        return {
+          ...l,
+          rules: rulesForClasses(afterClasses).map((r) => ({
+            ...r,
+            enabled: enabled.get(r.key) ?? false,
+          })),
+        };
+      });
+    }
+  }
+
+  /**
+   * The mandate, as the review screen lists it.
+   *
+   * Read off the same state the payload is built from, so the screen cannot
+   * describe something other than what gets created. Each row carries the step
+   * it came from, so "that is wrong" has somewhere to go.
+   */
+  function reviewRows() {
+    return [
+      {
+        label: "Markets",
+        value: markets.length ? markets.map((m) => m.symbol).join(" · ") : "—",
+        step: "01",
+      },
+      { label: "Rules", value: `${activeRules.length} active`, step: "02" },
+      {
+        label: "Measured on",
+        value: limits.timeframe ?? "1d",
+        step: "02",
+      },
+      {
+        label: "Max per position",
+        value: `$${limits.positionUsd.toLocaleString("en-US")}`,
+        step: "02",
+      },
+      { label: "Trades per cycle", value: String(limits.tradesPerCycle), step: "02" },
+      {
+        label: "Take profit",
+        value: `+${limits.exits.takeProfitPct}%`,
+        tone: "accent" as const,
+        step: "02",
+      },
+      {
+        label: "Stop loss",
+        value: `−${limits.exits.stopLossPct}%`,
+        tone: "negative" as const,
+        step: "02",
+      },
+      {
+        label: "Compliance",
+        value: limits.complianceProfile === "shariah" ? "Shariah" : "None",
+        step: "02",
+      },
+      { label: "Routing", value: describeRoute(route), step: "03" },
+    ];
+  }
+
+  // Neither layout renders against a guess at the viewport.
+  if (mobile === null) return null;
+
+  if (mobile) {
+    if (!named) {
+      return (
+        <BuildName
+          value={name}
+          onChange={setName}
+          onConfirm={() => name.trim() && setNamed(true)}
+          onCancel={() => router.replace(lastRoute())}
+        />
+      );
+    }
+
+    if (reviewing || pending) {
+      return (
+        <BuildReview
+          name={name}
+          rows={reviewRows()}
+          onEditName={() => setNamed(false)}
+          onBack={() => {
+            setReviewing(false);
+            // A held-back strategy already exists. Going back to edit must not
+            // leave it pending, or confirming later would start a stale plan.
+            setPending(null);
+          }}
+          busy={busy}
+          error={error}
+          warnings={pending?.warnings ?? []}
+          onStart={() => void (pending ? confirmPending() : submit())}
+        />
+      );
+    }
+
+    const stepCta =
+      step === 0
+        ? {
+            label: "Set the limits",
+            hint: "An agent may only ever trade what you pick here.",
+            disabled: markets.length === 0,
+            onClick: () => setStep(1),
+          }
+        : step === 1
+          ? {
+              label: "Choose the route",
+              hint: "Every chip above is a rule the specialist actually evaluates.",
+              disabled: activeRules.length === 0,
+              onClick: () => setStep(2),
+            }
+          : {
+              label: "Review",
+              hint: "Nothing is created until the next screen.",
+              disabled: false,
+              onClick: () => setReviewing(true),
+            };
+
+    return (
+      <BuildFrame
+        step={step + 1}
+        title="Create agent"
+        onBack={() => (step === 0 ? setNamed(false) : setStep(step - 1))}
+        cta={<BuildCta {...stepCta} />}
+      >
+        <div className="px-[18px] pb-6">
+          {step === 0 || !asset ? (
+            <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
+          ) : step === 1 ? (
+            <SetLimits
+              markets={markets}
+              value={limits}
+              onChange={setLimits}
+              onBack={() => setStep(0)}
+            />
+          ) : (
+            <PickRoute
+              market={asset}
+              value={route}
+              onChange={setRoute}
+              onBack={() => setStep(1)}
+            />
+          )}
+        </div>
+      </BuildFrame>
+    );
+  }
+
   if (!named) {
     return (
       <NameAgentModal
@@ -267,37 +444,7 @@ export function BuildAgent() {
         main={
           <div className="px-5 sm:px-8 py-8">
             {step === 0 || !asset ? (
-              <PickMarket
-                value={markets}
-                onChange={(next) => {
-                  const beforeClasses = classesIn(markets);
-                  const afterClasses = classesIn(next);
-                  setMarkets(next);
-
-                  // The rule LIST follows the classes being traded — the union,
-                  // since a mixed universe can carry rules from both.
-                  //
-                  // Enabled states are preserved across the change rather than
-                  // reset. This used to wipe them, because switching class
-                  // replaced the selection and a stale rule would be sent for
-                  // an asset that now REJECTS on it. Adding a class no longer
-                  // removes anything, so wiping would throw away work the
-                  // author had already done.
-                  if (afterClasses.join() !== beforeClasses.join()) {
-                    setLimits((l) => {
-                      const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
-                      return {
-                        ...l,
-                        rules: rulesForClasses(afterClasses).map((r) => ({
-                          ...r,
-                          enabled: enabled.get(r.key) ?? false,
-                        })),
-                      };
-                    });
-                  }
-                }}
-                onNext={() => setStep(1)}
-              />
+              <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
             ) : step === 1 ? (
               <SetLimits
                 markets={markets}
