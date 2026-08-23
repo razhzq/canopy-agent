@@ -1776,13 +1776,7 @@ export interface EquitySeries {
   points: EquityPoint[];
 }
 
-/**
- * One day of a public record.
- *
- * Aggregated by day and never per trade: a list of individual positions names
- * exactly what an agent trades, which for a focused strategy is the strategy.
- * Performance is public; the recipe is not.
- */
+/** One day of a public record. */
 export interface RecordDay {
   day: string;
   realizedUsd: number;
@@ -1800,6 +1794,18 @@ export interface RecordDay {
  * deployment. Averaging deployers in would move a creator's track record
  * because a stranger deployed badly.
  */
+/** One holding on a public record. */
+export interface RecordPosition {
+  symbol: string;
+  /** For tokenized RWA: the ticker the mint tracks. Null for crypto. */
+  underlying: string | null;
+  chain: string;
+  venue: string;
+  /** Decimal string — a quantity, not a dollar value. */
+  qty: string;
+  openedAt: string;
+}
+
 export interface StrategyRecord {
   agentId: number | null;
   capitalUsd: number;
@@ -1809,6 +1815,22 @@ export interface StrategyRecord {
   closedPositions: number;
   winRatePct: number | null;
   daily: RecordDay[];
+  /**
+   * The open book, in full.
+   *
+   * The record used to publish performance and withhold holdings, on the
+   * reasoning that a focused strategy's positions ARE its strategy. That call
+   * has been reversed deliberately: a track record nobody can inspect is one
+   * nobody can check, and a deployer is paying for the automation and the
+   * limits rather than for the secrecy of the idea.
+   *
+   * No cost basis and no entry price — those are the AUTHOR's execution, not
+   * the strategy, and a deployer entering today gets neither.
+   *
+   * Absent on an older backend, so a reader must treat `undefined` as "not
+   * reported" rather than as an empty book.
+   */
+  positions?: RecordPosition[];
 }
 
 export const getStrategyRecord = (token: string, strategyId: number) =>

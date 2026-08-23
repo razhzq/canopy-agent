@@ -187,6 +187,63 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
         ) : null}
       </section>
 
+      {/* ------------------------------------------------------- open book */}
+      {ready?.positions && ready.positions.length > 0 ? (
+        <section className="border-t border-grid px-5 py-7 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+            <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+              Open positions
+            </h2>
+            <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+              Live · {ready.positions.length}{" "}
+              {ready.positions.length === 1 ? "holding" : "holdings"}
+            </span>
+          </div>
+          {/* Said once, plainly. Quantities without cost basis look like an
+              omission unless the reason is on the page. */}
+          <p className="pb-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
+            What it is holding right now. Entry prices are the author&rsquo;s own execution
+            rather than the strategy, so they are not published — a deployer starting today
+            gets neither.
+          </p>
+
+          <div className="border border-grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_110px_120px_120px] gap-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase sm:grid">
+              <span>Asset</span>
+              <span>Chain</span>
+              <span className="text-right">Quantity</span>
+              <span className="text-right">Held for</span>
+            </div>
+            {ready.positions.map((p) => (
+              <div
+                key={`${p.symbol}-${p.openedAt}`}
+                className="grid grid-cols-2 items-center gap-x-4 gap-y-1.5 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px_120px]"
+              >
+                <span className="col-span-2 flex min-w-0 items-center gap-2 sm:col-span-1">
+                  <span className="truncate font-mono text-[13px] text-text-primary">
+                    {p.symbol}
+                  </span>
+                  {/* The underlying is the thing a reader recognises: TSLAx
+                      means nothing to someone who knows TSLA. */}
+                  {p.underlying ? (
+                    <span className="shrink-0 font-mono text-[10px] text-text-dim">
+                      {p.underlying}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="font-mono text-[11.5px] text-text-dim">{p.venue}</span>
+                <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+                  {qty(p.qty)}
+                </span>
+                <span className="text-right font-mono text-[11.5px] text-text-dim">
+                  {held(p.openedAt)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {/* ----------------------------------------------------------- curve */}
       <section className="px-5 sm:px-8 py-7">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
@@ -461,4 +518,26 @@ function money(n: number): string {
 
 function signedPct(n: number): string {
   return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(2)}%`;
+}
+
+/**
+ * A holding's size, trimmed to something readable.
+ *
+ * Token quantities arrive as decimal strings with twelve places; printing them
+ * whole turns a table of holdings into a table of noise.
+ */
+function qty(v: string): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (n >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 3 });
+  return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
+}
+
+/** How long a position has been open. Its age is the part that is public. */
+function held(iso: string): string {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  if (h < 1) return "under an hour";
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
