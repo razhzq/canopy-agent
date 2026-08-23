@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
-import { RouteBadge, routeOf, ROUTER_LABEL, type Router } from "@/components/routeBadge";
+import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -53,6 +53,22 @@ import { RouteBadge, routeOf, ROUTER_LABEL, type Router } from "@/components/rou
  * the class instead of competing with it, and it appears only once the universe
  * actually reports more than one venue.
  */
+
+/**
+ * What each venue is called in the filter — which is not always its name.
+ *
+ * KalqiX reads as "CLOB DEX" here because that is the property someone reaches
+ * for this control to filter on: an order book rather than a pool, with the
+ * spread and the resting depth that implies. The venue's own name is on every
+ * row it returns, in the badge, so nothing is hidden by naming the structure in
+ * the filter and the brand in the results.
+ *
+ * The key order is the order of the buttons.
+ */
+const VENUE_LABEL: Record<Router, string> = {
+  jupiter: "Jupiter",
+  kalqix: "CLOB DEX",
+};
 export const MARKET_CLASSES = [
   { key: "all", label: "All", admits: () => true },
   {
@@ -123,8 +139,8 @@ export function PickMarket({
   const assets = universe.phase === "ready" ? universe.data : [];
 
   /**
-   * The venues actually present in the loaded universe, in the order the router
-   * table lists them.
+   * The venues actually present in the loaded universe, in the order
+   * {@link VENUE_LABEL} lists them.
    *
    * Derived rather than hardcoded: a filter offering KalqiX on a day the
    * backend returned no KalqiX listing is a control that can only produce an
@@ -134,7 +150,7 @@ export function PickMarket({
   const venuesPresent = useMemo(() => {
     const seen = new Set<Router>();
     for (const a of assets) seen.add(routeOf(a).router);
-    return (Object.keys(ROUTER_LABEL) as Router[]).filter((r) => seen.has(r));
+    return (Object.keys(VENUE_LABEL) as Router[]).filter((r) => seen.has(r));
   }, [assets]);
 
   // A venue can leave the universe between loads. Fall back rather than show an
@@ -288,17 +304,18 @@ export function PickMarket({
           </div>
 
           {/*
-            The venue filter. Square and captioned where the class chips are
-            round and bare, because the two do different things, and reading
-            them as one row of choices is exactly the mistake this shape avoids:
-            class picks WHAT, venue picks WHERE, and they compose.
+            The venue filter. Same pill as the class chips, so the two read as
+            one family of filters — with the caption and the rule to its left
+            carrying the distinction the shape used to: class picks WHAT, venue
+            picks WHERE, and they compose rather than compete. The caption is
+            not decoration now that it is the only thing separating the axes.
           */}
           {venuesPresent.length > 1 ? (
             <div className="flex items-center gap-2 border-l border-grid pl-3">
               <span className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
                 Venue
               </span>
-              <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 {(["all", ...venuesPresent] as const).map((v) => (
                   <button
                     key={v}
@@ -308,13 +325,13 @@ export function PickMarket({
                       setVenue(v);
                       setCursor(0);
                     }}
-                    className={`-ml-px h-8 border px-3 font-mono text-[11px] transition-colors first:ml-0 ${
+                    className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
                       venue === v
-                        ? "relative z-10 border-accent bg-accent-wash text-accent"
+                        ? "border-accent bg-accent-wash text-accent"
                         : "border-border text-text-secondary hover:border-grid-strong"
                     }`}
                   >
-                    {v === "all" ? "All" : ROUTER_LABEL[v]}
+                    {v === "all" ? "All" : VENUE_LABEL[v]}
                   </button>
                 ))}
               </div>

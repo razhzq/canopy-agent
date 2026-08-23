@@ -49,11 +49,13 @@ const CHAIN: Record<Chain, Mark> = {
 /**
  * What each router is called in prose.
  *
- * Split out of the mark table so the market picker's venue filter and this
- * badge cannot disagree about a name — the filter needs the label without the
- * artwork, and two hand-kept lists of the same two strings drift.
+ * Split out of the mark table because a label is not artwork: the aria-label
+ * on the badge is built from it, and it is the one thing here that is read
+ * rather than seen. Not exported — the market picker's venue filter names the
+ * market STRUCTURE ("CLOB DEX"), not the venue, and reusing this table there
+ * would quietly make the two follow each other.
  */
-export const ROUTER_LABEL: Record<Router, string> = {
+const ROUTER_LABEL: Record<Router, string> = {
   jupiter: "Jupiter",
   kalqix: "KalqiX",
 };
