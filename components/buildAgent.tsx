@@ -20,7 +20,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
-import { rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
+import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
 import {
   DEFAULT_ROUTE,
   PickRoute,
@@ -72,6 +72,18 @@ const DEFAULT_LIMITS: Limits = {
   positionUsd: 2_500,
   tradesPerCycle: 2,
 };
+
+/**
+ * How a cadence reads in the review rail.
+ *
+ * Absent is not blank: the strategy still runs on a cycle, the author just did
+ * not choose it. Saying so is the difference between a review that reports the
+ * config and one that hides the half of it that came from a default.
+ */
+function cadenceLabel(sec: number | undefined): string {
+  if (sec === undefined) return "1 hour (default)";
+  return CADENCES.find((c) => c.sec === sec)?.label ?? `${sec}s`;
+}
 
 export function BuildAgent() {
   const router = useRouter();
@@ -180,6 +192,12 @@ export function BuildAgent() {
         // floor here — a timeframe the author picked and a plan the composer
         // read out of their sentence never reached the strategy they created.
         timeframe: limits.timeframe,
+        // How often it wakes. Omitted when the author never chose, which lets
+        // the engine default (hourly) stand — sending a number here on their
+        // behalf would assert a cadence they never picked. The route refuses
+        // anything outside 300–86400 rather than clamping, and every value the
+        // picker offers is inside it.
+        tickIntervalSec: limits.cadenceSec,
         addPlan: limits.addPlan ?? null,
         // The compliance screen the author chose in step 2. Omitted when they
         // never chose, which defers to the server default rather than asserting
@@ -262,6 +280,14 @@ export function BuildAgent() {
       {
         label: "Measured on",
         value: limits.timeframe ?? "1d",
+        step: "02",
+      },
+      {
+        label: "Cycle",
+        // The engine default when the author never chose, stated as the engine
+        // states it rather than left blank — a review line that omits the
+        // cadence reads as "no cadence", not "the default one".
+        value: cadenceLabel(limits.cadenceSec),
         step: "02",
       },
       {

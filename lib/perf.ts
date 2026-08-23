@@ -90,10 +90,34 @@ export interface OpenBookMark {
  * because a price ticked.
  */
 export function markOpenBook(
-  positions: readonly Pick<AgentDetail["positions"][number], "symbol" | "qty" | "cost_basis_usd">[],
-  universe: readonly Pick<UniverseAsset, "symbol" | "priceUsd">[],
+  positions: readonly Pick<AgentDetail["positions"][number], "mint" | "symbol" | "qty" | "cost_basis_usd">[],
+  universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[],
 ): OpenBookMark {
-  const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
+  // A TOKEN IS ITS MINT, NOT ITS TICKER, and joining on the ticker was wrong.
+  //
+  // The universe holds three tokens called CAT, and two each of DOG, GOLD and
+  // WOJAK — see `UniverseAsset.name`, which exists to tell them apart on
+  // screen. Keying prices by symbol meant whichever CAT the universe listed
+  // last priced every CAT, so an agent holding two of them reported both at
+  // one mark. `marketKey` in lib/api.ts already says identity is the mint;
+  // this is the same rule, applied where the money is counted.
+  //
+  // An RWA pick has no mint — it is intent, named by issuer and underlying —
+  // so those still join on the symbol. Hence two maps rather than one.
+  //
+  // `price` rather than `num`: num(null) is ZERO, because Number(null) is 0.
+  // `priceUsd` is documented as null when the pool could not be priced, so
+  // num() turned "we do not know what this is worth" into "this is worth
+  // nothing" — the lot was marked at $0 instead of being carried at cost, and
+  // `unpriced` stayed empty so the caller trusted the total.
+  const price = (v: number | null | undefined): number | null => (v == null ? null : num(v));
+
+  const byMint = new Map<string, number | null>();
+  const bySymbol = new Map<string, number | null>();
+  for (const a of universe) {
+    if (a.mint) byMint.set(a.mint, price(a.priceUsd));
+    bySymbol.set(a.symbol, price(a.priceUsd));
+  }
 
   let costBasisUsd = 0;
   let marketValueUsd = 0;
@@ -103,7 +127,12 @@ export function markOpenBook(
     const cost = num(p.cost_basis_usd) ?? 0;
     costBasisUsd += cost;
 
-    const mark = priced.get(p.symbol) ?? null;
+    // `has` rather than a null coalesce: a mint the universe KNOWS but cannot
+    // price is unpriced, and must not fall through to the symbol — falling
+    // through is exactly how one CAT would take another CAT's mark. The
+    // symbol is reached only when the mint is absent from the universe
+    // entirely, which is the RWA case and the stale-position case.
+    const mark = p.mint && byMint.has(p.mint) ? byMint.get(p.mint)! : (bySymbol.get(p.symbol) ?? null);
     const qty = num(p.qty);
     if (mark === null || qty === null) {
       unpriced.add(p.symbol);
@@ -201,9 +230,9 @@ export function markAgent(
   series: EquitySeries | null,
   positions: readonly Pick<
     AgentDetail["positions"][number],
-    "symbol" | "qty" | "cost_basis_usd"
+    "mint" | "symbol" | "qty" | "cost_basis_usd"
   >[],
-  universe: readonly Pick<UniverseAsset, "symbol" | "priceUsd">[],
+  universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[],
 ): AgentMark | null {
   const points = series?.points ?? [];
   if (!series || points.length === 0) return null;

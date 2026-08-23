@@ -13,14 +13,22 @@ import {
 } from "@/lib/api";
 import {
   AddPlanCard,
+  CADENCES,
+  CADENCE_FOR_TIMEFRAME,
   DEFAULT_TIMEFRAME,
   RWA_RULES,
+  TIMEFRAMES,
   fmt,
+  rescaleRuleValue,
   ruleBasisNote,
   ruleLabel,
+  ruleSpan,
+  scaleRule,
+  timeframesForClass,
   type RuleSpec,
   type Timeframe,
 } from "@/components/buildStrategy";
+import { Pill, PillRow } from "@/components/wizard";
 
 /**
  * Step 2 — set the limits. Wireframe 1e.
@@ -46,6 +54,15 @@ export interface Limits {
    * every strategy authored before this was a choice.
    */
   timeframe?: Timeframe;
+  /**
+   * Seconds between cycles — how often the agent wakes.
+   *
+   * NOT the same axis as `timeframe`, which is the resolution of what it looks
+   * at. Absent means the author never chose, which defers to the engine default
+   * (hourly) rather than asserting one on their behalf — the same rule
+   * `complianceProfile` follows below.
+   */
+  cadenceSec?: number;
   /**
    * How the strategy accumulates. Absent means one entry per asset.
    *
@@ -87,6 +104,28 @@ const CAPITAL_USD = 10_000;
  */
 const MIN_POSITION_USD = 10;
 
+/**
+ * Move a whole strategy to a new bar size.
+ *
+ * Three things travel together and always have to: the timeframe itself, the
+ * cadence paired with it, and every percent-of-price threshold in the rule set.
+ * Changing the first alone is what made an intraday strategy look configured
+ * and behave like a broken one — daily-width thresholds nothing intraday ever
+ * reaches, on a chart the agent only glances at once an hour.
+ */
+function retimeframe(limits: Limits, to: Timeframe): Limits {
+  const from = limits.timeframe ?? DEFAULT_TIMEFRAME;
+  if (from === to) return limits;
+  return {
+    ...limits,
+    timeframe: to,
+    // Cadence follows the bar size. The row below stays editable, so this is a
+    // default and not a lock.
+    cadenceSec: CADENCE_FOR_TIMEFRAME[to],
+    rules: limits.rules.map((r) => ({ ...r, value: rescaleRuleValue(r, from, to) })),
+  };
+}
+
 export function SetLimits({
   markets,
   value,
@@ -107,6 +146,10 @@ export function SetLimits({
   onBack: () => void;
 }) {
   const market = markets[0];
+  // Every market in a strategy shares one class, so the first decides which bar
+  // sizes are on offer — the same rule the ATR rule and the compliance screen
+  // already follow.
+  const servedTimeframes = timeframesForClass(classFor(market));
   const { getAccessToken } = usePrivy();
   const [mode, setMode] = useState<"write" | "preset">("write");
   const [sentence, setSentence] = useState("");
@@ -196,7 +239,23 @@ export function SetLimits({
           .join(", ")}. ` +
           nextSpec.join(" "),
       );
-      setNotes(refused);
+      // A bar size this class cannot be screened at is refused HERE, where the
+      // author is still in the sentence that asked for it. Left to travel, it
+      // deploys cleanly and the agent buys nothing — the specialist states the
+      // refusal in a screening trace, which is the last place anyone looks.
+      const unserved =
+        draft?.timeframe && !servedTimeframes.includes(draft.timeframe) ? draft.timeframe : null;
+      const notesOut = unserved
+        ? [
+            ...refused,
+            `${unserved} bars are not served for ${
+              classFor(market) === "spot" ? "token pools" : "this asset class"
+            } — the venue cannot build them. Kept at ${
+              value.timeframe ?? DEFAULT_TIMEFRAME
+            }; ${servedTimeframes.join(", ")} are available.`,
+          ]
+        : refused;
+      setNotes(notesOut);
 
       if (!draft) {
         const why = refused[0] ?? "That could not be turned into rules.";
@@ -214,9 +273,20 @@ export function SetLimits({
       }
 
       setReading(draft.reading || null);
+      // Cadence trails the bar size, but only when the bar size actually MOVED.
+      // "Trade BTC on 5-minute bars" that leaves cadence hourly reads every
+      // 12th bar and steps over the rest, which nobody means — and the reverse
+      // mistake is just as bad: re-running compose to add a stop must not
+      // silently undo a cadence the author set by hand.
+      const prevTf = next.timeframe ?? DEFAULT_TIMEFRAME;
+      // An unserved bar size never becomes the strategy's — `unserved` above
+      // already told the author why.
+      const nextTf = (unserved ? undefined : draft.timeframe) ?? next.timeframe;
       next = {
         ...next,
-        timeframe: draft.timeframe ?? next.timeframe,
+        timeframe: nextTf,
+        cadenceSec:
+          nextTf && nextTf !== prevTf ? CADENCE_FOR_TIMEFRAME[nextTf] : next.cadenceSec,
         // The composer may have read an accumulation plan out of the sentence.
         // Absent means the sentence did not ask for one — which must CLEAR any
         // previous plan rather than leave a stale one attached to rules that no
@@ -227,7 +297,19 @@ export function SetLimits({
         // asked for.
         rules: next.rules.map((r) => {
           const hit = draft.rules.find((d) => d.key === r.key);
-          return hit ? { ...r, value: hit.value, enabled: true } : { ...r, enabled: false };
+          // A rule the composer set arrives in the units of the bar size it was
+          // composed AT, so it is taken verbatim. A rule it did not mention is
+          // carrying a threshold from the previous bar size, and if the bar
+          // size just moved that number no longer means what it meant — so it
+          // is rescaled, exactly as the pill path does. Off either way until
+          // something asks for it, but off with a number that still reads.
+          if (hit) return { ...r, value: hit.value, enabled: true };
+          const moved = nextTf && nextTf !== prevTf;
+          return {
+            ...r,
+            value: moved ? rescaleRuleValue(r, prevTf, nextTf) : r.value,
+            enabled: false,
+          };
         }),
         exits: draft.exits,
       };
@@ -242,7 +324,7 @@ export function SetLimits({
       setTurns((t) => [
         ...t,
         ...(draft.reading ? [{ role: "agent" as const, text: draft.reading }] : []),
-        ...refused.map((n) => ({ role: "agent" as const, text: n, tone: "note" as const })),
+        ...notesOut.map((n) => ({ role: "agent" as const, text: n, tone: "note" as const })),
         gap?.ask
           ? { role: "agent" as const, text: gap.ask, tone: "ask" as const }
           : {
@@ -559,6 +641,93 @@ export function SetLimits({
           // does not carry.
           strategyClass={classFor(market)}
         />
+      ) : null}
+
+      {/* ------------------------------------------------------- timing */}
+      {/*
+        Two axes, deliberately separate controls: the bar size the rules above
+        are MEASURED on, and how often the agent wakes to evaluate them. They
+        were modelled from the start and reachable from nowhere — the only way
+        to get 15-minute bars was to say so in the sentence, and cadence never
+        left the engine default at all, so a 5-minute strategy woke hourly and
+        stepped over eleven bars in twelve.
+
+        Held behind `showRules` like accumulation: a bar size is a property of
+        rules, and there is nothing to measure before one exists.
+      */}
+      {showRules ? (
+        <section>
+          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            Chart timeframe
+          </h3>
+          <PillRow>
+            {TIMEFRAMES.map((t) => {
+              // Served for THIS class, not in general. A crypto strategy on 30m
+              // deploys, wakes and buys nothing — the venue cannot build the
+              // bar — so the pill is disabled rather than offered and refused
+              // later by a screening trace nobody opens.
+              const served = servedTimeframes.includes(t.tf);
+              return (
+                <Pill
+                  key={t.tf}
+                  active={(value.timeframe ?? DEFAULT_TIMEFRAME) === t.tf}
+                  disabled={!served}
+                  suffix={served ? undefined : "not served"}
+                  onClick={() => onChange(retimeframe(value, t.tf))}
+                >
+                  {t.label}
+                </Pill>
+              );
+            })}
+          </PillRow>
+          <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+            {TIMEFRAMES.find((t) => t.tf === (value.timeframe ?? DEFAULT_TIMEFRAME))?.detail}{" "}
+            <span className="text-text-dim">
+              This changes what your rules mean, not just how often they run. Every rule above
+              relabels, states its window in real time, and moves its threshold with the bar —
+              a trend floor of 3% on daily becomes 0.3% here, because that is the same ask.
+              One exception, and it says so on the chip: change on the day is always 24 hours.
+              Use Min momentum for a change measured on your own bars.
+            </span>
+          </p>
+
+          <h3 className="pt-6 pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            Cycle
+          </h3>
+          <PillRow>
+            {CADENCES.map((c) => (
+              <Pill
+                key={c.sec}
+                active={
+                  (value.cadenceSec ??
+                    CADENCE_FOR_TIMEFRAME[value.timeframe ?? DEFAULT_TIMEFRAME]) === c.sec
+                }
+                onClick={() => onChange({ ...value, cadenceSec: c.sec })}
+              >
+                {c.label}
+              </Pill>
+            ))}
+          </PillRow>
+          <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+            {(() => {
+              const tf = value.timeframe ?? DEFAULT_TIMEFRAME;
+              const sec = value.cadenceSec ?? CADENCE_FOR_TIMEFRAME[tf];
+              const paired = CADENCE_FOR_TIMEFRAME[tf];
+              return (
+                <>
+                  {CADENCES.find((c) => c.sec === sec)?.detail}{" "}
+                  <span className="text-text-dim">
+                    {sec === paired
+                      ? "Matched to your timeframe — one new bar each cycle."
+                      : sec < paired
+                        ? "Faster than your timeframe: some cycles re-read a bar that has not changed yet, and pay for a model call to reach the same answer. What it does buy is tighter stops, since exits are checked every cycle."
+                        : "Slower than your timeframe: the agent will step over bars without ever seeing them. Deliberate if you want to sample a fast chart slowly."}
+                  </span>
+                </>
+              );
+            })()}
+          </p>
+        </section>
       ) : null}
 
       {/* ------------------------------------------------------- budget */}
@@ -1198,22 +1367,43 @@ function RuleChip({
   // one thing that decides what the number means.
   const label = ruleLabel(r, timeframe);
   const basisNote = ruleBasisNote(r, timeframe);
+  // Bounds as they apply at THIS bar size. The spec's own min/max/step are
+  // written in daily terms and stay the base; a percent-of-price rule on
+  // 15-minute bars gets a range a fifteen-minute move can actually reach.
+  //
+  // Widened to hold whatever value is already set, never narrowed onto it. The
+  // composer clamps to the DAILY table whatever bar size it composed at, so it
+  // can hand back a 3% trend floor on 15-minute bars — outside the scaled range
+  // and still what the author asked for. A slider whose max sits under its own
+  // value reports a number nobody chose, so the range gives way, not the value.
+  const scaled = scaleRule(r, timeframe);
+  const bounds = {
+    ...scaled,
+    min: Math.min(scaled.min, r.value),
+    max: Math.max(scaled.max, r.value),
+  };
+  // What the window is in wall-clock time. The label says "14 × 15m"; this says
+  // what nobody should have to work out from it.
+  const span = ruleSpan(r, timeframe);
   return (
     <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}>
           {label} <span className="text-text-dim">{r.op === "gte" ? "at least" : "at most"}</span>
         </p>
-        <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">{r.help}</p>
+        <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+          {r.help}
+          {span ? <span className="text-text-muted"> Window: {span}.</span> : null}
+        </p>
         {basisNote ? (
           <p className="pt-0.5 font-ui text-[11px] leading-relaxed text-text-muted">{basisNote}</p>
         ) : null}
       </div>
       <input
         type="range"
-        min={r.min}
-        max={r.max}
-        step={r.step}
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
         value={r.value}
         disabled={!on}
         onChange={(e) => onChange({ value: Number(e.target.value) })}
@@ -1222,9 +1412,9 @@ function RuleChip({
       />
       <NumberEntry
         value={r.value}
-        min={r.min}
-        max={r.max}
-        step={r.step}
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
         unit={r.unit}
         disabled={!on}
         label={label}

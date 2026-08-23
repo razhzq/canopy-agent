@@ -422,6 +422,20 @@ export interface UniverseAsset {
   issuer?: string;
   /** The mint. Present only for crypto, where it IS the identity. */
   mint?: string;
+  /**
+   * Where it settles. Absent on RWA rows and on anything the backend has not
+   * started reporting, which reads as Solana — the only chain that existed
+   * when this field did not.
+   *
+   * Load-bearing, not decorative: the picker now lists a Solana ETH (Wormhole
+   * Wrapped Ether) and a KalqiX ETH, and the chain is the only thing that
+   * distinguishes them. `(chain, mint)` is the asset's identity everywhere
+   * downstream, so a row without it is ambiguous to a person in exactly the
+   * way it is to the executor.
+   */
+  chain?: "solana" | "base";
+  /** The venue that fills it. Absent means the default router for the chain. */
+  venue?: "jupiter" | "kalqix";
   /** How much is known about a crypto token. Absent for RWA. */
   tier?: "verified" | "listed" | "pool";
   /** A remote logo, for tokens with no bundled ticker file. */

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Gavel, Pause, Play, Plus, Share2, Star, TrendingUp } from "lucide-react";
 
 import { AddMarketModal } from "@/components/addMarket";
-import { RouteBadge, routeOf } from "@/components/routeBadge";
+import { RouteBadge, routeOfMint } from "@/components/routeBadge";
 import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -355,8 +355,15 @@ export function AgentDetailMobile({
               <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">
                 {selectionLabel(sel)}
               </span>
-              {/* Same pair as the pickers — where this one settles and fills. */}
-              <RouteBadge chain="solana" router="jupiter" size={15} />
+              {/* Same pair as the pickers — where this one settles and fills.
+                  Derived from the selection's own mint rather than hardcoded:
+                  a saved KalqiX pick carries a "kalqix:" identity, and showing
+                  it as Solana/Jupiter would name the wrong venue on a row the
+                  owner chose deliberately. */}
+              <RouteBadge
+                {...routeOfMint(sel.kind === "crypto" ? sel.mint : undefined)}
+                size={15}
+              />
             </li>
           ))}
         </ul>

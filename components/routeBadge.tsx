@@ -16,8 +16,8 @@ import type { UniverseAsset } from "@/lib/api";
  * into one shape on a dark surface, and "stacked" is the whole point.
  */
 
-export type Chain = "solana";
-export type Router = "jupiter";
+export type Chain = "solana" | "base";
+export type Router = "jupiter" | "kalqix";
 
 interface Mark {
   label: string;
@@ -39,21 +39,59 @@ interface Mark {
 
 const CHAIN: Record<Chain, Mark> = {
   solana: { label: "Solana", src: "/venues/solana.png", scale: 1.5, bg: "bg-black" },
+  // Base's brand kit ships no pictorial symbol — "TheSquare" is a rounded
+  // square in Base Blue, and that IS the mark. Clipped to a disc it reads as a
+  // blue dot, which is also how wallets show the chain, so nothing is lost at
+  // 17px that a glyph would have carried.
+  base: { label: "Base", src: "/venues/base.png", scale: 1, bg: "bg-[#0000FF]" },
 };
 
 const ROUTER: Record<Router, Mark> = {
   jupiter: { label: "Jupiter", src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
+  // Cropped from the icon+wordmark lockup: the horse fills its square edge to
+  // edge, so it needs no scaling, and its art is on opaque dark like Solana's.
+  kalqix: { label: "KalqiX", src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
 };
 
 /**
  * Which chain and router an asset trades through.
  *
- * `UniverseAsset` carries neither field yet — everything routes one way — so
- * this returns the constant. It exists as a function so the day the universe
- * starts reporting them, the change is here and nothing else moves.
+ * That day has arrived: the universe now reports a second chain. A KalqiX
+ * listing settles on Base and fills on the venue's own order book; everything
+ * else is a Solana spot swap through Jupiter.
+ *
+ * Read from `chain` rather than from the symbol, for the same reason the
+ * executor routes on it: the picker carries both a Solana ETH (Wormhole
+ * Wrapped Ether) and a KalqiX ETH, and only the chain tells them apart.
+ *
+ * An unrecognised chain falls back to the Solana pair rather than throwing —
+ * a badge is decoration, and a row that renders the wrong two discs is a much
+ * smaller problem than a market picker that crashes. The executor makes the
+ * same distinction and refuses there, which is where refusing belongs.
  */
-export function routeOf(_asset: UniverseAsset): { chain: Chain; router: Router } {
-  return { chain: "solana", router: "jupiter" };
+export function routeOf(asset: UniverseAsset): { chain: Chain; router: Router } {
+  return asset.chain ? routeOfChain(asset.chain) : routeOfMint(asset.mint);
+}
+
+function routeOfChain(chain: string): { chain: Chain; router: Router } {
+  return chain === "base"
+    ? { chain: "base", router: "kalqix" }
+    : { chain: "solana", router: "jupiter" };
+}
+
+/**
+ * The same answer, from a bare mint.
+ *
+ * A saved selection stores only `{kind:"crypto", mint}` — it has no chain
+ * field and predates the second one. It does not need one: a KalqiX identity
+ * is namespaced ("kalqix:cbBTC"), so the mint says where it settles. That is
+ * the whole reason the identity carries the venue rather than pretending to
+ * be an address.
+ */
+export function routeOfMint(mint?: string): { chain: Chain; router: Router } {
+  return mint?.startsWith("kalqix:")
+    ? { chain: "base", router: "kalqix" }
+    : { chain: "solana", router: "jupiter" };
 }
 
 function Disc({ mark, size }: { mark: Mark; size: number }) {

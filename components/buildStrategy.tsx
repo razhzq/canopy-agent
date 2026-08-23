@@ -72,6 +72,20 @@ export interface RuleSpec {
    * worse than not offering it.
    */
   classes?: ("rwa" | "spot")[];
+  /**
+   * Whether this rule's USEFUL RANGE shrinks as the bar gets smaller.
+   *
+   * A percent-of-price threshold is not portable across bar sizes. "Min trend
+   * ≥ 3%" is an ordinary ask on daily bars and unreachable on 15-minute ones,
+   * where the 20/50 spread lives inside ±2% almost all the time — so the
+   * slider handed someone a range whose bottom 90% was "off" and whose top was
+   * "never matches", with a 1% step that stepped clean over everything real.
+   *
+   * `dispersion` marks the rules measured in percent of price, whose spread
+   * scales with the square root of the bar's duration. `scaleRule` applies it.
+   * Scale-free rules (RSI, Bollinger %B, a count of bars) carry nothing here.
+   */
+  scale?: "dispersion";
 }
 
 /**
@@ -151,13 +165,41 @@ export const RWA_RULES: RuleSpec[] = [
     step: 0.5,
     unit: "%",
   },
+  /**
+   * The bar-basis sibling of `changePct`, and the reason it exists.
+   *
+   * "Max change on the day" is 24-hour change from the universe store — it does
+   * NOT follow the strategy's timeframe, so on a 15-minute strategy it is the
+   * one rule still asking about yesterday. Someone building an intraday entry
+   * wants "has it moved over the last 20 bars", and the specialist has computed
+   * exactly that all along (`rateOfChangePct` over 20 bars, published as
+   * momentum20dPct) — the builder simply never offered it, so the only way to
+   * reach it was to say "momentum" in a sentence and hope the composer heard.
+   *
+   * Named as the backend names it. The trailing "d" is a fossil from when every
+   * bar was a day; the fact is 20 BARS at whatever size the strategy runs.
+   */
+  {
+    key: "momentum20dPct",
+    label: "Min momentum",
+    basis: "bars",
+    periods: "20",
+    help: "Percent change over the last 20 bars. Above 0 requires it to have risen; negative buys weakness. This is the change rule that follows your timeframe.",
+    op: "gte",
+    value: 0,
+    min: -50,
+    max: 50,
+    step: 1,
+    unit: "%",
+    scale: "dispersion",
+  },
   // Technical, computed from daily closes. Windows fit the 120-day history.
   {
     key: "rsi14",
     label: "Max RSI",
     basis: "bars",
     periods: "14",
-    help: "Daily RSI. 70+ is conventionally overbought — lower this to avoid buying into a run.",
+    help: "70+ is conventionally overbought — lower this to avoid buying into a run. Scale-free: 70 means the same thing on every bar size.",
     op: "lte",
     value: 70,
     min: 10,
@@ -170,26 +212,28 @@ export const RWA_RULES: RuleSpec[] = [
     label: "Min trend",
     basis: "bars",
     periods: "20 vs 50",
-    help: "Gap between the 20- and 50-day averages. Above 0 means the short average leads — an uptrend.",
+    help: "Gap between the 20- and 50-bar averages. Above 0 means the short average leads — an uptrend.",
     op: "gte",
     value: 0,
     min: -20,
     max: 20,
     step: 1,
     unit: "%",
+    scale: "dispersion",
   },
   {
     key: "belowHigh60dPct",
     label: "Min below high",
     basis: "bars",
     periods: "60",
-    help: "How far under the 60-day high it must sit. Above 0 buys pullbacks rather than breakouts.",
+    help: "How far under the 60-bar high it must sit. Above 0 buys pullbacks rather than breakouts.",
     op: "gte",
     value: 0,
     min: 0,
     max: 60,
     step: 1,
     unit: "%",
+    scale: "dispersion",
   },
   {
     key: "macdHistPct",
@@ -203,6 +247,7 @@ export const RWA_RULES: RuleSpec[] = [
     max: 2,
     step: 0.05,
     unit: "%",
+    scale: "dispersion",
   },
   {
     key: "atrPct",
@@ -222,13 +267,14 @@ export const RWA_RULES: RuleSpec[] = [
     // rule now rejects the asset rather than being skipped, which would stop the
     // strategy trading entirely.
     classes: ["spot"] as ("rwa" | "spot")[],
+    scale: "dispersion",
   },
   {
     key: "bollingerPctB",
     label: "Max Bollinger %B",
     basis: "bars",
     periods: "20",
-    help: "Where price sits in the 20-day bands: 0 is the lower band, 50 the average, 100 the upper. Lower this to buy near the bottom of the range.",
+    help: "Where price sits in the 20-bar bands: 0 is the lower band, 50 the average, 100 the upper. Lower this to buy near the bottom of the range.",
     op: "lte",
     value: 50,
     min: -20,
@@ -248,6 +294,7 @@ export const RWA_RULES: RuleSpec[] = [
     max: 40,
     step: 1,
     unit: "%",
+    scale: "dispersion",
   },
   // SUPERTREND — the state, then the two events.
   //
@@ -268,6 +315,7 @@ export const RWA_RULES: RuleSpec[] = [
     step: 0.5,
     unit: "%",
     classes: ["spot"] as ("rwa" | "spot")[],
+    scale: "dispersion",
   },
   {
     key: "supertrendFlipUpBars",
@@ -303,13 +351,162 @@ export const RWA_RULES: RuleSpec[] = [
 export type Timeframe = "1d" | "1h" | "30m" | "15m" | "5m";
 export const DEFAULT_TIMEFRAME: Timeframe = "1d";
 
-export const TIMEFRAMES: { tf: Timeframe; label: string; detail: string }[] = [
+export const TIMEFRAMES: {
+  tf: Timeframe;
+  label: string;
+  detail: string;
+  /**
+   * Which asset classes are actually SERVED at this bar size.
+   *
+   * Not a preference. A crypto strategy set to 30m is refused by the specialist
+   * at screening time — GeckoTerminal builds minute bars up to 15 and hour bars
+   * from 60, so there is no combination that yields 30, and CRYPTO_TIMEFRAMES
+   * in the agent stack says so. Offering the pill anyway produced an agent that
+   * passed every validation, deployed, woke on schedule and bought nothing,
+   * with the reason buried in a screening trace nobody opens.
+   */
+  classes?: ("rwa" | "spot")[];
+}[] = [
   { tf: "1d", label: "1 day", detail: "The default. ~120 days of history behind every indicator." },
   { tf: "1h", label: "1 hour", detail: "Two months of history. A 14-period RSI spans two days." },
-  { tf: "30m", label: "30 min", detail: "Six weeks of history." },
+  {
+    tf: "30m",
+    label: "30 min",
+    detail: "Six weeks of history. Tokenized assets only — token pools are not built at this size.",
+    classes: ["rwa"] as ("rwa" | "spot")[],
+  },
   { tf: "15m", label: "15 min", detail: "A month of history. A 14-period RSI spans about 3½ hours." },
   { tf: "5m", label: "5 min", detail: "A month of history. The finest the scheduler can act on." },
 ];
+
+/** The bar sizes one class can actually be screened at. */
+export function timeframesForClass(strategyClass: "rwa" | "spot"): Timeframe[] {
+  return TIMEFRAMES.filter((t) => !t.classes || t.classes.includes(strategyClass)).map((t) => t.tf);
+}
+
+/**
+ * How many bars of this size fall in a day. The basis for every span and scale
+ * below, and the reason none of them are hand-written tables.
+ */
+export const BARS_PER_DAY: Record<Timeframe, number> = {
+  "1d": 1,
+  "1h": 24,
+  "30m": 48,
+  "15m": 96,
+  "5m": 288,
+};
+
+/**
+ * How much narrower a percent-of-price threshold gets at this bar size.
+ *
+ * Price dispersion grows with the square root of elapsed time — the standard
+ * result, and close enough on real crypto series to be the right shape for a
+ * slider. A 20/50 spread that lives inside ±20% on daily bars lives inside
+ * roughly ±2% on 15-minute ones, so the daily range is not a wide version of
+ * the right range: it is the wrong range, with a step that jumps over every
+ * value the author might have meant.
+ *
+ * Rounded to whole numbers so the bounds a person sees are stable and legible
+ * rather than 9.7979-ths of something. 1d: 1 · 1h: 5 · 30m: 7 · 15m: 10 · 5m: 17.
+ */
+export function dispersionScale(timeframe: Timeframe): number {
+  return Math.max(1, Math.round(Math.sqrt(BARS_PER_DAY[timeframe])));
+}
+
+/**
+ * Snap a step onto the 1 / 2 / 5 grid every real slider uses.
+ *
+ * Dividing a daily step by 17 gives 0.0294, and a slider stepping in 0.0294
+ * lands on 0.0294, 0.0588, 0.0882 — numbers no one would ever choose to type.
+ * The grid keeps the reachable values round at every bar size.
+ */
+function tidyStep(n: number): number {
+  if (!(n > 0)) return 0.001;
+  const exp = Math.floor(Math.log10(n));
+  const base = n / 10 ** exp;
+  const snapped = base < 1.5 ? 1 : base < 3.5 ? 2 : base < 7.5 ? 5 : 10;
+  return Number((snapped * 10 ** exp).toPrecision(2));
+}
+
+/** Round to a sane number of decimals for a bound this size. */
+function tidy(n: number): number {
+  const abs = Math.abs(n);
+  const dp = abs >= 10 ? 0 : abs >= 1 ? 1 : abs >= 0.1 ? 2 : 3;
+  return Number(n.toFixed(dp));
+}
+
+/**
+ * A rule's bounds AS THEY APPLY at this timeframe.
+ *
+ * The specs above are written in daily terms and stay that way — they are the
+ * base, and every other bar size is derived from them, so there is one table to
+ * keep true rather than five. Only `scale: "dispersion"` rules move; RSI,
+ * Bollinger %B and bar counts come back untouched.
+ *
+ * `value` is NOT scaled here. It is the author's own threshold, already in the
+ * units of whatever timeframe they set it at — rescaling it on every render
+ * would drag their number around behind them. `rescaleRuleValue` moves it once,
+ * at the moment the timeframe actually changes.
+ */
+export function scaleRule(spec: RuleSpec, timeframe: Timeframe): RuleSpec {
+  if (spec.scale !== "dispersion") return spec;
+  const f = dispersionScale(timeframe);
+  if (f === 1) return spec;
+  return {
+    ...spec,
+    min: tidy(spec.min / f),
+    max: tidy(spec.max / f),
+    // Never zero: a zero step makes a range input refuse every drag.
+    step: Math.max(tidyStep(spec.step / f), 0.001),
+  };
+}
+
+/**
+ * Move a threshold from one bar size to another, preserving what it MEANT.
+ *
+ * "Min trend ≥ 3%" carried unchanged onto 15-minute bars is not a stricter
+ * version of the same ask — it is a filter nothing passes, which reads on the
+ * dashboard as a broken agent rather than as a setting. Scaled, it becomes
+ * ≥ 0.3%: the same position in the same distribution, which is what the author
+ * chose even though the number they typed was 3.
+ *
+ * Returns the value untouched for scale-free rules, and for 0 — a floor at zero
+ * means "must be positive" at every bar size, and scaling it would be arithmetic
+ * on an intent that has no units.
+ */
+export function rescaleRuleValue(rule: RuleSpec, from: Timeframe, to: Timeframe): number {
+  if (rule.scale !== "dispersion" || rule.value === 0) return rule.value;
+  const scaled = (rule.value * dispersionScale(from)) / dispersionScale(to);
+  const bounds = scaleRule(rule, to);
+  return Math.min(bounds.max, Math.max(bounds.min, tidy(scaled)));
+}
+
+/**
+ * What a rule's window is in wall-clock time, e.g. "≈ 3h 30m".
+ *
+ * The one thing the label cannot say. "Max RSI (14 × 15m)" is honest and still
+ * leaves the reader doing arithmetic to find out they are filtering on three
+ * and a half hours of selling — which is the whole difference between the rule
+ * they think they set and the one they set.
+ *
+ * Null when the window is not a plain count of bars (MACD's 12/26/9, a 20 vs 50
+ * spread) or on daily, where the label already reads in days.
+ */
+export function ruleSpan(spec: RuleSpec, timeframe: Timeframe): string | null {
+  if (spec.basis !== "bars" || !spec.periods || timeframe === "1d") return null;
+  const bars = Number(spec.periods);
+  if (!Number.isFinite(bars) || bars <= 0) return null;
+  const minutes = (bars * 1440) / BARS_PER_DAY[timeframe];
+  if (minutes < 60) return `≈ ${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round(minutes - h * 60);
+    return m === 0 ? `≈ ${h}h` : `≈ ${h}h ${m}m`;
+  }
+  const days = hours / 24;
+  return `≈ ${days < 10 ? days.toFixed(1) : Math.round(days)} days`;
+}
 
 /**
  * How a rule reads at a given timeframe.
@@ -333,10 +530,15 @@ export function ruleLabel(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRA
 
 /** One line stating what a rule is measured against. Pairs with the label. */
 export function ruleBasisNote(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRAME): string | null {
-  if (spec.basis === "daily" && timeframe !== "1d") {
-    return "Always daily — this one does not follow the strategy timeframe.";
+  if (spec.basis !== "daily" || timeframe === "1d") return null;
+  // Naming the replacement, not just the problem. "Does not follow the
+  // timeframe" told an intraday author their rule was wrong and left them with
+  // no way to say the thing they meant — while the fact that says it has been
+  // computed on their own bars the whole time, one row down this list.
+  if (spec.key === "changePct") {
+    return "Always 24 hours — this one does not follow the strategy timeframe. For a change measured on your bars, use Min momentum below.";
   }
-  return null;
+  return "Always daily — this one does not follow the strategy timeframe.";
 }
 
 /**
@@ -356,6 +558,10 @@ export function ruleBasisNote(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIM
 export const CADENCES: { sec: number; label: string; detail: string }[] = [
   { sec: 300, label: "5 min", detail: "Fastest stops. ~288 model calls a day." },
   { sec: 900, label: "15 min", detail: "Reacts within the session. ~96 a day." },
+  // Present for the same reason as the 30-minute timeframe: without it,
+  // picking 30m bars moved cadence to a value with no pill to show it, so the
+  // row rendered with nothing selected and the choice looked lost.
+  { sec: 1800, label: "30 min", detail: "~48 a day." },
   { sec: 3600, label: "1 hour", detail: "The default. ~24 a day." },
   { sec: 14_400, label: "4 hours", detail: "Quiet. ~6 a day." },
   { sec: 86_400, label: "1 day", detail: "One cycle a day." },

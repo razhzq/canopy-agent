@@ -22,6 +22,7 @@ import {
   RWA_RULES,
   describeAddPlan,
   fmt,
+  ruleBasisNote,
   ruleLabel,
   type Timeframe,
 } from "@/components/buildStrategy";
@@ -1350,11 +1351,21 @@ function RuleChip({
   timeframe?: Timeframe;
 }) {
   const spec = RWA_RULES.find((r) => r.key === rule.key);
+  // A rule that does not follow the strategy's bar size says so HERE too, not
+  // only in the builder. Someone reading a running 15-minute agent sees "Max
+  // change on the day ≤ −4%" beside rules measured in minutes, and nothing on
+  // the page tells them that one is still asking about the last 24 hours.
+  const basisNote = spec ? ruleBasisNote(spec, timeframe) : null;
   return (
     <Chip>
       {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
       {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
       <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
+      {basisNote ? (
+        <span className="pl-1.5 text-text-muted" title={basisNote}>
+          · {rule.key === "changePct" ? "24h" : "daily"}
+        </span>
+      ) : null}
     </Chip>
   );
 }
