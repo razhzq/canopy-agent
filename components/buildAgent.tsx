@@ -25,6 +25,8 @@ import {
   DEFAULT_ROUTE,
   PickRoute,
   describeRoute,
+  liveVenuesFor,
+  routeIsValidFor,
   type RouteChoice,
 } from "@/components/pickRoute";
 
@@ -109,6 +111,9 @@ export function BuildAgent() {
   // Builder state only — no strategy or deploy payload carries a venue yet.
   // See the note at the top of pickRoute.tsx.
   const [route, setRoute] = useState<RouteChoice>(DEFAULT_ROUTE);
+  // Which venues can fill what is currently selected. Derived, not state: the
+  // answer changes with the market and there is nothing to keep in sync.
+  const liveVenues = liveVenuesFor(markets);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A created-but-not-yet-started strategy, held back because its plan drew
@@ -248,6 +253,11 @@ export function BuildAgent() {
     const beforeClasses = classesIn(markets);
     const afterClasses = classesIn(next);
     setMarkets(next);
+    // A pin can be stranded by the change: KalqiX cannot fill a Solana pair,
+    // nor Jupiter a Base one. Fall back to Auto rather than leave a pin naming
+    // a venue this selection never reaches — and rather than silently re-pin
+    // somewhere the creator did not choose.
+    if (!routeIsValidFor(route, next)) setRoute(DEFAULT_ROUTE);
     if (afterClasses.join() !== beforeClasses.join()) {
       setLimits((l) => {
         const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
@@ -313,7 +323,7 @@ export function BuildAgent() {
         value: limits.complianceProfile === "shariah" ? "Shariah" : "None",
         step: "02",
       },
-      { label: "Routing", value: describeRoute(route), step: "03" },
+      { label: "Routing", value: describeRoute(route, markets), step: "03" },
     ];
   }
 
@@ -393,7 +403,7 @@ export function BuildAgent() {
             />
           ) : (
             <PickRoute
-              market={asset}
+              markets={markets}
               value={route}
               onChange={setRoute}
               onBack={() => setStep(1)}
@@ -480,7 +490,7 @@ export function BuildAgent() {
               />
             ) : (
               <PickRoute
-                market={asset}
+                markets={markets}
                 value={route}
                 onChange={setRoute}
                 onBack={() => setStep(1)}
@@ -524,7 +534,15 @@ export function BuildAgent() {
                 done={false}
                 here={step === 2}
                 label="Route"
-                value={step === 2 ? describeRoute(route) : "2 venues live · choose next"}
+                value={
+                  step === 2
+                    ? describeRoute(route, markets)
+                    : markets.length === 0
+                      ? "after the market"
+                      : `${liveVenues.length} ${
+                          liveVenues.length === 1 ? "venue" : "venues"
+                        } live · choose next`
+                }
               />
               <Trail done={false} label="Paper run" value="free, no time limit" />
               <Trail done={false} label="Publish" value="whenever you like" />

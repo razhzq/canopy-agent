@@ -2,6 +2,7 @@
 
 import { num, type UniverseAsset } from "@/lib/api";
 import { tokenPrice } from "@/lib/format";
+import { routeOf, type Chain } from "@/components/routeBadge";
 
 /**
  * Step 3 — choose a venue. Wireframe 1f.
@@ -9,18 +10,32 @@ import { tokenPrice } from "@/lib/format";
  * WHY THIS STEP EXISTS AGAIN
  *
  * The builder used to run market → limits → paper run, on the wireframe's own
- * rule that "markets with only one live venue skip this step entirely". Two are
- * live for the RWA pairs now, so the step comes back where the wireframe puts
- * it: after the limits, before the paper test that the footer button starts.
+ * rule that "markets with only one live venue skip this step entirely". More
+ * than one is live for the RWA pairs now, so the step comes back where the
+ * wireframe puts it: after the limits, before the paper test that the footer
+ * button starts.
+ *
+ * WHICH VENUES ARE LIVE IS A PROPERTY OF THE SELECTION, NOT OF THE APP
+ *
+ * The venue list used to be one global constant, which was true only while
+ * every market settled on Solana. It is not any more: a KalqiX listing fills on
+ * that venue's own order book on Base, and Jupiter cannot touch it — nor KalqiX
+ * a Solana pair. So liveness is resolved per selection, from the chains the
+ * chosen markets settle on, and a venue that cannot fill what you picked is not
+ * listed at all rather than listed as "Live" and wrong.
+ *
+ * The not-yet-integrated venues are the exception: they are listed for every
+ * selection, because their chain is not a fact this frontend has yet, and the
+ * point of those rows is to say that a pin is not forever.
  *
  * WHAT IS REAL ON THIS SCREEN
  *
  * Jupiter's price and depth are the ones the universe resolver already returned
- * for the chosen market — the same numbers step 1 ranked on. Canopy's quote is
- * NOT wired to this frontend yet, so its row shows its published fee and a dash
- * where a live quote would be, rather than a plausible-looking number nobody
- * measured. The three integrating venues are listed because the wireframe lists
- * them: they set the expectation that a pin is not forever.
+ * for the chosen market — the same numbers step 1 ranked on. Neither Canopy's
+ * nor KalqiX's quote is wired to this frontend, so those rows show what is
+ * published — a fee, or a dash where there is no published schedule — and say
+ * as much where a live quote would go, rather than a plausible-looking number
+ * nobody measured.
  *
  * NOT SENT TO THE BACKEND YET
  *
@@ -43,56 +58,118 @@ export const DEFAULT_ROUTE: RouteChoice = { mode: "auto", venue: "jupiter" };
 type Venue = {
   key: string;
   name: string;
-  /** Taker fee as a percentage, or null while the venue is integrating. */
+  /** Taker fee as a percentage, or null where the venue publishes no schedule. */
   feePct: number | null;
   live: boolean;
-  /** Shown instead of a depth bar for venues that are not live. */
+  /**
+   * The chain this venue fills on. Set only for live venues: it is what scopes
+   * them to a selection, and it is not a fact this frontend has for the ones
+   * still integrating.
+   */
+  chain?: Chain;
+  /** Shown instead of a depth bar when there is no quote to draw. */
   note?: string;
 };
 
 /**
- * The venue list. Fees are published schedules, not quotes — a quote is the
- * price/depth pair, and only Jupiter's is available to this frontend today.
+ * Every venue this builder knows about, live or coming.
+ *
+ * Fees are published schedules, not quotes — a quote is the price/depth pair,
+ * and only Jupiter's is available to this frontend today. KalqiX publishes no
+ * flat taker schedule to put in that column, so its fee is a dash rather than
+ * a guess.
  */
 const VENUES: Venue[] = [
-  { key: "jupiter", name: "Jupiter", feePct: 0.04, live: true },
-  { key: "canopy", name: "Canopy", feePct: 0.02, live: true },
+  { key: "jupiter", name: "Jupiter", feePct: 0.04, live: true, chain: "solana" },
+  { key: "canopy", name: "Canopy", feePct: 0.02, live: true, chain: "solana" },
+  {
+    key: "kalqix",
+    name: "KalqiX",
+    feePct: null,
+    live: true,
+    chain: "base",
+    note: "CLOB on Base · quote not wired yet",
+  },
   { key: "aeonian", name: "Aeonian", feePct: null, live: false, note: "RWA DEX · integrating" },
-  { key: "kalqix", name: "KalqiX", feePct: null, live: false, note: "CLOB DEX · integrating" },
   { key: "edgex", name: "edgeX", feePct: null, live: false, note: "Spot & perps · integrating" },
 ];
 
-export const LIVE_VENUES = VENUES.filter((v) => v.live);
+/** The chains a selection settles on. Empty before a market is picked. */
+function chainsOf(markets: UniverseAsset[]): Set<Chain> {
+  return new Set(markets.map((m) => routeOf(m).chain));
+}
+
+/**
+ * The venues that can actually fill this selection.
+ *
+ * A mixed-chain universe returns the union: the agent trades every market it
+ * was given, so every venue that can fill any of them is a real option.
+ */
+export function liveVenuesFor(markets: UniverseAsset[]): Venue[] {
+  const chains = chainsOf(markets);
+  return VENUES.filter((v) => v.live && v.chain && chains.has(v.chain));
+}
+
+/** The rows step 3 shows: what can fill this selection, plus what is coming. */
+function venuesFor(markets: UniverseAsset[]): Venue[] {
+  const live = new Set(liveVenuesFor(markets).map((v) => v.key));
+  return VENUES.filter((v) => live.has(v.key) || !v.live);
+}
+
+/**
+ * Whether a pinned choice still means anything for this selection.
+ *
+ * Changing the market can strand a pin — pin KalqiX, step back, swap to a
+ * Solana pair, and the agent is pinned to a venue that cannot fill it. The
+ * caller resets rather than silently re-routing, because "auto" and "pinned
+ * somewhere else" are different promises to the person who chose.
+ */
+export function routeIsValidFor(route: RouteChoice, markets: UniverseAsset[]): boolean {
+  if (route.mode === "auto") return true;
+  return liveVenuesFor(markets).some((v) => v.key === route.venue);
+}
 
 /** One line for the summary rail: what the current choice actually routes to. */
-export function describeRoute(route: RouteChoice): string {
+export function describeRoute(route: RouteChoice, markets: UniverseAsset[]): string {
+  const live = liveVenuesFor(markets);
   if (route.mode === "auto") {
-    return `Auto · ${LIVE_VENUES.map((v) => v.name).join(" + ")}`;
+    return live.length ? `Auto · ${live.map((v) => v.name).join(" + ")}` : "Auto";
   }
-  const v = LIVE_VENUES.find((x) => x.key === route.venue);
+  const v = live.find((x) => x.key === route.venue);
   return `Pinned · ${v?.name ?? "—"}`;
 }
 
 export function PickRoute({
-  market,
+  markets,
   value,
   onChange,
   onBack,
 }: {
-  market: UniverseAsset;
+  /**
+   * The whole selection. Step 1 is multi-select, and the venues that can fill
+   * it are the union across every chain it settles on.
+   */
+  markets: UniverseAsset[];
   value: RouteChoice;
   onChange: (next: RouteChoice) => void;
   onBack: () => void;
 }) {
-  const pair = `${market.symbol}/USDC`;
+  // A quote belongs to a market, not to a selection. With one market picked the
+  // row can carry its real price and depth; with several there is no single
+  // number to put there, and the cell says so rather than showing the first
+  // market's and letting it read as the route's.
+  const single = markets.length === 1 ? markets[0] : null;
+  const pair = single ? `${single.symbol}/USDC` : `these ${markets.length} markets`;
+  const rows = venuesFor(markets);
+  const live = liveVenuesFor(markets);
 
   // Only Jupiter has a quote here, so it is also the only bar with a length.
   // A single full-width bar would read as "deepest of several" when it is
   // really "the one we can measure" — so the bar is scaled against the row's
   // own liquidity and the unmeasured row gets a dash instead of an empty
   // track that looks like zero depth.
-  const jupiterPrice = num(market.priceUsd);
-  const jupiterDepth = num(market.liquidityUsd);
+  const jupiterPrice = single ? num(single.priceUsd) : null;
+  const jupiterDepth = single ? num(single.liquidityUsd) : null;
 
   return (
     <div className="space-y-6">
@@ -102,9 +179,11 @@ export function PickRoute({
         </p>
         <h2 className="font-mono text-[22px] leading-none text-text-primary">Choose a venue</h2>
         <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
-          {LIVE_VENUES.length} venues are live for {pair} —{" "}
-          {LIVE_VENUES.map((v) => v.name).join(" and ")}. Markets with only one live venue skip
-          this step entirely.
+          {live.length === 1 ? "One venue is" : `${live.length} venues are`} live for {pair} —{" "}
+          {live.map((v) => v.name).join(" and ")}
+          {live.length === 1
+            ? ". Nothing else can fill it yet, so Auto and pinning come to the same thing here."
+            : "."}
         </p>
       </div>
 
@@ -112,7 +191,7 @@ export function PickRoute({
         <ModeCard
           title="Auto"
           badge="Recommended"
-          body="Best price across every live venue, checked per trade."
+          body="Best price across every venue that can fill this market, checked per trade."
           active={value.mode === "auto"}
           onClick={() => onChange({ ...value, mode: "auto" })}
         />
@@ -137,7 +216,7 @@ export function PickRoute({
             <span>Liquidity depth</span>
           </div>
 
-          {VENUES.map((v) => {
+          {rows.map((v) => {
             const pinned = value.mode === "pin" && value.venue === v.key;
             const price = v.key === "jupiter" ? jupiterPrice : null;
             const depth = v.key === "jupiter" ? jupiterDepth : null;
@@ -186,10 +265,12 @@ export function PickRoute({
                 {v.note ? (
                   <span className="truncate font-ui text-[11.5px] text-text-muted">{v.note}</span>
                 ) : depth === null ? (
-                  // Live, but this frontend has no quote for it. Say that
-                  // rather than draw an empty bar, which reads as no depth.
+                  // No quote to draw — either this frontend has none for the
+                  // venue, or several markets are selected and a quote is per
+                  // market. Say which, rather than draw an empty bar, which
+                  // reads as no depth.
                   <span className="truncate font-ui text-[11.5px] text-text-muted">
-                    Quote not wired yet
+                    {single ? "Quote not wired yet" : "Quotes are per market"}
                   </span>
                 ) : (
                   <span className="flex min-w-0 items-center gap-3">
@@ -234,7 +315,7 @@ export function PickRoute({
         <span className="mt-0.5 w-0.5 shrink-0 self-stretch bg-accent" />
         <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
           {value.mode === "auto"
-            ? "Auto prices across every live venue on every trade, and picks up new ones as they integrate."
+            ? "Auto prices across every venue that can fill this market on every trade, and picks up new ones as they integrate."
             : "Pinned agents stay where you put them until you change it — including after a new venue integrates."}{" "}
           The paper run does not fill on a venue, so this is the route your agent takes when you
           take it live.

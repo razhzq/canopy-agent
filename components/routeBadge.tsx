@@ -46,11 +46,23 @@ const CHAIN: Record<Chain, Mark> = {
   base: { label: "Base", src: "/venues/base.png", scale: 1, bg: "bg-[#0000FF]" },
 };
 
+/**
+ * What each router is called in prose.
+ *
+ * Split out of the mark table so the market picker's venue filter and this
+ * badge cannot disagree about a name — the filter needs the label without the
+ * artwork, and two hand-kept lists of the same two strings drift.
+ */
+export const ROUTER_LABEL: Record<Router, string> = {
+  jupiter: "Jupiter",
+  kalqix: "KalqiX",
+};
+
 const ROUTER: Record<Router, Mark> = {
-  jupiter: { label: "Jupiter", src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
+  jupiter: { label: ROUTER_LABEL.jupiter, src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
   // Cropped from the icon+wordmark lockup: the horse fills its square edge to
   // edge, so it needs no scaling, and its art is on opaque dark like Solana's.
-  kalqix: { label: "KalqiX", src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
+  kalqix: { label: ROUTER_LABEL.kalqix, src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
 };
 
 /**

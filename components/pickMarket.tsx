@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
-import { RouteBadge, routeOf } from "@/components/routeBadge";
+import { RouteBadge, routeOf, ROUTER_LABEL, type Router } from "@/components/routeBadge";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -41,6 +41,17 @@ import { RouteBadge, routeOf } from "@/components/routeBadge";
  * The choice is not cosmetic. A strategy has exactly ONE class — one specialist
  * screens it — so the category picked here decides which specialist runs and,
  * in the next step, which rules can even apply.
+ */
+/**
+ * VENUE IS A SECOND AXIS, NOT A FIFTH CHIP.
+ *
+ * "CLOB" or "KalqiX" cannot join the list below without breaking it. These
+ * chips are a partition — every market lands in exactly one, and which one
+ * decides the specialist — while a KalqiX cbBTC is crypto AND an order book.
+ * Adding it here would put the same row under two chips and imply a specialist
+ * that does not exist. So the venue filter is its own control: it composes with
+ * the class instead of competing with it, and it appears only once the universe
+ * actually reports more than one venue.
  */
 export const MARKET_CLASSES = [
   { key: "all", label: "All", admits: () => true },
@@ -103,11 +114,34 @@ export function PickMarket({
   const universe = useApi((t) => getAllMarkets(t), [], peekAllMarkets() ?? undefined);
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
+  /** A router key, or "all". Independent of the class chips — see the note above. */
+  const [venue, setVenue] = useState<Router | "all">("all");
   const [cursor, setCursor] = useState(0);
   const search = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const assets = universe.phase === "ready" ? universe.data : [];
+
+  /**
+   * The venues actually present in the loaded universe, in the order the router
+   * table lists them.
+   *
+   * Derived rather than hardcoded: a filter offering KalqiX on a day the
+   * backend returned no KalqiX listing is a control that can only produce an
+   * empty list. The filter disappears entirely while there is one venue to
+   * choose from — a one-option filter is furniture.
+   */
+  const venuesPresent = useMemo(() => {
+    const seen = new Set<Router>();
+    for (const a of assets) seen.add(routeOf(a).router);
+    return (Object.keys(ROUTER_LABEL) as Router[]).filter((r) => seen.has(r));
+  }, [assets]);
+
+  // A venue can leave the universe between loads. Fall back rather than show an
+  // empty list under a chip that is still lit.
+  useEffect(() => {
+    if (venue !== "all" && !venuesPresent.includes(venue)) setVenue("all");
+  }, [venue, venuesPresent]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,13 +149,14 @@ export function PickMarket({
     return assets.filter(
       (a) =>
         admits(a) &&
+        (venue === "all" || routeOf(a).router === venue) &&
         (q === "" ||
           a.symbol.toLowerCase().includes(q) ||
           (a.name ?? "").toLowerCase().includes(q) ||
           (a.underlying ?? "").toLowerCase().includes(q) ||
           (a.issuer ?? "").toLowerCase().includes(q)),
     );
-  }, [assets, query, klass]);
+  }, [assets, query, klass, venue]);
 
   /**
    * Tickers held by more than one asset on screen.
@@ -231,24 +266,60 @@ export function PickMarket({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          {CLASSES.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => {
-                setKlass(c.key);
-                setCursor(0);
-              }}
-              className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
-                klass === c.key
-                  ? "border-accent bg-accent-wash text-accent"
-                  : "border-border text-text-secondary hover:border-grid-strong"
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2">
+            {CLASSES.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => {
+                  setKlass(c.key);
+                  setCursor(0);
+                }}
+                className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
+                  klass === c.key
+                    ? "border-accent bg-accent-wash text-accent"
+                    : "border-border text-text-secondary hover:border-grid-strong"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          {/*
+            The venue filter. Square and captioned where the class chips are
+            round and bare, because the two do different things, and reading
+            them as one row of choices is exactly the mistake this shape avoids:
+            class picks WHAT, venue picks WHERE, and they compose.
+          */}
+          {venuesPresent.length > 1 ? (
+            <div className="flex items-center gap-2 border-l border-grid pl-3">
+              <span className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+                Venue
+              </span>
+              <div className="flex items-center">
+                {(["all", ...venuesPresent] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={venue === v}
+                    onClick={() => {
+                      setVenue(v);
+                      setCursor(0);
+                    }}
+                    className={`-ml-px h-8 border px-3 font-mono text-[11px] transition-colors first:ml-0 ${
+                      venue === v
+                        ? "relative z-10 border-accent bg-accent-wash text-accent"
+                        : "border-border text-text-secondary hover:border-grid-strong"
+                    }`}
+                  >
+                    {v === "all" ? "All" : ROUTER_LABEL[v]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -279,7 +350,9 @@ export function PickMarket({
         <Note tone="warning">
           {assets.length === 0
             ? "No market currently resolves as tradable."
-            : `Nothing matches “${query}”.`}
+            : query.trim()
+              ? `Nothing matches “${query}”.`
+              : "No market matches these filters."}
         </Note>
       ) : (
         <div ref={listRef} className="border border-grid">
