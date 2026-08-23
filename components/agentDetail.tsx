@@ -77,8 +77,10 @@ import {
  *   subscription in the agent stack. `created_at` is real, so "live since"
  *   stays; the uptime cell became CADENCE, which is real and is the number that
  *   actually tells you how often it looks.
- * - ROUTE. Chosen in the builder but not yet stored — see pickRoute.tsx. Shown
- *   as unset rather than asserted.
+ * - ROUTE. Not stored on the agent, and no longer chosen either: the builder's
+ *   venue step is gone, because the market settles which venues can fill it.
+ *   Derivable from the universe via `describeVenues` in lib/venues.ts — shown
+ *   as unset here rather than asserted, until the agent payload carries it.
  * - THE PRICE CHART with entry and trigger lines. Nothing in this API serves
  *   per-market price history. The distance-to-trigger meters carry the same
  *   information from the live mark, so the panel keeps the meaning and drops

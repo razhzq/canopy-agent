@@ -21,14 +21,7 @@ import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
 import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
-import {
-  DEFAULT_ROUTE,
-  PickRoute,
-  describeRoute,
-  liveVenuesFor,
-  routeIsValidFor,
-  type RouteChoice,
-} from "@/components/pickRoute";
+import { describeVenues } from "@/lib/venues";
 
 /**
  * The asset classes present in a selection, in a stable order.
@@ -42,27 +35,34 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
 }
 
 /**
- * The agent builder — wireframes 1d, 1e and 1f, after the naming modal.
+ * The agent builder — wireframes 1d and 1e, after the naming modal.
  *
- *   name → 01 Market → 02 Limits → 03 Route → paper run
+ *   name → 01 Market → 02 Limits → paper run
  *
- * ROUTE IS A STEP AGAIN
+ * ROUTE IS NOT A STEP
  *
- * It was skipped on the wireframe's own rule — "markets with only one live
- * venue skip this step entirely" — back when paper was the only thing that
- * executed. Two venues are live for these pairs now, so 1f takes its place
- * between the limits and the paper test the last button starts.
+ * 1f asked "choose a venue" between the limits and the paper run. It is gone,
+ * and what killed it is that step 1 now answers it: a market settles on one
+ * chain, the venues that can fill it follow from that chain, and the picker's
+ * own venue filter lets you choose on exactly that basis while choosing the
+ * market. A second screen could only restate the answer or offer a pin the
+ * strategy payload has never carried.
  *
- * The separate "describe" screen is gone. Compiling a sentence into editable
- * rules now happens inside step 2, beside the chips it produced — which is the
- * thing the old flow missed: it read a description, filled two pages elsewhere,
- * and never showed its working.
+ * The route did not stop mattering — it stopped being a question. Where the
+ * selection fills is stated in the rail and in the review, from
+ * {@link describeVenues}, next to everything else that was decided rather than
+ * asked. Give it its step back the day pinning reaches the backend and a
+ * creator can pick something the market does not already imply.
+ *
+ * The separate "describe" screen is gone too. Compiling a sentence into
+ * editable rules happens inside step 2, beside the chips it produced — which
+ * is the thing the old flow missed: it read a description, filled two pages
+ * elsewhere, and never showed its working.
  */
 
 const STEPS = [
   { index: "01", label: "Market" },
   { index: "02", label: "Limits" },
-  { index: "03", label: "Route" },
 ];
 
 const DEFAULT_LIMITS: Limits = {
@@ -108,12 +108,9 @@ export function BuildAgent() {
   const [markets, setMarkets] = useState<UniverseAsset[]>([]);
   const asset = markets[0] ?? null;
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
-  // Builder state only — no strategy or deploy payload carries a venue yet.
-  // See the note at the top of pickRoute.tsx.
-  const [route, setRoute] = useState<RouteChoice>(DEFAULT_ROUTE);
-  // Which venues can fill what is currently selected. Derived, not state: the
-  // answer changes with the market and there is nothing to keep in sync.
-  const liveVenues = liveVenuesFor(markets);
+  // Where the selection fills. Derived, never state: it follows from the
+  // markets, so there is nothing to keep in sync and nothing to strand.
+  const venues = describeVenues(markets);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A created-but-not-yet-started strategy, held back because its plan drew
@@ -253,11 +250,6 @@ export function BuildAgent() {
     const beforeClasses = classesIn(markets);
     const afterClasses = classesIn(next);
     setMarkets(next);
-    // A pin can be stranded by the change: KalqiX cannot fill a Solana pair,
-    // nor Jupiter a Base one. Fall back to Auto rather than leave a pin naming
-    // a venue this selection never reaches — and rather than silently re-pin
-    // somewhere the creator did not choose.
-    if (!routeIsValidFor(route, next)) setRoute(DEFAULT_ROUTE);
     if (afterClasses.join() !== beforeClasses.join()) {
       setLimits((l) => {
         const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
@@ -323,7 +315,8 @@ export function BuildAgent() {
         value: limits.complianceProfile === "shariah" ? "Shariah" : "None",
         step: "02",
       },
-      { label: "Routing", value: describeRoute(route, markets), step: "03" },
+      // Step 01, not a step of its own: the venue came with the market.
+      { label: "Routing", value: venues, step: "01" },
     ];
   }
 
@@ -370,23 +363,17 @@ export function BuildAgent() {
             disabled: markets.length === 0,
             onClick: () => setStep(1),
           }
-        : step === 1
-          ? {
-              label: "Choose the route",
-              hint: "Every chip above is a rule the specialist actually evaluates.",
-              disabled: activeRules.length === 0,
-              onClick: () => setStep(2),
-            }
-          : {
-              label: "Review",
-              hint: "Nothing is created until the next screen.",
-              disabled: false,
-              onClick: () => setReviewing(true),
-            };
+        : {
+            label: "Review",
+            hint: "Every chip above is a rule the specialist actually evaluates. Nothing is created until the next screen.",
+            disabled: activeRules.length === 0,
+            onClick: () => setReviewing(true),
+          };
 
     return (
       <BuildFrame
         step={step + 1}
+        steps={STEPS.length}
         title="Create agent"
         onBack={() => (step === 0 ? setNamed(false) : setStep(step - 1))}
         cta={<BuildCta {...stepCta} />}
@@ -394,19 +381,12 @@ export function BuildAgent() {
         <div className="px-[18px] pb-6">
           {step === 0 || !asset ? (
             <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-          ) : step === 1 ? (
+          ) : (
             <SetLimits
               markets={markets}
               value={limits}
               onChange={setLimits}
               onBack={() => setStep(0)}
-            />
-          ) : (
-            <PickRoute
-              markets={markets}
-              value={route}
-              onChange={setRoute}
-              onBack={() => setStep(1)}
             />
           )}
         </div>
@@ -481,19 +461,12 @@ export function BuildAgent() {
           <div className="px-5 sm:px-8 py-8">
             {step === 0 || !asset ? (
               <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-            ) : step === 1 ? (
+            ) : (
               <SetLimits
                 markets={markets}
                 value={limits}
                 onChange={setLimits}
                 onBack={() => setStep(0)}
-              />
-            ) : (
-              <PickRoute
-                markets={markets}
-                value={route}
-                onChange={setRoute}
-                onBack={() => setStep(1)}
               />
             )}
           </div>
@@ -530,20 +503,6 @@ export function BuildAgent() {
                       }`
                 }
               />
-              <Trail
-                done={false}
-                here={step === 2}
-                label="Route"
-                value={
-                  step === 2
-                    ? describeRoute(route, markets)
-                    : markets.length === 0
-                      ? "after the market"
-                      : `${liveVenues.length} ${
-                          liveVenues.length === 1 ? "venue" : "venues"
-                        } live · choose next`
-                }
-              />
               <Trail done={false} label="Paper run" value="free, no time limit" />
               <Trail done={false} label="Publish" value="whenever you like" />
 
@@ -556,6 +515,9 @@ export function BuildAgent() {
                     value={`+${limits.exits.takeProfitPct}% / −${limits.exits.stopLossPct}%`}
                   />
                   <Row label="Paper book" value={money(CAPITAL_USD)} />
+                  {/* Where it fills. Stated, not chosen — the market settled
+                      it back in step 1, and a row is what that deserves. */}
+                  <Row label="Routes via" value={venues} />
                 </div>
               ) : null}
             </div>
@@ -640,25 +602,6 @@ export function BuildAgent() {
                     </p>
                   ) : null}
                 </>
-              ) : step === 1 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    disabled={activeRules.length === 0}
-                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-                  >
-                    Continue to route
-                  </button>
-                  {activeRules.length === 0 ? (
-                    // A strategy with no active rule buys nothing, ever — so
-                    // the gate sits here, one step before the run it would
-                    // have made pointless.
-                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      Turn on at least one rule
-                    </p>
-                  ) : null}
-                </>
               ) : ready && !authenticated ? (
                 <button
                   type="button"
@@ -678,7 +621,9 @@ export function BuildAgent() {
                     {busy ? "Starting…" : "Run paper test"}
                   </button>
                   {activeRules.length === 0 ? (
-                    // A strategy with no active rule buys nothing, ever.
+                    // A strategy with no active rule buys nothing, ever — and
+                    // with the route step gone this is the last place to say
+                    // so before the run that would have proved it.
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
                       Turn on at least one rule
                     </p>

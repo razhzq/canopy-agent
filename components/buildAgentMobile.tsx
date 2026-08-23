@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 /**
  * The chrome the creation flow wears on a phone — wireframes B1–B6.
  *
- * CHROME ONLY. `PickMarket`, `SetLimits` and `PickRoute` hold the real work —
+ * CHROME ONLY. `PickMarket` and `SetLimits` hold the real work —
  * the compose call, the rule compiler, the clamping, the validation — and this
  * wraps them rather than reimplementing any of it. A second set of pickers
  * would be a second set of rules to keep in step with the specialist, which is
@@ -17,15 +17,28 @@ import type { ReactNode } from "react";
  * with one action at the bottom, and the rail's job moves to the review screen.
  */
 
+/** "1" → "01". The wizard counts in two digits everywhere it counts at all. */
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 export function BuildFrame({
   step,
+  steps = 2,
   title,
   onBack,
   children,
   cta,
 }: {
-  /** 1-3 for the wizard, or null on the screens outside it (name, review). */
+  /** 1-based within the wizard, or null on the screens outside it (name, review). */
   step: number | null;
+  /**
+   * How many steps the wizard has. A prop rather than a constant because it has
+   * already changed once — the route step went when the market started settling
+   * the venue — and the count was hardcoded in two places here, which is how
+   * "02 / 03" survives a flow that stops at two.
+   */
+  steps?: number;
   title: string;
   onBack: () => void;
   children: ReactNode;
@@ -39,13 +52,13 @@ export function BuildFrame({
         </button>
         <span className="font-ui text-[15px] font-semibold text-text-primary">{title}</span>
         <span className="font-mono text-[11px] font-semibold tracking-[0.6px] text-text-dim">
-          {step === null ? "" : `0${step} / 03`}
+          {step === null ? "" : `${pad(step)} / ${pad(steps)}`}
         </span>
       </div>
 
       {step === null ? null : (
         <div className="flex gap-1.5 px-[18px] pb-4">
-          {[1, 2, 3].map((i) => (
+          {Array.from({ length: steps }, (_, i) => i + 1).map((i) => (
             <span
               key={i}
               className={`h-[3px] flex-1 rounded-sm ${i <= step ? "bg-accent" : "bg-grid-strong"}`}
@@ -131,7 +144,7 @@ export function BuildName({
       cta={
         <BuildCta
           label="Continue"
-          hint="You can rename it later. Everything else is set in the next three steps."
+          hint="You can rename it later. Everything else is set in the next two steps."
           disabled={trimmed.length === 0}
           onClick={onConfirm}
         />
