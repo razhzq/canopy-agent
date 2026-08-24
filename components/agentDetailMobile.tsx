@@ -56,6 +56,7 @@ export function AgentDetailMobile({
   assetsPending,
   universe,
   onChanged,
+  fundOnMount,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
@@ -66,6 +67,17 @@ export function AgentDetailMobile({
   /** What the strategy is allowed to trade, not what it currently holds. */
   universe: UniverseSelection[];
   onChanged: () => void;
+  /**
+   * The parent read `?fund=model` and wants the model panel open.
+   *
+   * A PROP RATHER THAN THIS COMPONENT READING THE URL, because the parent has
+   * already consumed it. AgentDetailView declares that effect above its own
+   * `if (mobile) return <AgentDetailMobile/>` — so on a phone it still ran,
+   * still stripped `fund` from the URL, and set a `modelOpen` that belongs to a
+   * branch which never renders. The hand-off did not merely fail here, it ate
+   * its own trigger: the param was gone, so a reload could not retry either.
+   */
+  fundOnMount?: boolean;
 }) {
   const { getAccessToken } = usePrivy();
   const [range, setRange] = useState<"7D" | "30D" | "ALL">("ALL");
@@ -74,6 +86,12 @@ export function AgentDetailMobile({
   const [cycle, setCycle] = useState<ActivityCycle | null>(null);
   const [adding, setAdding] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  // Mirrors the parent's decision. Effect rather than an initial value because
+  // the parent resolves the URL in an effect of its own, which lands after this
+  // component has already mounted with its state initialised.
+  useEffect(() => {
+    if (fundOnMount) setModelOpen(true);
+  }, [fundOnMount]);
   const personalWallet = usePersonalWallet();
 
   // The newest cycle, for the phase bar. One request, one cycle deep.
@@ -191,6 +209,28 @@ export function AgentDetailMobile({
           ) : null}
         </button>
       </div>
+
+      {/* An agent waiting for its first deposit is mid-SETUP, not broken, so it
+          gets an action rather than a red sentence — the same call the desktop
+          layout makes. This had no mobile counterpart at all: the note and its
+          button lived only in the desktop branch, so a phone showed nothing and
+          the only route to funding was the model pill beside the name, which
+          says what the model IS and not that it needs paying for. */}
+      {detail.lastRun?.skip_reason === "model_unfunded" ? (
+        <div className="flex items-center gap-3 border-y border-warning/30 bg-warning/10 px-[18px] py-3">
+          <p className="min-w-0 flex-1 font-ui text-[12px] leading-snug text-warning">
+            Waiting for its model balance. {agent.model?.label ?? "The model"} is prepaid — fund it
+            and this agent starts on its own, no restart needed.
+          </p>
+          <button
+            type="button"
+            onClick={() => setModelOpen(true)}
+            className="shrink-0 rounded-lg border border-accent px-3 py-2 font-mono text-[11px] tracking-[0.08em] text-accent uppercase transition-opacity active:opacity-70"
+          >
+            Top up
+          </button>
+        </div>
+      ) : null}
 
       {/* --------------------------------------------------------- NAV --- */}
       <div className="border-y border-grid bg-panel">

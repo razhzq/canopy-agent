@@ -72,7 +72,8 @@ export function NotificationCentre() {
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
-      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
+      if (wrap.current && !wrap.current.contains(e.target as Node))
+        setOpen(false);
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -100,8 +101,10 @@ export function NotificationCentre() {
         aria-label={
           unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
         }
-        className={`relative flex size-9 items-center justify-center rounded-md transition-colors hover:bg-surface ${
-          unread > 0 ? "text-text-primary" : "text-text-muted hover:text-text-secondary"
+        className={`relative flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-surface ${
+          unread > 0
+            ? "text-text-primary"
+            : "text-text-muted hover:text-text-secondary"
         } ${FOCUS}`}
       >
         <Bell className="size-[18px]" aria-hidden />
@@ -172,7 +175,7 @@ function Panel({
     <div
       role="dialog"
       aria-label="Notifications"
-      className="absolute right-0 z-40 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
+      className="absolute right-0 z-40 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
     >
       <div className="flex items-center justify-between border-b border-grid px-4 py-3">
         <p className="font-mono text-[11px] tracking-[0.12em] text-text-secondary uppercase">
@@ -188,7 +191,9 @@ function Panel({
             ))}
           </div>
         ) : failed ? (
-          <p className="px-4 py-6 font-ui text-[13px] text-negative">{failed}</p>
+          <p className="px-4 py-6 font-ui text-[13px] text-negative">
+            {failed}
+          </p>
         ) : items.length === 0 ? (
           <p className="px-4 py-8 text-center font-ui text-[13px] leading-relaxed text-text-dim">
             Nothing yet. Your agents will report here when they trade, when
@@ -197,7 +202,12 @@ function Panel({
           </p>
         ) : (
           items.map((n) => (
-            <NotificationRow key={n.id} n={n} onNavigate={onClose} onActed={onActed} />
+            <NotificationRow
+              key={n.id}
+              n={n}
+              onNavigate={onClose}
+              onActed={onActed}
+            />
           ))
         )}
       </div>
@@ -231,18 +241,26 @@ export function NotificationRow({
   const kind = KIND[n.kind] ?? FALLBACK_KIND;
   // An approval can be answered here. Everything else is a report of something
   // already done, and a button on those would be a button with nothing to do.
-  const approvable = n.kind === "proposal" && !!n.messageId && n.agentId !== null;
+  const approvable =
+    n.kind === "proposal" && !!n.messageId && n.agentId !== null;
 
   const inner = (
     <>
-      <span className={`mt-1 size-1.5 shrink-0 rounded-full ${kind.dot}`} aria-hidden />
+      <span
+        className={`mt-1 size-1.5 shrink-0 rounded-full ${kind.dot}`}
+        aria-hidden
+      />
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2">
-          <span className={`font-mono text-[10px] tracking-[0.1em] uppercase ${kind.tone}`}>
+          <span
+            className={`font-mono text-[10px] tracking-[0.1em] uppercase ${kind.tone}`}
+          >
             {kind.label}
           </span>
           {n.agentName ? (
-            <span className="truncate font-mono text-[11px] text-text-dim">{n.agentName}</span>
+            <span className="truncate font-mono text-[11px] text-text-dim">
+              {n.agentName}
+            </span>
           ) : null}
           <span className="ml-auto shrink-0 font-mono text-[10px] text-text-muted">
             {ago(n.createdAt)}
@@ -255,11 +273,16 @@ export function NotificationRow({
         </p>
         {n.undeliverable ? (
           <p className="font-ui text-[11px] text-warning">
-            Couldn&apos;t reach your Telegram — you&apos;re seeing this here instead.
+            Couldn&apos;t reach your Telegram — you&apos;re seeing this here
+            instead.
           </p>
         ) : null}
         {approvable ? (
-          <ApproveBar agentId={n.agentId!} messageId={n.messageId!} onActed={onActed} />
+          <ApproveBar
+            agentId={n.agentId!}
+            messageId={n.messageId!}
+            onActed={onActed}
+          />
         ) : null}
       </div>
     </>
@@ -311,16 +334,24 @@ function ApproveBar({
   onActed: () => void;
 }) {
   const { getAccessToken } = usePrivy();
-  const [state, setState] = useState<"idle" | "applying" | "applied" | "dismissed" | "error">(
-    "idle",
-  );
+  const [state, setState] = useState<
+    "idle" | "applying" | "applied" | "dismissed" | "error"
+  >("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   if (state === "applied") {
-    return <p className="pt-1 font-mono text-[11px] text-accent">Applied — it follows the new rule from its next cycle.</p>;
+    return (
+      <p className="pt-1 font-mono text-[11px] text-accent">
+        Applied — it follows the new rule from its next cycle.
+      </p>
+    );
   }
   if (state === "dismissed") {
-    return <p className="pt-1 font-mono text-[11px] text-text-dim">Left as it was.</p>;
+    return (
+      <p className="pt-1 font-mono text-[11px] text-text-dim">
+        Left as it was.
+      </p>
+    );
   }
 
   async function apply() {
@@ -328,7 +359,8 @@ function ApproveBar({
     setMessage(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("your session expired — sign in and try again");
+      if (!token)
+        throw new Error("your session expired — sign in and try again");
       await applyProposal(token, agentId, messageId);
       setState("applied");
       // The feed's unread count and this row's state both live upstream.
@@ -419,7 +451,9 @@ export function TelegramSection() {
 
   return (
     <div className="flex items-center gap-3 border-t border-grid bg-surface/40 px-4 py-3">
-      <TelegramIcon className={linked && enabled ? "text-accent" : "text-text-muted"} />
+      <TelegramIcon
+        className={linked && enabled ? "text-accent" : "text-text-muted"}
+      />
       <div className="min-w-0 flex-1">
         <p className="font-ui text-[12px] text-text-secondary">
           {!linked
@@ -473,14 +507,25 @@ export function TelegramSection() {
  * client that indexes this map blindly would crash the whole panel on the first
  * deploy where the backend knows one more word than it does.
  */
-const FALLBACK_KIND = { label: "Update", tone: "text-text-secondary", dot: "bg-text-dim" };
+const FALLBACK_KIND = {
+  label: "Update",
+  tone: "text-text-secondary",
+  dot: "bg-text-dim",
+};
 
-const KIND: Record<NotificationKind, { label: string; tone: string; dot: string }> = {
+const KIND: Record<
+  NotificationKind,
+  { label: string; tone: string; dot: string }
+> = {
   fill: { label: "Trade", tone: "text-accent", dot: "bg-accent" },
   proposal: { label: "Needs you", tone: "text-warning", dot: "bg-warning" },
   breach: { label: "Breach", tone: "text-negative", dot: "bg-negative" },
   risk_hold: { label: "Risk hold", tone: "text-negative", dot: "bg-negative" },
-  state_change: { label: "Status", tone: "text-text-secondary", dot: "bg-text-dim" },
+  state_change: {
+    label: "Status",
+    tone: "text-text-secondary",
+    dot: "bg-text-dim",
+  },
   cycle: { label: "Cycle", tone: "text-text-dim", dot: "bg-text-muted" },
 };
 
@@ -494,7 +539,11 @@ function ago(iso: string): string {
 
 function TelegramIcon({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 16 16" className={`size-4 shrink-0 ${className}`} aria-hidden>
+    <svg
+      viewBox="0 0 16 16"
+      className={`size-4 shrink-0 ${className}`}
+      aria-hidden
+    >
       <path
         d="M2 7.3 13.4 2.9c.5-.2 1 .2.85.75l-1.95 9.2c-.12.55-.75.75-1.15.35L8.1 10.6l-1.6 1.55c-.3.3-.8.15-.9-.25L4.7 8.6 2.1 7.9c-.45-.12-.45-.45-.1-.6Z"
         fill="currentColor"

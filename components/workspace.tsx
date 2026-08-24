@@ -45,6 +45,28 @@ const TABS: { key: WorkspaceTab; label: string }[] = [
   { key: "cycles", label: "Cycles" },
 ];
 
+/**
+ * A tab link that keeps everything else in the query.
+ *
+ * This used to be `?tab=${key}` built from nothing, which silently deleted any
+ * other parameter the URL was carrying. That is what killed the builder's
+ * funding hand-off: it arrived as `?tab=cycles&fund=model`, and the first tab
+ * click rebuilt the query without `fund`, so the page that knows how to read it
+ * never saw it. `?checkout=` on the same page has the identical exposure.
+ *
+ * Rebuilding from the live URL rather than from a remembered value because the
+ * flags here are one-shot — the receiving effects strip them once handled, and
+ * a stale copy would resurrect a dialog the owner already dismissed.
+ */
+function tabHref(agentId: number, key: string): string {
+  const params =
+    typeof window === "undefined"
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+  params.set("tab", key);
+  return `/workspace/${agentId}?${params.toString()}`;
+}
+
 export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab }) {
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
@@ -112,7 +134,7 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
               key={t.key}
               type="button"
               aria-current={t.key === tab ? "page" : undefined}
-              onClick={() => router.push(`/workspace/${agentId}?tab=${t.key}`)}
+              onClick={() => router.push(tabHref(agentId, t.key))}
               // Chat is the sheet below lg — see AgentChatSheet — so its tab
               // is hidden there rather than offering a second door to one room.
               className={`h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${

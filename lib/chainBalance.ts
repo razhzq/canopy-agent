@@ -32,16 +32,6 @@ const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 /**
- * The SOL floor, in whole SOL. Mirrors canopy-be's MIN_SOL_LAMPORTS.
- *
- * Duplicated rather than derived because the endpoint that would report it is
- * the one that just failed. If the backend raises its floor and this is not
- * raised with it, the fallback will call a wallet ready that the tick then
- * pauses on — so the panel labels a fallback reading as one.
- */
-export const FALLBACK_MIN_SOL = 0.01;
-
-/**
  * Where the browser reads the chain when the backend cannot.
  *
  * NOT the public endpoint by default, any more. api.mainnet-beta.solana.com
@@ -59,7 +49,8 @@ export const FALLBACK_MIN_SOL = 0.01;
  * A deployment with a browser-capable RPC should set
  * NEXT_PUBLIC_SOLANA_RPC_URL; the proxy is then skipped entirely.
  */
-export const FALLBACK_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "/api/solana-rpc";
+export const FALLBACK_RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "/api/solana-rpc";
 
 /**
  * The same, absolute.
@@ -93,7 +84,11 @@ interface RpcResponse<T> {
  * screen the user is already stuck on, and a public RPC that hangs rather than
  * refusing would replace a visible failure with an invisible one.
  */
-async function rpc<T>(method: string, params: unknown[], timeoutMs: number): Promise<T> {
+async function rpc<T>(
+  method: string,
+  params: unknown[],
+  timeoutMs: number,
+): Promise<T> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
@@ -110,7 +105,8 @@ async function rpc<T>(method: string, params: unknown[], timeoutMs: number): Pro
     const body = (await res.json().catch(() => null)) as RpcResponse<T> | null;
     if (body?.error) throw new Error(body.error.message);
     if (!res.ok) throw new Error(`the network returned ${res.status}`);
-    if (!body || body.result === undefined) throw new Error("the network returned no result");
+    if (!body || body.result === undefined)
+      throw new Error("the network returned no result");
     return body.result;
   } finally {
     clearTimeout(timer);
@@ -172,22 +168,11 @@ interface TokenAccount {
  * different problems.
  */
 export function fallbackShortfall(f: ChainFunding): string | null {
-  const needsUsdc = f.usdc <= 0;
-  const needsSol = f.sol < FALLBACK_MIN_SOL;
-  if (needsUsdc && needsSol) {
-    return (
-      `this wallet holds no USDC and needs about ${FALLBACK_MIN_SOL} SOL ` +
-      `for transaction fees — send both to fund it`
-    );
-  }
-  if (needsUsdc) {
-    return "this wallet holds no USDC — send USDC to fund it (SOL cannot be swapped in)";
-  }
-  if (needsSol) {
-    return (
-      `this wallet holds USDC but only ${f.sol.toFixed(4)} SOL — ` +
-      `it needs about ${FALLBACK_MIN_SOL} SOL to pay transaction fees`
-    );
-  }
-  return null;
+  // USDC ONLY. The SOL floor this used to mirror was removed from canopy-be on
+  // 2026-08-25, and a fallback that still demanded it would re-raise the
+  // requirement on exactly the screen where someone decides what to send — a
+  // backend RPC outage is routine, and this path is what serves it.
+  return f.usdc <= 0
+    ? "this wallet holds no USDC — send USDC to fund it (SOL cannot be swapped in)"
+    : null;
 }

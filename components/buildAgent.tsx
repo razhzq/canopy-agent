@@ -10,6 +10,7 @@ import {
   createStrategy,
   selectionFor,
   startPaperRun,
+  getAgent,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
@@ -23,6 +24,8 @@ import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/set
 import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
 import { DEFAULT_MODEL, PickModel, type ModelChoice } from "@/components/pickModel";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
 
 /**
  * The asset classes present in a selection, in a stable order.
@@ -124,6 +127,16 @@ export function BuildAgent() {
   // What the council will reason with. Canopy's model until someone chooses
   // otherwise — the state every agent built before step 3 existed is in.
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
+  const personalWallet = usePersonalWallet();
+  /**
+   * The agent that exists but cannot yet think.
+   *
+   * Non-null between starting a Pod agent's paper run and the owner finishing
+   * (or dismissing) its funding. The agent is already created and deployed by
+   * this point — delegation is granted against an agent id, so there is nothing
+   * to fund until one exists — it simply has no balance to reason with.
+   */
+  const [funding, setFunding] = useState<{ agentId: number; wallet: string | null } | null>(null);
   // Where the selection fills. Derived, never state: it follows from the
   // markets, so there is nothing to keep in sync and nothing to strand.
   const venues = describeVenues(markets);
@@ -160,13 +173,63 @@ export function BuildAgent() {
     // deploys the agent, so the button does what it says rather than leaving a
     // half-made thing behind.
     const { agentId } = await startPaperRun(token, strategyId);
-    // A Pod agent lands on its page with the top-up open. Funding is the very
-    // next thing it needs — it cannot reason until the balance exists — and an
-    // agent sitting at zero because nobody found the panel is the failure this
-    // hand-off is here to prevent.
-    router.push(
-      `/workspace/${agentId}?tab=cycles${model.provider === "pod" ? "&fund=model" : ""}`,
-    );
+
+    // A Pod agent funds itself HERE, before leaving the builder.
+    //
+    // It used to be handed off with `?tab=cycles&fund=model` and a receiving
+    // effect on the agent page. That never once worked: the effect lives in
+    // AgentDetailView, which `workspace.tsx` renders only on `tab=overview`, so
+    // on the cycles tab nothing read the flag — and the tab bar rebuilds the
+    // query from scratch, so switching to Overview deleted it on the way past.
+    // Every Pod agent ever created landed on an empty cycles tab with no way to
+    // fund it in sight, which is exactly the failure that hand-off was written
+    // to prevent.
+    //
+    // Doing it inline removes the whole class of problem: there is no flag to
+    // carry, no tab that has to be the right one, and no navigation between the
+    // decision and the step it requires. The owner is already here.
+    if (model.provider === "pod") {
+      // The agent's own wallet, which a fresh one does not have yet — null is
+      // the honest answer and the one that makes ModelPanel open on delegation
+      // rather than on a balance. A failed read lands on the same null, so the
+      // panel degrades to asking for the grant it would have asked for anyway.
+      let wallet: string | null = null;
+      try {
+        wallet = (await getAgent(token, agentId)).wallet?.address ?? null;
+      } catch {
+        // Not worth failing the run over: the agent is created and deployed,
+        // and the panel's own state is fetched from the agent id regardless.
+      }
+      setFunding({ agentId, wallet });
+      return;
+    }
+
+    router.push(`/workspace/${agentId}?tab=overview`);
+  }
+
+  /**
+   * Leaves for the agent's page once funding is done with — or dismissed.
+   *
+   * OVERVIEW, not cycles. A brand-new agent has no cycles to show, and overview
+   * is the only tab carrying the unfunded note and its Top up button, so an
+   * owner who closed the panel without paying still lands somewhere that offers
+   * the thing they just skipped.
+   */
+  function leaveFunding(agentId: number): void {
+    setFunding(null);
+    router.push(`/workspace/${agentId}?tab=overview`);
+  }
+
+  /** Re-reads the wallet after a grant, so the panel moves on to the top-up. */
+  async function refreshFunding(agentId: number): Promise<void> {
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const wallet = (await getAgent(token, agentId)).wallet?.address ?? null;
+      setFunding((f) => (f && f.agentId === agentId ? { ...f, wallet } : f));
+    } catch {
+      // The panel keeps working from what it has; the next open re-reads.
+    }
   }
 
   async function confirmPending(): Promise<void> {
@@ -364,6 +427,29 @@ export function BuildAgent() {
 
   // Neither layout renders against a guess at the viewport.
   if (mobile === null) return null;
+
+  /* The funding step, once the agent exists and before the builder is left.
+     Mounted here rather than inside either layout: both reach it, and Modal
+     portals to document.body anyway, so one mount serves both. The builder
+     behind it is finished — every field is frozen into the deployed agent by
+     this point — which is why replacing it rather than layering over it costs
+     nothing. */
+  if (funding) {
+    return (
+      <ModelPanel
+        agentId={funding.agentId}
+        agentWallet={funding.wallet}
+        personalWallet={personalWallet}
+        // Re-read after the grant lands, so the panel moves from asking for a
+        // wallet to asking for a balance without the owner reopening anything.
+        onChanged={() => void refreshFunding(funding.agentId)}
+        // Dismissing is allowed. The agent is real and scheduled either way —
+        // it simply waits, and the page it lands on says so and offers the
+        // same panel again.
+        onClose={() => leaveFunding(funding.agentId)}
+      />
+    );
+  }
 
   if (mobile) {
     if (!named) {

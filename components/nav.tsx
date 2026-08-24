@@ -81,7 +81,10 @@ interface LinkedWallet {
  * disappears in an SDK bump then degrades to "not shown" instead of throwing
  * inside the navbar, which is on every page.
  */
-export function readAccounts(user: unknown): { email: string | null; wallets: LinkedWallet[] } {
+export function readAccounts(user: unknown): {
+  email: string | null;
+  wallets: LinkedWallet[];
+} {
   const raw = (user as { linkedAccounts?: unknown })?.linkedAccounts;
   // Guard the container AND each entry. A null element inside the array threw
   // here and took the whole navbar — and therefore every page — down with it.
@@ -98,7 +101,10 @@ export function readAccounts(user: unknown): { email: string | null; wallets: Li
     if (a.type === "wallet" && typeof a.address === "string") {
       wallets.push({
         address: a.address,
-        client: typeof a.walletClientType === "string" ? a.walletClientType : "unknown",
+        client:
+          typeof a.walletClientType === "string"
+            ? a.walletClientType
+            : "unknown",
         chain: typeof a.chainType === "string" ? a.chainType : "",
         index: typeof a.walletIndex === "number" ? a.walletIndex : null,
         delegated: a.delegated === true,
@@ -109,7 +115,9 @@ export function readAccounts(user: unknown): { email: string | null; wallets: Li
 }
 
 function short(address: string): string {
-  return address.length > 12 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address;
+  return address.length > 12
+    ? `${address.slice(0, 4)}…${address.slice(-4)}`
+    : address;
 }
 
 function walletLabel(w: LinkedWallet): string {
@@ -146,7 +154,16 @@ function Avatar({ label, size = 20 }: { label: string; size?: number }) {
 function CopyIcon({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} aria-hidden>
-      <rect x="5.5" y="5.5" width="7" height="7" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <rect
+        x="5.5"
+        y="5.5"
+        width="7"
+        height="7"
+        rx="1.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
       <path
         d="M10.5 3.5h-7v7"
         fill="none"
@@ -183,7 +200,9 @@ function PlusIcon({ className = "" }: { className?: string }) {
  */
 function inviteLink(code: string): string {
   const origin =
-    typeof window !== "undefined" ? window.location.origin : "https://agent.canopy.finance";
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://agent.canopy.finance";
   return `${origin}/?ref=${code}`;
 }
 
@@ -224,7 +243,13 @@ function AgentsIcon({ className = "" }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="1.3"
       />
-      <path d="M8 2.4v2.8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M8 2.4v2.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
       <path
         d="M6 8.6v1.4M10 8.6v1.4"
         fill="none"
@@ -239,7 +264,12 @@ function AgentsIcon({ className = "" }: { className?: string }) {
 function SettingsIcon({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} aria-hidden>
-      <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
       <path
         d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8m10.6-4.4-1.1 1.1M4.7 11.3l-1.1 1.1m0-8.8 1.1 1.1m6.6 6.6 1.1 1.1"
         fill="none"
@@ -317,8 +347,12 @@ function MenuRow({
           : "text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary"
       }`}
     >
-      <span className={`shrink-0 ${active ? "text-accent" : "text-text-dim"}`}>{icon}</span>
-      <span className="min-w-0 flex-1 truncate font-ui text-[12.5px] font-medium">{label}</span>
+      <span className={`shrink-0 ${active ? "text-accent" : "text-text-dim"}`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate font-ui text-[12.5px] font-medium">
+        {label}
+      </span>
       {value ? (
         <span
           className={`tnum shrink-0 font-mono text-[11.5px] ${active ? "text-accent" : "text-text-dim"}`}
@@ -333,7 +367,8 @@ function MenuRow({
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
-  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
+  const { ready, authenticated, user, login, logout, getAccessToken } =
+    usePrivy();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [invite, setInvite] = useState<PersonalInvite | null>(null);
@@ -434,7 +469,8 @@ function AccountMenu() {
         if (cancelled) return;
         if (list.status === "fulfilled") setAgents(list.value.agents);
         else throw list.reason;
-        if (claimed.status === "fulfilled") setAgentAddrs(new Set(claimed.value.addresses));
+        if (claimed.status === "fulfilled")
+          setAgentAddrs(new Set(claimed.value.addresses));
       } catch (err) {
         // Silent in the UI, loud in the console — the rows still navigate,
         // they just lose their trailing figure. Same trade as the invite
@@ -499,7 +535,8 @@ function AccountMenu() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -510,11 +547,17 @@ function AccountMenu() {
         // Let the browser move focus normally, then drop the panel if focus
         // has left it — a menu that outlives its own focus is a trap.
         setTimeout(() => {
-          if (ref.current && !ref.current.contains(document.activeElement)) setOpen(false);
+          if (ref.current && !ref.current.contains(document.activeElement))
+            setOpen(false);
         }, 0);
         return;
       }
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") {
+      if (
+        e.key !== "ArrowDown" &&
+        e.key !== "ArrowUp" &&
+        e.key !== "Home" &&
+        e.key !== "End"
+      ) {
         return;
       }
       // The rows carry role="menuitem", which promises arrow-key traversal.
@@ -584,7 +627,9 @@ function AccountMenu() {
   // here; see `personalWallet`. External wallets the user linked themselves are
   // theirs by definition and always shown.
   const shown = [...external, ...(mine ? [mine] : [])];
-  const agentWalletCount = wallets.filter((w) => isAgentWallet(w, agentAddrs)).length;
+  const agentWalletCount = wallets.filter((w) =>
+    isAgentWallet(w, agentAddrs),
+  ).length;
 
   // What the button shows. An external wallet is the more identifying thing
   // for someone who signed in that way; email is the identity for everyone
@@ -602,7 +647,11 @@ function AccountMenu() {
   const primaryIsAddress = !username && (external.length > 0 || !email);
   // Which of the two ways in this was. Named in the menu header so the account
   // is identifiable without expanding a wallet row.
-  const method = email ? "Email" : external.length > 0 ? walletLabel(external[0]) : "Wallet";
+  const method = email
+    ? "Email"
+    : external.length > 0
+      ? walletLabel(external[0])
+      : "Wallet";
 
   // A row claims a number only once the request carrying it has landed.
   const agentCount = agents ? agents.length : null;
@@ -612,7 +661,10 @@ function AccountMenu() {
   const deployedUsd = agents
     ? agents
         .filter(
-          (a) => a.status === "active" || a.status === "paused" || a.status === "liquidating",
+          (a) =>
+            a.status === "active" ||
+            a.status === "paused" ||
+            a.status === "liquidating",
         )
         .reduce((total, a) => total + (num(a.capital_usd) ?? 0), 0)
     : null;
@@ -649,10 +701,10 @@ function AccountMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Account: ${primary}`}
-        className={`flex h-9 items-center gap-2.5 rounded-md border pr-2.5 pl-2 transition-colors ${FOCUS} ${
+        className={`flex h-9 items-center gap-2.5 rounded-lg border pr-2.5 pl-2 transition-colors ${FOCUS} ${
           open
             ? "border-grid-strong bg-surface-2"
-            : "border-border hover:border-grid-strong hover:bg-surface"
+            : "border-grid hover:border-grid-strong hover:bg-surface"
         }`}
       >
         <Avatar label={username ?? email ?? primary} />
@@ -746,7 +798,9 @@ function AccountMenu() {
               menu to copy. */}
           {shown.length > 0 ? (
             <div className="border-b border-grid pb-1.5">
-              <MenuGroupLabel>{shown.length === 1 ? "Your wallet" : "Your wallets"}</MenuGroupLabel>
+              <MenuGroupLabel>
+                {shown.length === 1 ? "Your wallet" : "Your wallets"}
+              </MenuGroupLabel>
               {shown.map((w) => (
                 <button
                   key={w.address}
@@ -772,7 +826,11 @@ function AccountMenu() {
                       }`}
                       aria-hidden
                     >
-                      {copied === w.address ? "Copied" : <CopyIcon className="size-3" />}
+                      {copied === w.address ? (
+                        "Copied"
+                      ) : (
+                        <CopyIcon className="size-3" />
+                      )}
                     </span>
                   </div>
                   <p className="truncate pt-0.5 font-ui text-[11px] text-text-dim">
@@ -788,8 +846,9 @@ function AccountMenu() {
                   number with no context. */}
               {agentWalletCount > 0 ? (
                 <p className="px-3.5 pt-1.5 font-ui text-[11px] leading-relaxed text-text-dim">
-                  {agentWalletCount} agent {agentWalletCount === 1 ? "wallet" : "wallets"} —
-                  each on its own agent&rsquo;s page.
+                  {agentWalletCount} agent{" "}
+                  {agentWalletCount === 1 ? "wallet" : "wallets"} — each on its
+                  own agent&rsquo;s page.
                 </p>
               ) : null}
             </div>
@@ -820,7 +879,9 @@ function AccountMenu() {
                 // Never a zero here. The wallet may be full; this only knows
                 // that the chain could not be reached.
                 <div className="flex items-baseline gap-2 pt-1.5">
-                  <span className="font-mono text-[13px] text-text-dim">Couldn&rsquo;t load</span>
+                  <span className="font-mono text-[13px] text-text-dim">
+                    Couldn&rsquo;t load
+                  </span>
                   <button
                     type="button"
                     onClick={() => setBalanceNonce((n) => n + 1)}
@@ -878,7 +939,9 @@ function AccountMenu() {
 
           {!email && shown.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
-              <p className="font-ui text-[13px] text-text-dim">No linked account details.</p>
+              <p className="font-ui text-[13px] text-text-dim">
+                No linked account details.
+              </p>
             </div>
           ) : null}
 
@@ -897,7 +960,9 @@ function AccountMenu() {
               // a bare "$2,650" beside the word "Portfolio" reads as what the
               // portfolio is worth, and that is a different — and more expensive —
               // number. See the fetch above.
-              value={deployedUsd === null ? null : `${usd(deployedUsd)} deployed`}
+              value={
+                deployedUsd === null ? null : `${usd(deployedUsd)} deployed`
+              }
               active={isActive(pathname, ["/portfolio"])}
               onNavigate={() => close(false)}
             />
@@ -961,7 +1026,11 @@ function AccountMenu() {
                     }`}
                     aria-hidden
                   >
-                    {copied === invite.code ? "Copied" : <CopyIcon className="size-3" />}
+                    {copied === invite.code ? (
+                      "Copied"
+                    ) : (
+                      <CopyIcon className="size-3" />
+                    )}
                   </span>
                 </div>
               </button>
@@ -1016,7 +1085,8 @@ function AccountMenu() {
 
               {invite.uses > 0 ? (
                 <p className="px-4 pb-1.5 font-ui text-[11.5px] text-text-secondary">
-                  {invite.uses} {invite.uses === 1 ? "person has" : "people have"} joined on
+                  {invite.uses}{" "}
+                  {invite.uses === 1 ? "person has" : "people have"} joined on
                   it
                   {/* Names, not just a count, when there are few enough to read.
                       A bare number is a metric; a name is a memory of who you
@@ -1053,7 +1123,9 @@ function AccountMenu() {
               className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
             >
               <SignOutIcon className="size-3.5 shrink-0" />
-              <span className="font-ui text-[12.5px] font-medium">Sign out</span>
+              <span className="font-ui text-[12.5px] font-medium">
+                Sign out
+              </span>
             </button>
           </div>
         </div>
@@ -1063,12 +1135,20 @@ function AccountMenu() {
           a modal opens, and a dialog that unmounts with its trigger would shut
           mid-transfer. */}
       {modal === "deposit" && personalWalletAddress ? (
-        <DepositModal address={personalWalletAddress} onClose={() => setModal(null)} />
+        <DepositModal
+          address={personalWalletAddress}
+          onClose={() => setModal(null)}
+        />
       ) : null}
       {modal === "withdraw" && personalWalletAddress ? (
-        <WithdrawModal address={personalWalletAddress} onClose={() => setModal(null)} />
+        <WithdrawModal
+          address={personalWalletAddress}
+          onClose={() => setModal(null)}
+        />
       ) : null}
-      {namingOpen ? <UsernameModal onClose={() => setNamingOpen(false)} /> : null}
+      {namingOpen ? (
+        <UsernameModal onClose={() => setNamingOpen(false)} />
+      ) : null}
     </div>
   );
 }
@@ -1112,7 +1192,10 @@ export function TopNav() {
           {/* Desktop only. Below lg the bottom tab bar owns navigation, and
               these links were a second set of destinations competing with it
               for the narrowest bar in the app. */}
-          <nav aria-label="Primary" className="hidden min-w-0 items-center gap-1 lg:flex">
+          <nav
+            aria-label="Primary"
+            className="hidden min-w-0 items-center gap-1 lg:flex"
+          >
             {NAV.map((item) => {
               const active = isActive(pathname, item.match);
               return (
@@ -1129,13 +1212,20 @@ export function TopNav() {
                   // only when active, which re-flowed the label a pixel or two
                   // wider and nudged its neighbour sideways on every route
                   // change; the fill and text colour already say which is live.
-                  className={`flex h-9 shrink-0 items-center rounded-md px-2.5 font-ui text-[14px] font-medium transition-colors sm:px-3.5 ${FOCUS} ${
+                  className={`flex h-9 shrink-0 items-center rounded-lg px-2.5 font-ui text-[14px] font-medium transition-colors sm:px-3.5 ${FOCUS} ${
                     active
-                      ? "bg-surface-2 text-text-primary"
+                      ? // ACCENT-WASH, not surface-2. Active was `bg-surface-2`
+                        // and the inactive hover `bg-surface-2/60` — the same
+                        // fill at 60%, so the page you are ON and the link you
+                        // happen to be pointing at were separated by nothing but
+                        // alpha. Everywhere else in this app accent-wash means
+                        // selected (kit.tsx, SEGMENT_ON); here it also gives the
+                        // two states something other than opacity to differ by.
+                        "bg-accent-wash text-accent"
                       : // Inactive links get a background on hover too, so the
                         // hit target is legible before the click, not only the
                         // label colour shifting.
-                        "text-text-secondary hover:bg-surface-2/60 hover:text-text-primary"
+                        "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                   }`}
                 >
                   {item.label}
@@ -1148,11 +1238,16 @@ export function TopNav() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-4">
           <Link
             href="/build/new"
-            // Brightness rather than opacity for the hover. Fading the accent
-            // toward an almost-black background darkens it, so the primary
-            // action of the whole app dimmed on hover and read as disabled;
-            // lifting it is the response the pointer is asking for.
-            className={`flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 font-ui text-[14px] font-semibold text-bg transition-[filter,background-color] hover:brightness-110 active:brightness-95 sm:pr-4 ${FOCUS}`}
+            // WASH AT REST, FILLED ON HOVER — the colour model every primary in
+            // the app now uses (kit.tsx, PRIMARY). It was solid accent at rest,
+            // which is the heaviest treatment available, applied permanently to
+            // a control that is present on every screen. Nothing could outrank
+            // it, including the thing the current page is actually about.
+            //
+            // The typography stays a nav's — 14px ui semibold, not the kit's
+            // 10px mono — because this is a destination, not a data surface.
+            // The rule being borrowed is about WEIGHT, not about type.
+            className={`flex h-9 items-center gap-1.5 rounded-lg border border-accent bg-accent-wash px-3 font-ui text-[14px] font-semibold text-accent transition-colors hover:bg-accent hover:text-bg sm:pr-4 ${FOCUS}`}
           >
             <PlusIcon className="size-3.5 shrink-0" />
             {/* On a phone the plus alone carries it; the label stays in the

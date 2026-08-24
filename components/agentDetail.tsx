@@ -10,6 +10,20 @@ import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
+import {
+  StatusLine,
+  FieldNote,
+  BODY,
+  LABEL,
+  SURFACE,
+  SECONDARY,
+  CHIP,
+  NUM,
+  SEGMENT_TRACK,
+  SEGMENT_ITEM,
+  SEGMENT_ON,
+  SEGMENT_OFF,
+} from "@/components/kit";
 import type { UniverseSelection } from "@/lib/api";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
@@ -189,7 +203,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
     window.history.replaceState(
       null,
       "",
-      url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "") + url.hash,
+      url.pathname +
+        (url.searchParams.toString() ? `?${url.searchParams}` : "") +
+        url.hash,
     );
   }, []);
 
@@ -210,7 +226,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
     window.history.replaceState(
       null,
       "",
-      url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "") + url.hash,
+      url.pathname +
+        (url.searchParams.toString() ? `?${url.searchParams}` : "") +
+        url.hash,
     );
   }, []);
 
@@ -225,7 +243,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   useEffect(() => {
     if (!resumedCheckout || state.phase !== "ready") return;
     const { detail } = state;
-    if (detail.liveTradingEnabled === true && detail.agent.is_paper && !detail.hasLiveHistory) {
+    if (
+      detail.liveTradingEnabled === true &&
+      detail.agent.is_paper &&
+      !detail.hasLiveHistory
+    ) {
       setGoingLive(true);
     }
   }, [resumedCheckout, state]);
@@ -259,7 +281,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       // positions it is supposed to explain, and now that an agent's cycles can
       // interleave paper and live, letting these two disagree would put a paper
       // curve over a live book without either label being wrong.
-      const equityPromise = getEquity(token, agentId, book ?? undefined).catch(() => null);
+      const equityPromise = getEquity(token, agentId, book ?? undefined).catch(
+        () => null,
+      );
 
       // The agent is the one request whose failure means there is no page, so
       // it alone is allowed to throw into the catch below.
@@ -313,16 +337,23 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         .then((assets) => {
           if (seq !== runSeq.current) return;
           setState((prev) =>
-            prev.phase === "ready" ? { ...prev, assets, assetsPending: false } : prev,
+            prev.phase === "ready"
+              ? { ...prev, assets, assetsPending: false }
+              : prev,
           );
         })
         .catch(() => {
           /* labels stay as selections; the page is already usable */
           if (seq !== runSeq.current) return;
-          setState((prev) => (prev.phase === "ready" ? { ...prev, assetsPending: false } : prev));
+          setState((prev) =>
+            prev.phase === "ready" ? { ...prev, assetsPending: false } : prev,
+          );
         });
     } catch (err) {
-      setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
+      setState({
+        phase: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
     // `getAccessToken` is read through tokenRef, deliberately — see above.
   }, [ready, authenticated, agentId, book]);
@@ -379,7 +410,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   );
 
   if (state.phase === "loading") return <SkeletonAgentDetail />;
-  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
+  if (state.phase === "signed-out")
+    return <SignedOutState note="Sign in to see this agent." />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;
 
@@ -404,7 +436,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // A stored rule means nothing without the bar size it was measured on:
   // "RSI ≤ 30" is a fortnight of selling on daily bars and about an hour on
   // 5-minute ones. Absent means daily, as it does everywhere else.
-  const timeframe: Timeframe = (strategy?.timeframe as Timeframe) ?? DEFAULT_TIMEFRAME;
+  const timeframe: Timeframe =
+    (strategy?.timeframe as Timeframe) ?? DEFAULT_TIMEFRAME;
   // Absent means one entry per asset — the behaviour of every strategy that
   // does not ask for otherwise.
   const addPlan = strategy?.add_plan ?? null;
@@ -432,7 +465,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // in dollars. It is agent-wide, so every market row shows the same figure —
   // which is the truth, and is why the note under the table says so.
   const positionCap =
-    constraints.maxPositionPct && capital ? (capital * constraints.maxPositionPct) / 100 : null;
+    constraints.maxPositionPct && capital
+      ? (capital * constraints.maxPositionPct) / 100
+      : null;
 
   // Why a half of the book switch cannot be picked, or null when it can. The
   // flag comes first: while real-money trading is closed, "not open yet" is the
@@ -459,16 +494,22 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       ? () => setGoingLive(true)
       : null;
   // A live agent that was deployed straight to live has no paper run behind it.
-  const paperDisabledReason = detail.hasPaperHistory || agent.is_paper
-    ? null
-    : "This agent has no paper run";
-  const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
+  const paperDisabledReason =
+    detail.hasPaperHistory || agent.is_paper
+      ? null
+      : "This agent has no paper run";
+  const cadenceSec =
+    strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
 
   if (mobile === null) return null;
 
   if (mobile) {
     return (
       <AgentDetailMobile
+        // The `?fund=model` hand-off, forwarded. This branch returns before the
+        // desktop tree that owns the panel, so without passing it down the flag
+        // is read, cleared, and dropped.
+        fundOnMount={modelOpen}
         agent={agent}
         detail={detail}
         equity={equity}
@@ -491,47 +532,55 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         >
           ← My agents
         </Link>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-3">
-          <h1 className="font-mono text-[28px] leading-none text-text-primary">
-            {agent.strategy_name}
-          </h1>
-          {/* The badge is the affordance. It is already the thing on this page
+        {/* ONE GRID FOR THE WHOLE HEAD, so the right side has something to line
+            up against. Left column: the name, then the paper/live switch under
+            it. Right column: the wallet's identity on the name's row and its
+            actions on the switch's. WalletBar places its own two cells by
+            explicit row, which is why it can stay a single component with one
+            set of modal state while its halves are not adjacent here. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-4 pt-3">
+          <div className="col-start-1 row-start-1 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <h1 className="font-mono text-[28px] leading-none text-text-primary">
+              {agent.strategy_name}
+            </h1>
+            {/* The badge is the affordance. It is already the thing on this page
               that names the model, so making it the way IN to the model is one
               control rather than two — and a rail row that says "Model: X" next
               to a badge that says X is the page restating itself. */}
-          <button
-            type="button"
-            onClick={() => setModelOpen(true)}
-            aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
-            className="transition-opacity hover:opacity-80"
-          >
-            <ModelBadge model={agent.model} />
-          </button>
-          <StatusChip status={agent.status} />
-          <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => setModelOpen(true)}
+              aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+              className="transition-opacity hover:opacity-80"
+            >
+              <ModelBadge model={agent.model} />
+            </button>
+            <StatusChip status={agent.status} />
+          </div>
+
+          {/* Always both halves, so the reader can see that an agent has two
+              books and which one they are looking at. A half with nothing behind
+              it is disabled and says why — "not open yet" reads as a stage,
+              where a missing half read as a feature that had been taken away. */}
+          <div className="col-start-1 row-start-2 min-w-0">
+            <BookSwitch
+              book={detail.book}
+              onChange={setBook}
+              onGoLive={goLiveIntent}
+              paperDisabledReason={paperDisabledReason}
+              liveDisabledReason={liveDisabledReason}
+              note={
+                detail.book === "paper" && detail.hasPaperHistory
+                  ? "The settled paper run. This agent trades live now."
+                  : null
+              }
+            />
+          </div>
+
           <WalletBar
             agentId={agentId}
             address={wallet?.address ?? null}
             isPaper={agent.is_paper}
-          />
-        </div>
-
-        {/* Always both halves, so the reader can see that an agent has two books
-            and which one they are looking at. A half with nothing behind it is
-            disabled and says why — "not open yet" reads as a stage, where a
-            missing half read as a feature that had been taken away. */}
-        <div className="pt-4">
-          <BookSwitch
-            book={detail.book}
-            onChange={setBook}
-            onGoLive={goLiveIntent}
-            paperDisabledReason={paperDisabledReason}
-            liveDisabledReason={liveDisabledReason}
-            note={
-              detail.book === "paper" && detail.hasPaperHistory
-                ? "The settled paper run. This agent trades live now."
-                : null
-            }
           />
         </div>
 
@@ -542,8 +591,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         {lastRun?.skip_reason === "model_unfunded" ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-3">
             <p className="font-ui text-[12.5px] text-warning">
-              Waiting for its model balance. {agent.model?.label ?? "The model"} is prepaid — fund
-              it and this agent starts on its own, no restart needed.
+              Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
+              is prepaid — fund it and this agent starts on its own, no restart
+              needed.
             </p>
             <button
               type="button"
@@ -575,7 +625,11 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label="Performance" line={false} />
             <div className="pt-4">
-              <EquityView series={equity} positions={positions} universe={assets} />
+              <EquityView
+                series={equity}
+                positions={positions}
+                universe={assets}
+              />
             </div>
           </section>
 
@@ -599,12 +653,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                   <span className="flex items-center gap-2">
                     <span className="size-1.5 animate-pulse rounded-full bg-accent" />
                     <span className="font-mono text-[11px] text-text-secondary">
-                      {agent.last_tick_at ? `checked ${when(agent.last_tick_at)}` : "starting"}
-                      {agent.next_tick_at ? ` · next ${ahead(agent.next_tick_at)}` : ""}
+                      {agent.last_tick_at
+                        ? `checked ${when(agent.last_tick_at)}`
+                        : "starting"}
+                      {agent.next_tick_at
+                        ? ` · next ${ahead(agent.next_tick_at)}`
+                        : ""}
                     </span>
                   </span>
                 ) : (
-                  <span className="font-mono text-[11px] text-text-muted">not ticking</span>
+                  <span className="font-mono text-[11px] text-text-muted">
+                    not ticking
+                  </span>
                 )
               }
             />
@@ -620,8 +680,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               </>
             ) : (
               <p className="pt-4 font-ui text-[13px] text-text-secondary">
-                This strategy&apos;s rules are not readable — the detail route returned no rule
-                set.
+                This strategy&apos;s rules are not readable — the detail route
+                returned no rule set.
               </p>
             )}
 
@@ -645,7 +705,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                   exits ? (
                     <>
                       Sell at <Num>−{exits.stopLossPct}%</Num> from entry
-                      {exits.maxHoldDays ? `, or after ${exits.maxHoldDays}d` : ""}
+                      {exits.maxHoldDays
+                        ? `, or after ${exits.maxHoldDays}d`
+                        : ""}
                     </>
                   ) : (
                     "Not set — platform default for the posture."
@@ -656,8 +718,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
 
             {constraints.maxDrawdownPct ? (
               <p className="pt-3.5 font-mono text-[11px] text-text-dim">
-                Agent-wide breaker at −{constraints.maxDrawdownPct}% from the high-water mark:
-                past that it liquidates and stops on its own.
+                Agent-wide breaker at −{constraints.maxDrawdownPct}% from the
+                high-water mark: past that it liquidates and stops on its own.
               </p>
             ) : null}
           </section>
@@ -697,8 +759,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               would read as "all of these at once", which is the single-stage
               strategy this exists to be different from. */}
           {setup ? (
-            <div className="mt-4 border border-accent/40">
-              <p className="border-b border-accent/25 px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-accent uppercase">
+            <div className="mt-4 overflow-hidden rounded-lg border border-accent/40 bg-surface">
+              <p className="border-b border-accent/25 px-3.5 py-2 font-mono text-[9.5px] tracking-[0.12em] text-accent uppercase">
                 First, wait for
               </p>
               <div className="flex flex-wrap gap-2 p-3.5">
@@ -708,8 +770,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               </div>
               <p className="border-t border-grid px-3.5 py-2 font-ui text-[12px] text-text-muted">
                 Then the rules below apply, on a later bar, for up to{" "}
-                <Num>{setup.expiresAfterBars}</Num> bars. Nothing is bought on the bar the
-                setup appears.
+                <Num>{setup.expiresAfterBars}</Num> bars. Nothing is bought on
+                the bar the setup appears.
                 {setup.invalidateIf?.length
                   ? " The wait is cancelled if the setup breaks down first."
                   : ""}
@@ -717,17 +779,21 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             </div>
           ) : null}
 
-          <div className="mt-4 border border-grid">
+          <div className={`mt-4 overflow-hidden ${SURFACE}`}>
             {setup ? (
-              <p className="border-b border-grid px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-text-muted uppercase">
+              <p className={`border-b border-grid px-3.5 py-2 ${LABEL}`}>
                 Then buy when
               </p>
             ) : null}
             <div className="flex flex-wrap gap-2 p-3.5">
               {rules.length === 0 && anyOf.length === 0 ? (
-                <span className="font-ui text-[12.5px] text-text-muted">No rules returned.</span>
+                <span className="font-ui text-[12.5px] text-text-muted">
+                  No rules returned.
+                </span>
               ) : (
-                rules.map((r) => <RuleChip key={r.key} rule={r} timeframe={timeframe} />)
+                rules.map((r) => (
+                  <RuleChip key={r.key} rule={r} timeframe={timeframe} />
+                ))
               )}
               {/* Rendered as one chip per GROUP, not per member. Splitting a
                   group into loose chips would show an either/or as a row of
@@ -759,19 +825,19 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             </div>
             {planSummary ? (
               <div className="border-t border-grid px-3.5 py-2.5">
-                <p className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
-                  Accumulation
-                </p>
+                <p className={LABEL}>Accumulation</p>
                 <p className="pt-1 font-ui text-[12.5px] leading-relaxed text-text-primary">
                   {planSummary}
                 </p>
                 {/* The part nobody expects, and the reason the exits above are
                     not what they look like: a position averaged into three
                     times exits as ONE, on the blended cost. */}
-                <p className="pt-1 font-ui text-[11.5px] leading-relaxed text-warning">
-                  Take profit and stop-loss measure the blend of every entry, not each one
-                  separately.
-                </p>
+                <div className="pt-1">
+                  <FieldNote tone="warn">
+                    Take profit and stop-loss measure the blend of every entry,
+                    not each one separately.
+                  </FieldNote>
+                </div>
               </div>
             ) : null}
             {/* justify-end because the caption that used to sit here was the
@@ -779,7 +845,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             <div className="flex items-center justify-end gap-3 border-t border-grid bg-panel px-3.5 py-2.5">
               <Link
                 href={`/workspace/${agentId}?tab=chat`}
-                className="shrink-0 border border-border px-2.5 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
+                className={`shrink-0 ${SECONDARY}`}
               >
                 Edit strategy
               </Link>
@@ -805,15 +871,17 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             />
             {markets.length === 0 ? (
               <p className="pt-3 font-ui text-[12.5px] text-text-secondary">
-                No universe is pinned, so the agent screens the whole {agent.strategy_class}{" "}
-                class each cycle.
+                No universe is pinned, so the agent screens the whole{" "}
+                {agent.strategy_class} class each cycle.
               </p>
             ) : (
               <div className="mt-3 border border-grid">
                 {markets.map((m) => (
                   <MarketRow
                     key={selectionKey(m.sel)}
-                    label={m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)}
+                    label={
+                      m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)
+                    }
                     asset={m.asset}
                     selection={m.sel}
                     entry={entry}
@@ -822,14 +890,21 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                     // agent rather than narrow it — the backend refuses, and
                     // offering a button that always fails is worse than not
                     // offering one.
-                    onRemove={markets.length > 1 ? () => void removeMarket(m.sel) : undefined}
+                    onRemove={
+                      markets.length > 1
+                        ? () => void removeMarket(m.sel)
+                        : undefined
+                    }
                     removing={removingKey === selectionKey(m.sel)}
                   />
                 ))}
               </div>
             )}
             {removeError ? (
-              <p className="pt-3 font-ui text-[12.5px] text-negative" role="alert">
+              <p
+                className="pt-3 font-ui text-[12.5px] text-negative"
+                role="alert"
+              >
                 {removeError}
               </p>
             ) : null}
@@ -862,15 +937,29 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             <div className="pt-3">
               <RailRow
                 label="Book"
-                value={agent.is_paper ? "Paper · simulated fills" : "Live · real capital"}
+                value={
+                  agent.is_paper
+                    ? "Paper · simulated fills"
+                    : "Live · real capital"
+                }
               />
               <RailRow label="Capital" value={money(capital)} />
-              <RailRow label="Cadence" value={cadenceSec ? cadence(cadenceSec) : "—"} />
+              <RailRow
+                label="Cadence"
+                value={cadenceSec ? cadence(cadenceSec) : "—"}
+              />
               <RailRow label="Deployed" value={absolute(agent.created_at)} />
-              <RailRow label="Autonomy" value={agent.autonomy.replace(/_/g, " ")} />
+              <RailRow
+                label="Autonomy"
+                value={agent.autonomy.replace(/_/g, " ")}
+              />
               <RailRow
                 label="Position cap"
-                value={positionCap === null ? "—" : `≤ ${money(positionCap)} per market`}
+                value={
+                  positionCap === null
+                    ? "—"
+                    : `≤ ${money(positionCap)} per market`
+                }
               />
               <RailRow
                 label="Open positions"
@@ -892,11 +981,14 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               />
             </div>
           </div>
-
         </aside>
       </div>
 
-      <Controls agent={agent} positions={positions} onChanged={() => void load()} />
+      <Controls
+        agent={agent}
+        positions={positions}
+        onChanged={() => void load()}
+      />
 
       {/* What it reasons with, what that costs, and how to pay for it. Opened
           from the badge beside the name, or by the builder's hand-off for an
@@ -999,7 +1091,9 @@ function Controls({
         onChanged();
         return;
       }
-      await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      await (paused
+        ? resumeAgent(token, agent.id)
+        : pauseAgent(token, agent.id));
       onChanged();
     } catch (err) {
       // A partial close comes back as an error carrying real progress, so the
@@ -1108,9 +1202,7 @@ function Rule({
 }) {
   return (
     <div className="flex items-center gap-4">
-      <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-        {label}
-      </span>
+      <span className={`shrink-0 ${LABEL}`}>{label}</span>
       {line ? <span className="h-px min-w-0 flex-1 bg-grid" /> : null}
       {right ? <span className="shrink-0">{right}</span> : null}
     </div>
@@ -1119,19 +1211,18 @@ function Rule({
 
 function StatusChip({ status }: { status: string }) {
   const running = status === "active";
+  const stopped = status === "paused" || status === "liquidating";
+  // RULE 4: status is a dot and a word, not a chip.
+  //
+  // Running used to be `bg-accent text-bg` — a solid fill, which is the heaviest
+  // treatment on the page, spent on a state that is true almost all the time.
+  // It outranked the agent's own name beside it and left nothing louder for the
+  // states that actually want attention. The dot carries the same three
+  // meanings without competing with the headline it sits next to.
   return (
-    <span
-      className={`flex items-center gap-2 px-2.5 py-1 font-mono text-[10px] tracking-[0.12em] uppercase ${
-        running
-          ? "bg-accent text-bg"
-          : status === "paused" || status === "liquidating"
-            ? "border border-negative text-negative"
-            : "border border-grid-strong text-text-muted"
-      }`}
-    >
-      {running ? <span className="size-1.5 animate-pulse rounded-full bg-bg" /> : null}
+    <StatusLine tone={running ? "good" : stopped ? "bad" : "pending"}>
       {running ? "Running" : status === "liquidating" ? "Closing out" : status}
-    </span>
+    </StatusLine>
   );
 }
 
@@ -1195,7 +1286,7 @@ function BookSwitch({
       <div
         role="group"
         aria-label="Paper or live book"
-        className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+        className={`shrink-0 ${SEGMENT_TRACK}`}
       >
         {(["paper", "live"] as const).map((b) => {
           const promotes = b === "live" && onGoLive !== null;
@@ -1205,7 +1296,9 @@ function BookSwitch({
               book={b}
               current={book}
               onSelect={() => (promotes ? onGoLive!() : onChange(b))}
-              disabledReason={b === "paper" ? paperDisabledReason : liveDisabledReason}
+              disabledReason={
+                b === "paper" ? paperDisabledReason : liveDisabledReason
+              }
               promotes={promotes}
               onHover={setHovered}
             />
@@ -1213,9 +1306,9 @@ function BookSwitch({
         })}
       </div>
       {hovered ? (
-        <p className="font-ui text-[12px] text-text-dim">{hovered}.</p>
+        <p className={BODY}>{hovered}.</p>
       ) : note ? (
-        <p className="font-ui text-[12px] text-text-dim">{note}</p>
+        <p className={BODY}>{note}</p>
       ) : null}
     </div>
   );
@@ -1239,13 +1332,14 @@ function Half({
 }) {
   const active = book === current;
   const label = book === "paper" ? "Paper" : "Live";
-  const base =
-    "flex h-8 items-center gap-2 rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors";
+  const base = SEGMENT_ITEM;
 
   if (active) {
+    // No dot. The fill IS the selected state — a dot as well is the control
+    // saying the same thing twice, and in this kit a dot means STATUS, which is
+    // what the chip beside the agent's name is for.
     return (
-      <span aria-current="true" className={`${base} bg-accent-wash text-accent`}>
-        <span className="size-1.5 rounded-full bg-accent" />
+      <span aria-current="true" className={`${base} ${SEGMENT_ON}`}>
         {label}
       </span>
     );
@@ -1255,7 +1349,9 @@ function Half({
   // a promoting one says what pressing it will DO, since "Live" on an agent that
   // has never traded live is otherwise ambiguous between "show me the live book"
   // and "make this live".
-  const hint = disabledReason ?? (promotes ? "Set this agent up to trade real capital" : null);
+  const hint =
+    disabledReason ??
+    (promotes ? "Set this agent up to trade real capital" : null);
 
   // aria-disabled rather than `disabled`: a disabled button fires no pointer
   // events in most browsers and cannot be focused, so the reason would never
@@ -1279,12 +1375,12 @@ function Half({
               // it sits inside a switch, and a solid button there would outrank
               // the half that is actually selected.
               `${base} text-text-secondary hover:bg-accent-wash hover:text-accent`
-            : `${base} text-text-dim hover:text-text-primary`
+            : `${base} ${SEGMENT_OFF}`
       }
     >
       {label}
       {promotes ? (
-        <span aria-hidden className="font-mono text-[10px] text-text-muted">
+        <span aria-hidden className="font-mono text-[9px] text-text-muted">
           →
         </span>
       ) : null}
@@ -1357,15 +1453,25 @@ function MarketRow({
             src={asset?.iconUrl}
             size={16}
           />
-          <span className="truncate font-mono text-[12px] text-text-primary">{label}</span>
+          <span className="truncate font-mono text-[12px] text-text-primary">
+            {label}
+          </span>
         </span>
         <span
           className={`tnum shrink-0 font-mono text-[12px] ${
-            change === null ? "text-text-muted" : change >= 0 ? "text-accent" : "text-negative"
+            change === null
+              ? "text-text-muted"
+              : change >= 0
+                ? "text-accent"
+                : "text-negative"
           }`}
         >
-          {change === null ? "—" : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}%`}
-          {target !== null ? <span className="pl-1 text-text-dim">/ {target}%</span> : null}
+          {change === null
+            ? "—"
+            : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}%`}
+          {target !== null ? (
+            <span className="pl-1 text-text-dim">/ {target}%</span>
+          ) : null}
         </span>
       </div>
 
@@ -1405,22 +1511,20 @@ function MarketRow({
 function ExitCard({ label, body }: { label: string; body: React.ReactNode }) {
   return (
     <div className="border border-grid p-4">
-      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+        {label}
+      </p>
       <p className="pt-1.5 font-ui text-[13px] text-text-primary">{body}</p>
     </div>
   );
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="border border-grid-strong px-2.5 py-1.5 font-ui text-[12px] text-text-secondary">
-      {children}
-    </span>
-  );
+  return <span className={CHIP}>{children}</span>;
 }
 
 function Num({ children }: { children: React.ReactNode }) {
-  return <span className="tnum font-mono text-[12px] text-text-primary">{children}</span>;
+  return <span className={NUM}>{children}</span>;
 }
 
 /** A stored rule, labelled with the spec the builder set it from. */
@@ -1473,7 +1577,9 @@ function AnyOfChip({
         const spec = RWA_RULES.find((r) => r.key === rule.key);
         return (
           <span key={rule.key}>
-            {i > 0 ? <span className="px-1 text-accent uppercase">or</span> : null}
+            {i > 0 ? (
+              <span className="px-1 text-accent uppercase">or</span>
+            ) : null}
             {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
             {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
             <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
@@ -1495,7 +1601,9 @@ function RailRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-grid py-2.5 last:border-b-0">
-      <span className="shrink-0 font-ui text-[12.5px] text-text-dim">{label}</span>
+      <span className="shrink-0 font-ui text-[12.5px] text-text-dim">
+        {label}
+      </span>
       <span
         className={`tnum truncate font-mono text-[12.5px] ${
           strong ? "text-accent" : "text-text-primary"
@@ -1554,7 +1662,6 @@ function ahead(iso: string): string {
   return `in ${Math.floor(mins / 60)}h`;
 }
 
-
 /**
  * The warning before a delete.
  *
@@ -1584,7 +1691,10 @@ function DeleteAgentModal({
   onClose: () => void;
 }) {
   const open = positions.length;
-  const investedUsd = positions.reduce((sum, p) => sum + Number(p.cost_basis_usd), 0);
+  const investedUsd = positions.reduce(
+    (sum, p) => sum + Number(p.cost_basis_usd),
+    0,
+  );
 
   return (
     <div
@@ -1622,13 +1732,18 @@ function DeleteAgentModal({
                   <Num>
                     {open} {open === 1 ? "position" : "positions"}
                   </Num>{" "}
-                  at the current pool price — <Num>{money(investedUsd)}</Num> invested. This is a
-                  real sale and the result lands in your record.
+                  at the current pool price — <Num>{money(investedUsd)}</Num>{" "}
+                  invested. This is a real sale and the result lands in your
+                  record.
                 </>
               )}
             </Step>
-            <Step n="2">It revokes its own wallet authority. That cannot be undone here.</Step>
-            <Step n="3">It disappears from your agents. Pausing is the reversible option.</Step>
+            <Step n="2">
+              It revokes its own wallet authority. That cannot be undone here.
+            </Step>
+            <Step n="3">
+              It disappears from your agents. Pausing is the reversible option.
+            </Step>
             {/* Named only when it will actually happen. The server decides that
                 — this is the author's last agent on the strategy — because the
                 page cannot see the other agents to work it out, and a delete
@@ -1636,21 +1751,24 @@ function DeleteAgentModal({
                 line on. */}
             {agent.delists_strategy ? (
               <Step n="4">
-                <Num>{agent.strategy_name}</Num> comes off Explore with it — this is your last
-                agent on it. Anyone already deployed keeps running; nobody new can deploy.
+                <Num>{agent.strategy_name}</Num> comes off Explore with it —
+                this is your last agent on it. Anyone already deployed keeps
+                running; nobody new can deploy.
               </Step>
             ) : null}
           </ol>
 
           <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">
-            Nothing is erased. Every cycle, decision and trade stays on the record, and the
-            strategy keeps whatever track record this agent earned.
+            Nothing is erased. Every cycle, decision and trade stays on the
+            record, and the strategy keeps whatever track record this agent
+            earned.
           </p>
 
           {open > 0 ? (
             <p className="font-ui text-[12px] leading-relaxed text-warning">
-              If a position cannot be priced when you confirm, the agent winds down and stays
-              visible instead of being hidden while it still holds something.
+              If a position cannot be priced when you confirm, the agent winds
+              down and stays visible instead of being hidden while it still
+              holds something.
             </p>
           ) : null}
         </div>
@@ -1670,7 +1788,11 @@ function DeleteAgentModal({
             disabled={busy}
             className="border border-negative px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
           >
-            {busy ? "Closing…" : open > 0 ? "Close positions and delete" : "Delete agent"}
+            {busy
+              ? "Closing…"
+              : open > 0
+                ? "Close positions and delete"
+                : "Delete agent"}
           </button>
         </div>
       </div>
@@ -1701,7 +1823,10 @@ function FlattenAgentModal({
   onClose: () => void;
 }) {
   const open = positions.length;
-  const investedUsd = positions.reduce((sum, p) => sum + Number(p.cost_basis_usd), 0);
+  const investedUsd = positions.reduce(
+    (sum, p) => sum + Number(p.cost_basis_usd),
+    0,
+  );
 
   return (
     <div
@@ -1735,15 +1860,19 @@ function FlattenAgentModal({
               <Num>
                 {open} {open === 1 ? "position" : "positions"}
               </Num>{" "}
-              at the current pool price — <Num>{money(investedUsd)}</Num> invested. Real sales,
-              and the result lands in your record.
+              at the current pool price — <Num>{money(investedUsd)}</Num>{" "}
+              invested. Real sales, and the result lands in your record.
             </Step>
             {/* Said plainly because it is the part people do not expect, and the
                 part that would otherwise look like a bug an hour later. */}
             <Step n="2">
-              It then <Num>pauses</Num>. Otherwise it would start buying again on its next cycle.
+              It then <Num>pauses</Num>. Otherwise it would start buying again
+              on its next cycle.
             </Step>
-            <Step n="3">The agent, its strategy and its whole record stay exactly as they are.</Step>
+            <Step n="3">
+              The agent, its strategy and its whole record stay exactly as they
+              are.
+            </Step>
           </ol>
 
           <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">
@@ -1751,8 +1880,9 @@ function FlattenAgentModal({
           </p>
 
           <p className="font-ui text-[12px] leading-relaxed text-warning">
-            A position that cannot be priced right now is left open rather than sold at a guess.
-            The agent keeps trying and stays visible while it settles.
+            A position that cannot be priced right now is left open rather than
+            sold at a guess. The agent keeps trying and stays visible while it
+            settles.
           </p>
         </div>
 
@@ -1782,8 +1912,12 @@ function FlattenAgentModal({
 function Step({ n, children }: { n: string; children: React.ReactNode }) {
   return (
     <li className="flex gap-3">
-      <span className="shrink-0 font-mono text-[10px] tracking-[0.12em] text-text-dim">{n}</span>
-      <span className="font-ui text-[13px] leading-relaxed text-text-secondary">{children}</span>
+      <span className="shrink-0 font-mono text-[10px] tracking-[0.12em] text-text-dim">
+        {n}
+      </span>
+      <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
+        {children}
+      </span>
     </li>
   );
 }
