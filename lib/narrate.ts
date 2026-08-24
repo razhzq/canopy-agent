@@ -186,6 +186,33 @@ export function narrateDecision(d: NarratableDecision): NarratedLine[] {
       lines.push({ outcome: "drop", detail: "No model budget left this cycle — nothing reasoned." });
       return lines;
     }
+    // A different emptiness from the line above, and the difference is what the
+    // reader can do about it. `budget_exhausted` is the per-cycle cap: it lifts
+    // by itself next cycle. This is the agent's prepaid balance at the model
+    // marketplace, and it lifts only when someone puts money in.
+    if (o.skipped === "model_balance_exhausted") {
+      lines.push({
+        outcome: "drop",
+        detail: "Model balance is empty — the council did not run. Top it up to resume.",
+      });
+      return lines;
+    }
+    if (o.skipped === "model_unavailable") {
+      lines.push({
+        outcome: "drop",
+        detail: "The model this agent reasons with could not be bought at the agreed price.",
+      });
+      return lines;
+    }
+    // Not a failure, and worded so it does not read as one: the agent is
+    // waiting for its first deposit and will start by itself when one lands.
+    if (o.skipped === "model_unfunded") {
+      lines.push({
+        outcome: "drop",
+        detail: "Waiting for its model balance to be funded — it starts on its own once it is.",
+      });
+      return lines;
+    }
 
     if (o.stage === "screen") {
       for (const s of steps(o.steps)) {

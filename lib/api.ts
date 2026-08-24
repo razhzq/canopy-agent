@@ -212,6 +212,25 @@ export const redeemInvite = (token: string, code: string, profile: SessionProfil
 
 /* ------------------------------------------------------------ marketplace -- */
 
+/**
+ * Which model an agent reasons with, as the rows that only need to NAME it
+ * carry it: enough to badge, not enough to bill. Absent on anything created
+ * before models were a choice, which all ran Canopy's — so a reader defaults
+ * rather than treating absence as unknown.
+ */
+export interface ModelRef {
+  id: string;
+  label: string;
+  provider: "canopy" | "pod";
+  /**
+   * A mark for the badge. Absent means the label stands alone, which is the
+   * right answer for most marketplace models — we are not going to hold a logo
+   * for every model Pod ever lists, and a placeholder disc is decoration
+   * standing where a fact should be.
+   */
+  logo?: string | null;
+}
+
 export interface StrategyRow {
   id: number;
   name: string;
@@ -225,6 +244,8 @@ export interface StrategyRow {
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
+  /** What its agents reason with. Absent means the Canopy model. */
+  model?: ModelRef | null;
 
   /* ---- present only on `listStrategies` -----------------------------------
    *
@@ -912,6 +933,24 @@ export const createStrategy = (
     tradesPerCycle?: number;
     /** Keep the best N of what passed the rules. Omitted keeps all. */
     ranking?: RankingSpec;
+    /**
+     * Which model the agent's council reasons with, chosen in step 3.
+     *
+     * Omitted means the Canopy model, which is what every strategy authored
+     * before this was a choice runs — so absence is a real answer here, not a
+     * missing field.
+     *
+     * It rides on the STRATEGY rather than on the deploy call because that is
+     * where creation actually happens: `deployAgent` has no callers, and the
+     * builder goes createStrategy → startPaperRun, which deploys server-side.
+     */
+    model?: {
+      id: string;
+      /** The price the creator accepted, USD per million tokens. */
+      maxPriceInputUsd?: number | null;
+      maxPriceOutputUsd?: number | null;
+      fallbackToCanopy?: boolean;
+    };
   },
 ) =>
   // `warnings` are plans that are legal but probably not what the author meant —
@@ -1037,6 +1076,8 @@ export interface AgentRow {
   paused_reason?: string | null;
   /** Opaque provider ref. The wallet ADDRESS only comes back from `getAgent`. */
   wallet_ref?: string | null;
+  /** What it reasons with. Absent means the Canopy model. */
+  model?: ModelRef | null;
   mandate?: AgentMandate;
   /** Unsettled messages needing a human. Drives the rail count. */
   needs_you?: string;
@@ -1374,6 +1415,221 @@ export interface AgentFunding {
 export const getAgentFunding = (token: string, agentId: number) =>
   request<AgentFunding>(`/agents/${agentId}/funding`, token);
 
+/* ----------------------------------------------------------------- models -- */
+
+// Which model an agent reasons with.
+//
+// Two providers, and they are not symmetrical. "canopy" is the Canopy-hosted
+// Qwen3-14B every agent has always run: included, no balance, nothing to fund.
+// "pod" is usepod.ai — an OpenAI-compatible marketplace that routes each call to
+// the cheapest provider willing to serve it, priced in USDC and settled on
+// Solana. A Pod agent spends its own money to think.
+//
+// NOTHING ABOUT POD'S CREDENTIALS REACHES THIS FILE, and that is deliberate.
+// Pod's API key is a token embedded in the request URL — `/proxy/<token>/v1` —
+// so a browser that has ever seen it can spend the balance. canopy-be holds it,
+// makes every inference call, and hands this client only the things a person
+// needs to see: a model id, a balance, a deposit code, and what has been spent.
+//
+// The builder's strategy compiler (`composeAgent`) is NOT affected by any of
+// this. It runs before an agent exists, so it runs on Canopy always.
+
+export interface ModelOption {
+  /** Stable id the agent is stored against, e.g. "canopy:qwen3-14b", "pod:deepseek-v4". */
+  id: string;
+  provider: "canopy" | "pod";
+  /** What the badge and the picker show: "cQWEN3", "DeepSeek V4". */
+  label: string;
+  /** A mark, if one is worth carrying. Same rule as {@link ModelRef.logo}. */
+  logo?: string | null;
+  /**
+   * Marketplace price in USD per MILLION tokens, input and output.
+   *
+   * Null on the Canopy model, which is included rather than free — the
+   * distinction matters, because "$0.00" would invite a comparison on price
+   * with a row that has no price.
+   */
+  inputPerMTokenUsd: number | null;
+  outputPerMTokenUsd: number | null;
+  /**
+   * The most this model can cost, USD per million tokens — the figure the
+   * creator accepts and the agent then enforces.
+   *
+   * Pod's own centralized price wherever it lists one: marketplace providers
+   * are capped at it, so this is a documented maximum rather than a multiple of
+   * today's price that we made up.
+   */
+  maxPriceInputUsd: number | null;
+  maxPriceOutputUsd: number | null;
+  /** Providers online for this model right now. Null for Canopy. */
+  providersOnline: number | null;
+  contextTokens: number | null;
+  /**
+   * What one cycle costs, as the backend measures it.
+   *
+   * A per-million price is not a number anyone can act on: what a creator wants
+   * is "this agent costs about 4 cents an hour". The server has the council's
+   * real token usage and this client does not, so the estimate is computed
+   * there. Null until enough cycles exist to mean anything — better absent than
+   * extrapolated from one run.
+   */
+  estCostPerCycleUsd: number | null;
+  /** False when Pod lists it but we will not run it. Show it greyed, not hidden. */
+  selectable: boolean;
+}
+
+export interface ModelCatalogue {
+  /** Canopy's own model is always the first entry. */
+  models: ModelOption[];
+  /**
+   * Whether Pod is open at all.
+   *
+   * Server-owned, like `AgentDetail.liveTradingEnabled` — the client learns the
+   * answer rather than carrying its own copy of the switch. False hides the
+   * whole step and every agent keeps the Canopy model, which is the state this
+   * product was in before Pod existed and is therefore always safe to return to.
+   */
+  podEnabled: boolean;
+  /** What to put in the amount field the first time. Backend-owned so it can be tuned. */
+  suggestedTopUpUsd: number;
+  /**
+   * Why the Pod half of the list is empty, when it is.
+   *
+   * `disabled` is the kill switch, `unreachable` is an outage — different
+   * sentences to a reader, indistinguishable from an empty array, which is why
+   * the server names it rather than leaving the UI to guess.
+   */
+  podStatus?: "ok" | "disabled" | "unreachable";
+  /**
+   * How far above list price the accepted ceiling sits, e.g. 1.5.
+   *
+   * A marketplace price moves; the agreement should have headroom or every
+   * small rise pauses the agent. It should NOT be unbounded, or the number the
+   * creator accepted means nothing.
+   */
+  priceCeilingMultiple: number;
+}
+
+/**
+ * The catalogue.
+ *
+ * Under `/agents` like everything else on this surface, rather than a top-level
+ * `/models`: canopy-be mounts the whole agent API there, and a second mount
+ * point for one route is a second thing to keep in sync.
+ */
+export const getModels = (token: string) => request<ModelCatalogue>("/agents/models", token);
+
+/**
+ * What an agent thinks with, and what that is costing.
+ *
+ * `balance` is null for a Canopy agent — not zero. Zero is a Pod agent that has
+ * run out, which is a state that pauses it; a Canopy agent has no balance to
+ * be out of.
+ */
+export interface AgentModel {
+  modelId: string;
+  provider: "canopy" | "pod";
+  label: string;
+  /**
+   * The price ceiling accepted when this model was chosen, USD per million
+   * tokens. Sent as `X-Pod-Max-Price-*` on every call, so a marketplace spike
+   * refuses the request instead of quietly costing more than was agreed.
+   */
+  maxPriceInputUsd: number | null;
+  maxPriceOutputUsd: number | null;
+  /**
+   * Whether to fall back to the Canopy model when Pod cannot serve.
+   *
+   * Opt-in, and off by default: the creator picked a model, and silently
+   * running a different one is a worse failure than skipping a cycle. When it
+   * IS on, the cycle transcript shows which model actually answered.
+   */
+  fallbackToCanopy: boolean;
+  /** Pod only. Null while the agent runs the Canopy model. */
+  balance: {
+    usdc: number;
+    /**
+     * The 16-hex code that binds an on-chain deposit to this agent's Pod
+     * balance. Safe to show and safe to share — it can only ADD credit. The
+     * token it credits is the secret, and never leaves the backend.
+     */
+    depositCode: string;
+    /** Cycles the balance should cover at the measured rate. Null before any ran. */
+    cyclesRemaining: number | null;
+    lowBalance: boolean;
+  } | null;
+  /** Lifetime inference spend, summed from the decision rows' own `cost_usd`. */
+  spentUsd: number;
+}
+
+export const getAgentModel = (token: string, agentId: number) =>
+  request<AgentModel>(`/agents/${agentId}/model`, token);
+
+export const setAgentModel = (
+  token: string,
+  agentId: number,
+  body: {
+    modelId: string;
+    maxPriceInputUsd?: number | null;
+    maxPriceOutputUsd?: number | null;
+    fallbackToCanopy?: boolean;
+  },
+) =>
+  request<AgentModel>(`/agents/${agentId}/model`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/**
+ * A top-up, as a transaction for the browser to sign.
+ *
+ * THE BACKEND BUILDS IT, and there are two reasons rather than one. Pod's
+ * deposit is an Anchor instruction whose account list is resolved from an IDL,
+ * and Anchor's client is built on @solana/web3.js — a second Solana runtime
+ * this bundle deliberately does not carry (see the header of lib/transfer.ts).
+ * Hand-encoding the account metas here would be guesswork against a program we
+ * do not own.
+ *
+ * What stays in the browser is the only part that must: the signature. The
+ * agent's delegated signer is scoped to swaps and cannot pay for inference, so
+ * the person signs — from the agent's wallet, or from their own for an agent
+ * that has no wallet yet.
+ */
+export interface TopUpTx {
+  /** Base64 UNSIGNED transaction. Sign with Privy, submit, then confirm below. */
+  transactionBase64: string;
+  /** When the blockhash dies. Past this, ask for a new one rather than submit. */
+  expiresAt: string;
+  amountUsdc: number;
+}
+
+export const buildModelTopUp = (
+  token: string,
+  agentId: number,
+  body: {
+    amountUsdc: number;
+    /** Who pays. The agent's wallet, or the owner's for an unfunded paper agent. */
+    payer: string;
+  },
+) =>
+  request<TopUpTx>(`/agents/${agentId}/model/topup`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/**
+ * Tell the backend the deposit landed, and get the new balance.
+ *
+ * Pod credits within seconds of finalization, but the client cannot read a Pod
+ * balance itself — so this is the round trip that turns a signature into a
+ * number on screen.
+ */
+export const confirmModelTopUp = (token: string, agentId: number, signature: string) =>
+  request<AgentModel>(`/agents/${agentId}/model/topup/confirm`, token, {
+    method: "POST",
+    body: JSON.stringify({ signature }),
+  });
+
 /* ----------------------------------------------------------------- invite -- */
 
 export interface PersonalInvite {
@@ -1670,6 +1926,15 @@ export interface CycleRow {
   ended_at: string | null;
   risk_decisions: string;
   blocked: string;
+  /**
+   * What this cycle's reasoning cost, in USD.
+   *
+   * Summed server-side from the same `cost_usd` the decision rows carry, so the
+   * total and the per-seat figures can never disagree. Null on a Canopy agent —
+   * its reasoning is included, and "$0.00" would be a claim about a price
+   * rather than an admission that there isn't one.
+   */
+  costUsd: string | null;
 }
 
 export const listCycles = (token: string, agentId: number, limit = 50) =>
@@ -1743,6 +2008,15 @@ export interface ActivityCycle {
   ended_at: string | null;
   error: string | null;
   decisions: ActivityDecision[];
+  /**
+   * What this cycle's reasoning cost, in USD.
+   *
+   * Summed server-side from the same `cost_usd` the decision rows carry, so the
+   * total and the per-seat figures can never disagree. Null on a Canopy agent —
+   * its reasoning is included, and "$0.00" would be a claim about a price
+   * rather than an admission that there isn't one.
+   */
+  costUsd: string | null;
 }
 
 /** The last few cycles with their full transcript — the agent's activity log. */

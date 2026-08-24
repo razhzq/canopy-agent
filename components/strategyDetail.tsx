@@ -109,7 +109,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             </h1>
             {/* Straight after the name, ahead of the state badges: what it is
                 made of, before what it is currently doing. */}
-            <ModelBadge />
+            <ModelBadge model={strategy.model} />
             {live ? <Badge tone="accent">Listed</Badge> : null}
             {/* Draft and verifying are both paper, and the page says so the
                 same way for both. A draft only reaches a non-author at all

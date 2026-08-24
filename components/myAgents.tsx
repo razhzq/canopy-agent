@@ -367,7 +367,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
           >
             {agent.strategy_name}
           </Link>
-          <ModelBadge />
+          <ModelBadge model={agent.model} />
         </div>
         <p className="truncate font-ui text-[11.5px] text-text-dim">
           {agent.strategy_class} · {agent.autonomy.replace(/_/g, " ")}
@@ -560,6 +560,8 @@ function humanReason(reason: string): string {
     wallet_expired: "its wallet delegation expired",
     mandate_expired: "its mandate expired",
     insufficient_funds: "it ran out of funds",
+    // Its trading wallet may be full — this is the balance it reasons with.
+    model_balance_exhausted: "its model balance ran out",
   };
   return known[reason] ?? reason.replace(/_/g, " ");
 }

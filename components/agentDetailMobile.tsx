@@ -27,6 +27,8 @@ import {
 } from "@/lib/api";
 import { markAgent } from "@/lib/perf";
 import { ModelBadge } from "@/components/modelBadge";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
 
 /**
  * One agent, on a phone — wireframe M03.
@@ -71,6 +73,8 @@ export function AgentDetailMobile({
   const [busy, setBusy] = useState(false);
   const [cycle, setCycle] = useState<ActivityCycle | null>(null);
   const [adding, setAdding] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  const personalWallet = usePersonalWallet();
 
   // The newest cycle, for the phase bar. One request, one cycle deep.
   useEffect(() => {
@@ -149,7 +153,14 @@ export function AgentDetailMobile({
                 about where this fact lives. The name truncates before the pill
                 does, which is the right order: the name has a second copy in
                 the header bar above, the model has none. */}
-            <ModelBadge />
+            <button
+              type="button"
+              onClick={() => setModelOpen(true)}
+              aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+              className="shrink-0 transition-opacity active:opacity-70"
+            >
+              <ModelBadge model={agent.model} />
+            </button>
             {agent.status === "active" ? (
               <span className="flex shrink-0 items-center gap-1.5 rounded-[5px] bg-accent-wash px-1.5 py-[3px]">
                 <span className="size-[5px] rounded-full bg-accent" />
@@ -416,6 +427,17 @@ export function AgentDetailMobile({
 
       {chatOpen ? (
         <AgentChatSheet agentId={agent.id} agent={agent} onClose={() => setChatOpen(false)} />
+      ) : null}
+
+      {modelOpen ? (
+        <ModelPanel
+          agentId={agent.id}
+          agentWallet={detail.wallet?.address ?? null}
+          personalWallet={personalWallet}
+          expiresAt={agent.expires_at ?? null}
+          onChanged={onChanged}
+          onClose={() => setModelOpen(false)}
+        />
       ) : null}
 
       {adding ? (

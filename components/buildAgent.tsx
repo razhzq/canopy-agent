@@ -22,6 +22,7 @@ import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
 import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
+import { DEFAULT_MODEL, PickModel, type ModelChoice } from "@/components/pickModel";
 
 /**
  * The asset classes present in a selection, in a stable order.
@@ -37,7 +38,7 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
 /**
  * The agent builder — wireframes 1d and 1e, after the naming modal.
  *
- *   name → 01 Market → 02 Limits → paper run
+ *   name → 01 Market → 02 Limits → 03 Model → paper run
  *
  * ROUTE IS NOT A STEP
  *
@@ -58,11 +59,23 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
  * editable rules happens inside step 2, beside the chips it produced — which
  * is the thing the old flow missed: it read a description, filled two pages
  * elsewhere, and never showed its working.
+ *
+ * STEP 3 IS THE MODEL, AND IT IS A REAL QUESTION
+ *
+ * Unlike the venue step, which restated an answer the market had already given,
+ * nothing else on this wizard decides what the council reasons with. The choice
+ * also costs money — a marketplace model is paid for in USDC by the agent
+ * itself — so it cannot be defaulted quietly on someone's behalf.
+ *
+ * What step 3 does NOT touch is step 2. The compiler that turns a sentence into
+ * chips runs on Canopy's model and always will: it runs before an agent, a
+ * wallet or a balance exists.
  */
 
 const STEPS = [
   { index: "01", label: "Market" },
   { index: "02", label: "Limits" },
+  { index: "03", label: "Model" },
 ];
 
 const DEFAULT_LIMITS: Limits = {
@@ -108,6 +121,9 @@ export function BuildAgent() {
   const [markets, setMarkets] = useState<UniverseAsset[]>([]);
   const asset = markets[0] ?? null;
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  // What the council will reason with. Canopy's model until someone chooses
+  // otherwise — the state every agent built before step 3 existed is in.
+  const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
   // Where the selection fills. Derived, never state: it follows from the
   // markets, so there is nothing to keep in sync and nothing to strand.
   const venues = describeVenues(markets);
@@ -144,7 +160,13 @@ export function BuildAgent() {
     // deploys the agent, so the button does what it says rather than leaving a
     // half-made thing behind.
     const { agentId } = await startPaperRun(token, strategyId);
-    router.push(`/workspace/${agentId}?tab=cycles`);
+    // A Pod agent lands on its page with the top-up open. Funding is the very
+    // next thing it needs — it cannot reason until the balance exists — and an
+    // agent sitting at zero because nobody found the panel is the failure this
+    // hand-off is here to prevent.
+    router.push(
+      `/workspace/${agentId}?tab=cycles${model.provider === "pod" ? "&fund=model" : ""}`,
+    );
   }
 
   async function confirmPending(): Promise<void> {
@@ -214,6 +236,14 @@ export function BuildAgent() {
         // asset. Sent regardless when set, because the engine treats a ranking
         // wider than the universe as a no-op rather than an error.
         ranking: limits.ranking,
+        // Step 3. The RUNTIME council model — what the five seats reason with
+        // every cycle. It is deliberately NOT what compiled the rules above:
+        // that ran on Canopy's model, before this agent existed.
+        model: {
+          id: model.modelId,
+          maxPriceInputUsd: model.maxPriceInputUsd,
+          maxPriceOutputUsd: model.maxPriceOutputUsd,
+        },
       });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
@@ -317,6 +347,18 @@ export function BuildAgent() {
       },
       // Step 01, not a step of its own: the venue came with the market.
       { label: "Routing", value: venues, step: "01" },
+      { label: "Model", value: model.label, step: "03" },
+      // Only when there is a bill to state. A Canopy agent has no budget row
+      // because it has no budget — it has an inclusion.
+      ...(model.provider === "pod"
+        ? [
+            {
+              label: "Model budget",
+              value: `${money(model.intendedTopUpUsd ?? 0)} to fund after creating`,
+              step: "03",
+            },
+          ]
+        : []),
     ];
   }
 
@@ -363,12 +405,19 @@ export function BuildAgent() {
             disabled: markets.length === 0,
             onClick: () => setStep(1),
           }
-        : {
-            label: "Review",
-            hint: "Every chip above is a rule the specialist actually evaluates. Nothing is created until the next screen.",
-            disabled: activeRules.length === 0,
-            onClick: () => setReviewing(true),
-          };
+        : step === 1
+          ? {
+              label: "Choose the model",
+              hint: "Every chip above is a rule the specialist actually evaluates.",
+              disabled: activeRules.length === 0,
+              onClick: () => setStep(2),
+            }
+          : {
+              label: "Review",
+              hint: "Nothing is charged here — you fund the model after the agent exists.",
+              disabled: activeRules.length === 0,
+              onClick: () => setReviewing(true),
+            };
 
     return (
       <BuildFrame
@@ -381,12 +430,20 @@ export function BuildAgent() {
         <div className="px-[18px] pb-6">
           {step === 0 || !asset ? (
             <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-          ) : (
+          ) : step === 1 ? (
             <SetLimits
               markets={markets}
               value={limits}
               onChange={setLimits}
               onBack={() => setStep(0)}
+            />
+          ) : (
+            <PickModel
+              value={model}
+              onChange={setModel}
+              cadenceSec={limits.cadenceSec}
+              isPaper
+              onBack={() => setStep(1)}
             />
           )}
         </div>
@@ -461,12 +518,23 @@ export function BuildAgent() {
           <div className="px-5 sm:px-8 py-8">
             {step === 0 || !asset ? (
               <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-            ) : (
+            ) : step === 1 ? (
               <SetLimits
                 markets={markets}
                 value={limits}
                 onChange={setLimits}
                 onBack={() => setStep(0)}
+              />
+            ) : (
+              // `isPaper` is unconditionally true: this wizard only ever ends in
+              // a paper run. Going live is a later, separate decision, and by
+              // then the agent has a wallet of its own to pay from.
+              <PickModel
+                value={model}
+                onChange={setModel}
+                cadenceSec={limits.cadenceSec}
+                isPaper
+                onBack={() => setStep(1)}
               />
             )}
           </div>
@@ -503,6 +571,14 @@ export function BuildAgent() {
                       }`
                 }
               />
+              <Trail
+                done={false}
+                here={step === 2}
+                label="Model"
+                value={
+                  step < 2 ? "next" : `${model.label}${step === 2 ? " · this step" : ""}`
+                }
+              />
               <Trail done={false} label="Paper run" value="free, no time limit" />
               <Trail done={false} label="Publish" value="whenever you like" />
 
@@ -518,6 +594,7 @@ export function BuildAgent() {
                   {/* Where it fills. Stated, not chosen — the market settled
                       it back in step 1, and a row is what that deserves. */}
                   <Row label="Routes via" value={venues} />
+                  {step >= 2 ? <Row label="Reasons with" value={model.label} /> : null}
                 </div>
               ) : null}
             </div>
@@ -602,6 +679,25 @@ export function BuildAgent() {
                     </p>
                   ) : null}
                 </>
+              ) : step === 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    disabled={activeRules.length === 0}
+                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  >
+                    Continue to model
+                  </button>
+                  {activeRules.length === 0 ? (
+                    // A strategy with no active rule buys nothing, ever — so the
+                    // gate sits here, one step before the run it would have made
+                    // pointless.
+                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
+                      Turn on at least one rule
+                    </p>
+                  ) : null}
+                </>
               ) : ready && !authenticated ? (
                 <button
                   type="button"
@@ -622,8 +718,8 @@ export function BuildAgent() {
                   </button>
                   {activeRules.length === 0 ? (
                     // A strategy with no active rule buys nothing, ever — and
-                    // with the route step gone this is the last place to say
-                    // so before the run that would have proved it.
+                    // this is the last place to say so before the run that
+                    // would have proved it.
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
                       Turn on at least one rule
                     </p>

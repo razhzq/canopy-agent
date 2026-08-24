@@ -645,6 +645,14 @@ const SKIP_LABEL: Record<string, string> = {
   market_closed: "Markets were closed",
   no_candidates: "Nothing passed the screen",
   budget_exhausted: "Out of model budget",
+  // Distinct from the line above, which is the per-cycle cap. This one is the
+  // agent's prepaid balance at the marketplace running dry — the fix is money,
+  // not a setting.
+  model_balance_exhausted: "Out of model balance",
+  // Not a fault: the agent is built, correct, and waiting for its first
+  // deposit. It starts on its own once one lands.
+  model_unfunded: "Waiting to be funded",
+  model_unavailable: "Model unavailable",
   paused: "Agent is paused",
   expired: "Mandate expired",
   not_active: "Agent is not active",

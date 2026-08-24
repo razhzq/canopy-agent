@@ -18,6 +18,8 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
 import { ModelBadge } from "@/components/modelBadge";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -176,11 +178,35 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       }
   >({ phase: "loading" });
 
+  const [modelOpen, setModelOpen] = useState(false);
+  const personalWallet = usePersonalWallet();
+
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("checkout") !== "return") return;
     setResumedCheckout(true);
     url.searchParams.delete("checkout");
+    window.history.replaceState(
+      null,
+      "",
+      url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "") + url.hash,
+    );
+  }, []);
+
+  /**
+   * The builder's hand-off: an agent that was just created on a bought model
+   * arrives here with the model panel open.
+   *
+   * It cannot reason until its balance exists, so funding is not a thing to go
+   * looking for — it is the next step. The flag is stripped from the URL for
+   * the same reason the checkout one is: a shared or reloaded link should not
+   * keep reopening a dialog nobody asked for this time.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("fund") !== "model") return;
+    setModelOpen(true);
+    url.searchParams.delete("fund");
     window.history.replaceState(
       null,
       "",
@@ -469,7 +495,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <h1 className="font-mono text-[28px] leading-none text-text-primary">
             {agent.strategy_name}
           </h1>
-          <ModelBadge />
+          {/* The badge is the affordance. It is already the thing on this page
+              that names the model, so making it the way IN to the model is one
+              control rather than two — and a rail row that says "Model: X" next
+              to a badge that says X is the page restating itself. */}
+          <button
+            type="button"
+            onClick={() => setModelOpen(true)}
+            aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+            className="transition-opacity hover:opacity-80"
+          >
+            <ModelBadge model={agent.model} />
+          </button>
           <StatusChip status={agent.status} />
           <div className="flex-1" />
           <WalletBar
@@ -498,7 +535,25 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           />
         </div>
 
-        {agent.paused_reason ? (
+        {/* An agent waiting for its first deposit is mid-SETUP, not broken —
+            so it gets an action, not the breaker's red sentence. It is not
+            paused either: it stays scheduled and starts by itself the moment
+            the balance lands, which is what the copy has to promise. */}
+        {lastRun?.skip_reason === "model_unfunded" ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-3">
+            <p className="font-ui text-[12.5px] text-warning">
+              Waiting for its model balance. {agent.model?.label ?? "The model"} is prepaid — fund
+              it and this agent starts on its own, no restart needed.
+            </p>
+            <button
+              type="button"
+              onClick={() => setModelOpen(true)}
+              className="shrink-0 border border-accent px-3 py-1.5 font-mono text-[11px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
+            >
+              Top up
+            </button>
+          </div>
+        ) : agent.paused_reason ? (
           <p className="pt-3 font-ui text-[12.5px] text-negative">
             Stopped itself: {agent.paused_reason.replace(/_/g, " ")}.
           </p>
@@ -825,6 +880,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                     : String(positions.length)
                 }
               />
+              {/* What the reasoning costs, where the other per-agent facts are.
+                  Only for a bought model: a Canopy agent has no balance, and a
+                  row reading "—" would imply one it is missing. */}
+              {agent.model && agent.model.provider === "pod" ? (
+                <RailRow label="Reasons with" value={agent.model.label} />
+              ) : null}
               <RailRow
                 label="Compliance"
                 value={constraints.complianceProfile ?? "—"}
@@ -836,6 +897,22 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       </div>
 
       <Controls agent={agent} positions={positions} onChanged={() => void load()} />
+
+      {/* What it reasons with, what that costs, and how to pay for it. Opened
+          from the badge beside the name, or by the builder's hand-off for an
+          agent that was just created on a bought model. */}
+      {modelOpen ? (
+        <ModelPanel
+          agentId={agentId}
+          agentWallet={wallet?.address ?? null}
+          personalWallet={personalWallet}
+          expiresAt={agent.expires_at ?? null}
+          // Reloads behind the open panel, so granting a wallet updates the
+          // header and the payer list without closing what the owner is doing.
+          onChanged={() => void load()}
+          onClose={() => setModelOpen(false)}
+        />
+      ) : null}
 
       {adding ? (
         <AddMarketModal

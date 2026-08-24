@@ -319,13 +319,18 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           {hot ? (
             <Badge tone="warning">Hot</Badge>
           ) : isNew(r) ? (
-            <Badge tone="accent">New</Badge>
+            // Rounded like the model pill, not square like the status chips:
+            // "new" is a fact about the record's age, not a state the agent is
+            // sitting in, and the shape is what keeps the two apart.
+            <Badge tone="accent" className="rounded-full px-2">
+              New
+            </Badge>
           ) : null}
           {/* Beside the name, where the reader is already looking to tell one
               card from another. `min-w-0` on the wrapper means the NAME is what
               gives way when the card is narrow — the pill is shrink-0, so it
               survives the truncation that a 15-character agent name causes. */}
-          <ModelBadge />
+          <ModelBadge model={r.model} />
         </span>
         {r.is_mine ? <Badge tone="muted">Yours</Badge> : null}
       </div>

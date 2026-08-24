@@ -29,6 +29,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
+import { ModelBadge } from "@/components/modelBadge";
 
 /**
  * Step 2 — set the limits. Wireframe 1e.
@@ -432,8 +433,16 @@ export function SetLimits({
                 className="w-full resize-none bg-transparent px-4 py-3 font-ui text-[14px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
               />
               <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
-                <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-                  {busy ? "Compiling…" : "⌘⏎ to send"}
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+                    {busy ? "Compiling…" : "⌘⏎ to send"}
+                  </span>
+                  {/* WHO is reading the sentence, stated where it is read.
+                      Step 3 lets an agent be given a different model to reason
+                      with, and the obvious wrong assumption is that the choice
+                      reaches back here. It cannot: this runs before the agent,
+                      its wallet, or its balance exists. */}
+                  <ModelBadge className="hidden sm:inline-flex" />
                 </span>
                 <button
                   type="button"
