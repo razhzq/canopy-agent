@@ -50,6 +50,8 @@ export const AGENT_MODEL = {
 export function ModelBadge({
   model,
   className = "",
+  creditUsd,
+  creditLow = false,
 }: {
   /**
    * What this agent reasons with. Absent or null means the Canopy model —
@@ -58,17 +60,52 @@ export function ModelBadge({
    */
   model?: ModelRef | null;
   className?: string;
+  /**
+   * Prepaid credit left on this model, in USDC.
+   *
+   * OPTIONAL, AND IT BELONGS HERE rather than beside the wallet balance. It was
+   * tried in the wallet bar next to the agent's USDC and read as two of the same
+   * thing — one number is capital that buys assets and can be withdrawn, the
+   * other is inference credit that cannot, and setting them side by side
+   * asserted an equivalence no label was going to undo.
+   *
+   * On the badge it sits with what it pays for, and the badge is already the
+   * way in to the model panel — so a balance that needs topping up is attached
+   * to the control that tops it up.
+   *
+   * Undefined means "do not show it": the marketplace, the strategy page and
+   * the agent list all render this badge for a model nobody has a balance on.
+   */
+  creditUsd?: number | null;
+  /** Renders the credit in the warning tone — low or empty. */
+  creditLow?: boolean;
 }) {
   const canopy = !model || model.provider === "canopy";
   const label = model?.label ?? AGENT_MODEL.label;
+  const showCredit = typeof creditUsd === "number";
 
   return (
     <span
-      title={`Reasons with ${label}${canopy ? " — Canopy-hosted Qwen3" : " — bought through Pod"}`}
+      title={`Reasons with ${label}${canopy ? " — Canopy-hosted Qwen3" : " — bought through Pod"}${
+        showCredit ? ` · $${creditUsd!.toFixed(2)} prepaid credit left` : ""
+      }`}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-grid-strong py-[3px] pr-2.5 pl-1.5 font-mono text-[10px] leading-none tracking-[0.08em] text-text-dim ${className}`}
     >
       <Mark model={model} />
       {label}
+      {showCredit ? (
+        <>
+          {/* A hairline, not a dot or a slash: the credit is a second fact
+              about one thing, and the separator should be the quietest mark
+              that still separates. */}
+          <span className="h-2.5 w-px bg-grid-strong" aria-hidden />
+          <span
+            className={`tnum ${creditLow ? "text-warning" : "text-text-secondary"}`}
+          >
+            ${creditUsd!.toFixed(2)}
+          </span>
+        </>
+      ) : null}
     </span>
   );
 }

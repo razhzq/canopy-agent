@@ -158,18 +158,68 @@ export function Figure({
   );
 }
 
+/**
+ * A value and its unit at CHIP scale — a header readout, not a hero.
+ *
+ * The small sibling of `Figure`. Same pairing and the same tabular digits, at a
+ * size that belongs in a bar rather than at the top of a surface. Rule 1 is why
+ * both exist: a surface has one leading number, and everything else reporting a
+ * quantity has to be visibly not it.
+ *
+ * `tone` is for the value only. The unit stays dim in every state — it is a
+ * label, and colouring it doubles the signal.
+ */
+export function Metric({
+  value,
+  unit,
+  tone = "normal",
+}: {
+  value: string;
+  unit: string;
+  tone?: "normal" | "warn" | "dim";
+}) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span
+        className={`tnum font-mono text-[13px] ${
+          tone === "warn"
+            ? "text-warning"
+            : tone === "dim"
+              ? "text-text-dim"
+              : "text-text-primary"
+        }`}
+      >
+        {value}
+      </span>
+      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+        {unit}
+      </span>
+    </span>
+  );
+}
+
 /** Status: a dot and a word. See rule 4 — this replaces a callout. */
 export function StatusLine({
   tone,
+  live = false,
   children,
 }: {
   tone: "good" | "pending" | "bad";
+  /**
+   * The dot pulses.
+   *
+   * Reserved for a state that is HAPPENING, not merely true — an agent between
+   * ticks, a cycle mid-flight. "Funded" is true and static; "checking" is not.
+   * Motion is the loudest thing on a quiet surface, so it is worth exactly one
+   * meaning.
+   */
+  live?: boolean;
   children: ReactNode;
 }) {
   return (
     <span className="flex items-center gap-1.5 font-ui text-[12px] text-text-dim">
       <span
-        className={`size-[5px] shrink-0 rounded-full ${
+        className={`size-[5px] shrink-0 rounded-full ${live ? "animate-pulse" : ""} ${
           tone === "good"
             ? "bg-accent"
             : tone === "bad"

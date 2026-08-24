@@ -27,11 +27,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/lib/useApi";
-import { getAgentFunding } from "@/lib/api";
+import { getAgentFunding, getAgentModel } from "@/lib/api";
 import { FundingPanel } from "@/components/funding";
 import { WithdrawModal } from "@/components/walletModals";
+import { AddFundsModal } from "@/components/addFunds";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { SolanaMark } from "@/components/chainMark";
+import { LABEL, PRIMARY, SECONDARY, SURFACE } from "@/components/kit";
 
 export function WalletBar({
   agentId,
@@ -68,7 +70,7 @@ export function WalletBar({
     // it is worth saying — real capital with nowhere to sign from is a fault.
     if (isPaper) return null;
     return (
-      <span className="col-start-2 row-start-1 justify-self-end font-ui text-[12px] text-text-dim">
+      <span className="font-ui text-[12px] text-text-dim">
         No wallet provisioned
       </span>
     );
@@ -78,87 +80,83 @@ export function WalletBar({
     <>
       {/* ONE GROUPED CONTROL, not three loose items on a divider.
           
-          The chain is the addition that matters. "0 USDC" beside a truncated
+          The chain is the addition that matters."0 USDC" beside a truncated
           address says nothing about WHERE to send it, and USDC exists on a
           dozen chains — sending Ethereum USDC to a Solana address loses it.
-          The deposit dialog said "Solana" and the header did not, so the one
+          The deposit dialog said"Solana" and the header did not, so the one
           screen you read before reaching for your wallet was the one that left
           the chain out. */}
-      {/* TWO GRID CELLS, NOT A STACK.
-      
-          The header's left side already has two rows — the agent's name, and
-          the paper/live switch under it — and the wallet has two rows of its
-          own. Nesting its stack inside the name row let it hang below with
-          nothing to line up against. As sibling cells in the SAME grid, the
-          identity sits on the name's baseline and the actions sit on the
-          switch's, which is the alignment the eye was looking for.
-          
-          Positioned explicitly rather than by source order, so this can stay
-          one component owning one set of modal state while its two halves land
-          in rows that are not adjacent in the DOM. */}
-      <span className="col-start-2 row-start-1 flex items-center justify-self-end overflow-hidden rounded-lg border border-grid bg-surface">
-        <span
-          className="flex items-center gap-1.5 border-r border-grid px-2.5 py-[7px]"
-          title="Solana mainnet"
-        >
-          <SolanaMark />
-          <span className="font-mono text-[9px] font-semibold tracking-[0.7px] text-text-dim uppercase">
-            Solana
-          </span>
-        </span>
+      {/* ONE BLOCK, reading top-down on its own — the header no longer pairs
+          it line-by-line against the identity beside it.
 
-        <span className="px-3 py-[7px]">
+          NO CONTAINER around the readouts: rule 2. The pill this replaced put a
+          border around facts nobody can press. One bordered object survives and
+          it is the address — the only thing here you can do something with.
+          Rule 3. */}
+      <span className="flex w-[236px] shrink-0 flex-col gap-2">
+        <Row label="USDC balance">
           <Balance agentId={agentId} />
-        </span>
+        </Row>
+
+        {/* UNDER THE BALANCE, NOT BESIDE IT. Side by side these read as two of
+          the same thing, and no label undid that — one is capital that buys
+          assets and can be withdrawn, the other is inference credit that
+          cannot. */}
+        <ModelCredit agentId={agentId} />
 
         <button
           type="button"
           onClick={() => copy(address)}
           title={address}
           aria-label={`Copy wallet address ${address}`}
-          className="group flex items-center gap-1.5 border-l border-grid px-2.5 py-[7px] font-mono text-[12px] text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary"
+          className={`group flex items-center gap-2 ${SURFACE} px-2 py-1.5 transition-colors hover:border-accent`}
         >
-          {copied ? (
-            <span className="text-accent">Copied</span>
-          ) : (
-            <>
-              <span>{`${address.slice(0, 4)}…${address.slice(-4)}`}</span>
-              <CopyMark />
-            </>
-          )}
+          <ChainDisc />
+          <span className="font-mono text-[12px] text-text-secondary transition-colors group-hover:text-text-primary">
+            {`${address.slice(0, 4)}…${address.slice(-4)}`}
+          </span>
+          <span
+            className={`ml-auto font-mono text-[9px] tracking-[0.1em] uppercase transition-colors ${
+              copied ? "text-accent" : "text-text-dim group-hover:text-accent"
+            }`}
+          >
+            {copied ? "Copied" : "Copy"}
+          </span>
         </button>
-      </span>
 
-      {/* WHAT YOU CAN DO TO IT. Its own row, because an action is not a
-          property: welding Deposit onto the end of the address made moving
-          money look like the last field of a readout. They are also a PAIR —
-          money goes in and comes back out — and the way in cannot be the only
-          one on screen. Stretched across the column so the pair spans exactly
-          the width of the pill above it. */}
-      <span className="col-start-2 row-start-2 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setMoving("deposit")}
-          className="flex-1 rounded-lg border border-accent bg-accent-wash px-3 py-[6px] font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
-        >
-          Deposit
-        </button>
-        <button
-          type="button"
-          onClick={() => setMoving("withdraw")}
-          // Quieter than Deposit on purpose. Both are one click, but taking
-          // capital out from under a running agent is the one that changes
-          // what it can do next.
-          className="flex-1 rounded-lg border border-grid px-3 py-[6px] font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-text-dim hover:text-text-primary"
-        >
-          Withdraw
-        </button>
+        {/* WHAT YOU CAN DO TO IT. Its own row, because an action is not a
+          property — and a PAIR, because money goes in and comes back out and
+          the way in cannot be the only one on screen. */}
+        <span className="w-[230px] flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMoving("deposit")}
+            className={`flex-1 ${PRIMARY}`}
+          >
+            Deposit
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoving("withdraw")}
+            // Quieter than Deposit on purpose. Both are one click, but taking
+            // capital out from under a running agent is the one that changes what
+            // it can do next.
+            className={`flex-1 ${SECONDARY}`}
+          >
+            Withdraw
+          </button>
+        </span>
       </span>
 
       {moving === "deposit" ? (
-        <DepositModal
+        // The COMBINED dialog. Opens on trading capital, with model credit a
+        // segment away — the agent's own wallet is a valid payer for its
+        // inference, so the two are one errand.
+        <AddFundsModal
           agentId={agentId}
-          address={address}
+          agentWallet={address}
+          personalWallet={personalWallet}
+          initial="capital"
           onClose={() => setMoving(null)}
         />
       ) : null}
@@ -204,9 +202,77 @@ function CopyMark() {
  *
  * USDC only. SOL is a fee balance rather than capital, and the deposit dialog is
  * where it belongs if the backend still asks for it at all — putting two numbers
- * in a header chip invites reading their sum as "what the agent has to trade
+ * in a header chip invites reading their sum as"what the agent has to trade
  * with", which is exactly wrong.
  */
+/** One fact: label on the left, value on the right, nothing around it. */
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="flex items-baseline justify-between gap-3 px-0.5">
+      <span className={LABEL}>{label}</span>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The chain, as a disc.
+ *
+ * On the ADDRESS, because the address is the chain-bound thing — a balance is
+ * just a number, but sending USDC to this string on the wrong network loses it.
+ * It replaces a"◆ SOLANA" text segment that spent a third of the bar's width
+ * saying what a 16px mark says.
+ */
+function ChainDisc() {
+  return (
+    <span
+      title="Solana mainnet"
+      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-grid bg-bg"
+    >
+      <SolanaMark className="size-[9px]" />
+    </span>
+  );
+}
+
+/**
+ * Prepaid inference, as a line under the wallet.
+ *
+ * QUIET BY CONSTRUCTION. No border, smaller type, its own row — everything that
+ * stops it competing with the balance above, because it is a different kind of
+ * money and the wallet is what this bar is about.
+ *
+ * A missing balance is not a zero: `balance` is null when the agent runs the
+ * Canopy-hosted model, which is billed to Canopy and has no prepaid account at
+ * all. That renders nothing rather than"$0.00", which would read as a problem
+ * to fix.
+ */
+function ModelCredit({ agentId }: { agentId: number }) {
+  const state = useApi((token) => getAgentModel(token, agentId), [agentId]);
+  if (state.phase !== "ready") return null;
+  const balance = state.data.balance;
+  if (!balance) return null;
+
+  const low = balance.lowBalance || balance.usdc <= 0;
+  return (
+    <span title="Prepaid model credit — pays for this agent's reasoning, and cannot be withdrawn">
+      <Row label="Model credit">
+        <span
+          className={`tnum font-mono text-[13px] ${low ? "text-warning" : "text-text-primary"}`}
+        >
+          $
+          {balance.usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        </span>
+      </Row>
+    </span>
+  );
+}
+
 function Balance({ agentId }: { agentId: number }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
 
@@ -227,101 +293,13 @@ function Balance({ agentId }: { agentId: number }) {
   }
 
   const { usdc } = state.data;
+  // No unit here: the row's label already says USDC, and repeating it would put
+  // the word twice on one line.
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span
-        className={`tnum font-mono text-[13px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
-      >
-        {usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-      </span>
-      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-        USDC
-      </span>
-    </span>
-  );
-}
-
-function DepositModal({
-  agentId,
-  address,
-  onClose,
-}: {
-  agentId: number;
-  address: string;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-bg/80 px-4 py-10 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <span
+      className={`tnum font-mono text-[13px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="deposit-title"
-        className="w-full max-w-[560px] animate-[log-enter_180ms_ease-out] rounded-xl border border-grid bg-panel shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]"
-      >
-        {/* No rule under the header. The panel below opens on a label and a
-            number, which separates itself — a divider as well was one line of
-            chrome doing a job the whitespace already did. */}
-        <div className="flex items-start justify-between gap-6 px-7 pt-6 pb-1">
-          <div className="min-w-0 space-y-1.5">
-            <p className="font-mono text-[9.5px] tracking-[0.14em] text-text-muted uppercase">
-              Agent wallet
-            </p>
-            <h2
-              id="deposit-title"
-              className="font-mono text-[20px] leading-none text-text-primary"
-            >
-              Deposit
-            </h2>
-          </div>
-          {/* A mark, not a bordered "Esc" chip. The chip was the heaviest
-              element in the header and it was the one nobody came for. */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-1.5 -mt-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-[15px]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden
-              focusable="false"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="px-7 pt-5 pb-7">
-          {/* The address is handed down so the panel can read the chain itself
-              when canopy-be cannot — see the fallback note in funding.tsx. */}
-          <FundingPanel agentId={agentId} address={address} />
-        </div>
-      </div>
-    </div>
+      ${usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+    </span>
   );
 }

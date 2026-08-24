@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Gavel, Pause, Play, Plus, Share2, Star, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft,
+  Gavel,
+  Pause,
+  Play,
+  Plus,
+  Share2,
+  Star,
+  TrendingUp,
+} from "lucide-react";
 
 import { AddMarketModal } from "@/components/addMarket";
 import { RouteBadge, routeOfMint } from "@/components/routeBadge";
@@ -129,7 +138,9 @@ export function AgentDetailMobile({
 
   const reached = phaseIndex(cycle);
   const running = cycle?.status === "running";
-  const [whole, cents] = splitMoney(mark?.equityUsd ?? num(agent.capital_usd) ?? 0);
+  const [whole, cents] = splitMoney(
+    mark?.equityUsd ?? num(agent.capital_usd) ?? 0,
+  );
   const paused = agent.status === "paused" || agent.status === "stopped";
 
   async function toggle() {
@@ -137,7 +148,9 @@ export function AgentDetailMobile({
     try {
       const token = await getAccessToken();
       if (!token) return;
-      await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      await (paused
+        ? resumeAgent(token, agent.id)
+        : pauseAgent(token, agent.id));
       onChanged();
     } finally {
       setBusy(false);
@@ -189,8 +202,11 @@ export function AgentDetailMobile({
             ) : null}
           </div>
           <p className="truncate font-mono text-[11.5px] text-text-muted">
-            {agent.is_paper ? "PAPER" : "LIVE"} · {agent.strategy_class.toUpperCase()}
-            {points.length ? ` · CYCLE ${points[points.length - 1].tickSeq}` : ""}
+            {agent.is_paper ? "PAPER" : "LIVE"} ·{" "}
+            {agent.strategy_class.toUpperCase()}
+            {points.length
+              ? ` · CYCLE ${points[points.length - 1].tickSeq}`
+              : ""}
           </p>
         </div>
         <button
@@ -199,7 +215,14 @@ export function AgentDetailMobile({
           aria-label="Chat with this agent"
           className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface"
         >
-          <svg viewBox="0 0 24 24" className="size-[18px] text-text-primary" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <svg
+            viewBox="0 0 24 24"
+            className="size-[18px] text-text-primary"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           {Number(agent.needs_you ?? 0) > 0 ? (
@@ -217,18 +240,14 @@ export function AgentDetailMobile({
           the only route to funding was the model pill beside the name, which
           says what the model IS and not that it needs paying for. */}
       {detail.lastRun?.skip_reason === "model_unfunded" ? (
-        <div className="flex items-center gap-3 border-y border-warning/30 bg-warning/10 px-[18px] py-3">
-          <p className="min-w-0 flex-1 font-ui text-[12px] leading-snug text-warning">
-            Waiting for its model balance. {agent.model?.label ?? "The model"} is prepaid — fund it
-            and this agent starts on its own, no restart needed.
+        // No button here either — the model pill beside the name is the way in,
+        // and on a phone a second control competing with it is worse.
+        <div className="border-y border-warning/30 bg-warning/10 px-[18px] py-3">
+          <p className="font-ui text-[12px] leading-snug text-warning">
+            Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
+            is prepaid — fund it and this agent starts on its own, no restart
+            needed.
           </p>
-          <button
-            type="button"
-            onClick={() => setModelOpen(true)}
-            className="shrink-0 rounded-lg border border-accent px-3 py-2 font-mono text-[11px] tracking-[0.08em] text-accent uppercase transition-opacity active:opacity-70"
-          >
-            Top up
-          </button>
         </div>
       ) : null}
 
@@ -237,7 +256,10 @@ export function AgentDetailMobile({
         <div className="flex items-start justify-between px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
             <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
-              Agent NAV{points.length ? ` · cycle ${points[points.length - 1].tickSeq}` : ""}
+              Agent NAV
+              {points.length
+                ? ` · cycle ${points[points.length - 1].tickSeq}`
+                : ""}
             </p>
             <p className="flex items-end font-mono text-[30px] leading-none font-semibold tracking-[-1px]">
               <span className="text-text-primary">{whole}</span>
@@ -245,10 +267,14 @@ export function AgentDetailMobile({
             </p>
             {mark ? (
               <p className="flex flex-wrap items-center gap-1.5">
-                <span className={`font-mono text-[13px] font-semibold ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}>
+                <span
+                  className={`font-mono text-[13px] font-semibold ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}
+                >
                   {signed(mark.pnlUsd)}
                 </span>
-                <span className={`font-mono text-[13px] font-semibold ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}>
+                <span
+                  className={`font-mono text-[13px] font-semibold ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}
+                >
                   {signedPct(mark.returnPct)}
                 </span>
                 <span className="font-mono text-[9px] font-semibold tracking-[0.7px] text-text-dim uppercase">
@@ -265,7 +291,9 @@ export function AgentDetailMobile({
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
                 className={`rounded-[7px] px-2 py-[5px] font-mono text-[10px] font-semibold tracking-[0.4px] ${
-                  range === r ? "bg-surface-2 text-text-primary" : "text-text-muted"
+                  range === r
+                    ? "bg-surface-2 text-text-primary"
+                    : "text-text-muted"
                 }`}
               >
                 {r}
@@ -292,10 +320,34 @@ export function AgentDetailMobile({
             risk-free rate and no return series to annualise — so the slot
             carries realised P&L, which the equity payload does report. */}
         <div className="flex border-t border-grid">
-          <Cell label="Return" value={mark ? signedPct(mark.returnPct) : "—"} tone={mark && mark.returnPct < 0 ? "negative" : "accent"} first />
-          <Cell label="Win rate" value={mark?.hitRatePct === null || !mark ? "—" : `${mark.hitRatePct.toFixed(0)}%`} />
-          <Cell label="Max DD" value={mark && mark.maxDrawdownPct > 0 ? `−${mark.maxDrawdownPct.toFixed(1)}%` : "—"} tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"} />
-          <Cell label="Realised" value={mark ? signed(mark.realizedPnlUsd) : "—"} tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"} />
+          <Cell
+            label="Return"
+            value={mark ? signedPct(mark.returnPct) : "—"}
+            tone={mark && mark.returnPct < 0 ? "negative" : "accent"}
+            first
+          />
+          <Cell
+            label="Win rate"
+            value={
+              mark?.hitRatePct === null || !mark
+                ? "—"
+                : `${mark.hitRatePct.toFixed(0)}%`
+            }
+          />
+          <Cell
+            label="Max DD"
+            value={
+              mark && mark.maxDrawdownPct > 0
+                ? `−${mark.maxDrawdownPct.toFixed(1)}%`
+                : "—"
+            }
+            tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"}
+          />
+          <Cell
+            label="Realised"
+            value={mark ? signed(mark.realizedPnlUsd) : "—"}
+            tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"}
+          />
         </div>
       </div>
 
@@ -316,7 +368,11 @@ export function AgentDetailMobile({
               <div key={p} className="flex-1 space-y-2">
                 <div
                   className={`h-[3px] rounded-sm ${
-                    i < reached ? "bg-accent/60" : i === reached ? "bg-accent" : "bg-grid-strong"
+                    i < reached
+                      ? "bg-accent/60"
+                      : i === reached
+                        ? "bg-accent"
+                        : "bg-grid-strong"
                   }`}
                 />
                 <p
@@ -335,7 +391,10 @@ export function AgentDetailMobile({
           </div>
 
           <div className="flex items-start gap-2.5 rounded-[11px] border border-border-soft bg-surface px-3 py-2.5">
-            <Gavel className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
+            <Gavel
+              className="mt-0.5 size-3.5 shrink-0 text-warning"
+              aria-hidden
+            />
             <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
               {headline(cycle)}
             </p>
@@ -363,10 +422,14 @@ export function AgentDetailMobile({
               const price = assets.find((a) => a.symbol === p.symbol)?.priceUsd;
               const qty = num(p.qty);
               const cost = num(p.cost_basis_usd) ?? 0;
-              const value = num(price) !== null && qty !== null ? num(price)! * qty : cost;
+              const value =
+                num(price) !== null && qty !== null ? num(price)! * qty : cost;
               const pnl = value - cost;
               return (
-                <li key={p.symbol} className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}>
+                <li
+                  key={p.symbol}
+                  className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}
+                >
                   <span className="min-w-0 flex-1 space-y-1">
                     <span className="block truncate font-mono text-[14px] font-semibold text-text-primary">
                       {p.symbol}
@@ -376,10 +439,14 @@ export function AgentDetailMobile({
                     </span>
                   </span>
                   <span className="shrink-0 space-y-1 text-right">
-                    <span className={`block font-mono text-[14px] font-semibold ${pnl >= 0 ? "text-accent" : "text-negative"}`}>
+                    <span
+                      className={`block font-mono text-[14px] font-semibold ${pnl >= 0 ? "text-accent" : "text-negative"}`}
+                    >
                       {signed(pnl)}
                     </span>
-                    <span className="block font-mono text-[11.5px] text-text-dim">{money(value)}</span>
+                    <span className="block font-mono text-[11.5px] text-text-dim">
+                      {money(value)}
+                    </span>
                   </span>
                 </li>
               );
@@ -434,7 +501,9 @@ export function AgentDetailMobile({
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-accent hover:text-accent"
           >
             <Plus className="size-4" aria-hidden />
-            <span className="font-ui text-[13.5px] font-semibold">Add a market</span>
+            <span className="font-ui text-[13.5px] font-semibold">
+              Add a market
+            </span>
           </button>
         </div>
       </div>
@@ -461,12 +530,18 @@ export function AgentDetailMobile({
           className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-accent"
         >
           <Plus className="size-4 text-bg" aria-hidden />
-          <span className="font-ui text-[15px] font-semibold text-bg">Add funds</span>
+          <span className="font-ui text-[15px] font-semibold text-bg">
+            Add funds
+          </span>
         </Link>
       </div>
 
       {chatOpen ? (
-        <AgentChatSheet agentId={agent.id} agent={agent} onClose={() => setChatOpen(false)} />
+        <AgentChatSheet
+          agentId={agent.id}
+          agent={agent}
+          onClose={() => setChatOpen(false)}
+        />
       ) : null}
 
       {modelOpen ? (
@@ -525,13 +600,19 @@ function Cell({
   first?: boolean;
 }) {
   return (
-    <div className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}>
+    <div
+      className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}
+    >
       <p className="font-mono text-[8.5px] font-semibold tracking-[0.7px] text-text-dim uppercase">
         {label}
       </p>
       <p
         className={`font-mono text-[14.5px] font-semibold ${
-          tone === "accent" ? "text-accent" : tone === "negative" ? "text-negative" : "text-text-primary"
+          tone === "accent"
+            ? "text-accent"
+            : tone === "negative"
+              ? "text-negative"
+              : "text-text-primary"
         }`}
       >
         {value}
@@ -544,7 +625,10 @@ function Cell({
 
 function splitMoney(n: number): [string, string] {
   if (!Number.isFinite(n)) return ["—", ""];
-  const s = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const s = Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const [w, f] = s.split(".");
   return [`${n < 0 ? "−" : ""}$${w}`, `.${f}`];
 }

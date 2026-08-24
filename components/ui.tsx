@@ -15,12 +15,7 @@ import {
 /* ---------------------------------------------------------------- tone ---- */
 
 export type Tone =
-  | "accent"
-  | "negative"
-  | "warning"
-  | "neutral"
-  | "muted"
-  | "simulated";
+  "accent" | "negative" | "warning" | "neutral" | "muted" | "simulated";
 
 const TONE_TEXT: Record<Tone, string> = {
   accent: "text-accent",
@@ -60,7 +55,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center border px-1.5 py-[3px] font-mono text-[10px] leading-none tracking-[0.08em] uppercase ${TONE_BORDER[tone]} ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-md border px-1.5 py-[3px] font-mono text-[10px] leading-none tracking-[0.08em] uppercase ${TONE_BORDER[tone]} ${className}`}
     >
       {children}
     </span>
@@ -131,7 +126,9 @@ export function Band({
   className?: string;
 }) {
   return (
-    <section className={`border-b border-grid ${className}`}>{children}</section>
+    <section className={`border-b border-grid ${className}`}>
+      {children}
+    </section>
   );
 }
 
@@ -224,7 +221,9 @@ export function RailSection({
   className?: string;
 }) {
   return (
-    <div className={`border-b border-grid px-5 py-6 sm:px-8 sm:py-7 ${className}`}>
+    <div
+      className={`border-b border-grid px-5 py-6 sm:px-8 sm:py-7 ${className}`}
+    >
       <div className="flex items-center justify-between gap-4 pb-2">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
           {title}
@@ -267,7 +266,9 @@ export function Callout({
     <div className={`flex gap-4 ${filled ? "bg-panel" : ""} px-5 py-4`}>
       <div className={`w-0.5 shrink-0 self-stretch ${t.bar}`} />
       <div className="flex gap-3">
-        {icon ? <span className={`mt-0.5 shrink-0 ${t.icon}`}>{icon}</span> : null}
+        {icon ? (
+          <span className={`mt-0.5 shrink-0 ${t.icon}`}>{icon}</span>
+        ) : null}
         <div className="space-y-1.5">
           {title ? (
             <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
@@ -466,7 +467,9 @@ function tickerOf(symbol: string, issuer?: string | null): string | null {
 
   // Gold first: "XAU" is the only input whose mark depends on who wrapped it.
   if (raw === "XAU") {
-    const byIssuer = issuer ? GOLD_BY_ISSUER[issuer.trim().toLowerCase()] : undefined;
+    const byIssuer = issuer
+      ? GOLD_BY_ISSUER[issuer.trim().toLowerCase()]
+      : undefined;
     return byIssuer ?? null;
   }
 
@@ -582,7 +585,10 @@ export function Breadcrumb({ parts }: { parts: Crumb[] }) {
                 {label}
               </Link>
             ) : (
-              <span aria-current={last ? "page" : undefined} className={last ? "text-text-secondary" : undefined}>
+              <span
+                aria-current={last ? "page" : undefined}
+                className={last ? "text-text-secondary" : undefined}
+              >
                 {label}
               </span>
             )}
@@ -605,13 +611,7 @@ export function Breadcrumb({ parts }: { parts: Crumb[] }) {
  * block draws a stray vertical line down the page, so it becomes a top border
  * and the rail reads as the next section rather than as a severed column.
  */
-export function Columns({
-  main,
-  rail,
-}: {
-  main: ReactNode;
-  rail: ReactNode;
-}) {
+export function Columns({ main, rail }: { main: ReactNode; rail: ReactNode }) {
   return (
     <div className="flex flex-col items-stretch lg:flex-row">
       <div className="min-w-0 flex-1">{main}</div>
@@ -673,7 +673,6 @@ export function ArrowRight({ className = "" }: { className?: string }) {
 export function ChevronRight({ className = "" }: { className?: string }) {
   return <LucideChevronRight className={`size-3.5 ${className}`} aria-hidden />;
 }
-
 
 /** The two-letter stand-in for an asset with no artwork. */
 function Monogram({ symbol, size }: { symbol: string; size: number }) {

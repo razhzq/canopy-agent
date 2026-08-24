@@ -13,6 +13,7 @@ import { WalletBar } from "@/components/walletBar";
 import {
   StatusLine,
   FieldNote,
+  QUIET,
   BODY,
   LABEL,
   SURFACE,
@@ -538,43 +539,58 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             actions on the switch's. WalletBar places its own two cells by
             explicit row, which is why it can stay a single component with one
             set of modal state while its halves are not adjacent here. */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-4 pt-3">
-          <div className="col-start-1 row-start-1 flex flex-wrap items-center gap-x-4 gap-y-3">
-            <h1 className="font-mono text-[28px] leading-none text-text-primary">
-              {agent.strategy_name}
-            </h1>
-            {/* The badge is the affordance. It is already the thing on this page
-              that names the model, so making it the way IN to the model is one
-              control rather than two — and a rail row that says "Model: X" next
-              to a badge that says X is the page restating itself. */}
-            <button
-              type="button"
-              onClick={() => setModelOpen(true)}
-              aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
-              className="transition-opacity hover:opacity-80"
-            >
-              <ModelBadge model={agent.model} />
-            </button>
-            <StatusChip status={agent.status} />
-          </div>
+        {/* TWO BLOCKS, TOP-ALIGNED. The name leads.
+        
+            Three earlier attempts paired these columns row by row — name against
+            the address, the switch against the buttons — and each felt wrong for
+            the same reason: the agent's name is the page's title, and pinning it
+            to the wallet's third line pushed the largest type on the screen
+            below two rows of 9.5px labels. Nothing on the left corresponds to
+            "USDC balance"; those rows were empty, and the name was floating in
+            the middle of a header it is supposed to open.
 
-          {/* Always both halves, so the reader can see that an agent has two
-              books and which one they are looking at. A half with nothing behind
-              it is disabled and says why — "not open yet" reads as a stage,
-              where a missing half read as a feature that had been taken away. */}
-          <div className="col-start-1 row-start-2 min-w-0">
-            <BookSwitch
-              book={detail.book}
-              onChange={setBook}
-              onGoLive={goLiveIntent}
-              paperDisabledReason={paperDisabledReason}
-              liveDisabledReason={liveDisabledReason}
-              note={
-                detail.book === "paper" && detail.hasPaperHistory
-                  ? "The settled paper run. This agent trades live now."
-                  : null
-              }
-            />
+            Columns with different line counts and different jobs do not pair.
+            The identity block and the wallet block each read top-down on their
+            own, and the alignment the eye actually uses is the one edge they
+            genuinely share. Nothing here moves when the wallet gains or loses a
+            line. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5 pt-4">
+          <div className="min-w-0 flex-1 space-y-3.5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              <h1 className="font-mono text-[28px] leading-none text-text-primary">
+                {agent.strategy_name}
+              </h1>
+              {/* The badge is the affordance. It is already the thing on this
+                  page that names the model, so making it the way IN to the model
+                  is one control rather than two. */}
+              <button
+                type="button"
+                onClick={() => setModelOpen(true)}
+                aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+                className="transition-opacity hover:opacity-80"
+              >
+                <ModelBadge model={agent.model} />
+              </button>
+              <StatusChip status={agent.status} />
+            </div>
+
+            {/* Always both halves, so the reader can see that an agent has two
+                books and which one they are looking at. A half with nothing
+                behind it is disabled and says why. */}
+            <div className="min-w-0">
+              <BookSwitch
+                book={detail.book}
+                onChange={setBook}
+                onGoLive={goLiveIntent}
+                paperDisabledReason={paperDisabledReason}
+                liveDisabledReason={liveDisabledReason}
+                note={
+                  detail.book === "paper" && detail.hasPaperHistory
+                    ? "The settled paper run. This agent trades live now."
+                    : null
+                }
+              />
+            </div>
           </div>
 
           <WalletBar
@@ -589,20 +605,16 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             paused either: it stays scheduled and starts by itself the moment
             the balance lands, which is what the copy has to promise. */}
         {lastRun?.skip_reason === "model_unfunded" ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-3">
-            <p className="font-ui text-[12.5px] text-warning">
-              Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
-              is prepaid — fund it and this agent starts on its own, no restart
-              needed.
-            </p>
-            <button
-              type="button"
-              onClick={() => setModelOpen(true)}
-              className="shrink-0 border border-accent px-3 py-1.5 font-mono text-[11px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
-            >
-              Top up
-            </button>
-          </div>
+          // NO BUTTON. The model badge beside the agent's name now carries the
+          // credit and opens the panel, which makes it the one way in — the
+          // same argument that comment already makes about the badge being the
+          // affordance. A second control saying "Top up" put two doors on one
+          // room, and the one further from the number was the louder of them.
+          <p className="pt-3 font-ui text-[12.5px] text-warning">
+            Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
+            is prepaid — fund it and this agent starts on its own, no restart
+            needed.
+          </p>
         ) : agent.paused_reason ? (
           <p className="pt-3 font-ui text-[12.5px] text-negative">
             Stopped itself: {agent.paused_reason.replace(/_/g, " ")}.
@@ -650,21 +662,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               label="Watching now"
               right={
                 agent.status === "active" ? (
-                  <span className="flex items-center gap-2">
-                    <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                    <span className="font-mono text-[11px] text-text-secondary">
-                      {agent.last_tick_at
-                        ? `checked ${when(agent.last_tick_at)}`
-                        : "starting"}
-                      {agent.next_tick_at
-                        ? ` · next ${ahead(agent.next_tick_at)}`
-                        : ""}
-                    </span>
-                  </span>
+                  // `live`, because this is a thing happening rather than a
+                  // state that is true — the agent is between ticks right now.
+                  <StatusLine tone="good" live>
+                    {agent.last_tick_at
+                      ? `checked ${when(agent.last_tick_at)}`
+                      : "starting"}
+                    {agent.next_tick_at
+                      ? ` · next ${ahead(agent.next_tick_at)}`
+                      : ""}
+                  </StatusLine>
                 ) : (
-                  <span className="font-mono text-[11px] text-text-muted">
-                    not ticking
-                  </span>
+                  <StatusLine tone="pending">not ticking</StatusLine>
                 )
               }
             />
@@ -674,12 +683,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 <h2 className="pt-4 font-mono text-[20px] leading-tight text-text-primary">
                   {entryHeadline(entry, markets[0]?.asset?.symbol)}
                 </h2>
-                <p className="pt-1.5 font-ui text-[13px] text-text-secondary">
+                <p className={`pt-1.5 ${BODY}`}>
                   Entry condition. Nothing is bought until this is met.
                 </p>
               </>
             ) : (
-              <p className="pt-4 font-ui text-[13px] text-text-secondary">
+              <p className={`pt-4 ${BODY}`}>
                 This strategy&apos;s rules are not readable — the detail route
                 returned no rule set.
               </p>
@@ -717,7 +726,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             </div>
 
             {constraints.maxDrawdownPct ? (
-              <p className="pt-3.5 font-mono text-[11px] text-text-dim">
+              <p className={`pt-3.5 ${BODY}`}>
                 Agent-wide breaker at −{constraints.maxDrawdownPct}% from the
                 high-water mark: past that it liquidates and stops on its own.
               </p>
@@ -731,7 +740,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               right={
                 <Link
                   href={`/workspace/${agentId}?tab=cycles`}
-                  className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
+                  className={QUIET}
                 >
                   All cycles →
                 </Link>
@@ -740,7 +749,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             <div className="pt-4">
               <ActivityLog agentId={agentId} book={detail.book} />
             </div>
-            <p className="pt-4 font-ui text-[12px] text-text-dim">
+            <p className={`pt-4 ${BODY}`}>
               Append-only. Every check is recorded, whether it traded or not
               {lastRun?.skip_reason
                 ? ` — the last cycle did not trade: ${lastRun.skip_reason.replace(/_/g, " ")}.`
@@ -870,12 +879,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               }
             />
             {markets.length === 0 ? (
-              <p className="pt-3 font-ui text-[12.5px] text-text-secondary">
+              <p className={`pt-3 ${BODY}`}>
                 No universe is pinned, so the agent screens the whole{" "}
                 {agent.strategy_class} class each cycle.
               </p>
             ) : (
-              <div className="mt-3 border border-grid">
+              <div className={`mt-3 overflow-hidden ${SURFACE}`}>
                 {markets.map((m) => (
                   <MarketRow
                     key={selectionKey(m.sel)}
@@ -901,12 +910,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               </div>
             )}
             {removeError ? (
-              <p
-                className="pt-3 font-ui text-[12.5px] text-negative"
-                role="alert"
-              >
-                {removeError}
-              </p>
+              <div className="pt-3" role="alert">
+                <FieldNote tone="bad">{removeError}</FieldNote>
+              </div>
             ) : null}
 
             {/* Attached to the list rather than spaced off it: adding a market
@@ -914,7 +920,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="mt-2.5 block w-full border border-grid-strong px-4 py-2.5 text-center font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
+              className={`mt-2.5 w-full text-center ${SECONDARY}`}
             >
               + Add market
             </button>
@@ -1476,7 +1482,7 @@ function MarketRow({
       </div>
 
       <div className="flex items-baseline justify-between gap-2 pt-0.5">
-        <span className="truncate font-ui text-[11px] text-text-dim">
+        <span className="truncate font-ui text-[11.5px] text-text-dim">
           {price === null ? "not priced" : tokenPrice(price).display}
         </span>
         {/* Quiet until pointed at. A destructive control on every row competes
@@ -1489,7 +1495,10 @@ function MarketRow({
             disabled={removing}
             aria-label={`Stop trading ${label}`}
             title="Stop trading this market. Anything held stays open."
-            className="shrink-0 font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
+            // MICRO's size and tracking, but a destructive hover instead of the
+            // accent one — the kit's hover colour means "this is the way
+            // forward", and this is the opposite.
+            className="shrink-0 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
           >
             {removing ? "…" : "Remove"}
           </button>
@@ -1497,9 +1506,9 @@ function MarketRow({
       </div>
 
       {pct !== null ? (
-        <span className="mt-2 block h-1 w-full bg-grid">
+        <span className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-grid">
           <span
-            className={`block h-1 ${fired ? "bg-negative" : "bg-accent"}`}
+            className={`block h-1 rounded-full ${fired ? "bg-negative" : "bg-accent"}`}
             style={{ width: `${pct * 100}%` }}
           />
         </span>
@@ -1510,10 +1519,8 @@ function MarketRow({
 
 function ExitCard({ label, body }: { label: string; body: React.ReactNode }) {
   return (
-    <div className="border border-grid p-4">
-      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-        {label}
-      </p>
+    <div className={`${SURFACE} p-4`}>
+      <p className={LABEL}>{label}</p>
       <p className="pt-1.5 font-ui text-[13px] text-text-primary">{body}</p>
     </div>
   );

@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import {
+  useSignAndSendTransaction,
+  useWallets,
+} from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
 
 import {
@@ -22,6 +25,22 @@ import { GrantDelegation } from "@/components/grantDelegation";
 import { DELEGATION_CEILING_USD } from "@/lib/api";
 import { ErrorState } from "@/components/states";
 import { Modal } from "@/components/modal";
+import { PrepaidBundles } from "@/components/prepaidBundles";
+import { bundlesFor, tokensLabel } from "@/lib/modelBundles";
+import {
+  Field,
+  AmountInput,
+  FieldNote,
+  StatusLine,
+  NamedValue,
+  SectionLabel,
+  PRIMARY,
+  QUIET,
+  SURFACE,
+  BODY,
+  LABEL,
+  NUM,
+} from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 
 /**
@@ -79,13 +98,22 @@ export function ModelPanel({
     <Modal title="Model" onClose={onClose}>
       <div className="space-y-5 px-5 py-5">
         {state.phase === "loading" ? (
-          <div className="h-24 animate-pulse border border-grid bg-surface" aria-hidden />
+          <div
+            className="h-24 animate-pulse border border-grid bg-surface"
+            aria-hidden
+          />
         ) : state.phase === "error" ? (
           <ErrorState message={state.message} onRetry={state.reload} />
         ) : !model ? null : (
           <>
             <div className="flex items-center gap-3">
-              <ModelBadge model={{ id: model.modelId, label: model.label, provider: model.provider }} />
+              <ModelBadge
+                model={{
+                  id: model.modelId,
+                  label: model.label,
+                  provider: model.provider,
+                }}
+              />
               <span className="font-ui text-[12.5px] text-text-dim">
                 {model.provider === "canopy"
                   ? "Hosted by Canopy · included in your plan"
@@ -110,9 +138,38 @@ export function ModelPanel({
                 <Figure
                   label="Spent"
                   value={`$${model.spentUsd.toFixed(2)}`}
-                  note="on reasoning, all time"
+                  // NOT "all time". Every figure here is joined through
+                  // `llm_call_id`, which the specialists left null until
+                  // 2026-08-25 — so an agent older than that spent more than
+                  // this says, and claiming otherwise would make a partial
+                  // record look complete.
+                  note={
+                    // `?? 0` rather than a non-null assertion: an older server
+                    // sends no `usage` at all, and "nothing recorded yet" is
+                    // the honest reading of that as well as of a zero.
+                    (model.usage?.calls ?? 0) > 0
+                      ? `over ${model.usage!.calls.toLocaleString()} call${
+                          model.usage!.calls === 1 ? "" : "s"
+                        }`
+                      : "nothing recorded yet"
+                  }
                   ok
                 />
+              </div>
+            ) : null}
+
+            {/* WHAT THE MONEY BOUGHT. Spend answers "how much is gone"; tokens
+                answer "on what" — and they are the number a price ceiling and a
+                prepaid bundle are both denominated in, so without them neither
+                of those has anything to be checked against. */}
+            {model.balance && model.usage && model.usage.calls > 0 ? (
+              <div className="flex items-baseline justify-between gap-4">
+                <span className={LABEL}>Tokens used</span>
+                <span className="font-ui text-[11.5px] text-text-dim">
+                  <span className={NUM}>{tokens(model.usage.tokensIn)}</span> in
+                  · <span className={NUM}>{tokens(model.usage.tokensOut)}</span>{" "}
+                  out
+                </span>
               </div>
             ) : null}
 
@@ -121,9 +178,14 @@ export function ModelPanel({
                 already has, and for the same reason: the condition is known
                 there and paraphrasing it here would drift. */}
             {model.balance && model.balance.usdc <= 0 ? (
-              <Callout tone="warning" icon={<WarnIcon />} title="Out of model balance">
-                This agent cannot reason until its balance is topped up. It will not top itself
-                up — nothing here spends money you did not put in.
+              <Callout
+                tone="warning"
+                icon={<WarnIcon />}
+                title="Out of model balance"
+              >
+                This agent cannot reason until its balance is topped up. It will
+                not top itself up — nothing here spends money you did not put
+                in.
               </Callout>
             ) : model.balance?.lowBalance ? (
               <Callout tone="warning" icon={<InfoIcon />} title="Running low">
@@ -131,7 +193,8 @@ export function ModelPanel({
               </Callout>
             ) : model.provider === "canopy" ? (
               <Callout tone="info" icon={<InfoIcon />} title="Nothing to fund">
-                Canopy hosts this model and absorbs the cost. There is no balance to run out of.
+                Canopy hosts this model and absorbs the cost. There is no
+                balance to run out of.
               </Callout>
             ) : null}
 
@@ -152,12 +215,17 @@ export function ModelPanel({
                 />
                 {model.balance && model.balance.usdc > 0 ? (
                   <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-                    Your ${model.balance.usdc.toFixed(2)} stays with this agent — it is held
-                    against the agent, not against the model, and it is there if you switch back.
+                    Your ${model.balance.usdc.toFixed(2)} stays with this agent
+                    — it is held against the agent, not against the model, and
+                    it is there if you switch back.
                   </p>
                 ) : null}
                 {saving ? (
-                  <Callout tone="negative" icon={<WarnIcon />} title="Not changed">
+                  <Callout
+                    tone="negative"
+                    icon={<WarnIcon />}
+                    title="Not changed"
+                  >
                     {saving}
                   </Callout>
                 ) : null}
@@ -174,16 +242,19 @@ export function ModelPanel({
                           await setAgentModel(token, agentId, {
                             modelId: changing.modelId,
                             maxPriceInputUsd: changing.maxPriceInputUsd ?? null,
-                            maxPriceOutputUsd: changing.maxPriceOutputUsd ?? null,
+                            maxPriceOutputUsd:
+                              changing.maxPriceOutputUsd ?? null,
                           }),
                         );
                         setChanging(null);
                       } catch (err) {
-                        setSaving(err instanceof Error ? err.message : String(err));
+                        setSaving(
+                          err instanceof Error ? err.message : String(err),
+                        );
                       }
                     })();
                   }}
-                  className="flex h-11 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  className={`w-full ${PRIMARY}`}
                 >
                   {changing.modelId === model.modelId
                     ? "Already using this"
@@ -219,8 +290,9 @@ export function ModelPanel({
             {model.provider === "pod" && !agentWallet ? (
               <div className="space-y-3 border-t border-grid pt-4">
                 <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-                  This agent needs a wallet of its own before it can pay for its reasoning. The
-                  same grant lets it trade when you take it live — you are not asked twice.
+                  This agent needs a wallet of its own before it can pay for its
+                  reasoning. The same grant lets it trade when you take it live
+                  — you are not asked twice.
                 </p>
                 <GrantDelegation
                   agentId={agentId}
@@ -246,9 +318,9 @@ export function ModelPanel({
                 </button>
                 {model.maxPriceInputUsd !== null ? (
                   <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-                    Price ceiling: ${model.maxPriceInputUsd} per million tokens in, $
-                    {model.maxPriceOutputUsd} out. Above that the agent holds rather than paying
-                    more than you agreed.
+                    Price ceiling: ${model.maxPriceInputUsd} per million tokens
+                    in, ${model.maxPriceOutputUsd} out. Above that the agent
+                    holds rather than paying more than you agreed.
                   </p>
                 ) : null}
               </>
@@ -260,7 +332,6 @@ export function ModelPanel({
       {topUp && model?.balance ? (
         <TopUpModal
           agentId={agentId}
-          depositCode={model.balance.depositCode}
           agentWallet={agentWallet}
           personalWallet={personalWallet}
           onDone={(next) => {
@@ -299,21 +370,34 @@ type Step =
  * signed — see lib/modelTopup.ts for what is checked and why the check is not
  * a formality.
  */
-function TopUpModal({
+export function ModelTopUpForm({
   agentId,
-  depositCode,
   agentWallet,
   personalWallet,
   onDone,
-  onClose,
 }: {
   agentId: number;
-  depositCode: string;
   agentWallet: string | null;
   personalWallet: string | null;
   onDone: (next: AgentModel) => void;
-  onClose: () => void;
 }) {
+  /**
+   * READS ITS OWN MODEL rather than being handed one.
+   *
+   * It has two hosts now — the model panel, which already has this loaded, and
+   * the Add funds dialog, which does not. Threading the deposit code and the
+   * price ceiling through both would make the second host fetch and forward
+   * state it has no other use for. One extra request when opened from the panel
+   * is the cheaper side of that trade.
+   */
+  const topUpModel = useApi((t) => getAgentModel(t, agentId), [agentId]);
+  const loaded = topUpModel.phase === "ready" ? topUpModel.data : null;
+  const depositCode = loaded?.balance?.depositCode ?? null;
+  const maxPriceInputUsd = loaded?.maxPriceInputUsd ?? null;
+  const maxPriceOutputUsd = loaded?.maxPriceOutputUsd ?? null;
+  // Null when the model has no per-token price — the Canopy one, billed to
+  // Canopy, where there is no balance to prepay and so nothing to sell.
+  const bundles = bundlesFor(maxPriceInputUsd, maxPriceOutputUsd);
   const { getAccessToken } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
@@ -344,13 +428,35 @@ function TopUpModal({
   // rejects "1.2.3" and refuses more than six decimals rather than truncating
   // — an amount that silently differs from what was typed is the one failure
   // this dialog must not have.
+  /**
+   * The floor, in USDC — the price of the smallest bundle.
+   *
+   * The 10M-per-side minimum is a property of the PRODUCT, not of the three
+   * buttons above: a hand-typed $2 buys a few cycles and puts the owner back in
+   * this dialog tomorrow, which is the outcome the floor exists to prevent. So
+   * the typed field is held to the same bar the tiers are.
+   *
+   * Null on a model with no per-token price, where there are no bundles and so
+   * no floor to enforce.
+   */
+  const minUsdc = bundles?.[0]?.usdc ?? null;
+
   let amountError: string | null = null;
   let units = 0n;
   if (amount.trim() !== "") {
     try {
       units = toBaseUnits(amount, USDC_DECIMALS);
+      const usdc = Number(formatUnits(units, USDC_DECIMALS));
       if (units <= 0n) amountError = "Enter an amount above zero.";
-      else if (held !== null && Number(formatUnits(units, USDC_DECIMALS)) > held)
+      // BEFORE the balance check, deliberately. When a wallet cannot cover even
+      // the minimum both are true, and the floor is the one the owner can act
+      // on — "more than this wallet holds" invites them to type a smaller
+      // number that would also be refused.
+      else if (minUsdc !== null && usdc < minUsdc)
+        amountError = `Minimum $${minUsdc} — the smallest bundle, ${tokensLabel(
+          bundles![0].totalM,
+        )} tokens.`;
+      else if (held !== null && usdc > held)
         amountError = "More than this wallet holds.";
     } catch (err) {
       amountError = err instanceof Error ? err.message : "Not a valid amount.";
@@ -366,10 +472,13 @@ function TopUpModal({
       // Matched by ADDRESS, never by index — an account holds several wallets
       // and the wrong one here spends the wrong money. Same rule as
       // walletModals.tsx, and it is the same hazard.
-      if (!wallet) throw new Error("that wallet is not connected in this session");
+      if (!wallet)
+        throw new Error("that wallet is not connected in this session");
 
       const prepared = await buildModelTopUp(token, agentId, {
-        amountUsdc: Number(formatUnits(toBaseUnits(amount, USDC_DECIMALS), USDC_DECIMALS)),
+        amountUsdc: Number(
+          formatUnits(toBaseUnits(amount, USDC_DECIMALS), USDC_DECIMALS),
+        ),
         payer,
       });
 
@@ -389,135 +498,213 @@ function TopUpModal({
       onDone(next);
       setStep({ at: "done", signature });
     } catch (err) {
-      setStep({ at: "error", message: err instanceof Error ? err.message : String(err) });
+      setStep({
+        at: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
-  }, [agentId, amount, getAccessToken, onDone, payer, signAndSendTransaction, wallets]);
+  }, [
+    agentId,
+    amount,
+    getAccessToken,
+    onDone,
+    payer,
+    signAndSendTransaction,
+    wallets,
+  ]);
 
   return (
-    <Modal title="Top up model balance" onClose={onClose}>
-      <div className="space-y-5 px-5 py-5">
-        {step.at === "error" ? (
-          <Callout tone="negative" icon={<WarnIcon />} title="Not topped up">
-            {step.message}
-          </Callout>
-        ) : null}
+    <div className="space-y-5">
+      {step.at === "error" ? (
+        <Callout tone="negative" icon={<WarnIcon />} title="Not topped up">
+          {step.message}
+        </Callout>
+      ) : null}
 
-        {step.at === "done" ? (
-          <div className="space-y-3 text-center">
-            <p className="font-mono text-[12px] tracking-[0.08em] text-accent uppercase">
-              Topped up
-            </p>
-            <a
-              href={`https://solscan.io/tx/${step.signature}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block truncate font-mono text-[11px] text-accent underline underline-offset-4"
+      {step.at === "done" ? (
+        <div className="space-y-3">
+          <StatusLine tone="good">Topped up</StatusLine>
+          <p className={BODY}>
+            The balance updates as soon as the network confirms it.
+          </p>
+          <a
+            href={`https://solscan.io/tx/${step.signature}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={QUIET}
+          >
+            View transaction
+          </a>
+        </div>
+      ) : (
+        <>
+          {payers.length === 0 ? (
+            <Callout
+              tone="warning"
+              icon={<WarnIcon />}
+              title="No wallet to pay from"
             >
-              {step.signature}
-            </a>
-          </div>
-        ) : (
-          <>
-            {payers.length === 0 ? (
-              <Callout tone="warning" icon={<WarnIcon />} title="No wallet to pay from">
-                Connecting your wallet…
-              </Callout>
-            ) : (
-              <div className="space-y-2">
-                <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
-                  Paid from
-                </p>
-                {payers.map((p) => (
-                  <button
-                    key={p.address}
-                    type="button"
-                    aria-pressed={payer === p.address}
-                    onClick={() => setPayer(p.address)}
-                    className={`flex w-full items-center justify-between gap-3 border px-4 py-3 text-left transition-colors ${
-                      payer === p.address
-                        ? "border-accent bg-accent-wash"
-                        : "border-grid hover:border-grid-strong"
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-mono text-[12px] text-text-primary">
-                        {p.label}
-                      </span>
-                      <span className="block truncate font-mono text-[10.5px] text-text-dim">
-                        {p.address}
-                      </span>
+              Connecting your wallet…
+            </Callout>
+          ) : (
+            <div className="space-y-2">
+              <SectionLabel>Paid from</SectionLabel>
+              {payers.map((p) => (
+                <button
+                  key={p.address}
+                  type="button"
+                  aria-pressed={payer === p.address}
+                  onClick={() => setPayer(p.address)}
+                  className={`flex w-full items-center justify-between gap-3 ${SURFACE} px-3.5 py-2.5 text-left transition-colors ${
+                    payer === p.address
+                      ? "border-accent bg-accent-wash"
+                      : "hover:border-text-dim"
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-mono text-[12px] text-text-primary">
+                      {p.label}
                     </span>
-                    {payer === p.address && held !== null ? (
-                      <span className="tnum shrink-0 font-mono text-[11.5px] text-text-secondary">
-                        ${held.toFixed(2)}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-                {/* Which money this is comes as a surprise exactly once, and
+                    <span className="block truncate font-mono text-[11px] text-text-dim">
+                      {`${p.address.slice(0, 4)}…${p.address.slice(-4)}`}
+                    </span>
+                  </span>
+                  {payer === p.address && held !== null ? (
+                    <span className="tnum shrink-0 font-mono text-[11.5px] text-text-secondary">
+                      ${held.toFixed(2)}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+              {/* Which money this is comes as a surprise exactly once, and
                     the surprise is expensive. An agent's wallet is its trading
                     capital. */}
-                {payer === agentWallet && held === 0 ? (
-                  // A freshly granted wallet is empty, and it is the default
-                  // payer because the balance belongs to the agent. Say what to
-                  // do about it rather than leaving the amount field to refuse
-                  // every number typed into it.
-                  <p className="font-ui text-[11.5px] text-warning">
-                    This wallet is empty. Send USDC to it, or pay from your own wallet above.
-                  </p>
-                ) : payer === agentWallet ? (
-                  <p className="font-ui text-[11.5px] text-text-dim">
-                    This spends the agent&apos;s trading capital.
-                  </p>
-                ) : null}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label
-                htmlFor="topup-amount"
-                className="block font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase"
-              >
-                Amount · USDC
-              </label>
-              <input
-                id="topup-amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="decimal"
-                placeholder="0.00"
-                className="w-full border border-grid-strong bg-transparent px-4 py-3 font-mono text-[14px] text-text-primary outline-none focus:border-accent"
-              />
-              {amountError ? (
-                <p className="font-ui text-[11.5px] text-negative">{amountError}</p>
+              {payer === agentWallet && held === 0 ? (
+                // A freshly granted wallet is empty, and it is the default
+                // payer because the balance belongs to the agent. Say what to
+                // do about it rather than leaving the amount field to refuse
+                // every number typed into it.
+                <FieldNote tone="warn">
+                  This wallet is empty. Send USDC to it, or pay from your own
+                  wallet above.
+                </FieldNote>
+              ) : payer === agentWallet ? (
+                <FieldNote>
+                  This spends the agent&apos;s trading capital.
+                </FieldNote>
               ) : null}
             </div>
+          )}
 
-            <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-              Credited to this agent&apos;s balance via deposit code{" "}
-              <span className="font-mono text-text-secondary">{depositCode}</span>. Prepaid and
-              spend-only: it pays for this agent&apos;s reasoning and cannot be withdrawn.
-            </p>
+          {/* ABOVE THE INPUT, because it is what fills the input in.
+                A bundle answers the question the owner actually has — how long
+                will this keep thinking — where a bare USDC field asks them to
+                answer it themselves in the wrong unit. */}
+          {bundles &&
+          maxPriceInputUsd !== null &&
+          maxPriceOutputUsd !== null ? (
+            <PrepaidBundles
+              bundles={bundles}
+              priceInPerM={maxPriceInputUsd}
+              priceOutPerM={maxPriceOutputUsd}
+              current={amount}
+              onPick={(usdc) => setAmount(String(usdc))}
+            />
+          ) : null}
 
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={
-                step.at !== "form" || !payer || amount.trim() === "" || amountError !== null
-              }
-              className="flex h-11 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-            >
-              {step.at === "signing"
-                ? "Waiting for signature…"
-                : step.at === "confirming"
-                  ? "Crediting…"
-                  : "Top up"}
-            </button>
-          </>
-        )}
+          <Field
+            label={bundles ? "Or enter an amount" : "Amount"}
+            // The floor stated where it applies, so it is a known rule before
+            // the field refuses a number rather than a correction afterwards.
+            aside={
+              minUsdc !== null ? (
+                <span className="font-ui text-[11.5px] text-text-dim">
+                  min <span className={NUM}>${minUsdc}</span>
+                </span>
+              ) : null
+            }
+          >
+            <AmountInput
+              value={amount}
+              onChange={setAmount}
+              unit="USDC"
+              label="Amount in USDC"
+            />
+            {amountError ? (
+              <FieldNote tone="bad">{amountError}</FieldNote>
+            ) : null}
+          </Field>
+
+          <FieldNote>
+            {depositCode ? (
+              <>
+                Credited to this agent&apos;s balance via deposit code{" "}
+                <span className="font-mono text-text-secondary">
+                  {depositCode}
+                </span>
+                .{" "}
+              </>
+            ) : null}
+            Prepaid and spend-only: it pays for this agent&apos;s reasoning and
+            cannot be withdrawn.
+          </FieldNote>
+
+          <button
+            type="button"
+            onClick={() => void send()}
+            disabled={
+              step.at !== "form" ||
+              !payer ||
+              amount.trim() === "" ||
+              amountError !== null
+            }
+            className="flex h-11 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+          >
+            {step.at === "signing"
+              ? "Waiting for signature…"
+              : step.at === "confirming"
+                ? "Crediting…"
+                : "Top up"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The same form, in its own dialog.
+ *
+ * Kept for the entry points that are ONLY about the model — the badge beside
+ * the agent's name, the unfunded note. `addFunds.tsx` hosts the identical form
+ * beside the trading-capital one, so there is a single implementation of "buy
+ * inference" and two doors to it.
+ */
+function TopUpModal({
+  onClose,
+  ...rest
+}: React.ComponentProps<typeof ModelTopUpForm> & { onClose: () => void }) {
+  return (
+    <Modal title="Top up model balance" onClose={onClose}>
+      <div className="px-6 pt-5 pb-6">
+        <ModelTopUpForm {...rest} />
       </div>
     </Modal>
   );
+}
+
+/**
+ * Token counts, compacted.
+ *
+ * Millions once past a million, because the prices, the ceilings and the
+ * bundles are all quoted per million — a raw 12,481,203 forces the reader to
+ * count digits before it can be compared with any of them.
+ */
+function tokens(n: number): string {
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return String(n);
 }
 
 /* -------------------------------------------------------------------- bits -- */
@@ -538,7 +725,9 @@ function Figure({
       <span className="block font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
         {label}
       </span>
-      <span className={`block font-mono text-[19px] ${ok ? "text-text-primary" : "text-warning"}`}>
+      <span
+        className={`block font-mono text-[19px] ${ok ? "text-text-primary" : "text-warning"}`}
+      >
         {value}
       </span>
       <span className="block font-ui text-[12px] text-text-dim">{note}</span>
