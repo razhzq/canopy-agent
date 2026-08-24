@@ -62,6 +62,10 @@ export const zhNarrate: Record<keyof typeof enNarrate, string> = {
   narrate_analyst_proposal_confidence: "提出方案，置信度 {confidence}% — {rationale}",
   narrate_analyst_proposal_size_confidence: "提出方案 {size}，置信度 {confidence}% — {rationale}",
   narrate_no_rationale: "未给出理由",
+  narrate_analyst_windowed_one:
+    "本轮对 {total} 个候选标的中的 {shown} 个进行了推理 — 有 1 个没能放进本周期的推理窗口。可以在策略上设置排序，由您来决定它权衡哪些标的。",
+  narrate_analyst_windowed_many:
+    "本轮对 {total} 个候选标的中的 {shown} 个进行了推理 — 有 {cut} 个没能放进本周期的推理窗口。可以在策略上设置排序，由您来决定它权衡哪些标的。",
 
   narrate_risk_exit_approved: "平仓已批准 — {reasoning}",
   narrate_risk_rejected: "已否决。",

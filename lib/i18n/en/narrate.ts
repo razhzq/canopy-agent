@@ -94,6 +94,12 @@ export const enNarrate = {
   narrate_analyst_proposal_size_confidence:
     "Proposed {size} at {confidence}% confidence — {rationale}",
   narrate_no_rationale: "no rationale given",
+  // What the reasoning prompt could not hold. The engine had to choose, and
+  // the line names the control that would have let the author choose instead.
+  narrate_analyst_windowed_one:
+    "Reasoned over {shown} of {total} candidates — 1 did not fit this cycle's window. Set a ranking on the strategy to decide which ones it weighs.",
+  narrate_analyst_windowed_many:
+    "Reasoned over {shown} of {total} candidates — {cut} did not fit this cycle's window. Set a ranking on the strategy to decide which ones it weighs.",
 
   // ── The Risk Officer ───────────────────────────────────────────
   narrate_risk_exit_approved: "Exit approved — {reasoning}",

@@ -294,6 +294,23 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
       // No "asked the model to choose" preamble. It reported the mechanism, not
       // the outcome, and read identically on every cycle that got this far —
       // the proposals below are the thing that happened.
+      // Said BEFORE the proposals, because it changes what they are a
+      // selection from: three picks out of forty-eight weighed is a different
+      // statement from three out of sixty-three passed.
+      const windowedOut = strings(o.windowedOut).length;
+      if (windowedOut > 0) {
+        const shown = num(o.reasonedOver);
+        lines.push({
+          outcome: "info",
+          detail: t(
+            windowedOut === 1
+              ? "narrate_analyst_windowed_one"
+              : "narrate_analyst_windowed_many",
+            { shown, total: shown + windowedOut, cut: windowedOut },
+          ),
+        });
+      }
+
       if (props.length === 0) {
         lines.push({ outcome: "info", detail: t("narrate_analyst_proposed_nothing") });
       }
