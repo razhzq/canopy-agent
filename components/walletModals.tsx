@@ -9,6 +9,7 @@ import { getBase58Decoder } from "@solana/kit";
 
 import { readChainFunding, USDC_MINT, type ChainFunding } from "@/lib/chainBalance";
 import {
+  AmountError,
   formatAmountInput,
   formatUnits,
   isValidAddress,
@@ -19,6 +20,26 @@ import {
   type Asset,
   type TransferPlan,
 } from "@/lib/transfer";
+import { useT, type Translate } from "@/lib/i18n";
+
+/**
+ * A parse failure, said in the reader's language.
+ *
+ * `lib/transfer` throws a coded `AmountError` rather than a sentence, because
+ * it is a transaction builder and has no dictionary. Anything else that lands
+ * here is a genuine surprise and gets the generic line — its own message is
+ * an internal string, not something to put under a form field.
+ */
+function amountMessage(err: unknown, t: Translate): string {
+  if (err instanceof AmountError) {
+    if (err.code === "too_many_decimals") {
+      return t("transfer_max_decimals", { decimals: err.decimals ?? 0 });
+    }
+    if (err.code === "not_above_zero") return t("withdraw_above_zero");
+    return t("transfer_not_a_number");
+  }
+  return t("withdraw_not_valid_amount");
+}
 
 /* ------------------------------------------------------------- deposit -- */
 
@@ -30,6 +51,7 @@ import {
  * right, and this is the screen where that mistake is permanent.
  */
 export function DepositModal({ address, onClose }: { address: string; onClose: () => void }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,7 +69,7 @@ export function DepositModal({ address, onClose }: { address: string; onClose: (
   };
 
   return (
-    <Modal title="Deposit" onClose={onClose}>
+    <Modal title={t("deposit_title")} onClose={onClose}>
       <div className="space-y-5 px-5 py-6">
         <div className="flex justify-center">
           {/* White quiet zone, always. A QR rendered dark-on-dark to match the
@@ -60,12 +82,12 @@ export function DepositModal({ address, onClose }: { address: string; onClose: (
 
         <div className="space-y-2">
           <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-            Your wallet · Solana
+            {t("deposit_your_wallet")}
           </p>
           <button
             type="button"
             onClick={copy}
-            aria-label={`Copy your address ${address}`}
+            aria-label={t("deposit_copy_aria", { address })}
             className="group block w-full border border-grid bg-bg px-3 py-3 text-left transition-colors hover:border-grid-strong"
           >
             <span className="block font-mono text-[12px] leading-relaxed break-all text-text-primary">
@@ -76,14 +98,13 @@ export function DepositModal({ address, onClose }: { address: string; onClose: (
                 copied ? "text-accent" : "text-text-dim"
               }`}
             >
-              {copied ? "Copied" : "Click to copy"}
+              {t(copied ? "common_copied" : "deposit_click_to_copy")}
             </span>
           </button>
         </div>
 
         <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-          Solana network only. Sending any other chain&rsquo;s assets to this address loses them.
-          This is your personal wallet — funding an agent is done on that agent&rsquo;s page.
+          {t("deposit_network_warning")}
         </p>
       </div>
     </Modal>
@@ -117,6 +138,7 @@ export function WithdrawModal({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
+  const t = useT();
   // Matched by ADDRESS, never by index — the account holds several wallets and
   // picking the wrong one here would spend an agent's money. Everything in the
   // dialog is pinned to `from`, which the menu resolved as the user's own.
@@ -149,14 +171,14 @@ export function WithdrawModal({
   if (amount.trim() !== "") {
     try {
       const units = toBaseUnits(amount, asset === "SOL" ? 9 : 6);
-      if (units <= 0n) amountError = "Enter an amount above zero.";
+      if (units <= 0n) amountError = t("withdraw_above_zero");
       else if (sendable !== null && Number(formatUnits(units, asset === "SOL" ? 9 : 6)) > sendable)
         amountError =
           asset === "SOL"
-            ? `More than you can send. ${SOL_RESERVE} SOL is held back for fees.`
-            : "More than this wallet holds.";
+            ? t("withdraw_over_sendable_sol", { reserve: SOL_RESERVE })
+            : t("withdraw_over_balance");
     } catch (err) {
-      amountError = err instanceof Error ? err.message : "Not a valid amount.";
+      amountError = amountMessage(err, t);
     }
   }
 
@@ -173,7 +195,7 @@ export function WithdrawModal({
   async function send(plan: TransferPlan) {
     setStep({ at: "sending", plan });
     try {
-      if (!wallet) throw new Error("that wallet is not connected in this session");
+      if (!wallet) throw new Error(t("withdraw_wallet_not_connected"));
       const signature = await sendTransfer(plan, async (wire) => {
         const { signature: bytes } = await signAndSendTransaction({
           transaction: wire,
@@ -191,12 +213,14 @@ export function WithdrawModal({
   }
 
   return (
-    <Modal title="Withdraw" onClose={onClose}>
+    <Modal title={t("withdraw_title")} onClose={onClose}>
       {step.at === "sent" ? (
         <div className="space-y-4 px-5 py-8 text-center">
-          <p className="font-mono text-[12px] tracking-[0.08em] text-accent uppercase">Sent</p>
+          <p className="font-mono text-[12px] tracking-[0.08em] text-accent uppercase">
+            {t("withdraw_sent")}
+          </p>
           <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-            The transfer was submitted. It settles in a few seconds.
+            {t("withdraw_sent_body")}
           </p>
           <a
             href={`https://solscan.io/tx/${step.signature}`}
@@ -211,24 +235,24 @@ export function WithdrawModal({
             onClick={onClose}
             className="w-full border border-grid-strong px-3 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:bg-surface"
           >
-            Done
+            {t("withdraw_done")}
           </button>
         </div>
       ) : step.at === "error" ? (
         <div className="space-y-4 px-5 py-8">
           <p className="font-mono text-[12px] tracking-[0.08em] text-negative uppercase">
-            Not sent
+            {t("withdraw_not_sent")}
           </p>
           <p className="font-ui text-[13px] leading-relaxed text-text-secondary">{step.message}</p>
           <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-            Nothing left your wallet. Check the balance before trying again in case it did land.
+            {t("withdraw_not_sent_body")}
           </p>
           <button
             type="button"
             onClick={() => setStep({ at: "form" })}
             className="w-full border border-grid-strong px-3 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:bg-surface"
           >
-            Back
+            {t("withdraw_back")}
           </button>
         </div>
       ) : step.at === "confirm" || step.at === "sending" ? (
@@ -259,29 +283,26 @@ export function WithdrawModal({
             ))}
           </div>
 
-          <Field label="To · Solana address">
+          <Field label={t("withdraw_to_label")}>
             <input
               value={to}
               onChange={(e) => setTo(e.target.value)}
               spellCheck={false}
               autoComplete="off"
-              placeholder="Paste the destination address"
+              placeholder={t("withdraw_to_placeholder")}
               className="w-full border border-grid bg-bg px-3 py-2.5 font-mono text-[12px] break-all text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
             />
             {to.trim() !== "" && !toValid ? (
-              <Note tone="negative">Not a Solana address.</Note>
+              <Note tone="negative">{t("withdraw_not_an_address")}</Note>
             ) : sendingToSelf ? (
-              <Note tone="negative">That is this wallet.</Note>
+              <Note tone="negative">{t("withdraw_is_this_wallet")}</Note>
             ) : toValid ? (
-              <Note tone="dim">
-                Checked for shape only — nobody can tell you whether this address is the one you
-                meant. A transfer cannot be reversed.
-              </Note>
+              <Note tone="dim">{t("withdraw_shape_only")}</Note>
             ) : null}
           </Field>
 
           <Field
-            label={`Amount · ${asset}`}
+            label={t("withdraw_amount_label", { asset })}
             aside={
               sendable === null ? null : (
                 <button
@@ -289,7 +310,9 @@ export function WithdrawModal({
                   onClick={() => setAmount(formatAmountInput(sendable, asset === "SOL" ? 9 : 6))}
                   className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
                 >
-                  Max {sendable.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                  {t("withdraw_max", {
+                    amount: sendable.toLocaleString("en-US", { maximumFractionDigits: 6 }),
+                  })}
                 </button>
               )
             }
@@ -311,7 +334,7 @@ export function WithdrawModal({
             onClick={() => void review()}
             className="w-full bg-accent py-3 font-mono text-[11.5px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            Review
+            {t("withdraw_review")}
           </button>
         </div>
       )}
@@ -331,17 +354,22 @@ function Confirm({
   onSend: () => void;
 }) {
   const decimals = plan.asset === "SOL" ? 9 : 6;
+  const t = useT();
   return (
     <div className="space-y-5 px-5 py-6">
       <div className="space-y-1.5 text-center">
-        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">Sending</p>
+        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
+          {t("withdraw_sending")}
+        </p>
         <p className="tnum font-mono text-[26px] leading-none text-text-primary">
           {formatUnits(plan.amount, decimals)} {plan.asset}
         </p>
       </div>
 
       <div className="space-y-2 border border-grid bg-bg px-3 py-3">
-        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">To</p>
+        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
+          {t("withdraw_to")}
+        </p>
         {/* In full, again. The confirm step exists to be read. */}
         <p className="font-mono text-[12px] leading-relaxed break-all text-text-primary">
           {plan.to}
@@ -349,16 +377,10 @@ function Confirm({
       </div>
 
       {plan.createsRecipientAccount ? (
-        <Note tone="warning">
-          This address holds no USDC account yet, so one is opened for it. That costs you about
-          0.002 SOL in rent, on top of the network fee.
-        </Note>
+        <Note tone="warning">{t("withdraw_rent_warning")}</Note>
       ) : null}
 
-      <Note tone="dim">
-        Transfers are final. Once submitted there is no way to reverse this or recover the funds
-        if the address is wrong.
-      </Note>
+      <Note tone="dim">{t("withdraw_final")}</Note>
 
       <div className="flex gap-2">
         <button
@@ -367,7 +389,7 @@ function Confirm({
           disabled={busy}
           className="flex-1 border border-grid-strong py-3 font-mono text-[11.5px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:bg-surface disabled:opacity-40"
         >
-          Back
+          {t("withdraw_back")}
         </button>
         <button
           type="button"
@@ -375,7 +397,7 @@ function Confirm({
           disabled={busy}
           className="flex-1 bg-accent py-3 font-mono text-[11.5px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Sending…" : "Send"}
+          {t(busy ? "withdraw_sending_busy" : "withdraw_send")}
         </button>
       </div>
     </div>

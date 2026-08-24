@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { ReferralCapture } from "@/components/referralCapture";
+import { getServerT } from "@/lib/i18n/server";
 import "./globals.css";
 
 const plexMono = IBM_Plex_Mono({
@@ -15,12 +16,16 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-export const metadata: Metadata = {
-  title: "Canopy Agent Stack",
-  description:
-    "Deploy a strategy as your own agent. You keep custody. You set every limit.",
-  metadataBase: new URL("https://agent.canopy.finance"),
-};
+// A function rather than a constant: the title is in the reader's language,
+// and that lives in a cookie. See lib/i18n/server.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return {
+    title: t("page_title_root"),
+    description: t("page_desc_root"),
+    metadataBase: new URL("https://agent.canopy.finance"),
+  };
+}
 
 /**
  * Everything every route needs and nothing more: the document, the fonts, and

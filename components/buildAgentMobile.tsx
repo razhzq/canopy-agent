@@ -2,6 +2,7 @@
 
 import { ChevronLeft, Pencil, Play } from "lucide-react";
 import type { ReactNode } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * The chrome the creation flow wears on a phone — wireframes B1–B6.
@@ -44,10 +45,17 @@ export function BuildFrame({
   children: ReactNode;
   cta: ReactNode;
 }) {
+  const t = useT();
+
   return (
     <div className="flex min-h-[100dvh] flex-col lg:hidden">
       <div className="flex items-center justify-between px-[18px] py-2">
-        <button type="button" onClick={onBack} aria-label="Back" className="-ml-1 p-1">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label={t("build_back_aria")}
+          className="-ml-1 p-1"
+        >
           <ChevronLeft className="size-6 text-text-primary" aria-hidden />
         </button>
         <span className="font-ui text-[15px] font-semibold text-text-primary">{title}</span>
@@ -93,6 +101,8 @@ export function BuildCta({
   busy?: boolean;
   icon?: ReactNode;
 }) {
+  const t = useT();
+
   return (
     <div className="space-y-2.5">
       <button
@@ -102,7 +112,7 @@ export function BuildCta({
         className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] bg-accent font-ui text-[15px] font-semibold text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
       >
         {icon}
-        {busy ? "Working…" : label}
+        {busy ? t("build_working") : label}
       </button>
       {hint ? (
         <p className="text-center font-ui text-[11px] leading-relaxed text-text-dim">{hint}</p>
@@ -136,15 +146,17 @@ export function BuildName({
   onCancel: () => void;
 }) {
   const trimmed = value.trim();
+  const t = useT();
+
   return (
     <BuildFrame
       step={null}
-      title="Create agent"
+      title={t("name_m_title")}
       onBack={onCancel}
       cta={
         <BuildCta
-          label="Continue"
-          hint="You can rename it later. Everything else is set in the next two steps."
+          label={t("name_continue")}
+          hint={t("name_m_hint")}
           disabled={trimmed.length === 0}
           onClick={onConfirm}
         />
@@ -153,11 +165,10 @@ export function BuildName({
       <div className="space-y-5 px-[18px] pt-1.5">
         <div className="space-y-2">
           <h1 className="font-ui text-[22px] leading-tight font-semibold tracking-[-0.5px] text-text-primary">
-            Name your agent
+            {t("name_title")}
           </h1>
           <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-            Asked first because it is the one field that outlives the draft — it travels with
-            the published record and with every deployment of it.
+            {t("name_m_body")}
           </p>
         </div>
 
@@ -179,7 +190,7 @@ export function BuildName({
 
         <div className="space-y-2.5">
           <p className="font-mono text-[8.5px] font-semibold tracking-[0.9px] text-text-dim uppercase">
-            Or start from one of these
+            {t("name_m_suggestions")}
           </p>
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
@@ -220,14 +231,16 @@ export function BuildReview({
   error: string | null;
   warnings: string[];
 }) {
+  const t = useT();
+
   return (
     <BuildFrame
       step={null}
-      title="Review"
+      title={t("review_title")}
       onBack={onBack}
       cta={
         <BuildCta
-          label={warnings.length > 0 ? "Start anyway" : "Create and start on paper"}
+          label={t(warnings.length > 0 ? "review_start_anyway" : "review_create")}
           onClick={onStart}
           busy={busy}
           icon={<Play className="size-4" aria-hidden />}
@@ -239,12 +252,17 @@ export function BuildReview({
           <h1 className="min-w-0 flex-1 truncate font-mono text-[22px] leading-none font-semibold tracking-[-0.5px] text-text-primary">
             {name}
           </h1>
-          <button type="button" onClick={onEditName} aria-label="Rename" className="p-1">
+          <button
+            type="button"
+            onClick={onEditName}
+            aria-label={t("build_rename_aria")}
+            className="p-1"
+          >
             <Pencil className="size-4 text-text-dim" aria-hidden />
           </button>
         </div>
         <p className="pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-          This is the mandate it runs under. It cannot widen any of it — only you can.
+          {t("review_body")}
         </p>
       </div>
 
@@ -280,7 +298,7 @@ export function BuildReview({
       {warnings.length > 0 ? (
         <div className="mx-[18px] mt-4 space-y-2 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3">
           <p className="font-mono text-[9px] font-semibold tracking-[0.8px] text-warning uppercase">
-            Worth reading first
+            {t("review_warnings")}
           </p>
           {warnings.map((w) => (
             <p key={w} className="font-ui text-[12px] leading-relaxed text-text-secondary">
@@ -295,8 +313,7 @@ export function BuildReview({
       ) : null}
 
       <p className="px-[18px] py-4 font-ui text-[12px] leading-relaxed text-text-dim">
-        It starts on paper against live prices — real data, no money. Promote it when its record
-        convinces you.
+        {t("review_note")}
       </p>
     </BuildFrame>
   );

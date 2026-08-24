@@ -18,6 +18,8 @@ import {
 import { CONCURRENCY, pooled } from "@/lib/pool";
 import { pnlSinceDeployUsd, returnSinceDeployPct } from "@/lib/perf";
 import { ModelBadge } from "@/components/modelBadge";
+import { relativeTime } from "@/lib/format";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * "My agents" — wireframe 1j.
@@ -78,6 +80,7 @@ interface Enriched {
 
 export function MyAgents() {
   const { ready, authenticated, getAccessToken } = usePrivy();
+  const t = useT();
   /**
    * The token getter, held still.
    *
@@ -197,7 +200,7 @@ export function MyAgents() {
   if (state.phase === "loading")
     return (
       <SkeletonRows
-        label="Loading your agents"
+        labelKey="loading_agents"
         band={5}
         cols="minmax(0,1.6fr) 140px 110px 110px 100px 110px minmax(0,240px)"
       />
@@ -212,9 +215,9 @@ export function MyAgents() {
     return (
       <div className="px-5 py-8 sm:px-8">
         <EmptyState
-          title="No agents yet"
-          body="Build one and it starts on live data in paper mode — free, with no time limit and nothing funded."
-          action={{ label: "Create agent", href: "/build/new" }}
+          title={t("my_empty_title")}
+          body={t("my_empty_body")}
+          action={{ label: t("my_empty_action"), href: "/build/new" }}
         />
       </div>
     );
@@ -256,23 +259,27 @@ export function MyAgents() {
     <div>
       <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
         <Cell
-          label={allPaper ? "Paper capital" : "Capital deployed"}
+          label={t(allPaper ? "my_band_paper_capital" : "my_band_capital_deployed")}
           value={money(deployed)}
-          note={`across ${counted.length} ${counted.length === 1 ? "agent" : "agents"}`}
+          note={
+            counted.length === 1
+              ? t("my_band_across_one")
+              : t("my_band_across_many", { count: counted.length })
+          }
         />
         <Cell
-          label="P&L · since deploy"
+          label={t("my_band_pnl")}
           value={pnlWindow === null ? "—" : signed(pnlWindow)}
           tone={pnlWindow === null ? undefined : pnlWindow >= 0 ? "accent" : "negative"}
-          note={pnlWindow === null ? "no readings yet" : undefined}
+          note={pnlWindow === null ? t("my_band_no_readings") : undefined}
         />
-        <Cell label="Live" value={String(live)} />
-        <Cell label="Paper" value={String(paper)} />
+        <Cell label={t("my_band_live")} value={String(live)} />
+        <Cell label={t("my_band_paper")} value={String(paper)} />
         <Cell
-          label="Needs you"
+          label={t("my_band_needs_you")}
           value={String(needsYou)}
           tone={needsYou > 0 ? "accent" : undefined}
-          note={needsYou > 0 ? "unanswered" : "nothing waiting"}
+          note={t(needsYou > 0 ? "my_band_unanswered" : "my_band_nothing_waiting")}
         />
       </div>
 
@@ -282,18 +289,23 @@ export function MyAgents() {
           className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-grid bg-negative/10 px-5 py-3.5 sm:px-8"
         >
           <span className="size-2 shrink-0 bg-negative" />
+          {/* One sentence rather than a name in its own <span> followed by
+              prose: the name, the time and the reason land in three different
+              orders in the two languages, and only the whole sentence can
+              carry that. The name loses its mono treatment as a result, which
+              is the right trade — it is being read, not compared. */}
           <p className="min-w-0 flex-1 font-ui text-[13.5px] text-text-secondary">
-            <span className="font-mono text-[13px] text-text-primary">
-              {r.agent.strategy_name}
-            </span>{" "}
-            stopped itself — {when(r.agent.last_tick_at)},{" "}
-            {humanReason(r.agent.paused_reason!)}. Review the limits or resume.
+            {t("my_stopped_itself", {
+              name: r.agent.strategy_name,
+              when: lastRan(r.agent.last_tick_at, t),
+              reason: humanReason(r.agent.paused_reason!, t),
+            })}
           </p>
           <Link
             href={`/workspace/${r.agent.id}`}
             className="shrink-0 border border-border px-3 py-1.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
           >
-            Review
+            {t("my_review")}
           </Link>
         </div>
       ))}
@@ -301,12 +313,12 @@ export function MyAgents() {
       {/* --------------------------------------------------------- table -- */}
 
       <div className="grid grid-cols-[minmax(0,1.6fr)_140px_110px_110px_100px_110px_minmax(0,240px)] gap-x-4 border-b border-grid px-5 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden sm:px-8">
-        <span>Agent</span>
-        <span>Wallet</span>
-        <span>Status</span>
-        <span className="text-right">Capital</span>
-        <span className="text-right">Return</span>
-        <span className="text-right">Last ran</span>
+        <span>{t("my_col_agent")}</span>
+        <span>{t("my_col_wallet")}</span>
+        <span>{t("my_col_status")}</span>
+        <span className="text-right">{t("my_col_capital")}</span>
+        <span className="text-right">{t("my_col_return")}</span>
+        <span className="text-right">{t("my_col_last_ran")}</span>
         <span />
       </div>
 
@@ -315,10 +327,7 @@ export function MyAgents() {
       ))}
 
       <p className="px-5 py-5 font-ui text-[12.5px] leading-relaxed text-text-dim sm:px-8">
-        Your agent&apos;s rules are yours to change — take profit, stop loss, what it trades,
-        any of it — and the change applies to the agent you are already running, from its
-        next cycle. That happens in the agent&apos;s chat, which is where &ldquo;edit
-        limits&rdquo; goes.
+        {t("my_footnote")}
       </p>
     </div>
   );
@@ -329,6 +338,7 @@ export function MyAgents() {
 function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
   const { agent, wallet, equity, equityGap } = row;
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -341,7 +351,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
+      if (!token) throw new Error(t("error_not_signed_in"));
       await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
       onChanged();
     } catch (err) {
@@ -370,8 +380,10 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
           <ModelBadge />
         </div>
         <p className="truncate font-ui text-[11.5px] text-text-dim">
+          {/* Both values are backend enums the product uses as its own
+              vocabulary — they read the same in either language. */}
           {agent.strategy_class} · {agent.autonomy.replace(/_/g, " ")}
-          {agent.is_paper ? " · paper" : ""}
+          {agent.is_paper ? t("my_row_paper_suffix") : ""}
         </p>
       </div>
 
@@ -393,11 +405,13 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
           }}
           className="truncate text-left font-mono text-[11.5px] text-text-secondary transition-colors hover:text-accent"
         >
-          {copied ? "copied" : `${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)} ⧉`}
+          {copied
+            ? t("my_row_copied")
+            : `${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)} ⧉`}
         </button>
       ) : (
         <span className="font-mono text-[11.5px] text-text-muted">
-          {agent.is_paper ? "unfunded" : "—"}
+          {agent.is_paper ? t("my_row_unfunded") : "—"}
         </span>
       )}
 
@@ -413,7 +427,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
                   : "border border-grid-strong text-text-muted"
           }`}
         >
-          {STATUS_LABEL[agent.status] ?? agent.status}
+          {STATUS_LABEL_KEY[agent.status] ? t(STATUS_LABEL_KEY[agent.status]) : agent.status}
         </span>
       </span>
 
@@ -437,22 +451,22 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
         <button
           type="button"
           onClick={onChanged}
-          title="The equity reading did not load. Its own page has the figure."
+          title={t("my_retry_title")}
           className="font-mono text-[11px] tracking-[0.06em] text-warning uppercase transition-colors hover:text-accent lg:text-right"
         >
-          Retry
+          {t("my_retry")}
         </button>
       ) : (
         <span
           className="font-mono text-[11px] tracking-[0.06em] text-text-muted uppercase lg:text-right"
-          title="No cycle has recorded an equity reading yet."
+          title={t("my_no_data_title")}
         >
-          no data
+          {t("my_no_data")}
         </span>
       )}
 
       <span className="font-ui text-[11.5px] text-text-dim lg:text-right">
-        {when(agent.last_tick_at)}
+        {lastRan(agent.last_tick_at, t)}
       </span>
 
       <span className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -463,20 +477,20 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
             disabled={busy}
             className="border border-border px-2.5 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
           >
-            {busy ? "…" : paused ? "Resume" : "Pause"}
+            {busy ? t("my_busy") : t(paused ? "my_resume" : "my_pause")}
           </button>
         ) : null}
         <Link
           href={`/workspace/${agent.id}?tab=chat`}
           className="border border-border px-2.5 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
         >
-          Edit limits
+          {t("my_edit_limits")}
         </Link>
         <Link
           href={`/workspace/${agent.id}`}
           className="px-1 font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
         >
-          Detail
+          {t("my_detail")}
         </Link>
         {error ? (
           <span className="w-full font-mono text-[10px] tracking-[0.06em] text-negative uppercase">
@@ -520,12 +534,12 @@ function Cell({
   );
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  active: "Live",
-  paused: "Paused",
-  liquidating: "Closing out",
-  stopped: "Stopped",
-  draft: "Draft",
+const STATUS_LABEL_KEY: Record<string, TranslationKey> = {
+  active: "agent_status_active",
+  paused: "agent_status_paused",
+  liquidating: "agent_status_liquidating",
+  stopped: "agent_status_stopped",
+  draft: "agent_status_draft",
 };
 
 /* ---------------------------------------------------------------- figures -- */
@@ -551,17 +565,25 @@ function sumWindow(rows: Enriched[]): number | null {
   return any ? total : null;
 }
 
-/** Breaker codes are snake_case state names. This is what they mean to an owner. */
-function humanReason(reason: string): string {
-  const known: Record<string, string> = {
-    max_drawdown_breached: "it breached its drawdown limit",
-    drawdown_breach: "it breached its drawdown limit",
-    wallet_revoked: "its wallet delegation was revoked",
-    wallet_expired: "its wallet delegation expired",
-    mandate_expired: "its mandate expired",
-    insufficient_funds: "it ran out of funds",
-  };
-  return known[reason] ?? reason.replace(/_/g, " ");
+/**
+ * Breaker codes are snake_case state names. This is what they mean to an owner.
+ *
+ * An unknown code still degrades to its own de-underscored form rather than to
+ * a blank: a reason we have no sentence for is worth more on screen than
+ * nothing, in any language.
+ */
+const REASON_KEY: Record<string, TranslationKey> = {
+  max_drawdown_breached: "reason_max_drawdown",
+  drawdown_breach: "reason_max_drawdown",
+  wallet_revoked: "reason_wallet_revoked",
+  wallet_expired: "reason_wallet_expired",
+  mandate_expired: "reason_mandate_expired",
+  insufficient_funds: "reason_insufficient_funds",
+};
+
+function humanReason(reason: string, t: Translate): string {
+  const key = REASON_KEY[reason];
+  return key ? t(key) : reason.replace(/_/g, " ");
 }
 
 function money(n: number): string {
@@ -578,11 +600,13 @@ function signedPct(n: number): string {
   return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(1)}%`;
 }
 
-function when(iso: string | null): string {
-  if (!iso) return "never";
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return `${Math.floor(mins / 1440)}d ago`;
+/**
+ * When it last ran, or "never".
+ *
+ * `relativeTime` renders an em dash for a missing timestamp, which is right
+ * for a reading that failed to arrive and wrong here: an agent that has not
+ * ticked yet HAS an answer, and it is a word rather than a gap.
+ */
+function lastRan(iso: string | null, t: Translate): string {
+  return iso ? relativeTime(iso, t) : t("time_never");
 }

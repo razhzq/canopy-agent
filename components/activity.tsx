@@ -9,6 +9,8 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
 import { SkeletonLog } from "@/components/skeleton";
 import { Badge } from "@/components/ui";
+import { relativeTime } from "@/lib/format";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The agent's activity log: what it did, in order, most recent cycle first.
@@ -34,7 +36,9 @@ export function ActivityLog({
   book?: "paper" | "live";
 }) {
   const [tick, setTick] = useState(0);
-  const state = useApi((t) => getActivity(t, agentId, 5, book), [agentId, tick, book]);
+  const t = useT();
+  // `token` rather than `t` — the translator holds that name in this file.
+  const state = useApi((token) => getActivity(token, agentId, 5, book), [agentId, tick, book]);
 
   // THE LAST GOOD LOG, KEPT ACROSS REFETCHES.
   //
@@ -112,8 +116,8 @@ export function ActivityLog({
 
     // Drop the marker once the flash has played, so a later re-render does not
     // leave the row bordered as new forever.
-    const t = setTimeout(() => setFlashing(new Set()), 1400);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setFlashing(new Set()), 1400);
+    return () => clearTimeout(timer);
   }, [cycleKey, ready]);
 
   // Poll rate tracks what is actually in flight.
@@ -133,8 +137,9 @@ export function ActivityLog({
   // The skeleton is for the FIRST load only. Every later fetch is a background
   // refresh of a log already on screen, held in `seen` above.
   if (state.phase === "loading" && lastGood.current === null)
-    return <SkeletonLog label="Loading activity" />;
-  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
+    return <SkeletonLog labelKey="loading_activity" />;
+  if (state.phase === "signed-out")
+    return <SignedOutState note={t("activity_signed_out_note")} />;
   // A failed poll must not destroy the log either. With nothing to fall back on
   // the error screen is right; with cycles in hand, the honest thing is to keep
   // showing them — they did not stop existing because one request timed out.
@@ -145,14 +150,13 @@ export function ActivityLog({
     return (
       <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          Nothing yet
+          {t("activity_empty_title")}
         </p>
         <p className="max-w-[48ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-          The first cycle is starting now and appears here within a minute or two — it runs
-          whether or not the agent finds anything to buy. After that it wakes once an hour.
+          {t("activity_empty_body")}
         </p>
         <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-          Checking every 15s
+          {t("activity_checking")}
         </p>
       </div>
     );
@@ -282,7 +286,8 @@ function Cycle({
 }) {
   const { open, setOpen, mounted, expanded } = useDisclosure(defaultOpen);
   const panelId = useId();
-  const lines = narrateCycle(cycle);
+  const t = useT();
+  const lines = narrateCycle(cycle, t);
   const running = cycle.status === "running";
 
   // The reveal counts DECISIONS, not the working notes beneath them. A screen
@@ -340,14 +345,14 @@ function Cycle({
             />
           ) : null}
           <span className="truncate font-ui text-[13.5px] text-text-primary">
-            {headline(cycle)}
+            {headline(cycle, t)}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-3">
           <span className="tnum font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-            {clock(cycle.started_at)}
+            {relativeTime(cycle.started_at, t)}
           </span>
-          <Badge tone={STATUS_TONE[cycle.status]}>{STATUS_LABEL[cycle.status]}</Badge>
+          <Badge tone={STATUS_TONE[cycle.status]}>{t(STATUS_LABEL_KEY[cycle.status])}</Badge>
           {/* The row was expandable with nothing to say so. The caret both
               advertises that and reports which way it currently is. */}
           <svg
@@ -417,7 +422,9 @@ function Cycle({
                       className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
                     />
                     <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
-                      {revealing ? `${shown} of ${primary.length}` : "still running"}
+                      {revealing
+                        ? t("activity_reveal_progress", { shown, total: primary.length })
+                        : t("activity_still_running")}
                     </span>
                   </span>
                 </li>
@@ -525,6 +532,7 @@ function SeatRun({
   active: SeatedLine | null;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const decisions = run.lines.filter((l) => !l.secondary);
   const shownDecisions = decisions.filter((l) => revealed.has(l));
   // Nothing revealed here yet — the reveal has not reached this seat.
@@ -578,8 +586,10 @@ function SeatRun({
               />
               <span>
                 {open
-                  ? "Hide screening notes"
-                  : `${notes.length} screening note${notes.length === 1 ? "" : "s"}`}
+                  ? t("activity_hide_notes")
+                  : notes.length === 1
+                    ? t("activity_notes_one")
+                    : t("activity_notes_many", { count: notes.length })}
               </span>
             </button>
           </li>
@@ -597,10 +607,15 @@ function SeatRun({
  * agent's own log, and two summarisers would eventually disagree about the same
  * tick — the drift `lib/perf` exists to prevent, in a different costume.
  */
-export function headline(c: ActivityCycle): string {
-  if (c.status === "running") return "Running now…";
-  if (c.status === "error") return "Cycle failed";
-  if (c.status === "skipped") return SKIP_LABEL[c.skip_reason ?? ""] ?? "Skipped";
+export function headline(c: ActivityCycle, t: Translate): string {
+  if (c.status === "running") return t("activity_headline_running");
+  if (c.status === "error") return t("activity_headline_failed");
+  if (c.status === "skipped") {
+    // An unmapped skip reason falls back to the bare word rather than printing
+    // an enum value the reader has no way to interpret.
+    const key = SKIP_LABEL_KEY[c.skip_reason ?? ""];
+    return key ? t(key) : t("activity_headline_skipped");
+  }
 
   const closes = c.decisions.filter(
     (d) => d.role === "trader" && d.output?.exit === true && d.output?.filledUsd !== undefined,
@@ -609,9 +624,18 @@ export function headline(c: ActivityCycle): string {
     (d) => d.role === "trader" && d.output?.exit !== true && d.output?.filledUsd !== undefined,
   );
   if (closes.length > 0 && fills.length > 0)
-    return `${closes.length} closed, ${fills.length} opened`;
-  if (closes.length > 0) return `${closes.length} position${closes.length === 1 ? "" : "s"} closed`;
-  if (fills.length > 0) return `${fills.length} fill${fills.length === 1 ? "" : "s"}`;
+    return t("activity_headline_closed_and_opened", {
+      closed: closes.length,
+      opened: fills.length,
+    });
+  if (closes.length > 0)
+    return closes.length === 1
+      ? t("activity_headline_closed_one")
+      : t("activity_headline_closed_many", { count: closes.length });
+  if (fills.length > 0)
+    return fills.length === 1
+      ? t("activity_headline_fills_one")
+      : t("activity_headline_fills_many", { count: fills.length });
 
   const approved = c.decisions.filter(
     (d) => d.role === "risk" && d.output?.decision !== "reject",
@@ -620,18 +644,18 @@ export function headline(c: ActivityCycle): string {
     (d) => d.role === "risk" && d.output?.decision === "reject",
   ).length;
 
-  if (approved > 0) return `${approved} approved by the risk gate`;
-  if (rejected > 0) return `${rejected} blocked by the risk gate`;
-  return "Screened the universe, proposed nothing";
+  if (approved > 0) return t("activity_headline_approved", { count: approved });
+  if (rejected > 0) return t("activity_headline_blocked", { count: rejected });
+  return t("activity_headline_nothing");
 }
 
 /* ---------------------------------------------------------------- lookups -- */
 
-export const STATUS_LABEL: Record<ActivityCycle["status"], string> = {
-  running: "Running",
-  ok: "Complete",
-  error: "Failed",
-  skipped: "Skipped",
+export const STATUS_LABEL_KEY: Record<ActivityCycle["status"], TranslationKey> = {
+  running: "activity_status_running",
+  ok: "activity_status_ok",
+  error: "activity_status_error",
+  skipped: "activity_status_skipped",
 };
 
 export const STATUS_TONE: Record<ActivityCycle["status"], "accent" | "warning" | "negative" | "neutral"> = {
@@ -641,13 +665,13 @@ export const STATUS_TONE: Record<ActivityCycle["status"], "accent" | "warning" |
   skipped: "warning",
 };
 
-const SKIP_LABEL: Record<string, string> = {
-  market_closed: "Markets were closed",
-  no_candidates: "Nothing passed the screen",
-  budget_exhausted: "Out of model budget",
-  paused: "Agent is paused",
-  expired: "Mandate expired",
-  not_active: "Agent is not active",
+const SKIP_LABEL_KEY: Record<string, TranslationKey> = {
+  market_closed: "skip_market_closed",
+  no_candidates: "skip_no_candidates",
+  budget_exhausted: "skip_budget_exhausted",
+  paused: "skip_paused",
+  expired: "skip_expired",
+  not_active: "skip_not_active",
 };
 
 /* ---------------------------------------------------------------- helpers -- */
@@ -671,12 +695,5 @@ function groupBySeat(lines: SeatedLine[]): { role: SeatedLine["role"]; lines: Se
   return runs;
 }
 
-function clock(iso: string): string {
-  const d = new Date(iso);
-  const mins = Math.floor((Date.now() - d.getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
+// `clock` lived here and in five other files. It is `relativeTime` in
+// lib/format now — one implementation, one set of keys.

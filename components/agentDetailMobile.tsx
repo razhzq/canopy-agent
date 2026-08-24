@@ -11,7 +11,7 @@ import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve } from "@/components/charts";
 import { AgentChatSheet } from "@/components/agentChatSheet";
-import { headline } from "@/components/activity";
+import { headline, STATUS_LABEL_KEY } from "@/components/activity";
 import {
   getActivity,
   num,
@@ -27,6 +27,8 @@ import {
 } from "@/lib/api";
 import { markAgent } from "@/lib/perf";
 import { ModelBadge } from "@/components/modelBadge";
+import { relativeTime } from "@/lib/format";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * One agent, on a phone — wireframe M03.
@@ -43,7 +45,13 @@ import { ModelBadge } from "@/components/modelBadge";
  * component is mounted by viewport rather than hidden by CSS.
  */
 
-const PHASES = ["Scan", "Council", "Execute", "Settle"] as const;
+// Keys, not words: the table is module-level and outlives any one language.
+const PHASES: TranslationKey[] = [
+  "agent_phase_scan",
+  "agent_phase_council",
+  "agent_phase_execute",
+  "agent_phase_settle",
+];
 
 export function AgentDetailMobile({
   agent,
@@ -66,6 +74,7 @@ export function AgentDetailMobile({
   onChanged: () => void;
 }) {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const [range, setRange] = useState<"7D" | "30D" | "ALL">("ALL");
   const [chatOpen, setChatOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -126,7 +135,7 @@ export function AgentDetailMobile({
     <div className="pb-2">
       {/* ---------------------------------------------------------- nav -- */}
       <div className="flex items-center justify-between px-[18px] py-2">
-        <Link href="/workspace" aria-label="Back to my agents">
+        <Link href="/workspace" aria-label={t("agent_back_aria")}>
           <ChevronLeft className="size-6 text-text-primary" aria-hidden />
         </Link>
         <div className="flex items-center gap-[18px]">
@@ -154,20 +163,28 @@ export function AgentDetailMobile({
               <span className="flex shrink-0 items-center gap-1.5 rounded-[5px] bg-accent-wash px-1.5 py-[3px]">
                 <span className="size-[5px] rounded-full bg-accent" />
                 <span className="font-mono text-[8.5px] font-semibold tracking-[0.7px] text-accent">
-                  LIVE
+                  {t("agent_live_pill")}
                 </span>
               </span>
             ) : null}
           </div>
           <p className="truncate font-mono text-[11.5px] text-text-muted">
-            {agent.is_paper ? "PAPER" : "LIVE"} · {agent.strategy_class.toUpperCase()}
-            {points.length ? ` · CYCLE ${points[points.length - 1].tickSeq}` : ""}
+            {points.length
+              ? t("agent_subtitle_cycle", {
+                  mode: t(agent.is_paper ? "agent_mode_paper" : "agent_mode_live"),
+                  class: agent.strategy_class.toUpperCase(),
+                  cycle: points[points.length - 1].tickSeq,
+                })
+              : t("agent_subtitle", {
+                  mode: t(agent.is_paper ? "agent_mode_paper" : "agent_mode_live"),
+                  class: agent.strategy_class.toUpperCase(),
+                })}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setChatOpen(true)}
-          aria-label="Chat with this agent"
+          aria-label={t("agent_chat_aria")}
           className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface"
         >
           <svg viewBox="0 0 24 24" className="size-[18px] text-text-primary" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -186,7 +203,9 @@ export function AgentDetailMobile({
         <div className="flex items-start justify-between px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
             <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
-              Agent NAV{points.length ? ` · cycle ${points[points.length - 1].tickSeq}` : ""}
+              {points.length
+                ? t("agent_nav_label_cycle", { cycle: points[points.length - 1].tickSeq })
+                : t("agent_nav_label")}
             </p>
             <p className="flex items-end font-mono text-[30px] leading-none font-semibold tracking-[-1px]">
               <span className="text-text-primary">{whole}</span>
@@ -201,7 +220,7 @@ export function AgentDetailMobile({
                   {signedPct(mark.returnPct)}
                 </span>
                 <span className="font-mono text-[9px] font-semibold tracking-[0.7px] text-text-dim uppercase">
-                  since deploy
+                  {t("agent_since_deploy")}
                 </span>
               </p>
             ) : null}
@@ -232,7 +251,7 @@ export function AgentDetailMobile({
             />
           ) : (
             <p className="px-[18px] py-14 text-center font-ui text-[12.5px] text-text-dim">
-              The curve starts at the first settled cycle.
+              {t("agent_curve_pending")}
             </p>
           )}
         </div>
@@ -241,10 +260,10 @@ export function AgentDetailMobile({
             risk-free rate and no return series to annualise — so the slot
             carries realised P&L, which the equity payload does report. */}
         <div className="flex border-t border-grid">
-          <Cell label="Return" value={mark ? signedPct(mark.returnPct) : "—"} tone={mark && mark.returnPct < 0 ? "negative" : "accent"} first />
-          <Cell label="Win rate" value={mark?.hitRatePct === null || !mark ? "—" : `${mark.hitRatePct.toFixed(0)}%`} />
-          <Cell label="Max DD" value={mark && mark.maxDrawdownPct > 0 ? `−${mark.maxDrawdownPct.toFixed(1)}%` : "—"} tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"} />
-          <Cell label="Realised" value={mark ? signed(mark.realizedPnlUsd) : "—"} tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"} />
+          <Cell label={t("agent_cell_return")} value={mark ? signedPct(mark.returnPct) : "—"} tone={mark && mark.returnPct < 0 ? "negative" : "accent"} first />
+          <Cell label={t("agent_cell_win_rate")} value={mark?.hitRatePct === null || !mark ? "—" : `${mark.hitRatePct.toFixed(0)}%`} />
+          <Cell label={t("agent_cell_max_dd")} value={mark && mark.maxDrawdownPct > 0 ? `−${mark.maxDrawdownPct.toFixed(1)}%` : "—"} tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"} />
+          <Cell label={t("agent_cell_realised")} value={mark ? signed(mark.realizedPnlUsd) : "—"} tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"} />
         </div>
       </div>
 
@@ -253,16 +272,19 @@ export function AgentDetailMobile({
         <div className="space-y-[13px] border-b border-grid px-[18px] pt-[18px] pb-5">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] font-semibold tracking-[0.9px] text-text-secondary uppercase">
-              Cycle {cycle.tick_seq} · {running ? "running" : cycle.status}
+              {t("agent_cycle_label", {
+                seq: cycle.tick_seq,
+                status: running ? t("agent_cycle_running") : t(STATUS_LABEL_KEY[cycle.status]),
+              })}
             </span>
             <span className="font-mono text-[10px] font-semibold text-text-dim">
-              {running ? "in progress" : ago(cycle.started_at)}
+              {running ? t("agent_cycle_in_progress") : relativeTime(cycle.started_at, t)}
             </span>
           </div>
 
           <div className="flex gap-1.5">
-            {PHASES.map((p, i) => (
-              <div key={p} className="flex-1 space-y-2">
+            {PHASES.map((phaseKey, i) => (
+              <div key={phaseKey} className="flex-1 space-y-2">
                 <div
                   className={`h-[3px] rounded-sm ${
                     i < reached ? "bg-accent/60" : i === reached ? "bg-accent" : "bg-grid-strong"
@@ -277,7 +299,7 @@ export function AgentDetailMobile({
                         : "font-medium text-text-muted"
                   }`}
                 >
-                  {p}
+                  {t(phaseKey)}
                 </p>
               </div>
             ))}
@@ -286,7 +308,7 @@ export function AgentDetailMobile({
           <div className="flex items-start gap-2.5 rounded-[11px] border border-border-soft bg-surface px-3 py-2.5">
             <Gavel className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
             <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              {headline(cycle)}
+              {headline(cycle, t)}
             </p>
           </div>
         </div>
@@ -296,7 +318,7 @@ export function AgentDetailMobile({
       <div className="border-b border-grid pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3">
           <p className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
-            Open positions
+            {t("agent_open_positions")}
           </p>
           <span className="font-mono text-[13px] font-semibold text-text-muted">
             {positions.length}
@@ -304,7 +326,7 @@ export function AgentDetailMobile({
         </div>
         {positions.length === 0 ? (
           <p className="px-[18px] pb-4 font-ui text-[12.5px] text-text-dim">
-            Nothing open — the agent is in cash.
+            {t("agent_nothing_open")}
           </p>
         ) : (
           <ul className="px-[18px] pb-4">
@@ -321,7 +343,7 @@ export function AgentDetailMobile({
                       {p.symbol}
                     </span>
                     <span className="block font-mono text-[11px] text-text-dim">
-                      {money(cost)} cost
+                      {t("agent_cost", { amount: money(cost) })}
                     </span>
                   </span>
                   <span className="shrink-0 space-y-1 text-right">
@@ -341,7 +363,7 @@ export function AgentDetailMobile({
       <div className="border-b border-grid pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3">
           <p className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
-            Markets it may trade
+            {t("agent_markets_title")}
           </p>
           <span className="font-mono text-[13px] font-semibold text-text-muted">
             {universe.length}
@@ -383,7 +405,7 @@ export function AgentDetailMobile({
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-accent hover:text-accent"
           >
             <Plus className="size-4" aria-hidden />
-            <span className="font-ui text-[13.5px] font-semibold">Add a market</span>
+            <span className="font-ui text-[13.5px] font-semibold">{t("agent_add_market")}</span>
           </button>
         </div>
       </div>
@@ -402,7 +424,7 @@ export function AgentDetailMobile({
             <Pause className="size-4 text-text-primary" aria-hidden />
           )}
           <span className="font-ui text-[15px] font-semibold text-text-primary">
-            {busy ? "…" : paused ? "Resume" : "Pause"}
+            {busy ? t("agent_busy") : t(paused ? "agent_resume" : "agent_pause")}
           </span>
         </button>
         <Link
@@ -410,7 +432,7 @@ export function AgentDetailMobile({
           className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-accent"
         >
           <Plus className="size-4 text-bg" aria-hidden />
-          <span className="font-ui text-[15px] font-semibold text-bg">Add funds</span>
+          <span className="font-ui text-[15px] font-semibold text-bg">{t("agent_add_funds")}</span>
         </Link>
       </div>
 
@@ -496,10 +518,4 @@ function signed(n: number): string {
 function signedPct(n: number): string {
   return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(1)}%`;
 }
-function ago(iso: string): string {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
-}
+// `ago` moved to lib/format as `relativeTime`.

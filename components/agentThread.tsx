@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonThread } from "@/components/skeleton";
+import { relativeTime } from "@/lib/format";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 import {
   ackMessage,
   applyProposal,
@@ -60,6 +62,7 @@ export function AgentThread({
   /** The answer as it arrives, token by token. Null when nothing is streaming. */
   const [live, setLive] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const router = useRouter();
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -142,7 +145,7 @@ export function AgentThread({
     setDraft("");
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in again.");
+      if (!token) throw new Error(t("th_sign_in"));
       let streamed = false;
       const fresh = await sendMessageStreaming(token, agentId, body, setStage, (text) => {
         streamed = true;
@@ -283,7 +286,7 @@ export function AgentThread({
                 strokeLinejoin="round"
               />
             </svg>
-            {live || stage ? "Answering" : "Latest"}
+            {t(live || stage ? "th_answering" : "th_latest")}
           </button>
         </div>
       ) : null}
@@ -311,8 +314,8 @@ export function AgentThread({
           disabled={sending}
           rows={1}
           maxLength={2000}
-          aria-label="Message this agent"
-          placeholder="Ask it something, or tell it what to change…"
+          aria-label={t("th_message_aria")}
+          placeholder={t("th_placeholder")}
           // GROWS WITH WHAT IS BEING WRITTEN, up to a point. It was a fixed two
           // rows, so a three-line instruction — which is what "change the stop
           // to 8% and stop trading equities" becomes — was composed through a
@@ -332,17 +335,17 @@ export function AgentThread({
               // Only near the ceiling. A counter shown from the first keystroke
               // is a limit announcing itself to people who will never reach it.
               <span className={draft.length >= 2000 ? "text-negative" : "text-warning"}>
-                {2000 - draft.length} characters left
+                {t("th_chars_left", { count: 2000 - draft.length })}
               </span>
             ) : (
-              "Enter to send · Shift+Enter for a new line"
+              t("th_enter_hint")
             )}
           </span>
           <button
             type="button"
             onClick={() => void send()}
             disabled={sending || draft.trim().length === 0}
-            aria-label="Send"
+            aria-label={t("th_send_aria")}
             className="flex size-9 items-center justify-center rounded-lg bg-accent text-bg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim"
           >
             {sending ? (
@@ -381,13 +384,14 @@ export function AgentThread({
  * record" and "drafting changes" set different expectations about what is
  * about to appear.
  */
-const STAGE_LABEL: Record<TurnStage, string> = {
-  reading: "Reading your message",
-  drafting: "Drafting the changes",
-  searching: "Checking its record",
+const STAGE_LABEL: Record<TurnStage, TranslationKey> = {
+  reading: "th_stage_reading",
+  drafting: "th_stage_drafting",
+  searching: "th_stage_searching",
 };
 
 function Thinking({ stage }: { stage: TurnStage }) {
+  const t = useT();
   // The stages are strictly ordered, so earlier ones are shown as settled
   // rather than replaced. Watching items tick off is the difference between
   // "it is working" and "it is still working".
@@ -413,7 +417,7 @@ function Thinking({ stage }: { stage: TurnStage }) {
                   done ? "text-text-dim" : "text-text-secondary"
                 }`}
               >
-                {STAGE_LABEL[s]}
+                {t(STAGE_LABEL[s])}
                 {now ? "…" : ""}
               </span>
             </li>
@@ -519,6 +523,7 @@ function Turn({
   /** The newest turn, and the only one that animates in. */
   fresh?: boolean;
 }) {
+  const t = useT();
   const open = m.requires_action && !m.acted_at;
   const changes = proposedChanges(m);
 
@@ -628,7 +633,13 @@ function Turn({
               ) : m.approved === false ? (
                 <X className="size-3" aria-hidden />
               ) : null}
-              {m.approved === true ? "Applied" : m.approved === false ? "Declined" : "Settled"}
+              {t(
+                m.approved === true
+                  ? "th_applied"
+                  : m.approved === false
+                    ? "th_declined"
+                    : "th_settled",
+              )}
             </p>
           )}
         </div>
@@ -639,15 +650,16 @@ function Turn({
           matters most when the honest answer was "that is not in my record". */}
       {cycles(m).length > 0 ? (
         <p className="pt-2 font-mono text-[10px] tracking-[0.06em] text-text-muted uppercase">
-          Read {cycles(m).length === 1 ? "cycle" : "cycles"}{" "}
-          {compact(cycles(m))}
+          {t(cycles(m).length === 1 ? "th_read_cycle" : "th_read_cycles", {
+            cycles: compact(cycles(m)),
+          })}
         </p>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 pt-2.5">
         <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-          {when(m.created_at)}
-          {m.acted_at ? " · settled" : ""}
+          {relativeTime(m.created_at, t)}
+          {m.acted_at ? t("th_settled_suffix") : ""}
         </span>
         <span className="flex items-center gap-4">
           {/* The claim links to its evidence: every event names the cycle that
@@ -657,7 +669,7 @@ function Turn({
               href={`/workspace/${agentId}?tab=cycles`}
               className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
             >
-              See the cycle →
+              {t("th_see_cycle")}
             </Link>
           ) : null}
           {open && changes.length === 0 ? (
@@ -668,7 +680,7 @@ function Turn({
               onClick={() => onAck()}
               className="font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
             >
-              Mark handled
+              {t("th_mark_handled")}
             </button>
           ) : null}
         </span>
@@ -733,6 +745,7 @@ function ApplyBar({
   onDismiss: () => void;
 }) {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -741,7 +754,7 @@ function ApplyBar({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in again.");
+      if (!token) throw new Error(t("th_sign_in"));
       await applyProposal(token, agentId, messageId);
       onApplied();
     } catch (err) {
@@ -766,7 +779,7 @@ function ApplyBar({
           already over Apply. */}
       <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <span className="mr-auto font-ui text-[11.5px] text-text-muted">
-          Takes effect from the next cycle. Same agent, same positions.
+          {t("th_takes_effect")}
         </span>
         {/* Decline first, confirm last — the order shadcn's ConfirmationActions
             renders and the one every dialog on the platform has taught, so the
@@ -779,7 +792,7 @@ function ApplyBar({
           disabled={busy}
           className="flex h-8 items-center rounded-md px-2.5 font-mono text-[10.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
         >
-          Leave it
+          {t("th_leave_it")}
         </button>
         <button
           type="button"
@@ -790,7 +803,7 @@ function ApplyBar({
           // away.
           className="flex h-8 items-center rounded-md border border-accent bg-accent-wash px-3.5 font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
         >
-          {busy ? "Applying…" : "Apply"}
+          {t(busy ? "th_applying" : "th_apply")}
         </button>
       </div>
     </div>
@@ -820,11 +833,4 @@ function compact(ns: number[]): string {
     : sorted.map((n) => `#${n}`).join(", ");
 }
 
-function when(iso: string): string {
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
+// `when` moved to lib/format as `relativeTime`.

@@ -11,6 +11,8 @@ import { AddMarketModal } from "@/components/addMarket";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
 import type { UniverseSelection } from "@/lib/api";
+import { relativeTime } from "@/lib/format";
+import { useLocale, useT, type Locale, type Translate } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
@@ -90,6 +92,7 @@ import {
 
 export function AgentDetailView({ agentId }: { agentId: number }) {
   const { ready, authenticated, getAccessToken } = usePrivy();
+  const { t, locale } = useLocale();
   /**
    * The token getter, held still. Same hazard as MyAgents, same fix.
    *
@@ -332,7 +335,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       setRemoveError(null);
       try {
         const token = await getAccessToken();
-        if (!token) throw new Error("Sign in to change this agent.");
+        if (!token) throw new Error(t("ad_sign_in_to_change"));
         await removeAgentMarket(
           token,
           agentId,
@@ -349,11 +352,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
         setRemovingKey(null);
       }
     },
-    [agentId, getAccessToken, load],
+    [agentId, getAccessToken, load, t],
   );
 
   if (state.phase === "loading") return <SkeletonAgentDetail />;
-  if (state.phase === "signed-out") return <SignedOutState note="Sign in to see this agent." />;
+  if (state.phase === "signed-out")
+    return <SignedOutState note={t("ad_signed_out_note")} />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;
 
@@ -382,7 +386,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // Absent means one entry per asset — the behaviour of every strategy that
   // does not ask for otherwise.
   const addPlan = strategy?.add_plan ?? null;
-  const planSummary = describeAddPlan(addPlan);
+  const planSummary = describeAddPlan(addPlan, t);
   // The rule to headline under "Watching now".
   //
   // changePct first because "drops 4%+ on the day" is the most legible thing a
@@ -421,9 +425,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   // problem and offered nothing, leaving the reader to hunt for the promotion
   // panel further down the page. Pressing Live IS the request to go live, so it
   // opens the dialog that performs it. See `goLiveIntent`.
-  const liveDisabledReason = !liveTradingEnabled
-    ? "Real-money trading isn't open yet"
-    : null;
+  const liveDisabledReason = !liveTradingEnabled ? t("ad_live_closed") : null;
   // Pressing Live means "go live" only on an agent that has never traded live —
   // which, since the transition is one-way, is exactly every paper agent. One
   // rule: the pill shows you a book when there is one, and stands in for the
@@ -433,9 +435,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
       ? () => setGoingLive(true)
       : null;
   // A live agent that was deployed straight to live has no paper run behind it.
-  const paperDisabledReason = detail.hasPaperHistory || agent.is_paper
-    ? null
-    : "This agent has no paper run";
+  const paperDisabledReason =
+    detail.hasPaperHistory || agent.is_paper ? null : t("ad_no_paper_run");
   const cadenceSec = strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
 
   if (mobile === null) return null;
@@ -463,7 +464,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           href="/workspace"
           className="font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
         >
-          ← My agents
+          {t("ad_back")}
         </Link>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-3">
           <h1 className="font-mono text-[28px] leading-none text-text-primary">
@@ -492,7 +493,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             liveDisabledReason={liveDisabledReason}
             note={
               detail.book === "paper" && detail.hasPaperHistory
-                ? "The settled paper run. This agent trades live now."
+                ? t("ad_settled_paper_note")
                 : null
             }
           />
@@ -500,7 +501,9 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
 
         {agent.paused_reason ? (
           <p className="pt-3 font-ui text-[12.5px] text-negative">
-            Stopped itself: {agent.paused_reason.replace(/_/g, " ")}.
+            {/* The reason is a backend state name, de-underscored — it names a
+                specific breaker and is not ours to reword. */}
+            {t("ad_stopped_itself", { reason: agent.paused_reason.replace(/_/g, " ") })}
           </p>
         ) : null}
       </section>
@@ -518,7 +521,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               and drawdown figures that qualify it. One return figure, in the
               block that can show its working. */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">
-            <Rule label="Performance" line={false} />
+            <Rule label={t("ad_sec_performance")} line={false} />
             <div className="pt-4">
               <EquityView series={equity} positions={positions} universe={assets} />
             </div>
@@ -526,7 +529,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
 
           {/* markets */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">
-            <Rule label="Positions" />
+            <Rule label={t("ad_sec_positions")} />
             <Positions
               agentId={agentId}
               positions={positions}
@@ -538,18 +541,24 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           {/* watching now */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule
-              label="Watching now"
+              label={t("ad_sec_watching")}
               right={
                 agent.status === "active" ? (
                   <span className="flex items-center gap-2">
                     <span className="size-1.5 animate-pulse rounded-full bg-accent" />
                     <span className="font-mono text-[11px] text-text-secondary">
-                      {agent.last_tick_at ? `checked ${when(agent.last_tick_at)}` : "starting"}
-                      {agent.next_tick_at ? ` · next ${ahead(agent.next_tick_at)}` : ""}
+                      {agent.last_tick_at
+                        ? t("ad_checked", { when: relativeTime(agent.last_tick_at, t) })
+                        : t("ad_starting")}
+                      {agent.next_tick_at
+                        ? t("ad_next", { when: ahead(agent.next_tick_at, t) })
+                        : ""}
                     </span>
                   </span>
                 ) : (
-                  <span className="font-mono text-[11px] text-text-muted">not ticking</span>
+                  <span className="font-mono text-[11px] text-text-muted">
+                    {t("ad_not_ticking")}
+                  </span>
                 )
               }
             />
@@ -557,52 +566,51 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             {entry ? (
               <>
                 <h2 className="pt-4 font-mono text-[20px] leading-tight text-text-primary">
-                  {entryHeadline(entry, markets[0]?.asset?.symbol)}
+                  {entryHeadline(entry, t, markets[0]?.asset?.symbol)}
                 </h2>
                 <p className="pt-1.5 font-ui text-[13px] text-text-secondary">
-                  Entry condition. Nothing is bought until this is met.
+                  {t("ad_entry_note")}
                 </p>
               </>
             ) : (
               <p className="pt-4 font-ui text-[13px] text-text-secondary">
-                This strategy&apos;s rules are not readable — the detail route returned no rule
-                set.
+                {t("ad_rules_unreadable")}
               </p>
             )}
 
             {/* exits are the other half of the contract and are always real */}
             <div className="grid grid-cols-1 gap-2.5 pt-5 sm:grid-cols-2">
+              {/* The percentages lose their <Num> treatment here: they sit
+                  mid-sentence, and Chinese puts them somewhere English does
+                  not — a wrapper cannot travel with a number across a
+                  reordering. The figures are still tabular in the rail chips
+                  below, which is where they are compared. */}
               <ExitCard
-                label="Exit — take profit"
+                label={t("ad_exit_take_profit")}
                 body={
-                  exits ? (
-                    <>
-                      Sell at <Num>+{exits.takeProfitPct}%</Num> from entry
-                    </>
-                  ) : (
-                    "Not set — platform default for the posture."
-                  )
+                  exits
+                    ? t("ad_tp_body", { pct: exits.takeProfitPct })
+                    : t("ad_exit_unset")
                 }
               />
               <ExitCard
-                label="Exit — stop-loss"
+                label={t("ad_exit_stop_loss")}
                 body={
-                  exits ? (
-                    <>
-                      Sell at <Num>−{exits.stopLossPct}%</Num> from entry
-                      {exits.maxHoldDays ? `, or after ${exits.maxHoldDays}d` : ""}
-                    </>
-                  ) : (
-                    "Not set — platform default for the posture."
-                  )
+                  exits
+                    ? exits.maxHoldDays
+                      ? t("ad_sl_body_hold", {
+                          pct: exits.stopLossPct,
+                          days: exits.maxHoldDays,
+                        })
+                      : t("ad_sl_body", { pct: exits.stopLossPct })
+                    : t("ad_exit_unset")
                 }
               />
             </div>
 
             {constraints.maxDrawdownPct ? (
               <p className="pt-3.5 font-mono text-[11px] text-text-dim">
-                Agent-wide breaker at −{constraints.maxDrawdownPct}% from the high-water mark:
-                past that it liquidates and stops on its own.
+                {t("ad_breaker_note", { pct: constraints.maxDrawdownPct })}
               </p>
             ) : null}
           </section>
@@ -610,13 +618,13 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           {/* activity */}
           <section className="px-5 sm:px-8 py-6">
             <Rule
-              label="Activity"
+              label={t("ad_sec_activity")}
               right={
                 <Link
                   href={`/workspace/${agentId}?tab=cycles`}
                   className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
                 >
-                  All cycles →
+                  {t("ad_all_cycles")}
                 </Link>
               }
             />
@@ -624,17 +632,18 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               <ActivityLog agentId={agentId} book={detail.book} />
             </div>
             <p className="pt-4 font-ui text-[12px] text-text-dim">
-              Append-only. Every check is recorded, whether it traded or not
               {lastRun?.skip_reason
-                ? ` — the last cycle did not trade: ${lastRun.skip_reason.replace(/_/g, " ")}.`
-                : "."}
+                ? t("ad_append_only_skipped", {
+                    reason: lastRun.skip_reason.replace(/_/g, " "),
+                  })
+                : t("ad_append_only")}
             </p>
           </section>
         </div>
 
         {/* ------------------------------------------------------- rail -- */}
         <aside className="min-w-0 border-t border-grid px-5 sm:px-8 py-6 lg:border-t-0">
-          <Rule label="Strategy · applies to every market" />
+          <Rule label={t("ad_sec_strategy")} />
 
           {/* THE WATCH LEG, ABOVE THE ENTRY RULES AND VISUALLY BEFORE THEM.
               A two-stage strategy does not evaluate the rules below until this
@@ -644,7 +653,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           {setup ? (
             <div className="mt-4 border border-accent/40">
               <p className="border-b border-accent/25 px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-accent uppercase">
-                First, wait for
+                {t("ad_first_wait")}
               </p>
               <div className="flex flex-wrap gap-2 p-3.5">
                 {setup.arm.map((r) => (
@@ -652,12 +661,8 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 ))}
               </div>
               <p className="border-t border-grid px-3.5 py-2 font-ui text-[12px] text-text-muted">
-                Then the rules below apply, on a later bar, for up to{" "}
-                <Num>{setup.expiresAfterBars}</Num> bars. Nothing is bought on the bar the
-                setup appears.
-                {setup.invalidateIf?.length
-                  ? " The wait is cancelled if the setup breaks down first."
-                  : ""}
+                {t("ad_then_bars", { bars: setup.expiresAfterBars })}
+                {setup.invalidateIf?.length ? t("ad_then_bars_invalidate") : ""}
               </p>
             </div>
           ) : null}
@@ -665,12 +670,12 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
           <div className="mt-4 border border-grid">
             {setup ? (
               <p className="border-b border-grid px-3.5 py-2 font-mono text-[10.5px] tracking-[0.12em] text-text-muted uppercase">
-                Then buy when
+                {t("ad_then_buy")}
               </p>
             ) : null}
             <div className="flex flex-wrap gap-2 p-3.5">
               {rules.length === 0 && anyOf.length === 0 ? (
-                <span className="font-ui text-[12.5px] text-text-muted">No rules returned.</span>
+                <span className="font-ui text-[12.5px] text-text-muted">{t("ad_no_rules")}</span>
               ) : (
                 rules.map((r) => <RuleChip key={r.key} rule={r} timeframe={timeframe} />)
               )}
@@ -688,10 +693,10 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               {exits ? (
                 <>
                   <Chip>
-                    Take profit: <Num>+{exits.takeProfitPct}%</Num>
+                    {t("ad_chip_take_profit")} <Num>+{exits.takeProfitPct}%</Num>
                   </Chip>
                   <Chip>
-                    Stop-loss: <Num>−{exits.stopLossPct}%</Num>
+                    {t("ad_chip_stop_loss")} <Num>−{exits.stopLossPct}%</Num>
                   </Chip>
                 </>
               ) : null}
@@ -699,13 +704,13 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                   already carries it, but a strategy whose rules are all
                   liquidity and margin would otherwise never state it. */}
               <Chip>
-                Chart: <Num>{timeframe}</Num>
+                {t("ad_chip_chart")} <Num>{timeframe}</Num>
               </Chip>
             </div>
             {planSummary ? (
               <div className="border-t border-grid px-3.5 py-2.5">
                 <p className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
-                  Accumulation
+                  {t("ad_accumulation")}
                 </p>
                 <p className="pt-1 font-ui text-[12.5px] leading-relaxed text-text-primary">
                   {planSummary}
@@ -714,8 +719,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                     not what they look like: a position averaged into three
                     times exits as ONE, on the blended cost. */}
                 <p className="pt-1 font-ui text-[11.5px] leading-relaxed text-warning">
-                  Take profit and stop-loss measure the blend of every entry, not each one
-                  separately.
+                  {t("ad_accumulation_warning")}
                 </p>
               </div>
             ) : null}
@@ -726,7 +730,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 href={`/workspace/${agentId}?tab=chat`}
                 className="shrink-0 border border-border px-2.5 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
               >
-                Edit strategy
+                {t("ad_edit_strategy")}
               </Link>
             </div>
           </div>
@@ -744,14 +748,15 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             <Rule
               label={
                 markets.length === 0
-                  ? "Universe"
-                  : `Screening ${markets.length} ${markets.length === 1 ? "market" : "markets"}`
+                  ? t("ad_universe")
+                  : markets.length === 1
+                    ? t("ad_screening_one")
+                    : t("ad_screening_many", { count: markets.length })
               }
             />
             {markets.length === 0 ? (
               <p className="pt-3 font-ui text-[12.5px] text-text-secondary">
-                No universe is pinned, so the agent screens the whole {agent.strategy_class}{" "}
-                class each cycle.
+                {t("ad_no_universe", { class: agent.strategy_class })}
               </p>
             ) : (
               <div className="mt-3 border border-grid">
@@ -786,7 +791,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               onClick={() => setAdding(true)}
               className="mt-2.5 block w-full border border-grid-strong px-4 py-2.5 text-center font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
             >
-              + Add market
+              {t("ad_add_market")}
             </button>
           </div>
 
@@ -803,22 +808,31 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
               interval, the deployed size and the deploy date — so they are
               rows here rather than a panel each. */}
           <div className="mt-6 border-t border-grid pt-5">
-            <Rule label="Agent-level" />
+            <Rule label={t("ad_sec_agent_level")} />
             <div className="pt-3">
               <RailRow
-                label="Book"
-                value={agent.is_paper ? "Paper · simulated fills" : "Live · real capital"}
+                label={t("ad_row_book")}
+                value={t(agent.is_paper ? "ad_book_paper_value" : "ad_book_live_value")}
               />
-              <RailRow label="Capital" value={money(capital)} />
-              <RailRow label="Cadence" value={cadenceSec ? cadence(cadenceSec) : "—"} />
-              <RailRow label="Deployed" value={absolute(agent.created_at)} />
-              <RailRow label="Autonomy" value={agent.autonomy.replace(/_/g, " ")} />
+              <RailRow label={t("ad_row_capital")} value={money(capital)} />
               <RailRow
-                label="Position cap"
-                value={positionCap === null ? "—" : `≤ ${money(positionCap)} per market`}
+                label={t("ad_row_cadence")}
+                value={cadenceSec ? cadence(cadenceSec, t) : "—"}
+              />
+              <RailRow label={t("ad_row_deployed")} value={absolute(agent.created_at, locale)} />
+              {/* The autonomy level is a backend enum the product uses as its
+                  own vocabulary, de-underscored. */}
+              <RailRow label={t("ad_row_autonomy")} value={agent.autonomy.replace(/_/g, " ")} />
+              <RailRow
+                label={t("ad_row_position_cap")}
+                value={
+                  positionCap === null
+                    ? "—"
+                    : t("ad_position_cap_value", { amount: money(positionCap) })
+                }
               />
               <RailRow
-                label="Open positions"
+                label={t("ad_row_open_positions")}
                 value={
                   constraints.maxTradesPerTick
                     ? `${positions.length} / ${constraints.maxTradesPerTick}`
@@ -826,7 +840,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
                 }
               />
               <RailRow
-                label="Compliance"
+                label={t("ad_row_compliance")}
                 value={constraints.complianceProfile ?? "—"}
               />
             </div>
@@ -888,6 +902,7 @@ function Controls({
 }) {
   const { getAccessToken } = usePrivy();
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -901,7 +916,7 @@ function Controls({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
+      if (!token) throw new Error(t("error_not_signed_in"));
       if (kind === "delete") {
         await deleteAgent(token, agent.id);
         // Gone from the list, so there is nothing left to return to here.
@@ -916,8 +931,10 @@ function Controls({
         // otherwise.
         setNotice(
           closed === 0
-            ? "Nothing was open to close."
-            : `Closed ${closed} position${closed === 1 ? "" : "s"}. The agent is paused.`,
+            ? t("ad_flatten_nothing")
+            : closed === 1
+              ? t("ad_flatten_one")
+              : t("ad_flatten_many", { count: closed }),
         );
         onChanged();
         return;
@@ -946,7 +963,7 @@ function Controls({
           disabled={busy !== null}
           className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
         >
-          {busy === "toggle" ? "…" : paused ? "Resume agent" : "Pause agent"}
+          {busy === "toggle" ? t("ad_busy") : t(paused ? "ad_resume_agent" : "ad_pause_agent")}
         </button>
       ) : null}
 
@@ -959,7 +976,7 @@ function Controls({
           disabled={busy !== null}
           className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-warning hover:text-warning disabled:opacity-40"
         >
-          {busy === "flatten" ? "…" : "Close all positions"}
+          {busy === "flatten" ? t("ad_busy") : t("ad_close_all")}
         </button>
       ) : null}
 
@@ -983,7 +1000,7 @@ function Controls({
           onClick={() => setConfirmDelete(true)}
           className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-negative"
         >
-          Delete agent
+          {t("ad_delete_agent")}
         </button>
       ) : null}
 
@@ -1041,6 +1058,7 @@ function Rule({
 }
 
 function StatusChip({ status }: { status: string }) {
+  const t = useT();
   const running = status === "active";
   return (
     <span
@@ -1053,7 +1071,11 @@ function StatusChip({ status }: { status: string }) {
       }`}
     >
       {running ? <span className="size-1.5 animate-pulse rounded-full bg-bg" /> : null}
-      {running ? "Running" : status === "liquidating" ? "Closing out" : status}
+      {running
+        ? t("ad_status_running")
+        : status === "liquidating"
+          ? t("ad_status_closing")
+          : status}
     </span>
   );
 }
@@ -1112,12 +1134,13 @@ function BookSwitch({
   note: string | null;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const t = useT();
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
       <div
         role="group"
-        aria-label="Paper or live book"
+        aria-label={t("ad_book_aria")}
         className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
       >
         {(["paper", "live"] as const).map((b) => {
@@ -1136,7 +1159,9 @@ function BookSwitch({
         })}
       </div>
       {hovered ? (
-        <p className="font-ui text-[12px] text-text-dim">{hovered}.</p>
+        <p className="font-ui text-[12px] text-text-dim">
+          {t("ad_hover_reason", { reason: hovered })}
+        </p>
       ) : note ? (
         <p className="font-ui text-[12px] text-text-dim">{note}</p>
       ) : null}
@@ -1160,8 +1185,9 @@ function Half({
   promotes: boolean;
   onHover: (reason: string | null) => void;
 }) {
+  const t = useT();
   const active = book === current;
-  const label = book === "paper" ? "Paper" : "Live";
+  const label = t(book === "paper" ? "ad_book_paper" : "ad_book_live");
   const base =
     "flex h-8 items-center gap-2 rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors";
 
@@ -1178,7 +1204,7 @@ function Half({
   // a promoting one says what pressing it will DO, since "Live" on an agent that
   // has never traded live is otherwise ambiguous between "show me the live book"
   // and "make this live".
-  const hint = disabledReason ?? (promotes ? "Set this agent up to trade real capital" : null);
+  const hint = disabledReason ?? (promotes ? t("ad_promote_hint") : null);
 
   // aria-disabled rather than `disabled`: a disabled button fires no pointer
   // events in most browsers and cannot be focused, so the reason would never
@@ -1259,6 +1285,7 @@ function MarketRow({
   onRemove?: () => void;
   removing?: boolean;
 }) {
+  const t = useT();
   const change = asset ? num(asset.changePct) : null;
   const price = asset ? num(asset.priceUsd) : null;
 
@@ -1288,13 +1315,15 @@ function MarketRow({
           }`}
         >
           {change === null ? "—" : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}%`}
-          {target !== null ? <span className="pl-1 text-text-dim">/ {target}%</span> : null}
+          {target !== null ? (
+            <span className="pl-1 text-text-dim">{t("ad_of_target", { target })}</span>
+          ) : null}
         </span>
       </div>
 
       <div className="flex items-baseline justify-between gap-2 pt-0.5">
         <span className="truncate font-ui text-[11px] text-text-dim">
-          {price === null ? "not priced" : tokenPrice(price).display}
+          {price === null ? t("ad_not_priced") : tokenPrice(price).display}
         </span>
         {/* Quiet until pointed at. A destructive control on every row competes
             with the prices, which are what the list is for. It holds the second
@@ -1304,11 +1333,11 @@ function MarketRow({
             type="button"
             onClick={onRemove}
             disabled={removing}
-            aria-label={`Stop trading ${label}`}
-            title="Stop trading this market. Anything held stays open."
+            aria-label={t("ad_remove_aria", { label })}
+            title={t("ad_remove_title")}
             className="shrink-0 font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
           >
-            {removing ? "…" : "Remove"}
+            {t(removing ? "ad_removing" : "ad_remove")}
           </button>
         ) : null}
       </div>
@@ -1354,15 +1383,16 @@ function RuleChip({
   rule: DetectionRule;
   timeframe?: Timeframe;
 }) {
+  const t = useT();
   const spec = RWA_RULES.find((r) => r.key === rule.key);
   // A rule that does not follow the strategy's bar size says so HERE too, not
   // only in the builder. Someone reading a running 15-minute agent sees "Max
   // change on the day ≤ −4%" beside rules measured in minutes, and nothing on
   // the page tells them that one is still asking about the last 24 hours.
-  const basisNote = spec ? ruleBasisNote(spec, timeframe) : null;
+  const basisNote = spec ? ruleBasisNote(spec, timeframe, t) : null;
   return (
     <Chip>
-      {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
+      {spec ? ruleLabel(spec, timeframe, t) : rule.key}{" "}
       {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
       <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
       {basisNote ? (
@@ -1390,14 +1420,15 @@ function AnyOfChip({
   group: DetectionRule[];
   timeframe?: Timeframe;
 }) {
+  const t = useT();
   return (
     <Chip>
       {group.map((rule, i) => {
         const spec = RWA_RULES.find((r) => r.key === rule.key);
         return (
           <span key={rule.key}>
-            {i > 0 ? <span className="px-1 text-accent uppercase">or</span> : null}
-            {spec ? ruleLabel(spec, timeframe) : rule.key}{" "}
+            {i > 0 ? <span className="px-1 text-accent uppercase">{t("ad_anyof_or")}</span> : null}
+            {spec ? ruleLabel(spec, timeframe, t) : rule.key}{" "}
             {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
             <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
           </span>
@@ -1432,19 +1463,25 @@ function RailRow({
 
 /* --------------------------------------------------------------- figures -- */
 
-function entryHeadline(entry: DetectionRule, symbol?: string): string {
-  const who = symbol ?? "The market";
+function entryHeadline(entry: DetectionRule, t: Translate, symbol?: string): string {
+  const who = symbol ?? t("ad_headline_market");
   if (entry.key === "changePct" && entry.op === "lte") {
-    return `${who} drops ${Math.abs(entry.value)}%+ on the day`;
+    return t("ad_headline_drop", { who, pct: Math.abs(entry.value) });
   }
   const spec = RWA_RULES.find((r) => r.key === entry.key);
-  return `${spec?.label ?? entry.key} ${entry.op === "gte" ? "≥" : "≤"} ${entry.value}`;
+  // `spec.label` comes from the builder's own rule table, which carries its
+  // own translation. The operator is a mathematical symbol either way.
+  return t("ad_headline_rule", {
+    label: spec ? t(spec.labelKey) : entry.key,
+    op: entry.op === "gte" ? "≥" : "≤",
+    value: entry.value,
+  });
 }
 
-function cadence(sec: number): string {
-  if (sec % 86_400 === 0) return `${sec / 86_400}d`;
-  if (sec % 3600 === 0) return `${sec / 3600}h`;
-  return `${Math.round(sec / 60)} min`;
+function cadence(sec: number, t: Translate): string {
+  if (sec % 86_400 === 0) return t("ad_cadence_days", { n: sec / 86_400 });
+  if (sec % 3600 === 0) return t("ad_cadence_hours", { n: sec / 3600 });
+  return t("ad_cadence_minutes", { n: Math.round(sec / 60) });
 }
 
 function money(n: number): string {
@@ -1452,8 +1489,9 @@ function money(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-function absolute(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+/** The deploy timestamp, in the reader's calendar conventions. */
+function absolute(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -1461,20 +1499,20 @@ function absolute(iso: string): string {
   });
 }
 
-function when(iso: string | null): string {
-  if (!iso) return "never";
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return `${Math.floor(mins / 1440)}d ago`;
-}
+// `when` moved to lib/format as `relativeTime`.
 
-function ahead(iso: string): string {
+/**
+ * How long UNTIL something, which `relativeTime` cannot express.
+ *
+ * Kept local rather than folded into lib/format: this is the only forward-
+ * looking clock in the app, and a shared helper with a direction flag would
+ * make every call site say which way it meant.
+ */
+function ahead(iso: string, t: Translate): string {
   const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
-  if (mins <= 0) return "due now";
-  if (mins < 60) return `in ${mins} min`;
-  return `in ${Math.floor(mins / 60)}h`;
+  if (mins <= 0) return t("ad_due_now");
+  if (mins < 60) return t("ad_in_minutes", { count: mins });
+  return t("ad_in_hours", { count: Math.floor(mins / 60) });
 }
 
 
@@ -1508,6 +1546,7 @@ function DeleteAgentModal({
 }) {
   const open = positions.length;
   const investedUsd = positions.reduce((sum, p) => sum + Number(p.cost_basis_usd), 0);
+  const t = useT();
 
   return (
     <div
@@ -1530,50 +1569,43 @@ function DeleteAgentModal({
             id="delete-agent-title"
             className="pt-1.5 font-mono text-[20px] leading-none text-text-primary"
           >
-            Delete this agent?
+            {t("ad_delete_title")}
           </h2>
         </div>
 
         <div className="space-y-4 px-7 py-5">
           <ol className="space-y-2.5">
+            {/* Whole sentences per case. The count and the invested figure sit
+                in different places in the two languages, so the <Num> wrappers
+                that used to mark them cannot survive the reordering — the
+                numbers are inside the sentence now, where they read as facts
+                being stated rather than as figures to compare. */}
             <Step n="1">
-              {open === 0 ? (
-                <>It holds nothing, so there is nothing to sell.</>
-              ) : (
-                <>
-                  It closes{" "}
-                  <Num>
-                    {open} {open === 1 ? "position" : "positions"}
-                  </Num>{" "}
-                  at the current pool price — <Num>{money(investedUsd)}</Num> invested. This is a
-                  real sale and the result lands in your record.
-                </>
-              )}
+              {open === 0
+                ? t("ad_delete_1_empty")
+                : open === 1
+                  ? t("ad_delete_1_one", { amount: money(investedUsd) })
+                  : t("ad_delete_1_many", { count: open, amount: money(investedUsd) })}
             </Step>
-            <Step n="2">It revokes its own wallet authority. That cannot be undone here.</Step>
-            <Step n="3">It disappears from your agents. Pausing is the reversible option.</Step>
+            <Step n="2">{t("ad_delete_2")}</Step>
+            <Step n="3">{t("ad_delete_3")}</Step>
             {/* Named only when it will actually happen. The server decides that
                 — this is the author's last agent on the strategy — because the
                 page cannot see the other agents to work it out, and a delete
                 that quietly pulls a listing is the surprise worth spending a
                 line on. */}
             {agent.delists_strategy ? (
-              <Step n="4">
-                <Num>{agent.strategy_name}</Num> comes off Explore with it — this is your last
-                agent on it. Anyone already deployed keeps running; nobody new can deploy.
-              </Step>
+              <Step n="4">{t("ad_delete_4", { name: agent.strategy_name })}</Step>
             ) : null}
           </ol>
 
           <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">
-            Nothing is erased. Every cycle, decision and trade stays on the record, and the
-            strategy keeps whatever track record this agent earned.
+            {t("ad_delete_kept")}
           </p>
 
           {open > 0 ? (
             <p className="font-ui text-[12px] leading-relaxed text-warning">
-              If a position cannot be priced when you confirm, the agent winds down and stays
-              visible instead of being hidden while it still holds something.
+              {t("ad_delete_unpriced")}
             </p>
           ) : null}
         </div>
@@ -1585,7 +1617,7 @@ function DeleteAgentModal({
             disabled={busy}
             className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
           >
-            Cancel
+            {t("common_cancel")}
           </button>
           <button
             type="button"
@@ -1593,7 +1625,11 @@ function DeleteAgentModal({
             disabled={busy}
             className="border border-negative px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
           >
-            {busy ? "Closing…" : open > 0 ? "Close positions and delete" : "Delete agent"}
+            {busy
+              ? t("ad_closing")
+              : open > 0
+                ? t("ad_delete_confirm_with_positions")
+                : t("ad_delete_agent")}
           </button>
         </div>
       </div>
@@ -1625,6 +1661,7 @@ function FlattenAgentModal({
 }) {
   const open = positions.length;
   const investedUsd = positions.reduce((sum, p) => sum + Number(p.cost_basis_usd), 0);
+  const t = useT();
 
   return (
     <div
@@ -1647,35 +1684,29 @@ function FlattenAgentModal({
             id="flatten-agent-title"
             className="pt-1.5 font-mono text-[20px] leading-none text-text-primary"
           >
-            Close every position?
+            {t("ad_flatten_title")}
           </h2>
         </div>
 
         <div className="space-y-4 px-7 py-5">
           <ol className="space-y-2.5">
             <Step n="1">
-              It sells{" "}
-              <Num>
-                {open} {open === 1 ? "position" : "positions"}
-              </Num>{" "}
-              at the current pool price — <Num>{money(investedUsd)}</Num> invested. Real sales,
-              and the result lands in your record.
+              {open === 1
+                ? t("ad_flatten_1_one", { amount: money(investedUsd) })
+                : t("ad_flatten_1_many", { count: open, amount: money(investedUsd) })}
             </Step>
             {/* Said plainly because it is the part people do not expect, and the
                 part that would otherwise look like a bug an hour later. */}
-            <Step n="2">
-              It then <Num>pauses</Num>. Otherwise it would start buying again on its next cycle.
-            </Step>
-            <Step n="3">The agent, its strategy and its whole record stay exactly as they are.</Step>
+            <Step n="2">{t("ad_flatten_2")}</Step>
+            <Step n="3">{t("ad_flatten_3")}</Step>
           </ol>
 
           <p className="border-t border-grid pt-3.5 font-ui text-[12px] leading-relaxed text-text-dim">
-            Resume it whenever you want. Nothing here is one-way.
+            {t("ad_flatten_resume")}
           </p>
 
           <p className="font-ui text-[12px] leading-relaxed text-warning">
-            A position that cannot be priced right now is left open rather than sold at a guess.
-            The agent keeps trying and stays visible while it settles.
+            {t("ad_flatten_unpriced")}
           </p>
         </div>
 
@@ -1686,7 +1717,7 @@ function FlattenAgentModal({
             disabled={busy}
             className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
           >
-            Cancel
+            {t("common_cancel")}
           </button>
           <button
             type="button"
@@ -1694,7 +1725,7 @@ function FlattenAgentModal({
             disabled={busy}
             className="border border-warning px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
           >
-            {busy ? "Closing…" : "Close all positions"}
+            {busy ? t("ad_closing") : t("ad_close_all")}
           </button>
         </div>
       </div>

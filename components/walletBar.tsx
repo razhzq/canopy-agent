@@ -29,6 +29,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/lib/useApi";
 import { getAgentFunding } from "@/lib/api";
 import { FundingPanel } from "@/components/funding";
+import { useT } from "@/lib/i18n";
 
 export function WalletBar({
   agentId,
@@ -41,6 +42,7 @@ export function WalletBar({
 }) {
   const [copied, setCopied] = useState(false);
   const [depositing, setDepositing] = useState(false);
+  const t = useT();
 
   const copy = useCallback((addr: string) => {
     void navigator.clipboard
@@ -59,7 +61,11 @@ export function WalletBar({
     // there, and a header slot that only ever says so is noise. On a LIVE agent
     // it is worth saying — real capital with nowhere to sign from is a fault.
     if (isPaper) return null;
-    return <span className="font-ui text-[12px] text-text-dim">No wallet provisioned</span>;
+    return (
+      <span className="font-ui text-[12px] text-text-dim">
+        {t("wallet_none_provisioned")}
+      </span>
+    );
   }
 
   return (
@@ -73,10 +79,10 @@ export function WalletBar({
           type="button"
           onClick={() => copy(address)}
           title={address}
-          aria-label={`Copy wallet address ${address}`}
+          aria-label={t("wallet_copy_aria", { address })}
           className="font-mono text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
         >
-          {copied ? "Copied" : `${address.slice(0, 4)}…${address.slice(-4)}`}
+          {copied ? t("common_copied") : `${address.slice(0, 4)}…${address.slice(-4)}`}
         </button>
 
         <button
@@ -84,7 +90,7 @@ export function WalletBar({
           onClick={() => setDepositing(true)}
           className="border border-accent px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
         >
-          Deposit
+          {t("wallet_deposit")}
         </button>
       </span>
 
@@ -105,6 +111,7 @@ export function WalletBar({
  */
 function Balance({ agentId }: { agentId: number }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
+  const t = useT();
 
   if (state.phase === "loading") {
     return <span className="h-4 w-16 animate-pulse rounded bg-surface-2" aria-hidden />;
@@ -112,7 +119,11 @@ function Balance({ agentId }: { agentId: number }) {
   // A failed read is NOT a zero balance and must never render as one — that is
   // the message that tells someone to send money they have already sent.
   if (state.phase !== "ready") {
-    return <span className="font-mono text-[12.5px] text-text-dim">balance —</span>;
+    return (
+      <span className="font-mono text-[12.5px] text-text-dim">
+        {t("wallet_balance_unknown")}
+      </span>
+    );
   }
 
   const { usdc } = state.data;
@@ -139,6 +150,8 @@ function DepositModal({
   address: string;
   onClose: () => void;
 }) {
+  const t = useT();
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -171,19 +184,19 @@ function DepositModal({
         <div className="flex items-start justify-between gap-6 border-b border-grid px-7 pt-6 pb-5">
           <div className="min-w-0 space-y-1.5">
             <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              Agent wallet
+              {t("wallet_agent_wallet")}
             </p>
             <h2 id="deposit-title" className="font-mono text-[21px] leading-none text-text-primary">
-              Deposit
+              {t("wallet_deposit")}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common_close")}
             className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent"
           >
-            Esc
+            {t("wallet_esc")}
           </button>
         </div>
         <div className="px-7 py-6">

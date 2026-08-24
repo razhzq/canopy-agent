@@ -1,0 +1,124 @@
+// Listing a strategy on the marketplace, and the public page a listed strategy
+// gets.
+
+export const enPublish = {
+  // ── Publish page ───────────────────────────────────────────────
+  pub_needs_strategy:
+    "This page needs a strategy — open it from one of your strategies rather than directly.",
+  pub_signed_out: "Sign in to see this strategy's paper record.",
+  pub_eyebrow: "{name} · {state}",
+  pub_state_listed: "Listed",
+  pub_state_unlisted: "Unlisted",
+  pub_title_listed: "Listed",
+  pub_title_publish: "Publish",
+  pub_badge_live: "Live",
+  pub_badge_paper_one: "Paper run · 1 day",
+  pub_badge_paper_many: "Paper run · {count} days",
+  pub_body_listed:
+    "This strategy is listed. Its paper record stays visible alongside it — the length is part of the listing.",
+  pub_body_unlisted:
+    "The agent is paper-trading live data in public. List it whenever the record convinces you; how long it ran is shown to everyone who sees it.",
+
+  pub_paper_return: "Paper return",
+  pub_max_drawdown: "Max drawdown",
+  pub_max_dd: "Max DD",
+  pub_record: "Record",
+  pub_record_days: "{count}D",
+  pub_proposed: "Proposed",
+  pub_blocked: "Blocked",
+  pub_would_fill: "Would fill",
+
+  pub_sec_record: "LIVE PAPER RECORD",
+  pub_sec_record_note_one: "Run by Canopy · 1 day · Forward only",
+  pub_sec_record_note_many: "Run by Canopy · {count} days · Forward only",
+  pub_forward_note:
+    "This record is a live forward run, not a backtest. The agent traded on Canopy's data, in real time, with venue fees, network fees and realistic fills at the liquidity available at the moment. Nothing here was selected after the fact — a forward record cannot be fitted to a window that flattered it.",
+
+  pub_sec_shows: "WHAT THE RECORD SHOWS",
+  pub_sec_shows_note: "Disclosure · Not a gate",
+  pub_disclosure_note:
+    "These are shown to anyone considering your strategy, met or not. Nothing here blocks you from listing — a short record lists as a short record. Listing takes a SNAPSHOT of your strategy as it stands, and that snapshot is what builds the record: your own agent stays editable, and nothing you change afterwards rewrites what you published. You can abandon a listing, but you cannot quietly reset a bad run.",
+
+  pub_actions: "Actions",
+  pub_your_agents: "Your agents",
+  pub_view_marketplace: "View in marketplace",
+
+  pub_publication: "Publication",
+  pub_ready: "Ready",
+  pub_not_started: "Not started",
+  pub_published: "Published",
+  pub_publishing: "Publishing…",
+  pub_publish_cta: "Publish to marketplace",
+  pub_start_paper_first: "Start a paper run first",
+  pub_thin_one:
+    "Your record is 1 day long. You can list it now — it will be shown as a short record wherever it appears.",
+  pub_thin_many:
+    "Your record is {count} days long. You can list it now — it will be shown as a short record wherever it appears.",
+  pub_unmet_heading: "Will be disclosed as unmet",
+  pub_met: "Met",
+  pub_not_met: "Not met",
+  pub_session_expired: "Your session expired — sign in again.",
+
+  // ── Strategy detail (public) ───────────────────────────────────
+  sd_crumb_agents: "Agents",
+  sd_crumb_fallback: "Strategy",
+  sd_badge_listed: "Listed",
+  sd_badge_paper: "Paper",
+  sd_badge_delisted: "Delisted",
+  sd_badge_yours: "Yours",
+  sd_return: "Return",
+  // Just "Capital", not "Capital deployed": on a paper run nothing is deployed.
+  sd_capital: "Capital",
+  sd_max_drawdown: "Max drawdown",
+  sd_trades_30d: "Trades · 30d",
+  sd_col_asset: "Asset",
+  sd_col_chain: "Chain",
+  sd_cycle_n: "Cycle {seq}",
+  sd_fact_class: "Asset class",
+  sd_fact_status: "Status",
+  sd_status_listed: "Listed",
+  sd_status_paper: "Paper run",
+  sd_status_delisted: "Delisted",
+  sd_status_days_one: "{status} · 1 day",
+  sd_status_days_many: "{status} · {count} days",
+  sd_fact_trades_day: "Trades / day",
+  sd_fact_win_rate: "Win rate",
+  sd_fact_custody: "Custody",
+  sd_custody_value: "Non-custodial",
+  sd_fact_creator_fee: "Creator fee",
+  sd_creator_fee_value: "{pct}% of profit",
+  sd_meta: "{class} · {fee}% fee · running since {date}",
+  sd_open_workspace: "Open in workspace",
+  sd_deploy_this: "Deploy this",
+  sd_create_own: "+ Create your own agent",
+  sd_positions_open_one: "1 position open now",
+  sd_positions_open_many: "{count} positions open now",
+  sd_open_positions: "Open positions",
+  sd_holdings_one: "Live · 1 holding",
+  sd_holdings_many: "Live · {count} holdings",
+  sd_holdings_note:
+    "What it is holding right now. Entry prices are the author's own execution rather than the strategy, so they are not published — a deployer starting today gets neither.",
+  sd_col_quantity: "Quantity",
+  sd_col_held_for: "Held for",
+  sd_equity: "Equity",
+  sd_not_enough_title: "Not enough cycles yet",
+  sd_not_enough_body: "A curve appears once this agent has run more than once.",
+  sd_dashed_line: "dashed line is starting capital",
+  sd_public_info: "Public information",
+  sd_closed_note: "{count} closed",
+  sd_private_note:
+    "Strategy rules, entry logic and limits stay private to the owner. Performance is public; the recipe is not.",
+  sd_by_day: "Performance by day",
+  sd_no_daily:
+    "The daily breakdown is not available from this API build.",
+  sd_no_cycles: "No cycles yet — a day appears here as soon as this agent runs.",
+  sd_col_day: "Day",
+  sd_col_return: "Return",
+  sd_col_trades: "Trades",
+  sd_col_max_dd: "Max drawdown",
+  sd_by_day_note: "Last 90 days · individual trades are not published.",
+  sd_cycles_one: "1 cycle",
+  sd_cycles_many: "{count} cycles",
+  sd_today: "Today",
+  sd_yesterday: "Yesterday",
+} as const;

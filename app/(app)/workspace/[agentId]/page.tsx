@@ -14,7 +14,7 @@ export default async function WorkspaceAgentPage({
 
   return (
     <main>
-      <Suspense fallback={<SkeletonAgentDetail label="Loading agent" />}>
+      <Suspense fallback={<SkeletonAgentDetail labelKey="loading_agent" />}>
         <WorkspaceShell agentId={id} />
       </Suspense>
     </main>

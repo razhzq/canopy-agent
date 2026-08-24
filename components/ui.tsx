@@ -345,56 +345,18 @@ export function ToolButton({ children }: { children: ReactNode }) {
 
 /* ------------------------------------------------------------- sources ---- */
 
-/** Providers whose attribution is a mark. Anything absent stays a word. */
-const SOURCE_LOGO: Record<string, { src: string; alt: string }> = {
-  // The dark-background variant of Wintel's horizontal lockup (#EDEDED type,
-  // amber mark), not the black-on-white one their site serves to light pages.
-  // This app's panels are #0b0f0e.
-  Wintel: { src: "/wintel-horizontal.svg", alt: "Wintel" },
-};
-
-/**
- * Who a narrated line got its facts from, stamped at the end of the line.
+/*
+ * `SourceMark` moved to components/sourceMark.tsx and `Breadcrumb` to
+ * components/breadcrumb.tsx when the app was translated.
  *
- * The line already names the provider in prose — "TSLAx volatility from Wintel:
- * 1.61% daily" — so the attribution was repeating the word right after it. A
- * logo attributes without saying it twice.
- *
- * Lives here rather than beside one of its callers because both places that
- * narrate a cycle render this: the activity log on the agent page and the full
- * transcript under /portfolio. They drifted apart once already.
- *
- * No load-failure state on purpose, which keeps this hook-free and usable from
- * a server component: `alt` is the browser's own fallback and renders the
- * provider's name as text, which is exactly what this used to be.
+ * Both needed `useT()`, and this file is imported by server components — the
+ * deploy wizard, the cycle pages — so a "use client" here would have pulled
+ * every one of them across the boundary to translate a tooltip and an
+ * aria-label. They are re-exported below, so nothing that imports them had to
+ * move.
  */
-export function SourceMark({ source }: { source: string }) {
-  const logo = SOURCE_LOGO[source];
-
-  if (!logo) {
-    return (
-      <span className="ml-2 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
-        {source}
-      </span>
-    );
-  }
-
-  return (
-    <Image
-      src={logo.src}
-      alt={logo.alt}
-      title={`Source: ${source}`}
-      // The lockup's own viewBox, so the ratio is right; `h-3.5 w-auto` is what
-      // sizes it on the line. `unoptimized` because the optimiser refuses SVG
-      // without dangerouslyAllowSVG — and a 2.7KB vector has nothing to gain
-      // from being rasterised anyway.
-      width={1100}
-      height={300}
-      unoptimized
-      className="ml-2 inline-block h-3.5 w-auto align-[-2px] opacity-80"
-    />
-  );
-}
+export { SourceMark } from "@/components/sourceMark";
+export { Breadcrumb, type Crumb } from "@/components/breadcrumb";
 
 /* -------------------------------------------------------------- tickers --- */
 
@@ -547,49 +509,6 @@ export function AgentTile({ size = 34 }: { size?: number }) {
       className="shrink-0 border border-grid-strong bg-surface-2"
       style={{ width: size, height: size }}
     />
-  );
-}
-
-/** A crumb: plain text, or somewhere to go back to. */
-export type Crumb = string | { label: string; href: string };
-
-/**
- * The trail back up.
- *
- * Crumbs with an `href` are links; the last one never is, because it names the
- * page you are already on. This used to render every part as plain text, which
- * looked like navigation and did nothing — on the cycle transcript, three
- * levels deep, that left the browser's back button as the only way out.
- */
-export function Breadcrumb({ parts }: { parts: Crumb[] }) {
-  return (
-    <nav
-      aria-label="Breadcrumb"
-      className="flex flex-wrap items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase"
-    >
-      {parts.map((part, i) => {
-        const label = typeof part === "string" ? part : part.label;
-        const href = typeof part === "string" ? undefined : part.href;
-        const last = i === parts.length - 1;
-        return (
-          <span key={`${label}-${i}`} className="flex items-center gap-2">
-            {i > 0 ? <span className="text-grid-strong">/</span> : null}
-            {href && !last ? (
-              <Link
-                href={href}
-                className="transition-colors hover:text-accent hover:underline underline-offset-4"
-              >
-                {label}
-              </Link>
-            ) : (
-              <span aria-current={last ? "page" : undefined} className={last ? "text-text-secondary" : undefined}>
-                {label}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </nav>
   );
 }
 

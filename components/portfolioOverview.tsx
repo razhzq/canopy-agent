@@ -29,6 +29,8 @@ import {
   recentSettlements,
   type AgentMark,
 } from "@/lib/perf";
+import { relativeTime } from "@/lib/format";
+import { useLocale, useT, type Locale, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The portfolio overview — everything you own, as one position.
@@ -65,6 +67,12 @@ const TAB_STATUS: Record<Tab, AgentRow["status"][]> = {
   archived: ["stopped", "draft"],
 };
 
+const TAB_LABEL_KEY: Record<Tab, TranslationKey> = {
+  live: "po_tab_live",
+  paused: "po_tab_paused",
+  archived: "po_tab_archived",
+};
+
 const RANGES = [
   { key: "24H", ms: 86_400_000 },
   { key: "7D", ms: 7 * 86_400_000 },
@@ -75,6 +83,7 @@ const RANGES = [
 export function PortfolioOverview() {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
   const { username } = useUsername();
+  const { t, locale } = useLocale();
 
   // Held in a ref for the same reason MyAgents does it: `load` is a dependency
   // of the effect that runs it, and Privy hands back a new closure every
@@ -163,7 +172,7 @@ export function PortfolioOverview() {
   if (state.phase === "loading")
     return (
       <SkeletonRows
-        label="Loading your portfolio"
+        labelKey="loading_portfolio"
         band={4}
         cols="minmax(0,1.6fr) 110px 110px 110px 90px 130px 90px"
       />
@@ -176,9 +185,9 @@ export function PortfolioOverview() {
     return (
       <div className="px-5 py-10 sm:px-8">
         <EmptyState
-          title="Nothing deployed yet"
-          body="Your portfolio is the sum of your agents. Build one and it starts on live data in paper mode — free, and nothing funded."
-          action={{ label: "Create agent", href: "/build/new" }}
+          title={t("po_empty_title")}
+          body={t("po_empty_body")}
+          action={{ label: t("po_empty_action"), href: "/build/new" }}
         />
       </div>
     );
@@ -229,8 +238,9 @@ export function PortfolioOverview() {
               <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
                 <div className="space-y-2">
                   <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-                    Aggregate equity · settled per cycle ·{" "}
-                    {totals.counted} {totals.counted === 1 ? "agent" : "agents"}
+                    {totals.counted === 1
+                      ? t("po_curve_label_one")
+                      : t("po_curve_label_many", { count: totals.counted })}
                   </p>
                   <p className="tnum font-mono text-[27px] leading-none text-text-primary sm:text-[32px]">
                     {money(totals.equityUsd)}
@@ -240,8 +250,11 @@ export function PortfolioOverview() {
                       totals.pnlUsd >= 0 ? "text-accent" : "text-negative"
                     }`}
                   >
-                    {signed(totals.pnlUsd)} · {signedPct(totals.returnPct)} against{" "}
-                    {money(totals.capitalUsd)} deployed
+                    {t("po_curve_against", {
+                      pnl: signed(totals.pnlUsd),
+                      pct: signedPct(totals.returnPct),
+                      capital: money(totals.capitalUsd),
+                    })}
                   </p>
                 </div>
 
@@ -271,10 +284,12 @@ export function PortfolioOverview() {
                   height={200}
                 />
                 <div className="flex items-center justify-between pt-3 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase">
-                  <span>{drawn.length > 0 ? day(drawn[0].at) : "—"}</span>
+                  <span>{drawn.length > 0 ? day(drawn[0].at, locale) : "—"}</span>
                   <span>
-                    {totals.marked ? "Marked live" : `Marked at last cycle`} ·{" "}
-                    {drawn.length} {drawn.length === 1 ? "reading" : "readings"}
+                    {t(drawn.length === 1 ? "po_readings_one" : "po_readings_many", {
+                      marked: t(totals.marked ? "po_marked_live" : "po_marked_last"),
+                      count: drawn.length,
+                    })}
                   </span>
                 </div>
               </div>
@@ -282,11 +297,8 @@ export function PortfolioOverview() {
               {/* The one thing a reader could get wrong about this chart, said
                   plainly rather than left to be inferred from a jump. */}
               <p className="pt-4 font-ui text-[11.5px] leading-relaxed text-text-dim">
-                The dashed rule is capital deployed. Each agent contributes only what it has
-                made, so funding a new one does not read as a gain — which also means the
-                early curve shows today&rsquo;s capital carrying an older P&amp;L, not the
-                balance at the time.
-                {windowed ? " Showing the full history: this window held too few readings." : ""}
+                {t("po_curve_note")}
+                {windowed ? t("po_curve_windowed") : ""}
               </p>
             </section>
 
@@ -294,16 +306,17 @@ export function PortfolioOverview() {
             <section>
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 sm:px-8">
                 <div className="flex">
-                  {(Object.keys(TAB_STATUS) as Tab[]).map((t) => {
+                  {/* `key`, not `t` — the translator owns that name here. */}
+                  {(Object.keys(TAB_STATUS) as Tab[]).map((key) => {
                     const n = holdings.filter((h) =>
-                      TAB_STATUS[t].includes(h.agent.status),
+                      TAB_STATUS[key].includes(h.agent.status),
                     ).length;
-                    const on = tab === t;
+                    const on = tab === key;
                     return (
                       <button
-                        key={t}
+                        key={key}
                         type="button"
-                        onClick={() => setTab(t)}
+                        onClick={() => setTab(key)}
                         aria-pressed={on}
                         className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[10.5px] tracking-[0.1em] uppercase transition-colors ${
                           on
@@ -311,7 +324,7 @@ export function PortfolioOverview() {
                             : "border-transparent text-text-dim hover:text-text-secondary"
                         }`}
                       >
-                        {t}
+                        {t(TAB_LABEL_KEY[key])}
                         <span className={on ? "text-accent" : "text-text-dim"}>{n}</span>
                       </button>
                     );
@@ -321,7 +334,7 @@ export function PortfolioOverview() {
                   href="/workspace"
                   className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
                 >
-                  Manage agents →
+                  {t("po_manage")}
                 </Link>
               </div>
 
@@ -432,14 +445,15 @@ function PortfolioHeader({
   totals: Totals;
   onExport: () => void;
 }) {
-  const identity = identityOf(user);
+  const t = useT();
+  const identity = identityOf(user, t);
   // The page is titled with who you are, not with how you signed in.
   const title = username ?? identity.name;
 
   return (
     <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-5 pt-6 pb-6 sm:px-8">
       <div className="min-w-0 space-y-3">
-        <Breadcrumb parts={["Portfolio", "Overview"]} />
+        <Breadcrumb parts={[t("po_crumb_portfolio"), t("po_crumb_overview")]} />
 
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-[28px] leading-none tracking-[-0.02em] text-text-primary">
@@ -448,16 +462,21 @@ function PortfolioHeader({
           {/* Says what the money actually is. The badge is not decoration: a
               paper portfolio and a funded one look identical on this page. */}
           <Badge tone={totals.allPaper ? "simulated" : "accent"}>
-            {totals.allPaper ? "Paper" : "Live"}
+            {t(totals.allPaper ? "po_badge_paper" : "po_badge_live")}
           </Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-          <Meta label="Agents" value={String(totals.counted)} />
-          <Meta label="Cycles settled" value={totals.cycles.toLocaleString("en-US")} />
-          <Meta label="Open book" value={money(totals.openBookUsd)} />
-          <Meta label="Idle" value={money(totals.idleUsd)} />
-          {identity.wallet ? <Meta label="Wallet" value={identity.wallet} /> : null}
+          <Meta label={t("po_meta_agents")} value={String(totals.counted)} />
+          <Meta
+            label={t("po_meta_cycles")}
+            value={totals.cycles.toLocaleString("en-US")}
+          />
+          <Meta label={t("po_meta_open_book")} value={money(totals.openBookUsd)} />
+          <Meta label={t("po_meta_idle")} value={money(totals.idleUsd)} />
+          {identity.wallet ? (
+            <Meta label={t("po_meta_wallet")} value={identity.wallet} />
+          ) : null}
         </div>
       </div>
 
@@ -467,13 +486,13 @@ function PortfolioHeader({
           onClick={onExport}
           className="border border-grid-strong px-3 py-2 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
         >
-          Export CSV
+          {t("po_export")}
         </button>
         <Link
           href="/build/new"
           className="bg-accent px-3.5 py-2 font-mono text-[10.5px] tracking-[0.08em] text-bg uppercase transition-opacity hover:opacity-90"
         >
-          New agent
+          {t("po_new_agent")}
         </Link>
       </div>
     </header>
@@ -497,14 +516,18 @@ function Meta({ label, value }: { label: string; value: string }) {
 const COLS = "lg:grid lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px]";
 
 function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
+  const t = useT();
+
   if (rows.length === 0) {
     return (
       <p className="px-5 py-10 text-center font-ui text-[13px] text-text-dim sm:px-8">
-        {tab === "live"
-          ? "No agents running right now."
-          : tab === "paused"
-            ? "Nothing paused."
-            : "Nothing archived."}
+        {t(
+          tab === "live"
+            ? "po_none_live"
+            : tab === "paused"
+              ? "po_none_paused"
+              : "po_none_archived",
+        )}
       </p>
     );
   }
@@ -514,13 +537,13 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
       <div
         className={`grid gap-x-4 border-b border-grid px-8 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden ${COLS}`}
       >
-        <span>Agent</span>
-        <span className="text-right">Deployed</span>
-        <span className="text-right">Equity</span>
-        <span className="text-right">24h</span>
-        <span className="text-right">Return</span>
-        <span>Equity curve</span>
-        <span className="text-right">Status</span>
+        <span>{t("po_col_agent")}</span>
+        <span className="text-right">{t("po_col_deployed")}</span>
+        <span className="text-right">{t("po_col_equity")}</span>
+        <span className="text-right">{t("po_col_24h")}</span>
+        <span className="text-right">{t("po_col_return")}</span>
+        <span>{t("po_col_curve")}</span>
+        <span className="text-right">{t("po_col_status")}</span>
       </div>
 
       {rows.map((h) => (
@@ -546,12 +569,18 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
  */
 function AgentRowLine({ holding }: { holding: Holding }) {
   const { agent, mark } = holding;
+  const t = useT();
   const moved = mark ? movedOverUsd(mark.points, Date.now() - 86_400_000) : null;
   const up = (mark?.pnlUsd ?? 0) >= 0;
 
-  const sub = `${agent.strategy_class} · ${agent.is_paper ? "paper" : "live"}${
-    mark ? ` · cycle ${mark.points[mark.points.length - 1].tickSeq}` : ""
-  }`;
+  const book = t(agent.is_paper ? "po_book_paper" : "po_book_live");
+  const sub = mark
+    ? t("po_row_sub_cycle", {
+        class: agent.strategy_class,
+        book,
+        cycle: mark.points[mark.points.length - 1].tickSeq,
+      })
+    : t("po_row_sub", { class: agent.strategy_class, book });
   const equity = mark ? money(mark.equityUsd) : "—";
   const deployed = money(num(agent.capital_usd) ?? 0);
   const movedText = moved === null ? "—" : signed(moved);
@@ -573,7 +602,7 @@ function AgentRowLine({ holding }: { holding: Holding }) {
         height={28}
       />
     ) : (
-      <span className="font-mono text-[10px] text-text-dim">no readings</span>
+      <span className="font-mono text-[10px] text-text-dim">{t("po_no_readings")}</span>
     );
 
   return (
@@ -592,7 +621,7 @@ function AgentRowLine({ holding }: { holding: Holding }) {
               {sub}
             </p>
           </div>
-          <Badge tone={STATUS_TONE[agent.status]}>{agent.status}</Badge>
+          <Badge tone={STATUS_TONE[agent.status]}>{t(AGENT_STATUS_KEY[agent.status])}</Badge>
         </div>
 
         <div className="flex items-end justify-between gap-3">
@@ -601,7 +630,7 @@ function AgentRowLine({ holding }: { holding: Holding }) {
                 fold and this is the one people open the page for. */}
             <p className="tnum font-mono text-[19px] leading-none text-text-primary">{equity}</p>
             <p className="pt-1.5 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
-              {deployed} deployed
+              {t("po_deployed_suffix", { amount: deployed })}
             </p>
           </div>
           <div className="shrink-0">{curve}</div>
@@ -609,11 +638,11 @@ function AgentRowLine({ holding }: { holding: Holding }) {
 
         <div className="flex items-center gap-4 font-mono text-[11.5px]">
           <span className={`tnum ${movedTone}`}>
-            <span className="text-text-dim">24h </span>
+            <span className="text-text-dim">{t("po_label_24h")}</span>
             {movedText}
           </span>
           <span className={`tnum ${returnTone}`}>
-            <span className="text-text-dim">return </span>
+            <span className="text-text-dim">{t("po_label_return")}</span>
             {returnText}
           </span>
         </div>
@@ -642,11 +671,27 @@ function AgentRowLine({ holding }: { holding: Holding }) {
       </span>
       <span className="hidden items-center lg:flex">{curve}</span>
       <span className="hidden justify-end lg:flex">
-        <Badge tone={STATUS_TONE[agent.status]}>{agent.status}</Badge>
+        <Badge tone={STATUS_TONE[agent.status]}>{t(AGENT_STATUS_KEY[agent.status])}</Badge>
       </span>
     </Link>
   );
 }
+
+/**
+ * The row's status word.
+ *
+ * This used to render `agent.status` — the backend enum — directly. Reusing
+ * the workspace header's own keys rather than minting a second set: two lists
+ * of the same agent must not call it two different things.
+ */
+const AGENT_STATUS_KEY: Record<AgentRow["status"], TranslationKey> = {
+  active: "ws_status_active",
+  paused: "ws_status_paused",
+  liquidating: "ws_status_liquidating",
+  stopped: "ws_status_stopped",
+  draft: "ws_status_draft",
+  deleted: "ws_status_stopped",
+};
 
 const STATUS_TONE: Record<AgentRow["status"], "accent" | "warning" | "negative" | "muted"> = {
   active: "accent",
@@ -660,6 +705,7 @@ const STATUS_TONE: Record<AgentRow["status"], "accent" | "warning" | "negative" 
 /* ---------------------------------------------------------------- rail --- */
 
 function Allocation({ holdings, totals }: { holdings: Holding[]; totals: Totals }) {
+  const t = useT();
   const base = totals.capitalUsd + totals.idleUsd;
   const rows = holdings
     .filter((h) => h.agent.status !== "stopped" && h.agent.status !== "draft")
@@ -672,7 +718,10 @@ function Allocation({ holdings, totals }: { holdings: Holding[]; totals: Totals 
     .sort((a, b) => b.usd - a.usd);
 
   return (
-    <RailSection title="Capital allocation" note={`${money(totals.capitalUsd)} deployed`}>
+    <RailSection
+      title={t("po_allocation")}
+      note={t("po_allocation_note", { amount: money(totals.capitalUsd) })}
+    >
       <div className="space-y-3.5 pt-2">
         {rows.map((r) => (
           <Bar
@@ -688,8 +737,8 @@ function Allocation({ holdings, totals }: { holdings: Holding[]; totals: Totals 
             it that the reader has to account for. */}
         <div className="border-t border-grid pt-3.5">
           <Bar
-            label="idle · unallocated"
-            tag="cash"
+            label={t("po_idle_label")}
+            tag={t("po_idle_tag")}
             value={money(totals.idleUsd)}
             pct={base ? (totals.idleUsd / base) * 100 : 0}
             muted
@@ -746,6 +795,7 @@ function Exposure({
   universe: UniverseAsset[];
   totals: Totals;
 }) {
+  const t = useT();
   // One line per symbol, not per lot: the same asset held by three agents is
   // one exposure, and that is the number that matters for concentration.
   const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
@@ -770,23 +820,25 @@ function Exposure({
 
   return (
     <RailSection
-      title="Open exposure"
-      note={`${positions} ${positions === 1 ? "position" : "positions"}`}
+      title={t("po_exposure")}
+      note={
+        positions === 1
+          ? t("po_exposure_one")
+          : t("po_exposure_many", { count: positions })
+      }
     >
       {rows.length === 0 ? (
-        <p className="pt-2 font-ui text-[12.5px] text-text-dim">
-          Nothing open. Every agent is in cash.
-        </p>
+        <p className="pt-2 font-ui text-[12.5px] text-text-dim">{t("po_exposure_empty")}</p>
       ) : (
         <>
           <div className="flex gap-6 pt-2 pb-4">
-            <Figure label="Open book" value={money(totals.openBookUsd)} />
+            <Figure label={t("po_fig_open_book")} value={money(totals.openBookUsd)} />
             <Figure
-              label="Unrealised"
+              label={t("po_fig_unrealised")}
               value={signed(totals.unrealizedUsd)}
               tone={totals.unrealizedUsd >= 0 ? "accent" : "negative"}
             />
-            <Figure label="Realised" value={signed(totals.realizedUsd)} tone={
+            <Figure label={t("po_fig_realised")} value={signed(totals.realizedUsd)} tone={
               totals.realizedUsd >= 0 ? "accent" : "negative"
             } />
           </div>
@@ -800,7 +852,9 @@ function Exposure({
                   {symbol}
                 </span>
                 <span className="min-w-0 flex-1 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
-                  {r.agents} {r.agents === 1 ? "agent" : "agents"}
+                  {r.agents === 1
+                    ? t("po_agents_one")
+                    : t("po_agents_many", { count: r.agents })}
                 </span>
                 <span className="tnum w-[64px] shrink-0 text-right font-mono text-[11.5px] text-text-secondary">
                   {money(r.usd)}
@@ -853,12 +907,12 @@ function Settlements({
 }: {
   settlements: ReturnType<typeof recentSettlements>;
 }) {
+  const t = useT();
+
   return (
-    <RailSection title="Recent settlements" note="last cycles">
+    <RailSection title={t("po_settlements")} note={t("po_settlements_note")}>
       {settlements.length === 0 ? (
-        <p className="pt-2 font-ui text-[12.5px] text-text-dim">
-          No cycles have settled yet.
-        </p>
+        <p className="pt-2 font-ui text-[12.5px] text-text-dim">{t("po_settlements_empty")}</p>
       ) : (
         <div className="pt-1">
           {settlements.map((s) => (
@@ -872,7 +926,10 @@ function Settlements({
                   {s.agentName}
                 </p>
                 <p className="truncate pt-0.5 font-mono text-[9px] tracking-[0.08em] text-text-dim uppercase">
-                  Cycle {s.tickSeq} · {when(s.at)}
+                  {t("po_settlement_line", {
+                    seq: s.tickSeq,
+                    when: relativeTime(s.at, t),
+                  })}
                 </p>
               </div>
               <span
@@ -884,7 +941,7 @@ function Settlements({
                       : "text-negative"
                 }`}
               >
-                {s.movedUsd === null ? "first" : signed(s.movedUsd)}
+                {s.movedUsd === null ? t("po_settlement_first") : signed(s.movedUsd)}
               </span>
             </Link>
           ))}
@@ -896,7 +953,7 @@ function Settlements({
 
 /* ------------------------------------------------------------- helpers --- */
 
-function identityOf(user: ReturnType<typeof usePrivy>["user"]) {
+function identityOf(user: ReturnType<typeof usePrivy>["user"], t: Translate) {
   const accounts: unknown[] = Array.isArray(user?.linkedAccounts) ? user.linkedAccounts : [];
   let email: string | null = null;
   let wallet: string | null = null;
@@ -909,7 +966,7 @@ function identityOf(user: ReturnType<typeof usePrivy>["user"]) {
   const short = wallet && wallet.length > 12
     ? `${wallet.slice(0, 4)}…${wallet.slice(-4)}`
     : wallet;
-  return { name: email ?? short ?? "Your portfolio", wallet: short };
+  return { name: email ?? short ?? t("po_fallback_title"), wallet: short };
 }
 
 /**
@@ -979,14 +1036,12 @@ function signedPct(n: number): string {
   return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(1)}%`;
 }
 
-function day(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+/** The axis date under the curve, in the reader's language. */
+function day(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function when(iso: string): string {
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return `${Math.floor(mins / 1440)}d ago`;
-}
+// `when` moved to lib/format as `relativeTime`.

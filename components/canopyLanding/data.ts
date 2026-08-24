@@ -30,25 +30,36 @@ export const TICKERS: Ticker[] = [
 ];
 
 export type Agent = {
+  /**
+   * What the sample agent is called, in both languages.
+   *
+   * These are display names of illustrative agents rather than product
+   * vocabulary, so they sit beside the row they belong to rather than in the
+   * shared dictionary — the same call the deploy wireframe's copy bundle makes.
+   * The ticker inside each name is a symbol and does not change.
+   */
   name: string;
-  market: string;
+  nameZh: string;
+  /** The trading pair. A pair of symbols; the same in every language. */
+  pair: string;
+  /** How long it has been running. Rendered with a translated unit. */
+  days: number;
   ret: string;
   up: boolean;
   capital: string;
   trades: string;
   flag?: "hot" | "new" | "paper";
-  flagLabel?: string;
   seed: number;
 };
 
 export const AGENTS: Agent[] = [
-  { name: "AAPLx Dip Catcher", market: "AAPLx/USDC · 94d", ret: "+24.1%", up: true, capital: "$182k", trades: "928", flag: "hot", flagLabel: "Hot", seed: 2 },
-  { name: "COINx Volatility", market: "COINx/USDC · 8d", ret: "+31.5%", up: true, capital: "$44k", trades: "1,884", flag: "new", flagLabel: "New", seed: 5 },
-  { name: "SOL Momentum", market: "SOL/USDC · 12d", ret: "+18.0%", up: true, capital: "$97k", trades: "1,612", seed: 8 },
-  { name: "JitoSOL Trend", market: "JitoSOL/USDC · 73d", ret: "+12.6%", up: true, capital: "$130k", trades: "870", seed: 11 },
-  { name: "TSLAx Momentum", market: "TSLAx/USDC · 21d", ret: "+11.8%", up: true, capital: "$64k", trades: "1,440", flag: "new", flagLabel: "New", seed: 14 },
-  { name: "GOOGLx Mean Revert", market: "GOOGLx/USDC · 51d", ret: "+9.4%", up: true, capital: "$58k", trades: "658", seed: 17 },
-  { name: "SPYx DCA", market: "SPYx/USDC · 140d", ret: "+6.2%", up: true, capital: "$210k", trades: "214", seed: 20 },
-  { name: "PAXG Rotator", market: "PAXG/USDC · 66d", ret: "+2.9%", up: true, capital: "$39k", trades: "96", seed: 23 },
-  { name: "TRUMP Grid", market: "TRUMP/USDC · 38d", ret: "−3.4%", up: false, capital: "$21k", trades: "361", flag: "paper", flagLabel: "Paper", seed: 26 },
+  { name: "AAPLx Dip Catcher", nameZh: "AAPLx 抄底手", pair: "AAPLx/USDC", days: 94, ret: "+24.1%", up: true, capital: "$182k", trades: "928", flag: "hot", seed: 2 },
+  { name: "COINx Volatility", nameZh: "COINx 波动率", pair: "COINx/USDC", days: 8, ret: "+31.5%", up: true, capital: "$44k", trades: "1,884", flag: "new", seed: 5 },
+  { name: "SOL Momentum", nameZh: "SOL 动量", pair: "SOL/USDC", days: 12, ret: "+18.0%", up: true, capital: "$97k", trades: "1,612", seed: 8 },
+  { name: "JitoSOL Trend", nameZh: "JitoSOL 趋势", pair: "JitoSOL/USDC", days: 73, ret: "+12.6%", up: true, capital: "$130k", trades: "870", seed: 11 },
+  { name: "TSLAx Momentum", nameZh: "TSLAx 动量", pair: "TSLAx/USDC", days: 21, ret: "+11.8%", up: true, capital: "$64k", trades: "1,440", flag: "new", seed: 14 },
+  { name: "GOOGLx Mean Revert", nameZh: "GOOGLx 均值回归", pair: "GOOGLx/USDC", days: 51, ret: "+9.4%", up: true, capital: "$58k", trades: "658", seed: 17 },
+  { name: "SPYx DCA", nameZh: "SPYx 定投", pair: "SPYx/USDC", days: 140, ret: "+6.2%", up: true, capital: "$210k", trades: "214", seed: 20 },
+  { name: "PAXG Rotator", nameZh: "PAXG 轮动", pair: "PAXG/USDC", days: 66, ret: "+2.9%", up: true, capital: "$39k", trades: "96", seed: 23 },
+  { name: "TRUMP Grid", nameZh: "TRUMP 网格", pair: "TRUMP/USDC", days: 38, ret: "−3.4%", up: false, capital: "$21k", trades: "361", flag: "paper", seed: 26 },
 ];

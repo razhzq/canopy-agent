@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tokenPrice } from "@/lib/format";
 import { useRouter } from "next/navigation";
-import { MARKET_CLASSES, VENUE_LABEL } from "@/components/pickMarket";
+import { MARKET_CLASSES, VENUE_LABEL, venueLabel } from "@/components/pickMarket";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   selectionKey,
@@ -78,6 +79,7 @@ export function AddMarketModal({
 }) {
   const router = useRouter();
   const { getAccessToken } = usePrivy();
+  const t = useT();
 
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
@@ -123,7 +125,7 @@ export function AddMarketModal({
       setError(null);
       try {
         const token = await getAccessToken();
-        if (!token) throw new Error("Sign in to change this agent.");
+        if (!token) throw new Error(t("am_sign_in"));
         await removeAgentMarket(
           token,
           agentId,
@@ -309,7 +311,7 @@ export function AddMarketModal({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to change this agent.");
+      if (!token) throw new Error(t("am_sign_in"));
       // Direct, not a chat instruction. This used to send a sentence for the
       // agent to interpret into a proposal, which forked the strategy into a
       // NEW agent — a large outcome for "also watch gold". The universe is not
@@ -364,16 +366,16 @@ export function AddMarketModal({
               id="add-market-title"
               className="font-mono text-[20px] leading-none text-text-primary"
             >
-              Add a market
+              {t("am_title")}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common_close")}
             className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent"
           >
-            Esc
+            {t("wallet_esc")}
           </button>
         </div>
 
@@ -394,7 +396,7 @@ export function AddMarketModal({
                     : "border-border text-text-secondary hover:border-grid-strong"
                 }`}
               >
-                {c.label}
+                {t(c.labelKey)}
               </button>
             ))}
 
@@ -404,7 +406,7 @@ export function AddMarketModal({
                 carries a header, a search box and a count. */}
             {showVenues ? (
               <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                Venue
+                {t("mk_venue")}
                 <select
                   ref={venueSelect}
                   value={venue}
@@ -415,11 +417,11 @@ export function AddMarketModal({
                   className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
                 >
                   <option value="all" className="bg-bg">
-                    All
+                    {t("mk_venue_all")}
                   </option>
                   {venues.map((v) => (
                     <option key={v} value={v} className="bg-bg">
-                      {VENUE_LABEL[v]}
+                      {venueLabel(v, t)}
                     </option>
                   ))}
                 </select>
@@ -434,13 +436,15 @@ export function AddMarketModal({
                 setQuery(e.target.value);
                 setCursor(0);
               }}
-              placeholder="Search markets…"
+              placeholder={t("am_search_placeholder")}
               spellCheck={false}
-              aria-label="Search markets"
+              aria-label={t("mk_search_aria")}
               className="h-9 w-[200px] border-b border-grid-strong bg-transparent font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
             />
             <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-              {rows.length} {rows.length === 1 ? "market" : "markets"}
+              {rows.length === 1
+                ? t("mk_count_one")
+                : t("mk_count_many", { count: rows.length })}
             </span>
           </div>
         </div>
@@ -448,15 +452,15 @@ export function AddMarketModal({
         {/* ------------------------------------------------------------ list */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid bg-panel px-7 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-            <span>Market</span>
-            <span className="text-right">Price</span>
-            <span className="text-right">24h</span>
-            <span className="text-right">Pool depth</span>
+            <span>{t("mk_col_market")}</span>
+            <span className="text-right">{t("mk_col_price")}</span>
+            <span className="text-right">{t("mk_col_24h")}</span>
+            <span className="text-right">{t("mk_col_depth")}</span>
             <span />
           </div>
 
           {loading ? (
-            <Note>Resolving tradable markets…</Note>
+            <Note>{t("mk_resolving")}</Note>
           ) : rows.length === 0 ? (
             // Three different emptinesses, and the reader can act on only two
             // of them. Blaming the search box unconditionally produced the
@@ -468,7 +472,8 @@ export function AddMarketModal({
                 klass,
                 query,
                 classes,
-                venue === "all" ? null : VENUE_LABEL[venue],
+                venue === "all" ? null : venueLabel(venue, t),
+                t,
               )}
             </Note>
           ) : (
@@ -503,13 +508,13 @@ export function AddMarketModal({
                   aria-label={
                     taken
                       ? heldCount <= 1
-                        ? `${a.symbol} is the only market this agent trades and cannot be removed`
-                        : `Stop trading ${a.symbol}`
+                        ? t("am_only_market_aria", { symbol: a.symbol })
+                        : t("am_remove_aria", { symbol: a.symbol })
                       : undefined
                   }
                   title={
                     taken && heldCount > 1
-                      ? "Remove this market. Anything already held stays open."
+                      ? t("am_remove_title")
                       : undefined
                   }
                   className={`grid w-full grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid px-7 py-3 text-left transition-colors ${
@@ -577,19 +582,21 @@ export function AddMarketModal({
                       ) : heldCount <= 1 ? (
                         // The only market. Says added, offers nothing, and the
                         // title explains why rather than leaving a dead row.
-                        <span className="text-text-muted">Added</span>
+                        <span className="text-text-muted">{t("am_added")}</span>
                       ) : (
                         // "Added" until pointed at, "Remove" once it is
                         // actionable — the label names what the click does.
                         <>
-                          <span className="text-text-muted group-hover:hidden">Added</span>
+                          <span className="text-text-muted group-hover:hidden">
+                            {t("am_added")}
+                          </span>
                           <span className="hidden text-negative group-hover:inline">
-                            Remove
+                            {t("am_remove")}
                           </span>
                         </>
                       )
                     ) : chosen ? (
-                      <span className="text-accent">Picked</span>
+                      <span className="text-accent">{t("am_picked")}</span>
                     ) : null}
                   </span>
                 </button>
@@ -608,15 +615,13 @@ export function AddMarketModal({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="min-w-0 font-ui text-[12.5px] text-text-secondary">
               {picked ? (
-                <>
-                  <span className="font-mono text-[12.5px] text-accent">
-                    {picked.symbol}/USDC
-                  </span>{" "}
-                  — same rules and limits as {agentName}.
-                </>
+                t("am_same_rules", {
+                  market: `${picked.symbol}/USDC`,
+                  agent: agentName,
+                })
               ) : (
                 <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-                  ↑↓ navigate · ⏎ pick · esc close
+                  {t("am_hints")}
                 </span>
               )}
             </p>
@@ -626,7 +631,7 @@ export function AddMarketModal({
                 onClick={onClose}
                 className="h-11 border border-border px-5 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
               >
-                Cancel
+                {t("common_cancel")}
               </button>
               <button
                 type="button"
@@ -634,7 +639,7 @@ export function AddMarketModal({
                 disabled={!picked || busy}
                 className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
               >
-                {busy ? "Sending…" : "Request add"}
+                {t(busy ? "am_sending" : "am_request")}
               </button>
             </div>
           </div>
@@ -682,19 +687,29 @@ function emptyReason(
   total: number,
   klass: string,
   query: string,
-  classes: readonly { key: string; label: string }[],
-  venueLabel: string | null,
+  classes: readonly { key: string; labelKey: TranslationKey }[],
+  venue: string | null,
+  t: Translate,
 ): string {
-  if (total === 0) return "No market currently resolves as tradable.";
+  if (total === 0) return t("mk_none_tradable");
   const q = query.trim();
-  const label = classes.find((c) => c.key === klass && c.key !== "all")?.label.toLowerCase();
-  const scope = [label, venueLabel ? `on ${venueLabel}` : null].filter(Boolean).join(" ");
+  const hit = classes.find((c) => c.key === klass && c.key !== "all");
+  // Not lower-cased any more: English class names read better mid-sentence in
+  // lower case, Chinese has no case, and `toLowerCase()` on a Chinese string is
+  // a no-op that only ever mattered for the Latin half.
+  const label = hit ? t(hit.labelKey) : null;
+  const scope =
+    label && venue
+      ? t("am_scope_on_venue", { scope: label, venue })
+      : (label ?? (venue ? t("am_scope_on_venue", { scope: "", venue }).trim() : null));
   if (q) {
-    return scope ? `Nothing in ${scope} matches “${q}”.` : `Nothing matches “${q}”.`;
+    return scope
+      ? t("am_none_in_scope_query", { scope, query: q })
+      : t("mk_no_query_match", { query: q });
   }
-  if (label) return `This agent trades no ${scope}.`;
-  if (venueLabel) return `Nothing here fills on ${venueLabel}.`;
-  return "No market currently resolves as tradable.";
+  if (label) return t("am_agent_trades_none", { scope: scope ?? label });
+  if (venue) return t("am_none_on_venue", { venue });
+  return t("mk_none_tradable");
 }
 
 function money(n: number): string {

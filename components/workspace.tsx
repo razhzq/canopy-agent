@@ -10,6 +10,7 @@ import { AgentThread } from "@/components/agentThread";
 import { Badge } from "@/components/ui";
 import { listAgents, type AgentRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * One agent, open.
@@ -39,18 +40,19 @@ import { useApi } from "@/lib/useApi";
  */
 export type WorkspaceTab = "overview" | "chat" | "cycles";
 
-const TABS: { key: WorkspaceTab; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "chat", label: "Chat" },
-  { key: "cycles", label: "Cycles" },
+const TABS: { key: WorkspaceTab; labelKey: TranslationKey }[] = [
+  { key: "overview", labelKey: "ws_tab_overview" },
+  { key: "chat", labelKey: "ws_tab_chat" },
+  { key: "cycles", labelKey: "ws_tab_cycles" },
 ];
 
 export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab }) {
   const router = useRouter();
+  const t = useT();
   const [chatOpen, setChatOpen] = useState(false);
   // Only for the compact header the non-overview tabs need. Overview fetches
   // the agent itself, in far more detail than the list row carries.
-  const state = useApi<{ agents: AgentRow[] }>((t) => listAgents(t));
+  const state = useApi<{ agents: AgentRow[] }>((token) => listAgents(token));
 
   // A `?tab=chat` link opened on a phone becomes the sheet.
   //
@@ -77,7 +79,7 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
             screen two titles. */}
         {tab === "overview" ? (
           <span className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Agent
+            {t("ws_eyebrow")}
           </span>
         ) : (
           <div className="flex min-w-0 items-center gap-3">
@@ -85,17 +87,17 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
               href="/workspace"
               className="shrink-0 font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
             >
-              ← My agents
+              {t("ws_back")}
             </Link>
             <h1 className="truncate font-mono text-[16px] text-text-primary">
-              {agent?.strategy_name ?? `Agent ${agentId}`}
+              {agent?.strategy_name ?? t("ws_fallback_name", { id: agentId })}
             </h1>
             {agent ? (
               <>
                 <Badge tone={agent.status === "active" ? "accent" : "warning"}>
-                  {STATUS_WORD[agent.status] ?? agent.status}
+                  {STATUS_WORD_KEY[agent.status] ? t(STATUS_WORD_KEY[agent.status]) : agent.status}
                 </Badge>
-                {agent.is_paper ? <Badge tone="muted">Paper</Badge> : null}
+                {agent.is_paper ? <Badge tone="muted">{t("ws_badge_paper")}</Badge> : null}
               </>
             ) : null}
           </div>
@@ -104,26 +106,27 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
         <ChatButton agent={agent} onOpen={() => setChatOpen(true)} />
 
         <nav
-          aria-label="Agent views"
+          aria-label={t("ws_views_aria")}
           className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
         >
-          {TABS.map((t) => (
+          {/* `entry`, not `t` — the translator owns that name here. */}
+          {TABS.map((entry) => (
             <button
-              key={t.key}
+              key={entry.key}
               type="button"
-              aria-current={t.key === tab ? "page" : undefined}
-              onClick={() => router.push(`/workspace/${agentId}?tab=${t.key}`)}
+              aria-current={entry.key === tab ? "page" : undefined}
+              onClick={() => router.push(`/workspace/${agentId}?tab=${entry.key}`)}
               // Chat is the sheet below lg — see AgentChatSheet — so its tab
               // is hidden there rather than offering a second door to one room.
               className={`h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${
-                t.key === "chat" ? "hidden lg:flex" : "flex"
+                entry.key === "chat" ? "hidden lg:flex" : "flex"
               } ${
-                t.key === tab
+                entry.key === tab
                   ? "bg-accent-wash text-accent"
                   : "text-text-dim hover:text-text-primary"
               }`}
             >
-              {t.label}
+              {t(entry.labelKey)}
             </button>
           ))}
         </nav>
@@ -142,12 +145,12 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
   );
 }
 
-const STATUS_WORD: Record<string, string> = {
-  active: "Running",
-  liquidating: "Closing out",
-  paused: "Paused",
-  stopped: "Stopped",
-  draft: "Draft",
+const STATUS_WORD_KEY: Record<string, TranslationKey> = {
+  active: "ws_status_active",
+  liquidating: "ws_status_liquidating",
+  paused: "ws_status_paused",
+  stopped: "ws_status_stopped",
+  draft: "ws_status_draft",
 };
 
 export function isTab(v: string | null): v is WorkspaceTab {

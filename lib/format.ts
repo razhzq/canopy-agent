@@ -21,6 +21,8 @@
 // full precision for arithmetic — the formatter is the last step before the
 // screen and never feeds anything back.
 
+import type { Translate } from "./i18n/translate";
+
 const DASH = "—";
 
 const SUBSCRIPT = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"] as const;
@@ -184,4 +186,82 @@ export function tokenQty(qty: number | null | undefined, priceUsd?: number | nul
   // for something the book says is open is the one answer that is never right.
   if (Number(shown.replace(/,/g, "")) === 0) return "<0.001";
   return shown;
+}
+
+/* ------------------------------------------------------------------ time -- */
+
+/**
+ * How long ago, in the reader's language.
+ *
+ * There were SIX copies of this before the app was translated — in
+ * `portfolio`, `agentDetail`, `agentDetailMobile`, `myAgents`, `agentThread`
+ * and `equity` — and they had already drifted: half rendered "5m ago" and half
+ * "5 min ago" for the same instant on two screens a click apart. Translating
+ * six copies would have meant six sets of keys and the same drift in a second
+ * language, so they are one function. The short form won, because it is what
+ * the denser surfaces used and what the mobile designs are measured for.
+ *
+ * Takes `t` for the same reason lib/narrate does: this is called from render
+ * bodies and from plain helpers alike, and a hook would rule out the second.
+ *
+ * Deliberately NOT `Intl.RelativeTimeFormat`. It would spare the four keys, and
+ * cost the thing they exist for: it renders "5 minutes ago" in a 90px column
+ * measured for "5m ago", and no option makes it shorter — `numeric: "auto"`
+ * changes "1 day ago" to "yesterday", which is longer still.
+ */
+export function relativeTime(iso: string | null | undefined, t: Translate): string {
+  if (!iso) return DASH;
+  const at = new Date(iso).getTime();
+  if (!Number.isFinite(at)) return DASH;
+
+  const mins = Math.round((Date.now() - at) / 60_000);
+  // A clock skew of a few seconds must not render "−0m ago".
+  if (mins < 1) return t("time_just_now");
+  if (mins < 60) return t("time_minutes", { count: mins });
+  if (mins < 1440) return t("time_hours", { count: Math.floor(mins / 60) });
+  return t("time_days", { count: Math.floor(mins / 1440) });
+}
+
+/**
+ * The same age, with the "ago" dropped.
+ *
+ * A timestamp gutter down the right of a feed does not need every row to say
+ * "ago" — the column establishes that once, and the rows are narrow. Separate
+ * from `relativeTime` rather than an option on it, because they are two
+ * different registers and a boolean would hide that at every call site.
+ */
+export function compactAge(iso: string | null | undefined, t: Translate): string {
+  if (!iso) return DASH;
+  const at = new Date(iso).getTime();
+  if (!Number.isFinite(at)) return DASH;
+
+  const mins = Math.floor((Date.now() - at) / 60_000);
+  if (mins < 1) return t("time_compact_now");
+  if (mins < 60) return t("time_compact_minutes", { count: mins });
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return t("time_compact_hours", { count: hrs });
+  return t("time_compact_days", { count: Math.floor(hrs / 24) });
+}
+
+/**
+ * A short calendar date — "4 Mar 25" / "2025年3月4日".
+ *
+ * Takes the locale rather than the translator: a date's shape is a regional
+ * convention Intl already knows, and writing month names into the dictionary
+ * would be re-implementing a table the browser ships.
+ *
+ * Explicitly locale-driven rather than `undefined` (the browser's own setting),
+ * unlike the billing renewal date. That one is a fact about a contract and
+ * belongs in the reader's regional format; these sit inside a dense table of
+ * translated labels, and a run of English months down a Chinese column reads as
+ * a rendering failure.
+ */
+export function shortDate(iso: string, locale: "en" | "zh"): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return DASH;
+  return d.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
 }

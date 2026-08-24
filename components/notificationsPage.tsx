@@ -7,6 +7,7 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { getNotificationFeed, type NotificationItem, type NotificationKind } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The notification centre, as a page.
@@ -22,14 +23,15 @@ import { useApi } from "@/lib/useApi";
  */
 
 const FILTERS = [
-  { key: "all", label: "All", kinds: null },
-  { key: "needs", label: "Needs you", kinds: ["proposal"] },
-  { key: "trades", label: "Trades", kinds: ["fill"] },
-  { key: "risk", label: "Risk", kinds: ["breach", "risk_hold"] },
+  { key: "all", labelKey: "nc_filter_all" as TranslationKey, kinds: null },
+  { key: "needs", labelKey: "nc_filter_needs" as TranslationKey, kinds: ["proposal"] },
+  { key: "trades", labelKey: "nc_filter_trades" as TranslationKey, kinds: ["fill"] },
+  { key: "risk", labelKey: "nc_filter_risk" as TranslationKey, kinds: ["breach", "risk_hold"] },
 ] as const;
 
 export function NotificationsPage() {
-  const feed = useApi((t) => getNotificationFeed(t, 60));
+  const t = useT();
+  const feed = useApi((token) => getNotificationFeed(token, 60));
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
   const items: NotificationItem[] = feed.phase === "ready" ? feed.data.items : [];
@@ -44,7 +46,7 @@ export function NotificationsPage() {
   }, [items, filter]);
 
   if (feed.phase === "loading")
-    return <SkeletonRows label="Loading notifications" cols="minmax(0,1fr) 60px" />;
+    return <SkeletonRows labelKey="loading_notifications" cols="minmax(0,1fr) 60px" />;
   if (feed.phase === "signed-out") return <SignedOutState />;
   if (feed.phase === "error")
     return <ErrorState message={feed.message} onRetry={feed.reload} />;
@@ -67,7 +69,7 @@ export function NotificationsPage() {
                   : "border-transparent text-text-secondary hover:text-text-primary"
               }`}
             >
-              {f.label}
+              {t(f.labelKey)}
               {count > 0 ? (
                 <span className="font-mono text-[10px] font-bold text-warning">{count}</span>
               ) : null}
@@ -78,9 +80,7 @@ export function NotificationsPage() {
 
       {shown.length === 0 ? (
         <p className="px-5 py-12 text-center font-ui text-[13px] leading-relaxed text-text-dim sm:px-8">
-          {items.length === 0
-            ? "Nothing yet. Your agents report here when they trade, when something needs you, and when a limit is breached — a quiet feed means they looked and found nothing worth doing."
-            : "Nothing in this filter."}
+          {t(items.length === 0 ? "nc_empty_page" : "nc_empty_filter")}
         </p>
       ) : (
         <div>
@@ -97,7 +97,7 @@ export function NotificationsPage() {
 
       {unread > 0 ? (
         <p className="px-5 pt-4 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase sm:px-8">
-          {unread} unread
+          {t("nc_unread", { count: unread })}
         </p>
       ) : null}
 

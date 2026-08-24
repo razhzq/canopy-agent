@@ -22,6 +22,7 @@ import { PickMarket } from "@/components/pickMarket";
 import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
 import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The asset classes present in a selection, in a stable order.
@@ -60,9 +61,9 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
  * elsewhere, and never showed its working.
  */
 
-const STEPS = [
-  { index: "01", label: "Market" },
-  { index: "02", label: "Limits" },
+const STEPS: { index: string; labelKey: TranslationKey }[] = [
+  { index: "01", labelKey: "build_step_market" },
+  { index: "02", labelKey: "build_step_limits" },
 ];
 
 const DEFAULT_LIMITS: Limits = {
@@ -82,14 +83,16 @@ const DEFAULT_LIMITS: Limits = {
  * not choose it. Saying so is the difference between a review that reports the
  * config and one that hides the half of it that came from a default.
  */
-function cadenceLabel(sec: number | undefined): string {
-  if (sec === undefined) return "1 hour (default)";
-  return CADENCES.find((c) => c.sec === sec)?.label ?? `${sec}s`;
+function cadenceLabel(sec: number | undefined, t: Translate): string {
+  if (sec === undefined) return t("review_cadence_default");
+  const hit = CADENCES.find((c) => c.sec === sec);
+  return hit ? t(hit.labelKey) : t("review_cadence_seconds", { n: sec });
 }
 
 export function BuildAgent() {
   const router = useRouter();
   const { ready, authenticated, getAccessToken, login } = usePrivy();
+  const t = useT();
 
   const [name, setName] = useState("");
   const [named, setNamed] = useState(false);
@@ -110,7 +113,7 @@ export function BuildAgent() {
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
   // Where the selection fills. Derived, never state: it follows from the
   // markets, so there is nothing to keep in sync and nothing to strand.
-  const venues = describeVenues(markets);
+  const venues = describeVenues(markets, t);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A created-but-not-yet-started strategy, held back because its plan drew
@@ -153,7 +156,7 @@ export function BuildAgent() {
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
+      if (!token) throw new Error(t("error_not_signed_in"));
       await start(token, pending.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -167,8 +170,8 @@ export function BuildAgent() {
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
-      if (markets.length === 0) throw new Error("pick a market first");
+      if (!token) throw new Error(t("error_not_signed_in"));
+      if (markets.length === 0) throw new Error(t("build_pick_market_error"));
 
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
@@ -274,49 +277,62 @@ export function BuildAgent() {
   function reviewRows() {
     return [
       {
-        label: "Markets",
+        label: t("review_row_markets"),
         value: markets.length ? markets.map((m) => m.symbol).join(" · ") : "—",
         step: "01",
       },
-      { label: "Rules", value: `${activeRules.length} active`, step: "02" },
       {
-        label: "Measured on",
+        label: t("review_row_rules"),
+        value: t("review_row_rules_value", { count: activeRules.length }),
+        step: "02",
+      },
+      {
+        label: t("review_row_measured_on"),
+        // A bar size, written the way every chart writes it.
         value: limits.timeframe ?? "1d",
         step: "02",
       },
       {
-        label: "Cycle",
+        label: t("review_row_cycle"),
         // The engine default when the author never chose, stated as the engine
         // states it rather than left blank — a review line that omits the
         // cadence reads as "no cadence", not "the default one".
-        value: cadenceLabel(limits.cadenceSec),
+        value: cadenceLabel(limits.cadenceSec, t),
         step: "02",
       },
       {
-        label: "Max per position",
+        label: t("review_row_max_position"),
         value: `$${limits.positionUsd.toLocaleString("en-US")}`,
         step: "02",
       },
-      { label: "Trades per cycle", value: String(limits.tradesPerCycle), step: "02" },
       {
-        label: "Take profit",
+        label: t("review_row_trades_per_cycle"),
+        value: String(limits.tradesPerCycle),
+        step: "02",
+      },
+      {
+        label: t("review_row_take_profit"),
         value: `+${limits.exits.takeProfitPct}%`,
         tone: "accent" as const,
         step: "02",
       },
       {
-        label: "Stop loss",
+        label: t("review_row_stop_loss"),
         value: `−${limits.exits.stopLossPct}%`,
         tone: "negative" as const,
         step: "02",
       },
       {
-        label: "Compliance",
-        value: limits.complianceProfile === "shariah" ? "Shariah" : "None",
+        label: t("review_row_compliance"),
+        value: t(
+          limits.complianceProfile === "shariah"
+            ? "review_compliance_shariah"
+            : "review_compliance_none",
+        ),
         step: "02",
       },
       // Step 01, not a step of its own: the venue came with the market.
-      { label: "Routing", value: venues, step: "01" },
+      { label: t("review_row_routing"), value: venues, step: "01" },
     ];
   }
 
@@ -358,14 +374,14 @@ export function BuildAgent() {
     const stepCta =
       step === 0
         ? {
-            label: "Set the limits",
-            hint: "An agent may only ever trade what you pick here.",
+            label: t("build_cta_limits"),
+            hint: t("build_cta_limits_hint"),
             disabled: markets.length === 0,
             onClick: () => setStep(1),
           }
         : {
-            label: "Review",
-            hint: "Every chip above is a rule the specialist actually evaluates. Nothing is created until the next screen.",
+            label: t("build_cta_review"),
+            hint: t("build_cta_review_hint"),
             disabled: activeRules.length === 0,
             onClick: () => setReviewing(true),
           };
@@ -374,7 +390,7 @@ export function BuildAgent() {
       <BuildFrame
         step={step + 1}
         steps={STEPS.length}
-        title="Create agent"
+        title={t("build_title")}
         onBack={() => (step === 0 ? setNamed(false) : setStep(step - 1))}
         cta={<BuildCta {...stepCta} />}
       >
@@ -416,22 +432,22 @@ export function BuildAgent() {
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 sm:px-8 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            New agent · Draft ·
+            {t("build_new_draft")}
           </span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
-              if (!name.trim()) setName("untitled agent");
+              if (!name.trim()) setName(t("build_untitled"));
             }}
             spellCheck={false}
-            aria-label="Agent name"
+            aria-label={t("build_name_aria")}
             className="w-[220px] border-b border-transparent bg-transparent pb-0.5 font-mono text-[14px] text-text-primary outline-none transition-colors hover:border-grid-strong focus:border-accent"
           />
         </div>
 
         <nav
-          aria-label="Builder steps"
+          aria-label={t("build_steps_aria")}
           className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
         >
           {STEPS.map((s, i) => (
@@ -450,7 +466,7 @@ export function BuildAgent() {
               }`}
             >
               <span className="tnum font-mono text-[9.5px] opacity-70">{s.index}</span>
-              <span className="font-mono text-[11.5px] tracking-[0.04em]">{s.label}</span>
+              <span className="font-mono text-[11.5px] tracking-[0.04em]">{t(s.labelKey)}</span>
             </button>
           ))}
         </nav>
@@ -477,47 +493,72 @@ export function BuildAgent() {
                 stays visible while the next thing is being decided. */}
             <div className="border-b border-grid px-5 sm:px-8 py-7">
               <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                Your agent so far
+                {t("build_so_far")}
               </h3>
               <Trail
                 done={step > 0 && !!asset}
                 here={step === 0}
-                label="Market"
+                label={t("build_trail_market")}
                 value={
                   markets.length === 0
-                    ? "this step"
+                    ? t("build_trail_this_step")
                     : markets.length === 1
                       ? `${markets[0].symbol}/USDC`
-                      : `${markets.length} markets`
+                      : t("build_trail_markets", { count: markets.length })
                 }
               />
               <Trail
                 done={step > 1}
                 here={step === 1}
-                label="Strategy & budget"
+                label={t("build_trail_strategy")}
                 value={
                   step === 0
-                    ? "next"
-                    : `${activeRules.length} ${activeRules.length === 1 ? "rule" : "rules"}${
-                        step === 1 ? " · this step" : ""
-                      }`
+                    ? t("build_trail_next")
+                    : t(
+                        activeRules.length === 1
+                          ? step === 1
+                            ? "build_trail_rule_one_here"
+                            : "build_trail_rule_one"
+                          : step === 1
+                            ? "build_trail_rule_many_here"
+                            : "build_trail_rule_many",
+                        { count: activeRules.length },
+                      )
                 }
               />
-              <Trail done={false} label="Paper run" value="free, no time limit" />
-              <Trail done={false} label="Publish" value="whenever you like" />
+              <Trail
+                done={false}
+                label={t("build_trail_paper")}
+                value={t("build_trail_paper_value")}
+              />
+              <Trail
+                done={false}
+                label={t("build_trail_publish")}
+                value={t("build_trail_publish_value")}
+              />
 
               {step >= 1 ? (
                 <div className="mt-5 space-y-1.5 border-t border-grid pt-4">
-                  <Row label="Position cap" value={money(limits.positionUsd)} tone="accent" />
-                  <Row label="Per cycle" value={`${limits.tradesPerCycle} trades`} />
                   <Row
-                    label="Exits"
-                    value={`+${limits.exits.takeProfitPct}% / −${limits.exits.stopLossPct}%`}
+                    label={t("build_row_position_cap")}
+                    value={money(limits.positionUsd)}
+                    tone="accent"
                   />
-                  <Row label="Paper book" value={money(CAPITAL_USD)} />
+                  <Row
+                    label={t("build_row_per_cycle")}
+                    value={t("build_row_trades", { count: limits.tradesPerCycle })}
+                  />
+                  <Row
+                    label={t("build_row_exits")}
+                    value={t("build_row_exits_value", {
+                      tp: limits.exits.takeProfitPct,
+                      sl: limits.exits.stopLossPct,
+                    })}
+                  />
+                  <Row label={t("build_row_paper_book")} value={money(CAPITAL_USD)} />
                   {/* Where it fills. Stated, not chosen — the market settled
                       it back in step 1, and a row is what that deserves. */}
-                  <Row label="Routes via" value={venues} />
+                  <Row label={t("build_row_routes_via")} value={venues} />
                 </div>
               ) : null}
             </div>
@@ -525,10 +566,10 @@ export function BuildAgent() {
             <div className="px-5 sm:px-8 py-7">
               <div className="flex items-center justify-between pb-4">
                 <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                  Proceed
+                  {t("wiz_proceed")}
                 </h3>
                 <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  Step {step + 1} of {STEPS.length}
+                  {t("wiz_step_of", { step: step + 1, total: STEPS.length })}
                 </span>
               </div>
 
@@ -544,7 +585,7 @@ export function BuildAgent() {
                 <div className="mb-4 space-y-3">
                   <Callout tone="negative" icon={<WarnIcon />}>
                     <span className="block pb-1.5 font-mono text-[10px] tracking-[0.14em] uppercase">
-                      Check the accumulation plan
+                      {t("build_check_plan")}
                     </span>
                     <ul className="space-y-1">
                       {pending.warnings.map((w) => (
@@ -554,8 +595,7 @@ export function BuildAgent() {
                       ))}
                     </ul>
                     <span className="block pt-2 font-ui text-[12px] leading-relaxed opacity-80">
-                      The strategy is saved as a draft. Starting the paper run freezes it, so this
-                      is the last point you can change these.
+                      {t("build_draft_saved")}
                     </span>
                   </Callout>
                   <div className="flex flex-wrap gap-2">
@@ -565,7 +605,7 @@ export function BuildAgent() {
                       onClick={confirmPending}
                       className="h-9 rounded-full border border-grid px-4 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary disabled:opacity-40"
                     >
-                      Start anyway
+                      {t("build_start_anyway")}
                     </button>
                     <button
                       type="button"
@@ -580,7 +620,7 @@ export function BuildAgent() {
                       }}
                       className="h-9 rounded-full border border-accent px-4 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors disabled:opacity-40"
                     >
-                      Go back and edit
+                      {t("build_go_back_edit")}
                     </button>
                   </div>
                 </div>
@@ -594,11 +634,11 @@ export function BuildAgent() {
                     disabled={markets.length === 0}
                     className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                   >
-                    Continue to limits
+                    {t("build_continue_limits")}
                   </button>
                   {markets.length === 0 ? (
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      Pick a market first
+                      {t("build_pick_market_first")}
                     </p>
                   ) : null}
                 </>
@@ -608,7 +648,7 @@ export function BuildAgent() {
                   onClick={login}
                   className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
                 >
-                  Sign in to start
+                  {t("build_sign_in_to_start")}
                 </button>
               ) : (
                 <>
@@ -618,14 +658,14 @@ export function BuildAgent() {
                     disabled={busy || !ready || activeRules.length === 0}
                     className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                   >
-                    {busy ? "Starting…" : "Run paper test"}
+                    {t(busy ? "build_starting" : "build_run_paper")}
                   </button>
                   {activeRules.length === 0 ? (
                     // A strategy with no active rule buys nothing, ever — and
                     // with the route step gone this is the last place to say
                     // so before the run that would have proved it.
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      Turn on at least one rule
+                      {t("build_turn_on_rule")}
                     </p>
                   ) : null}
                 </>
@@ -637,13 +677,12 @@ export function BuildAgent() {
                   onClick={() => setStep(step - 1)}
                   className="mt-3 flex h-11 w-full items-center justify-center border border-border font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                 >
-                  Back to {STEPS[step - 1].label}
+                  {t("build_back_to", { step: t(STEPS[step - 1].labelKey) })}
                 </button>
               ) : null}
 
               <p className="pt-5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-                Paper runs are free and have no time limit. Nothing is funded, and you publish
-                whenever the record convinces you.
+                {t("build_paper_note")}
               </p>
             </div>
           </>

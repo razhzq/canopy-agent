@@ -1,4 +1,6 @@
-import { CONSTRAINTS, DEPLOY_STEPS, MANDATE } from "@/lib/data";
+import { DEPLOY_STEPS } from "@/lib/data";
+import { deployCopy, fill } from "@/lib/deployCopy";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   ArrowRight,
   Columns,
@@ -16,31 +18,47 @@ import {
   WizardHeader,
 } from "@/components/wizard";
 
-/** Step 02 tightens the mandate written in step 01 but adds two fields. */
-const RAIL_ROWS: [string, string, "neutral" | "accent"][] = [
-  ["Capital", "$2,000.00", "neutral"],
-  ["Posture", "MODERATE", "neutral"],
-  ["Max position", "15%", "neutral"],
-  ["Max drawdown", "20%", "neutral"],
-  ["Universe", "15 OF 18", "accent"],
-  ["Compliance", "SHARIAH", "accent"],
-  ["Cadence", "HOURLY", "neutral"],
-  ["Max hold", "10 DAYS", "neutral"],
+/**
+ * The tickers are symbols and are the same in every language, so they stay
+ * here rather than travelling through the copy bundle.
+ */
+const EXCLUDED = ["BONK", "WIF", "PEPE"];
+const ALLOWED = [
+  "SOL",
+  "JUP",
+  "JTO",
+  "PYTH",
+  "RAY",
+  "ORCA",
+  "DRIFT",
+  "KMNO",
+  "TNSR",
+  "W",
+  "JLP",
+  "MNDE",
+  "HNT",
+  "RENDER",
+  "IO",
 ];
 
-export default function ConstraintsPage() {
+/** Step 02 tightens the mandate written in step 01 but adds two fields. */
+export default async function ConstraintsPage() {
+  const c = deployCopy(await getServerLocale());
+  const d = c.constraints;
+  const data = c.constraintsData;
+
   return (
     <main>
       <StepBar steps={DEPLOY_STEPS} current={1} />
 
       <WizardHeader
-        eyebrow="New mandate · Step 02"
-        title="Set the boundaries"
-        subtitle="You can narrow what the agent is allowed to touch. You cannot widen it beyond its design."
+        eyebrow={d.eyebrow}
+        title={d.title}
+        subtitle={d.subtitle}
         meta={[
-          { label: "Agent", value: "alpha_hunter" },
-          { label: "Capital", value: MANDATE.capital },
-          { label: "Universe", value: "15 OF 18", tone: "accent" },
+          { label: c.agentLabel, value: "alpha_hunter" },
+          { label: c.capitalLabel, value: c.mandate.capital },
+          { label: d.universeLabel, value: d.universeValue, tone: "accent" },
         ]}
       />
 
@@ -49,29 +67,20 @@ export default function ConstraintsPage() {
           <>
             {/* -------------------------------------------------- universe */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="01"
-                title="ASSET UNIVERSE"
-                note="The agent trades 18 · You have allowed 15"
-              />
+              <SectionHead index="01" title={d.secUniverse} note={d.secUniverseNote} />
 
               <ChoiceRow>
-                {CONSTRAINTS.universeModes.map((m) => (
-                  <ChoiceCard
-                    key={m.name}
-                    title={m.name}
-                    body={m.body}
-                    active={m.active}
-                  />
+                {data.universeModes.map((m) => (
+                  <ChoiceCard key={m.name} title={m.name} body={m.body} active={m.active} />
                 ))}
               </ChoiceRow>
 
               <div className="mt-8">
                 <p className="pb-4 font-mono text-[10px] tracking-[0.1em] text-negative uppercase">
-                  Excluded by you · {CONSTRAINTS.excluded.length}
+                  {fill(d.excluded, { count: EXCLUDED.length })}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
-                  {CONSTRAINTS.excluded.map((asset) => (
+                  {EXCLUDED.map((asset) => (
                     <span
                       key={asset}
                       className="flex items-center gap-2.5 border border-negative px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-negative uppercase"
@@ -83,17 +92,17 @@ export default function ConstraintsPage() {
                     type="button"
                     className="border border-border px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase transition-colors hover:text-text-secondary"
                   >
-                    + Add exclusion
+                    {d.addExclusion}
                   </button>
                 </div>
               </div>
 
               <div className="mt-7">
                 <p className="pb-4 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  Allowed · {CONSTRAINTS.allowed.length}
+                  {fill(d.allowed, { count: ALLOWED.length })}
                 </p>
                 <div className="flex flex-wrap gap-2.5">
-                  {CONSTRAINTS.allowed.map((asset) => (
+                  {ALLOWED.map((asset) => (
                     <span
                       key={asset}
                       className="border border-grid-strong px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-text-secondary uppercase"
@@ -107,14 +116,10 @@ export default function ConstraintsPage() {
 
             {/* ------------------------------------------------ compliance */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="02"
-                title="COMPLIANCE PROFILE"
-                note="Applied before any sizing"
-              />
+              <SectionHead index="02" title={d.secCompliance} note={d.secComplianceNote} />
 
               <ChoiceRow>
-                {CONSTRAINTS.complianceProfiles.map((p) => (
+                {data.complianceProfiles.map((p) => (
                   <ChoiceCard
                     key={p.name}
                     title={p.name}
@@ -131,7 +136,7 @@ export default function ConstraintsPage() {
                 <div className="flex gap-3">
                   <InfoIcon className="mt-0.5 shrink-0 text-text-dim" />
                   <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                    {CONSTRAINTS.complianceNote}
+                    {data.complianceNote}
                   </p>
                 </div>
               </div>
@@ -139,20 +144,17 @@ export default function ConstraintsPage() {
 
             {/* --------------------------------------------------- cadence */}
             <section className="px-5 sm:px-8 py-8">
-              <SectionHead index="03" title="CADENCE" note="How often it looks" />
+              <SectionHead index="03" title={d.secCadence} note={d.secCadenceNote} />
               <div className="flex border border-grid">
-                {CONSTRAINTS.cadence.map((c) => (
-                  <div
-                    key={c.label}
-                    className="flex-1 border-r border-grid p-6 last:border-r-0"
-                  >
+                {data.cadence.map((row) => (
+                  <div key={row.label} className="flex-1 border-r border-grid p-6 last:border-r-0">
                     <p className="pb-4 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                      {c.label}
+                      {row.label}
                     </p>
                     <p className="pb-2.5 font-mono text-[20px] tracking-[0.04em] text-text-primary uppercase">
-                      {c.value}
+                      {row.value}
                     </p>
-                    <p className="font-ui text-[12.5px] text-text-dim">{c.note}</p>
+                    <p className="font-ui text-[12.5px] text-text-dim">{row.note}</p>
                   </div>
                 ))}
               </div>
@@ -161,18 +163,16 @@ export default function ConstraintsPage() {
         }
         rail={
           <>
-            <MandateRail rows={RAIL_ROWS} />
+            <MandateRail rows={c.mandate.railRows} />
             <Proceed
               step={2}
               total={5}
               primary={
                 <PrimaryButton href="/deploy/autonomy">
-                  Continue to autonomy <ArrowRight />
+                  {d.continue} <ArrowRight />
                 </PrimaryButton>
               }
-              secondary={
-                <GhostButton href="/deploy/describe">Back</GhostButton>
-              }
+              secondary={<GhostButton href="/deploy/describe">{c.back}</GhostButton>}
             />
           </>
         }

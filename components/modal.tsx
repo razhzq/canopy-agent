@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/lib/i18n";
 
 /**
  * The dialog frame every modal sits in.
@@ -49,6 +50,9 @@ export function Modal({
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
+  // `title` arrives already translated from the caller — only the close
+  // button's own name is this component's to say.
+  const t = useT();
 
   useEffect(() => {
     returnTo.current = document.activeElement as HTMLElement;
@@ -107,7 +111,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t("common_close")}
               className="font-mono text-[16px] leading-none text-text-dim transition-colors hover:text-text-primary"
             >
               ×

@@ -1,8 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CheckIcon, LockIcon, RailRow, RailSection } from "@/components/ui";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
-export type Step = { index: string; label: string; href?: string };
+/**
+ * One step in a wizard's progress bar.
+ *
+ * `labelKey` rather than a label: every step table in the app is a module-level
+ * constant, so a finished string would be frozen in whichever language loaded
+ * first.
+ */
+export type Step = { index: string; labelKey: TranslationKey; href?: string };
 
 /**
  * The progress bar across the top of a flow. Completed steps trade their
@@ -21,6 +31,8 @@ export function StepBar({
   /** Zero-based index of the active step. */
   current: number;
 }) {
+  const t = useT();
+
   return (
     <div className="flex border-b border-grid">
       {steps.map((step, i) => {
@@ -50,7 +62,7 @@ export function StepBar({
                     : "text-text-dim"
               }`}
             >
-              {step.label}
+              {t(step.labelKey)}
             </span>
           </>
         );
@@ -131,16 +143,18 @@ export function MandateRail({
   rows: [string, string, "neutral" | "accent"][];
   readsAs?: string;
 }) {
+  const t = useT();
+
   return (
     <>
-      <RailSection title="Mandate" note="Draft">
+      <RailSection title={t("wiz_mandate")} note={t("wiz_draft")}>
         {rows.map(([k, v, tone]) => (
           <RailRow key={k} label={k} value={v} tone={tone} />
         ))}
       </RailSection>
 
       {readsAs ? (
-        <RailSection title="Reads as">
+        <RailSection title={t("wiz_reads_as")}>
           <div className="mt-3 flex gap-4">
             <div className="w-0.5 shrink-0 self-stretch bg-accent" />
             <p className="font-ui text-[13.5px] leading-relaxed text-text-secondary">
@@ -169,14 +183,16 @@ export function Proceed({
   note?: string;
   noteIcon?: "lock" | "info";
 }) {
+  const t = useT();
+
   return (
     <div className="px-5 sm:px-8 py-7">
       <div className="flex items-center justify-between pb-4">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          Proceed
+          {t("wiz_proceed")}
         </h3>
         <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-          Step {step} of {total}
+          {t("wiz_step_of", { step, total })}
         </span>
       </div>
 

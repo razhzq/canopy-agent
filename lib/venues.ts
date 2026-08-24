@@ -1,5 +1,6 @@
 import type { UniverseAsset } from "@/lib/api";
 import { routeOf, type Chain } from "@/components/routeBadge";
+import type { Translate } from "@/lib/i18n/translate";
 
 /**
  * Where an agent's trades actually fill.
@@ -69,9 +70,10 @@ export function liveVenuesFor(markets: UniverseAsset[]): Venue[] {
  * there is no longer one to describe. Several venues means best-price across
  * them per trade, which is what the executor does when nothing pins it.
  */
-export function describeVenues(markets: UniverseAsset[]): string {
+export function describeVenues(markets: UniverseAsset[], t: Translate): string {
   const live = liveVenuesFor(markets);
   if (live.length === 0) return "—";
+  // A single venue is just its own name — a brand, not a sentence.
   if (live.length === 1) return live[0].name;
-  return `Best of ${live.map((v) => v.name).join(" + ")}`;
+  return t("venues_best_of", { venues: live.map((v) => v.name).join(" + ") });
 }

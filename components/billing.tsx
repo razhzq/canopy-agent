@@ -38,6 +38,7 @@ import {
 import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
 import { SkeletonPanel } from "./skeleton";
+import { useT, type Translate } from "@/lib/i18n";
 
 const BTN =
   "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
@@ -62,6 +63,7 @@ function money(n: number | null): string {
 
 export function BillingSettings() {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const state = useApi(loadBilling, []);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function BillingSettings() {
       setFailure(null);
       try {
         const token = await getAccessToken();
-        if (!token) throw new Error("Session expired. Sign in again.");
+        if (!token) throw new Error(t("billing_session_expired"));
         await fn(token);
       } catch (err) {
         setFailure(err instanceof Error ? err.message : String(err));
@@ -81,7 +83,7 @@ export function BillingSettings() {
         setBusy(false);
       }
     },
-    [getAccessToken],
+    [getAccessToken, t],
   );
 
   const recheck = useCallback(
@@ -103,7 +105,7 @@ export function BillingSettings() {
     [withToken, state],
   );
 
-  if (state.phase === "loading") return <SkeletonPanel label="Plan" />;
+  if (state.phase === "loading") return <SkeletonPanel labelKey="loading_plan" />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error") {
     return <ErrorState message={state.message} onRetry={state.reload} />;
@@ -117,63 +119,63 @@ export function BillingSettings() {
     <section className="space-y-6">
       <SectionHead
         index="01"
-        title="PLAN"
-        note={`${ent.agentsInUse} of ${ent.agentSlots} agents · ${ent.liveAgents.length} live`}
+        title={t("billing_section")}
+        note={t("billing_note", {
+          used: ent.agentsInUse,
+          slots: ent.agentSlots,
+          live: ent.liveAgents.length,
+        })}
       />
 
       <div className="grid grid-cols-2 gap-px border border-grid bg-grid">
         <Figure
-          label="Paper agents"
+          label={t("billing_paper_agents")}
           value={`${ent.agentsInUse} / ${ent.agentSlots}`}
           note={
             ent.referralCount > 0
-              ? `${ent.baseSlots} free + ${ent.referralCount} earned`
-              : `${ent.baseSlots} free · invite to earn more`
+              ? t("billing_paper_note_earned", {
+                  base: ent.baseSlots,
+                  earned: ent.referralCount,
+                })
+              : t("billing_paper_note_base", { base: ent.baseSlots })
           }
         />
         <Figure
-          label="Live agents"
+          label={t("billing_live_agents")}
           value={String(ent.liveAgents.length)}
           note={
             ent.liveAgents.length === 0
-              ? `${money(monthly)}/mo each`
-              : `${money(liveTotal)}/mo total`
+              ? t("billing_live_each", { amount: money(monthly) })
+              : t("billing_live_total", { amount: money(liveTotal) })
           }
         />
       </div>
 
       {/* The way to more slots is free, so it is stated as a fact rather than
           dressed as an offer. */}
-      <Callout tone="info" icon={<InfoIcon />} title="Invite someone, get an agent">
-        Every person who joins on your invite code adds one paper agent to your
-        allowance, permanently. There is no limit.
-        {invite ? (
-          <>
-            {" "}
-            Yours is{" "}
-            <span className="font-mono text-text-primary">{invite.code}</span> —
-            it&rsquo;s in the account menu, top right.
-          </>
-        ) : null}
+      <Callout tone="info" icon={<InfoIcon />} title={t("billing_invite_title")}>
+        {t("billing_invite_body")}
+        {/* The code is quoted inside the sentence rather than wrapped in its
+            own mono span: Chinese puts it in a different position, and a
+            fragment either side of a <span> cannot move with it. */}
+        {invite ? <> {t("billing_invite_yours", { code: invite.code })}</> : null}
       </Callout>
 
       {ent.agentsInUse > ent.agentSlots && (
-        <Callout tone="info" icon={<InfoIcon />} title="More agents than your allowance">
-          These were deployed before the limit existed and they keep running. You
-          cannot create another until you are back under {ent.agentSlots}.
+        <Callout tone="info" icon={<InfoIcon />} title={t("billing_over_title")}>
+          {t("billing_over_body", { slots: ent.agentSlots })}
         </Callout>
       )}
 
       {failure && (
-        <Callout tone="negative" title="That did not go through">
+        <Callout tone="negative" title={t("billing_failed_title")}>
           {failure}
         </Callout>
       )}
 
       {checked && ent.liveAgents.length === 0 && (
-        <Callout tone="warning" icon={<InfoIcon />} title="Still no subscription found">
-          If you have just paid, it can take a moment to reach us. Check again in
-          a minute — and if it still says this, the payment did not complete.
+        <Callout tone="warning" icon={<InfoIcon />} title={t("billing_none_found_title")}>
+          {t("billing_none_found_body")}
         </Callout>
       )}
 
@@ -188,14 +190,17 @@ export function BillingSettings() {
             >
               <div className="min-w-0">
                 <p className="font-mono text-[12.5px] text-text-primary">
-                  Agent #{sub.agentId}
+                  {t("billing_agent_number", { id: sub.agentId })}
                 </p>
                 <p className="pt-0.5 font-ui text-[12px] text-text-dim">
                   {sub.cancelAtPeriodEnd
                     ? // The honest version of "cancelled": still live, still
                       // paid for, and the date is when that stops.
-                      `Live until ${fmtDate(sub.currentPeriodEnd)} — then paused`
-                    : `${money(monthly)}/mo · renews ${fmtDate(sub.currentPeriodEnd)}`}
+                      t("billing_live_until", { date: fmtDate(sub.currentPeriodEnd, t) })
+                    : t("billing_renews", {
+                        amount: money(monthly),
+                        date: fmtDate(sub.currentPeriodEnd, t),
+                      })}
                 </p>
               </div>
               {!sub.cancelAtPeriodEnd && (
@@ -205,7 +210,7 @@ export function BillingSettings() {
                   onClick={() => void cancel(sub.subscriptionId)}
                   className={`${BTN} shrink-0 border-grid text-text-dim hover:text-negative`}
                 >
-                  Cancel
+                  {t("billing_cancel")}
                 </button>
               )}
             </div>
@@ -217,15 +222,9 @@ export function BillingSettings() {
           that agent's own screen, because "which agent" is the first thing the
           purchase needs and this screen does not know it. */}
       <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-        {ent.liveAgents.length === 0 ? (
-          <>
-            Every agent runs on paper by default — same universe, same council,
-            same decision record. Going live costs {money(monthly)}/month per
-            agent and is started from the agent&rsquo;s own page.
-          </>
-        ) : (
-          <>Live is {money(monthly)}/month per agent. Start it from the agent&rsquo;s page.</>
-        )}
+        {ent.liveAgents.length === 0
+          ? t("billing_paper_default", { amount: money(monthly) })
+          : t("billing_live_price", { amount: money(monthly) })}
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -235,26 +234,31 @@ export function BillingSettings() {
           onClick={() => void recheck()}
           className={`${BTN} border-grid-strong text-text-secondary hover:text-text-primary`}
         >
-          {busy ? "Checking…" : "I've paid — check again"}
+          {t(busy ? "billing_checking" : "billing_recheck")}
         </button>
       </div>
 
       {ent.liveAgents.some((s) => s.cancelAtPeriodEnd) && (
-        <Callout tone="warning" title="Ending at the end of the period">
-          Those agents keep trading live until then. When the period ends they
-          are paused holding their positions — nothing is sold for you.
+        <Callout tone="warning" title={t("billing_ending_title")}>
+          {t("billing_ending_body")}
         </Callout>
       )}
     </section>
   );
 }
 
-/** A date, or an honest blank when the provider has not told us one. */
-function fmtDate(iso: string | null): string {
-  if (!iso) return "unknown";
+/**
+ * A date, or an honest blank when the provider has not told us one.
+ *
+ * `undefined` as the locale, deliberately: this is a calendar date rather than
+ * UI copy, and the browser's own regional format is what a reader expects to
+ * see for one. Only the "we were not told" case is a word, and that is ours.
+ */
+function fmtDate(iso: string | null, t: Translate): string {
+  if (!iso) return t("billing_date_unknown");
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
-    ? "unknown"
+    ? t("billing_date_unknown")
     : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 

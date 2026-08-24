@@ -51,6 +51,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
+import { useLocale, useT, type Locale, type TranslationKey } from "@/lib/i18n";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import {
   DELEGATION_CEILING_USD,
@@ -64,10 +65,10 @@ import {
 
 type Step = 1 | 2 | 3;
 
-const STEPS: { n: Step; label: string; purpose: string }[] = [
-  { n: 1, label: "Subscribe", purpose: "Live execution is billed per agent" },
-  { n: 2, label: "Delegate", purpose: "Give the agent permission to sign" },
-  { n: 3, label: "Go live", purpose: "Promote the agent to real capital" },
+const STEPS: { n: Step; labelKey: TranslationKey; purposeKey: TranslationKey }[] = [
+  { n: 1, labelKey: "gl_step_subscribe", purposeKey: "gl_step_subscribe_purpose" },
+  { n: 2, labelKey: "gl_step_delegate", purposeKey: "gl_step_delegate_purpose" },
+  { n: 3, labelKey: "gl_step_golive", purposeKey: "gl_step_golive_purpose" },
 ];
 
 export function GoLiveModal({
@@ -97,6 +98,7 @@ export function GoLiveModal({
 }) {
   const { getAccessToken } = usePrivy();
   const panel = useRef<HTMLDivElement>(null);
+  const { t, locale } = useLocale();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,7 +173,7 @@ export function GoLiveModal({
       setChecking(true);
       try {
         const token = await getAccessToken();
-        if (!token) throw new Error("not signed in");
+        if (!token) throw new Error(t("error_not_signed_in"));
         const ent = throughProvider
           ? await refreshBilling(token)
           : await getEntitlement(token);
@@ -234,7 +236,7 @@ export function GoLiveModal({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
+      if (!token) throw new Error(t("error_not_signed_in"));
       await goLive(token, agent.id);
       setConfirming(false);
       setPromoted(true);
@@ -274,7 +276,7 @@ export function GoLiveModal({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("not signed in");
+      if (!token) throw new Error(t("error_not_signed_in"));
       // Names where to come back to. BoomFi returns the customer to this exact
       // agent and `?checkout=return` reopens this dialog on the step after the
       // one they just cleared, so paying does not cost them the thread.
@@ -311,20 +313,20 @@ export function GoLiveModal({
         <div className="flex items-start justify-between gap-6 border-b border-grid px-7 pt-6 pb-5">
           <div className="min-w-0 space-y-1.5">
             <p className="truncate font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              {agent.strategy_name} · paper
+              {t("gl_eyebrow", { name: agent.strategy_name })}
             </p>
             <h2 id="go-live-title" className="font-mono text-[21px] leading-none text-text-primary">
-              {promoted ? "Trading live" : "Switch to live"}
+              {t(promoted ? "gl_title_done" : "gl_title")}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            aria-label="Close"
+            aria-label={t("common_close")}
             className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
           >
-            Esc
+            {t("wallet_esc")}
           </button>
         </div>
 
@@ -340,33 +342,20 @@ export function GoLiveModal({
                 <Checking />
               ) : step === 1 ? (
                 <Section
-                  title={
-                    awaitingPayment
-                      ? "We haven't seen the payment yet"
-                      : "Live execution is a subscription"
-                  }
+                  title={t(awaitingPayment ? "gl_waiting_title" : "gl_sub_title")}
                   body={
-                    awaitingPayment ? (
-                      <>
-                        BoomFi tells us about a new subscription within a minute or so, and
-                        this dialog will not claim otherwise until it has. Nothing is lost
-                        while you wait — the agent is still trading on paper, exactly as it
-                        was.
-                      </>
-                    ) : (
-                      // The backend's own sentence wins when there is one: a 402
-                      // already names the price and the reason.
-                      paywallMessage ?? (
-                        <>
-                          Running this agent on real capital is{" "}
-                          <Figure>
-                            {monthlyUsd === null ? "a monthly subscription" : `${money(monthlyUsd)}/month`}
-                          </Figure>
-                          , charged for this agent alone. Paper trading stays free, and
-                          nothing about this agent changes until the subscription starts.
-                        </>
-                      )
-                    )
+                    awaitingPayment
+                      ? t("gl_waiting_body")
+                      : // The backend's own sentence wins when there is one: a
+                        // 402 already names the price and the reason, and it
+                        // arrives as finished English.
+                        (paywallMessage ??
+                        t("gl_sub_body", {
+                          price:
+                            monthlyUsd === null
+                              ? t("gl_sub_price_unknown")
+                              : t("gl_sub_price", { amount: money(monthlyUsd) }),
+                        }))
                   }
                 >
                   <div className="flex flex-wrap items-center gap-3">
@@ -384,7 +373,7 @@ export function GoLiveModal({
                         disabled={busy || checking}
                         className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-40"
                       >
-                        {checking ? "Checking…" : "Check again"}
+                        {t(checking ? "gl_checking" : "gl_check_again")}
                       </button>
                     ) : (
                       <button
@@ -393,7 +382,7 @@ export function GoLiveModal({
                         disabled={busy || checking}
                         className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-40"
                       >
-                        {busy ? "Opening…" : "Subscribe"}
+                        {t(busy ? "gl_opening" : "gl_subscribe")}
                       </button>
                     )}
                     <button
@@ -402,28 +391,19 @@ export function GoLiveModal({
                       disabled={busy}
                       className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
                     >
-                      Not now
+                      {t("gl_not_now")}
                     </button>
                   </div>
                   {/* Said plainly, because the journey leaves the app: they pay on
                       BoomFi's page and are brought back to this agent. */}
                   <Assurance>
-                    {awaitingPayment
-                      ? "If you closed BoomFi without paying, close this and press Live again to start over. Nothing has been charged."
-                      : "You'll pay on BoomFi and come straight back to this agent, where this dialog picks up at the delegation step. It keeps trading on paper in the meantime."}
+                    {t(awaitingPayment ? "gl_assurance_abandoned" : "gl_assurance_checkout")}
                   </Assurance>
                 </Section>
               ) : step === 2 ? (
                 <Section
-                  title="Give this agent permission to sign"
-                  body={
-                    <>
-                      The grant happens in your own wallet, not on Canopy&apos;s servers —
-                      which is why the wallet stays yours. It is scoped to{" "}
-                      <Figure>swaps only</Figure>, reaches no further than what you deposit
-                      in this wallet, and you can revoke it at any time without asking us.
-                    </>
-                  }
+                  title={t("gl_grant_title")}
+                  body={t("gl_grant_body")}
                 >
                   <GrantDelegation
                     agentId={agent.id}
@@ -448,47 +428,34 @@ export function GoLiveModal({
                       onChanged();
                     }}
                   />
-                  <Assurance>
-                    Granting is not a transfer. Nothing leaves your wallet until the agent
-                    executes a trade inside this scope.
-                  </Assurance>
+                  <Assurance>{t("gl_grant_assurance")}</Assurance>
                 </Section>
               ) : (
                 <Section
-                  title="Promote to real capital"
+                  title={t("gl_promote_title")}
                   body={
-                    <>
-                      This agent keeps its rules, its history and everything it learned on
-                      paper
-                      {openPositions > 0 ? (
-                        <>
-                          {" "}
-                          — but its {openPositions} open paper position
-                          {openPositions === 1 ? "" : "s"} will be settled at real marks
-                          first, so the live book starts flat.
-                        </>
-                      ) : (
-                        "."
-                      )}
-                    </>
+                    openPositions === 0
+                      ? t("gl_promote_body")
+                      : openPositions === 1
+                        ? t("gl_promote_body_open_one")
+                        : t("gl_promote_body_open_many", { count: openPositions })
                   }
                 >
                   <Ledger
                     rows={[
-                      ["Wallet", walletAddress ? short(walletAddress) : "—"],
+                      [t("gl_row_wallet"), walletAddress ? short(walletAddress) : "—"],
                       // Was "Spend cap" against the agent's declared capital, a
                       // figure the delegation does not enforce and the deposit
                       // does not follow. What the grant actually restricts is
                       // the kind of instruction it will sign.
-                      ["Scope", "Swaps only"],
+                      [t("gl_row_scope"), t("gl_scope_swaps")],
                       [
-                        "Delegation ends",
+                        t("gl_row_expires"),
                         wallet?.expiresAt
-                          ? new Date(wallet.expiresAt).toLocaleDateString(undefined, {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
+                          ? new Date(wallet.expiresAt).toLocaleDateString(
+                              locale === "zh" ? "zh-CN" : "en-GB",
+                              { day: "numeric", month: "short", year: "numeric" },
+                            )
                           : "—",
                       ],
                     ]}
@@ -499,21 +466,14 @@ export function GoLiveModal({
                       the balance before the council runs and pauses with the
                       shortfall — so the honest thing is to name it and let the
                       user go live now and deposit when it suits them. */}
-                  <Assurance>
-                    You can deposit before or after this. An empty wallet does not lose
-                    anything — the agent simply waits, and says it is waiting, until USDC
-                    arrives. Deposit from the wallet bar at the top of this page.
-                  </Assurance>
+                  <Assurance>{t("gl_deposit_assurance")}</Assurance>
 
                   {confirming ? (
                     <>
                       <div className="flex gap-3 border border-warning bg-warning/[0.04] px-5 py-4">
                         <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                         <p className="font-ui text-[13px] leading-relaxed text-warning">
-                          From the next tick this agent trades real money — whatever this
-                          wallet holds — and it stops trading on paper. You can pause it at any time. Its paper run is not lost —
-                          the book, the cycles and the thread stay readable from the Paper
-                          half of the switch — but the agent itself does not go back.
+                          {t("gl_confirm_warning")}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
@@ -523,7 +483,7 @@ export function GoLiveModal({
                           disabled={busy}
                           className="h-11 border border-warning px-6 font-mono text-[11px] tracking-[0.1em] text-warning uppercase transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
                         >
-                          {busy ? "Settling…" : "Yes, trade real money"}
+                          {t(busy ? "gl_settling" : "gl_confirm")}
                         </button>
                         <button
                           type="button"
@@ -531,7 +491,7 @@ export function GoLiveModal({
                           disabled={busy}
                           className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
                         >
-                          Back
+                          {t("gl_back")}
                         </button>
                       </div>
                     </>
@@ -541,7 +501,7 @@ export function GoLiveModal({
                       onClick={() => setConfirming(true)}
                       className="h-11 w-full border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
                     >
-                      Go live
+                      {t("gl_go_live")}
                     </button>
                   )}
                 </Section>
@@ -570,8 +530,10 @@ export function GoLiveModal({
  * funding requirement after handing over signing authority.
  */
 function StepRail({ current }: { current: Step }) {
+  const t = useT();
+
   return (
-    <ol className="flex items-stretch border-b border-grid" aria-label="Steps to go live">
+    <ol className="flex items-stretch border-b border-grid" aria-label={t("gl_steps_aria")}>
       {STEPS.map((s, i) => {
         const done = s.n < current;
         const active = s.n === current;
@@ -600,7 +562,7 @@ function StepRail({ current }: { current: Step }) {
                   done ? "text-accent" : active ? "text-text-primary" : "text-text-muted"
                 }`}
               >
-                {s.label}
+                {t(s.labelKey)}
               </span>
             </div>
             <p
@@ -608,7 +570,7 @@ function StepRail({ current }: { current: Step }) {
                 active ? "text-text-secondary" : "text-text-dim/70"
               }`}
             >
-              {s.purpose}
+              {t(s.purposeKey)}
             </p>
           </li>
         );
@@ -648,13 +610,13 @@ function Section({
  * has not.
  */
 function Checking() {
+  const t = useT();
+
   return (
     <div className="space-y-2">
-      <h3 className="font-mono text-[14px] text-text-primary">
-        Checking this agent&apos;s subscription…
-      </h3>
+      <h3 className="font-mono text-[14px] text-text-primary">{t("gl_checking_title")}</h3>
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-        A moment, so that the next thing you are asked for is the right one.
+        {t("gl_checking_body")}
       </p>
     </div>
   );
@@ -693,6 +655,8 @@ function Ledger({ rows }: { rows: [string, string][] }) {
 }
 
 function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
+  const t = useT();
+
   return (
     <div className="space-y-5 px-7 py-8">
       <div className="flex size-10 items-center justify-center rounded-full bg-accent-wash">
@@ -700,12 +664,10 @@ function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
       </div>
       <div className="space-y-2">
         <h3 className="font-mono text-[15px] text-text-primary">
-          {name} is trading real capital
+          {t("gl_promoted_title", { name })}
         </h3>
         <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-          From its next tick, fills are real. The paper book stays where it is and is still
-          readable from the Paper half of the switch — the record it built did not go
-          anywhere.
+          {t("gl_promoted_body")}
         </p>
       </div>
       <button
@@ -713,7 +675,7 @@ function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
         onClick={onClose}
         className="h-11 w-full border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
       >
-        Done
+        {t("gl_done")}
       </button>
     </div>
   );

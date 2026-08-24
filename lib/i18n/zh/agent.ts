@@ -1,0 +1,55 @@
+import type { enAgent } from "../en/agent";
+
+export const zhAgent: Record<keyof typeof enAgent, string> = {
+  agent_back_aria: "返回我的智能体",
+  agent_chat_aria: "与该智能体对话",
+  agent_live_pill: "实盘",
+  agent_mode_paper: "模拟盘",
+  agent_mode_live: "实盘",
+  agent_subtitle: "{mode} · {class}",
+  agent_subtitle_cycle: "{mode} · {class} · 第 {cycle} 周期",
+
+  agent_nav_label: "智能体净值",
+  agent_nav_label_cycle: "智能体净值 · 第 {cycle} 周期",
+  agent_since_deploy: "自部署以来",
+  agent_curve_pending: "曲线将从第一个结算周期开始。",
+  agent_cell_return: "收益率",
+  agent_cell_win_rate: "胜率",
+  agent_cell_max_dd: "最大回撤",
+  agent_cell_realised: "已实现",
+
+  agent_cycle_running: "运行中",
+  agent_cycle_label: "第 {seq} 周期 · {status}",
+  agent_cycle_in_progress: "进行中",
+  agent_phase_scan: "扫描",
+  agent_phase_council: "评议",
+  agent_phase_execute: "执行",
+  agent_phase_settle: "结算",
+
+  agent_open_positions: "当前持仓",
+  agent_nothing_open: "没有持仓 — 智能体目前持币观望。",
+  agent_cost: "成本 {amount}",
+  agent_markets_title: "可交易的市场",
+  agent_add_market: "添加市场",
+
+  agent_resume: "恢复运行",
+  agent_pause: "暂停",
+  agent_add_funds: "追加资金",
+  agent_busy: "…",
+
+  ws_eyebrow: "智能体",
+  ws_back: "← 我的智能体",
+  ws_fallback_name: "智能体 {id}",
+  ws_badge_paper: "模拟盘",
+  ws_views_aria: "智能体视图",
+  ws_tab_overview: "总览",
+  ws_tab_chat: "对话",
+  ws_tab_cycles: "周期",
+  ws_status_active: "运行中",
+  ws_status_liquidating: "清仓中",
+  ws_status_paused: "已暂停",
+  ws_status_stopped: "已停止",
+  ws_status_draft: "草稿",
+
+  route_badge_aria: "{chain} 链上的 {router}",
+};

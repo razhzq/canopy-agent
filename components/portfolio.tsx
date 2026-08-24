@@ -8,7 +8,9 @@ import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
 import { SkeletonLog, SkeletonRows } from "@/components/skeleton";
 import { getCycle, listCycles, type CycleRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { narrateDecision, SOURCE_LABEL } from "@/lib/narrate";
+import { narrateDecision, sourceLabel } from "@/lib/narrate";
+import { relativeTime } from "@/lib/format";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The cycle screens: a list of an agent's ticks, and the council transcript for
@@ -21,17 +23,6 @@ import { narrateDecision, SOURCE_LABEL } from "@/lib/narrate";
  * are still routed from /portfolio/[slug]/cycles.
  */
 
-/* ------------------------------------------------------------- helpers ---- */
-
-function when(iso: string | null): string {
-  if (!iso) return "—";
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return `${Math.floor(mins / 1440)}d ago`;
-}
-
 /* ----------------------------------------------------------- cycle list -- */
 
 const OUTCOME_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> = {
@@ -41,20 +32,33 @@ const OUTCOME_TONE: Record<string, "accent" | "warning" | "negative" | "muted"> 
   running: "warning",
 };
 
-export function CycleList({ agentId }: { agentId: number }) {
-  const state = useApi<{ cycles: CycleRow[] }>((t) => listCycles(t, agentId), [agentId]);
+/**
+ * The cycle's outcome, said rather than echoed.
+ *
+ * The badge used to print `c.status` — the backend's enum — straight onto the
+ * screen. An unmapped status still falls through to the raw value: an outcome
+ * we have no word for is better shown as its id than hidden.
+ */
+const OUTCOME_KEY: Record<string, TranslationKey> = {
+  ok: "cycle_status_ok",
+  skipped: "cycle_status_skipped",
+  error: "cycle_status_error",
+  running: "cycle_status_running",
+};
 
-  if (state.phase === "loading") return <SkeletonRows label="Loading cycles" cols="70px minmax(0,1fr) 120px 100px 90px" />;
+export function CycleList({ agentId }: { agentId: number }) {
+  const t = useT();
+  // `token`, not `t`: the translator owns that name in this file now.
+  const state = useApi<{ cycles: CycleRow[] }>((token) => listCycles(token, agentId), [agentId]);
+
+  if (state.phase === "loading") return <SkeletonRows labelKey="loading_cycles" cols="70px minmax(0,1fr) 120px 100px 90px" />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 
   const cycles = state.data.cycles;
   if (cycles.length === 0) {
     return (
-      <EmptyState
-        title="No cycles yet"
-        body="Every time the agent wakes up it records a cycle here — including the ones where it decided to do nothing."
-      />
+      <EmptyState title={t("cycles_empty_title")} body={t("cycles_empty_body")} />
     );
   }
 
@@ -70,7 +74,9 @@ export function CycleList({ agentId }: { agentId: number }) {
         >
           <span className="tnum font-mono text-[13px] text-text-dim">#{c.tick_seq}</span>
           <div className="flex items-center gap-3">
-            <Badge tone={OUTCOME_TONE[c.status] ?? "muted"}>{c.status}</Badge>
+            <Badge tone={OUTCOME_TONE[c.status] ?? "muted"}>
+              {OUTCOME_KEY[c.status] ? t(OUTCOME_KEY[c.status]) : c.status}
+            </Badge>
             {/* A skip is a first-class outcome — an RWA agent skips every
                 weekend by design — so the reason is shown, not hidden. */}
             {c.skip_reason ? (
@@ -80,13 +86,13 @@ export function CycleList({ agentId }: { agentId: number }) {
             ) : null}
           </div>
           <span className="text-right font-mono text-[11px] tracking-[0.06em] text-text-dim uppercase">
-            {when(c.started_at)}
+            {relativeTime(c.started_at, t)}
           </span>
           <span className="tnum text-right font-mono text-[12px] text-text-secondary">
-            {c.risk_decisions} judged
+            {t("cycles_judged", { count: c.risk_decisions })}
           </span>
           <span className="tnum text-right font-mono text-[12px] text-negative">
-            {Number(c.blocked) > 0 ? `${c.blocked} blocked` : "—"}
+            {Number(c.blocked) > 0 ? t("cycles_blocked", { count: c.blocked }) : "—"}
           </span>
         </Link>
       ))}
@@ -104,8 +110,9 @@ export function CycleList({ agentId }: { agentId: number }) {
  * produced it.
  */
 export function CycleTrace({ agentId, runId }: { agentId: number; runId: string }) {
+  const t = useT();
   const state = useApi<Awaited<ReturnType<typeof getCycle>>>(
-    (t) => getCycle(t, agentId, runId),
+    (token) => getCycle(token, agentId, runId),
     [agentId, runId],
   );
 
@@ -116,10 +123,10 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
     <div className="px-8 pt-6">
       <Breadcrumb
         parts={[
-          { label: "Portfolio", href: "/portfolio" },
-          { label: `Agent ${agentId}`, href: `/portfolio/${agentId}` },
-          { label: "Cycles", href: `/portfolio/${agentId}/cycles` },
-          tickSeq ? `Cycle #${tickSeq}` : "Cycle",
+          { label: t("cycles_crumb_portfolio"), href: "/portfolio" },
+          { label: t("cycles_crumb_agent", { id: agentId }), href: `/portfolio/${agentId}` },
+          { label: t("cycles_crumb_cycles"), href: `/portfolio/${agentId}/cycles` },
+          tickSeq ? t("cycles_crumb_cycle_n", { seq: tickSeq }) : t("cycles_crumb_cycle"),
         ]}
       />
     </div>
@@ -129,7 +136,7 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
     return (
       <>
         {crumbs()}
-        <SkeletonLog label="Loading the trace" rows={6} />
+        <SkeletonLog labelKey="loading_trace" rows={6} />
       </>
     );
   if (state.phase === "signed-out")
@@ -155,23 +162,23 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
         <div className="space-y-2.5">
           <Breadcrumb
             parts={[
-              { label: "Portfolio", href: "/portfolio" },
-              { label: `Agent ${agentId}`, href: `/portfolio/${agentId}` },
-              { label: "Cycles", href: `/portfolio/${agentId}/cycles` },
-              `Cycle #${run.tick_seq}`,
+              { label: t("cycles_crumb_portfolio"), href: "/portfolio" },
+              { label: t("cycles_crumb_agent", { id: agentId }), href: `/portfolio/${agentId}` },
+              { label: t("cycles_crumb_cycles"), href: `/portfolio/${agentId}/cycles` },
+              t("cycles_crumb_cycle_n", { seq: run.tick_seq }),
             ]}
           />
           <h1 className="font-mono text-[26px] leading-none text-text-primary">
-            What the agent did
+            {t("cycles_trace_title")}
           </h1>
           <p className="max-w-[64ch] font-ui text-[13px] text-text-secondary">
-            Each seat in the order it spoke, written before the agent acted rather than
-            reconstructed afterwards. Every line restates something that was recorded — open
-            the record on any seat to see it verbatim.
+            {t("cycles_trace_body")}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge tone={OUTCOME_TONE[run.status] ?? "muted"}>{run.status}</Badge>
+          <Badge tone={OUTCOME_TONE[run.status] ?? "muted"}>
+            {OUTCOME_KEY[run.status] ? t(OUTCOME_KEY[run.status]) : run.status}
+          </Badge>
           {run.skip_reason ? (
             <Badge tone="muted">{run.skip_reason.replace(/_/g, " ")}</Badge>
           ) : null}
@@ -185,7 +192,7 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
   );
 }
 
-/** One council seat: what it did, in English, over the record it wrote. */
+/** One council seat: what it did, in prose, over the record it wrote. */
 function Seat({
   index,
   decision: d,
@@ -194,7 +201,8 @@ function Seat({
   decision: Awaited<ReturnType<typeof getCycle>>["decisions"][number];
 }) {
   const [raw, setRaw] = useState(false);
-  const lines = narrateDecision(d);
+  const t = useT();
+  const lines = narrateDecision(d, t);
 
   return (
     <section className="border border-grid">
@@ -217,7 +225,7 @@ function Seat({
             aria-expanded={raw}
             className="tracking-[0.1em] transition-colors hover:text-accent"
           >
-            {raw ? "Hide record" : "Record"}
+            {t(raw ? "cycles_hide_record" : "cycles_record")}
           </button>
         </div>
       </div>
@@ -247,7 +255,7 @@ function Seat({
       {raw ? (
         <div className="border-t border-grid bg-panel">
           <p className="px-5 pt-3 font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
-            Recorded verbatim
+            {t("cycles_recorded_verbatim")}
           </p>
           <pre className="overflow-x-auto px-5 pb-4 font-mono text-[11.5px] leading-relaxed text-text-dim">
             {JSON.stringify(d.output, null, 2)}
@@ -258,7 +266,9 @@ function Seat({
       {d.adapter_ids?.length ? (
         <div className="border-t border-grid px-5 py-2.5">
           <span className="font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
-            Data from {d.adapter_ids.map((a) => SOURCE_LABEL[a] ?? a).join(" · ")}
+            {t("cycles_data_from", {
+              sources: d.adapter_ids.map((a) => sourceLabel(a, t)).join(" · "),
+            })}
           </span>
         </div>
       ) : null}

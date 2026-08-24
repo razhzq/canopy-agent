@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 
 import type { UniverseAsset } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 /**
  * Where an asset trades: the chain it settles on and the router that fills it,
@@ -145,6 +148,7 @@ export function RouteBadge({
   size?: number;
   className?: string;
 }) {
+  const t = useT();
   const c = CHAIN[chain];
   const r = ROUTER[router];
   // Overlap is ~40% of a disc: enough to read as stacked, not so much that the
@@ -158,7 +162,9 @@ export function RouteBadge({
       // One label for the pair. Two would make a screen reader announce a
       // decoration twice per row.
       role="img"
-      aria-label={`${r.label} on ${c.label}`}
+      // Both names are brands and stay as they are; only the preposition
+      // between them is translated, and Chinese puts it the other way round.
+      aria-label={t("route_badge_aria", { router: r.label, chain: c.label })}
     >
       <span className="absolute top-0" style={{ left: size - overlap }}>
         <Disc mark={c} size={size} />

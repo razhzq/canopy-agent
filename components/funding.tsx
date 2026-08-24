@@ -49,10 +49,29 @@ import {
   FALLBACK_MIN_SOL,
   fallbackShortfall,
   readChainFunding,
+  RpcError,
   type ChainFunding,
 } from "@/lib/chainBalance";
 import { Callout, InfoIcon, WarnIcon } from "./ui";
 import { ErrorState } from "./states";
+import { useT, type Translate } from "@/lib/i18n";
+
+/**
+ * A chain-read failure, in the reader's language.
+ *
+ * `lib/chainBalance` throws a coded `RpcError` when the endpoint gave no
+ * message of its own. When it DID give one — a rate limit, a bad request — that
+ * message is the endpoint's and passes through as it arrived: it names the
+ * actual refusal, which is more useful than anything this side could say.
+ */
+function rpcMessage(err: unknown, t: Translate): string {
+  if (err instanceof RpcError) {
+    return err.code === "status"
+      ? t("error_rpc_status", { status: err.status ?? "" })
+      : t("error_rpc_empty");
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 
 const BTN =
   "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
@@ -90,6 +109,7 @@ export function FundingPanel({
   address?: string | null;
 }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [fallback, setFallback] = useState<Fallback>({ phase: "idle" });
   /** Bumped by "Check balance" so a retry re-runs the fallback too. */
@@ -107,17 +127,12 @@ export function FundingPanel({
         if (!cancelled) setFallback({ phase: "ready", data });
       })
       .catch((err) => {
-        if (!cancelled) {
-          setFallback({
-            phase: "failed",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
+        if (!cancelled) setFallback({ phase: "failed", message: rpcMessage(err, t) });
       });
     return () => {
       cancelled = true;
     };
-  }, [state.phase, address, attempt]);
+  }, [state.phase, address, attempt, t]);
 
   const view: View | null =
     state.phase === "ready" && state.data.address
@@ -164,7 +179,7 @@ export function FundingPanel({
   // ready response rather than inferred from a missing address anywhere else.
   if (state.phase === "ready" && !state.data.address) {
     return (
-      <Callout tone="info" icon={<InfoIcon />} title="No wallet yet">
+      <Callout tone="info" icon={<InfoIcon />} title={t("funding_no_wallet_title")}>
         {state.data.shortfall}
       </Callout>
     );
@@ -178,7 +193,7 @@ export function FundingPanel({
         <div className="space-y-3">
           <div className="h-24 animate-pulse border border-grid bg-surface" aria-hidden />
           <p className="font-ui text-[12.5px] text-text-dim">
-            Canopy could not read this balance. Checking the network directly…
+            {t("funding_fallback_reading")}
           </p>
         </div>
       );
@@ -190,19 +205,19 @@ export function FundingPanel({
     const message =
       state.phase === "error"
         ? fallback.phase === "failed"
-          ? `${state.message}. Reading the network directly also failed: ${fallback.message}`
+          ? // Both messages are the underlying errors' own text, quoted into a
+            // translated frame — neither is ours to rewrite.
+            t("funding_both_failed", { backend: state.message, chain: fallback.message })
           : state.message
-        : "Could not read this wallet's balance.";
+        : t("funding_read_failed");
     return <ErrorState message={message} onRetry={recheck} />;
   }
 
   return (
     <div className="space-y-5">
       {view.source === "chain" ? (
-        <Callout tone="warning" icon={<WarnIcon />} title="Read from the network directly">
-          Canopy could not reach its RPC, so these figures came from your browser
-          instead. They are real balances — but the fee threshold shown is this
-          app&apos;s own copy, so treat a borderline reading as approximate.
+        <Callout tone="warning" icon={<WarnIcon />} title={t("funding_direct_title")}>
+          {t("funding_direct_body")}
         </Callout>
       ) : null}
 
@@ -219,7 +234,7 @@ export function FundingPanel({
         <Figure
           label="USDC"
           value={view.usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          note={view.usdc > 0 ? "available to trade" : "none — send USDC"}
+          note={t(view.usdc > 0 ? "funding_usdc_available" : "funding_usdc_none")}
           ok={view.usdc > 0}
         />
         {view.minSol > 0 ? (
@@ -228,30 +243,36 @@ export function FundingPanel({
             value={view.sol.toFixed(4)}
             // The threshold is stated, because "some SOL" is not actionable and
             // this is the balance people forget entirely.
-            note={view.sol >= view.minSol ? "covers fees" : `needs ${view.minSol} for fees`}
+            note={
+              view.sol >= view.minSol
+                ? t("funding_sol_covers")
+                : t("funding_sol_needs", { min: view.minSol })
+            }
             ok={view.sol >= view.minSol}
           />
         ) : null}
       </div>
 
       {view.shortfall ? (
-        <Callout tone="warning" icon={<InfoIcon />} title="Not ready to trade live">
+        <Callout tone="warning" icon={<InfoIcon />} title={t("funding_not_ready_title")}>
+          {/* The shortfall sentence is composed server-side, where the real
+              thresholds live, and arrives in English. */}
           {view.shortfall}
         </Callout>
       ) : (
-        <Callout tone="accent" icon={<InfoIcon />} title="Funded">
-          This wallet has USDC to trade with and SOL for fees.
+        <Callout tone="accent" icon={<InfoIcon />} title={t("funding_funded_title")}>
+          {t("funding_funded_body")}
         </Callout>
       )}
 
       <div className="space-y-2">
         <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
-          Deposit address · Solana
+          {t("funding_deposit_address")}
         </p>
         <button
           type="button"
           onClick={() => copy(view.address)}
-          aria-label={`Copy deposit address ${view.address}`}
+          aria-label={t("funding_copy_aria", { address: view.address })}
           className={`group flex w-full items-center justify-between gap-3 border border-grid-strong bg-surface px-4 py-3 text-left transition-colors hover:border-accent`}
         >
           {/* Full address, never truncated. A shortened address is unusable for
@@ -265,25 +286,20 @@ export function FundingPanel({
               copied ? "text-accent" : "text-text-dim"
             }`}
           >
-            {copied ? "Copied" : "Copy"}
+            {t(copied ? "common_copied" : "common_copy")}
           </span>
         </button>
       </div>
 
       <div className="space-y-1.5 font-ui text-[12.5px] leading-relaxed text-text-dim">
-        <p>
-          Send <span className="text-text-secondary">USDC on Solana</span> — the agent
-          trades against it and cannot convert other assets into it.
-        </p>
+        {/* The emphasis spans are gone: the phrases they wrapped land in
+            different positions in Chinese, and a <span> cannot travel with
+            them. The sentences are short enough to carry themselves. */}
+        <p>{t("funding_send_usdc")}</p>
         {view.minSol > 0 ? (
-          <p>
-            Send at least <span className="text-text-secondary">{view.minSol} SOL</span> as
-            well. Without it the wallet cannot pay transaction fees, even holding USDC.
-          </p>
+          <p>{t("funding_send_sol", { min: view.minSol })}</p>
         ) : (
-          <p>
-            Transaction fees are covered by Canopy — this wallet does not need SOL.
-          </p>
+          <p>{t("funding_fees_covered")}</p>
         )}
       </div>
 
@@ -292,7 +308,7 @@ export function FundingPanel({
         onClick={recheck}
         className={`${BTN} border-grid-strong text-text-secondary hover:text-text-primary`}
       >
-        Check balance
+        {t("funding_check_balance")}
       </button>
     </div>
   );

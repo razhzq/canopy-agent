@@ -1,0 +1,37 @@
+import type { enEquity } from "../en/equity";
+
+export const zhEquity: Record<keyof typeof enEquity, string> = {
+  equity_unavailable_title: "业绩数据不可用",
+  equity_unavailable_body: "权益数据未能加载。本页其他内容都是最新的 — 刷新即可重试。",
+  equity_no_curve_title: "还没有曲线",
+  equity_no_curve_body: "曲线为每个已完成的周期绘制一个点。智能体运行一次之后，第一个点就会出现。",
+  equity_paper_equity: "模拟盘权益",
+  equity_equity: "权益",
+  equity_against_capital: "{pnl} · {pct}（相对 {capital}）",
+  equity_realised: "已实现",
+  equity_unrealised: "未实现",
+  equity_at_cycle: "按第 {seq} 周期计",
+  equity_max_drawdown: "最大回撤",
+  equity_hit_rate: "胜率",
+  equity_deployed: "已投入",
+  equity_cycle_n: "第 {seq} 周期",
+  equity_readout_head: "第 {seq} 周期 · {when}",
+  equity_readout_pnl: "{pnl} · {pct}",
+  equity_readout_cash: "现金 {amount}",
+
+  close_title: "平掉 {symbol}？",
+  close_subtitle: "按当前市价，一次性卖出全部持仓。",
+  close_size: "数量",
+  close_avg_cost: "平均成本",
+  close_price_now: "当前价格",
+  close_total_value: "总市值",
+  close_pnl: "盈亏",
+  close_not_priced: "无法定价",
+  close_unpriced_note:
+    "该标的当前没有可读取的价格。系统会拒绝这笔卖出，而不是按猜测的价格成交 — 请几分钟后再试。",
+  close_note: "智能体会继续运行，其他持仓也会保留。如果入场条件再次满足，它可能会重新买回。",
+  close_keep: "不，保留持仓",
+  close_confirm: "是的，平掉",
+  close_closing: "平仓中…",
+  close_sign_in: "登录后才能平掉这笔持仓。",
+};

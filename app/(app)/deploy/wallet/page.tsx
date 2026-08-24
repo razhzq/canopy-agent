@@ -1,4 +1,6 @@
-import { DEPLOY_STEPS, MANDATE, WALLET } from "@/lib/data";
+import { DEPLOY_STEPS } from "@/lib/data";
+import { deployCopy } from "@/lib/deployCopy";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   AgentTile,
   BlockIcon,
@@ -14,18 +16,44 @@ import {
 } from "@/components/ui";
 import { Proceed, StepBar, WizardHeader } from "@/components/wizard";
 
-export default function WalletPage() {
+/** The mock wallet. An address is an address in any language. */
+const ADDRESS = "7xKX…9mQt";
+const BALANCE = "$5,240.00";
+
+/**
+ * The message body shown in the signing preview.
+ *
+ * Deliberately NOT translated: it is a literal payload, rendered exactly as it
+ * would be signed. Translating a signature's contents would show the reader
+ * something other than what their wallet is about to show them.
+ */
+const PAYLOAD: [string, string][] = [
+  ["grantee:", "alpha_hunter"],
+  ["spend_cap:", "2000.00 USDC"],
+  ["per_tx:", "300.00 USDC"],
+  ["venue:", "jupiter_v6"],
+  ["expires:", "2026-10-25T00:00Z"],
+  ["revocable:", "true"],
+  ["wallet:", "7xKX…9mQt"],
+  ["nonce:", "8f21c4d9"],
+];
+
+export default async function WalletPage() {
+  const c = deployCopy(await getServerLocale());
+  const d = c.wallet;
+  const data = c.walletData;
+
   return (
     <main>
       <StepBar steps={DEPLOY_STEPS} current={3} />
 
       <WizardHeader
-        eyebrow="New mandate · Step 04"
-        title="Grant a scoped delegation"
+        eyebrow={d.eyebrow}
+        title={d.title}
         meta={[
-          { label: "Agent", value: "alpha_hunter" },
-          { label: "Capital", value: MANDATE.capital },
-          { label: "Custody", value: "YOURS", tone: "accent" },
+          { label: c.agentLabel, value: "alpha_hunter" },
+          { label: c.capitalLabel, value: c.mandate.capital },
+          { label: c.custodyLabel, value: d.custodyValue, tone: "accent" },
         ]}
       />
 
@@ -34,38 +62,30 @@ export default function WalletPage() {
           <>
             {/* ---------------------------------------------- source wallet */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="01"
-                title="SOURCE WALLET"
-                note={WALLET.provider}
-              />
+              <SectionHead index="01" title={d.secSource} note={data.provider} />
 
               <div className="flex items-center justify-between border border-grid bg-panel p-5">
                 <div className="flex items-center gap-4">
                   <AgentTile size={40} />
                   <div className="space-y-1.5">
-                    <p className="font-mono text-[15px] text-text-primary">
-                      {WALLET.address}
-                    </p>
+                    <p className="font-mono text-[15px] text-text-primary">{ADDRESS}</p>
                     <p className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-                      Owned by you · Not by Canopy
+                      {d.ownedByYou}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="flex flex-col items-end gap-2">
                     <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                      Balance
+                      {d.balance}
                     </span>
-                    <span className="tnum font-mono text-[17px] text-text-primary">
-                      {WALLET.balance}
-                    </span>
+                    <span className="tnum font-mono text-[17px] text-text-primary">{BALANCE}</span>
                   </div>
                   <button
                     type="button"
                     className="border border-border px-4 py-2.5 font-mono text-[10px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                   >
-                    Change
+                    {d.change}
                   </button>
                 </div>
               </div>
@@ -76,13 +96,10 @@ export default function WalletPage() {
                   <LockIcon className="mt-0.5 shrink-0 text-accent" />
                   <div className="space-y-1.5">
                     <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                      Your keys never leave this wallet
+                      {d.keysTitle}
                     </p>
                     <p className="max-w-[820px] font-ui text-[13px] leading-relaxed text-text-secondary">
-                      Canopy cannot sign on your behalf and cannot move funds
-                      outside the scope you grant below. Granting a delegation is
-                      not a transfer. Nothing leaves this wallet until the agent
-                      executes a trade you have authorised.
+                      {d.keysBody}
                     </p>
                   </div>
                 </div>
@@ -91,26 +108,20 @@ export default function WalletPage() {
 
             {/* ----------------------------------------------------- scope */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="02"
-                title="DELEGATION SCOPE"
-                note="What the agent may do"
-              />
+              <SectionHead index="02" title={d.secScope} note={d.secScopeNote} />
 
               <div className="grid grid-cols-[minmax(0,1fr)_auto_130px] items-center gap-6 border-b border-grid pb-3.5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                <span>Parameter</span>
-                <span className="text-right">Value</span>
-                <span>Enforced by</span>
+                <span>{d.colParameter}</span>
+                <span className="text-right">{d.colValue}</span>
+                <span>{d.colEnforcedBy}</span>
               </div>
 
-              {WALLET.scope.map(([param, value, by, tone]) => (
+              {data.scope.map(([param, value, by, tone]) => (
                 <div
                   key={param}
                   className="grid grid-cols-[minmax(0,1fr)_auto_130px] items-center gap-6 border-b border-grid py-5"
                 >
-                  <span className="font-mono text-[13px] text-text-secondary">
-                    {param}
-                  </span>
+                  <span className="font-mono text-[13px] text-text-secondary">{param}</span>
                   <span className="tnum text-right font-mono text-[13px] text-text-primary">
                     {value}
                   </span>
@@ -129,31 +140,23 @@ export default function WalletPage() {
               <div className="mt-6 flex gap-3">
                 <InfoIcon className="mt-0.5 shrink-0 text-text-dim" />
                 <p className="max-w-[900px] font-ui text-[13px] leading-relaxed text-text-secondary">
-                  {WALLET.scopeNote}
+                  {data.scopeNote}
                 </p>
               </div>
             </section>
 
             {/* ------------------------------------------------ impossible */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="03"
-                title="OUTSIDE THE BOUNDARY"
-                note="Structurally impossible · Not policy"
-              />
-              {WALLET.impossible.map((item) => (
+              <SectionHead index="03" title={d.secImpossible} note={d.secImpossibleNote} />
+              {data.impossible.map((item) => (
                 <div
                   key={item.title}
                   className="flex gap-4 border-b border-grid py-5 last:border-b-0"
                 >
                   <BlockIcon className="mt-0.5 shrink-0 text-negative" />
                   <div className="space-y-1.5">
-                    <p className="font-mono text-[13px] text-text-primary">
-                      {item.title}
-                    </p>
-                    <p className="font-ui text-[13px] text-text-dim">
-                      {item.body}
-                    </p>
+                    <p className="font-mono text-[13px] text-text-primary">{item.title}</p>
+                    <p className="font-ui text-[13px] text-text-dim">{item.body}</p>
                   </div>
                 </div>
               ))}
@@ -161,18 +164,11 @@ export default function WalletPage() {
 
             {/* ------------------------------------------------ revocation */}
             <section className="px-5 sm:px-8 py-8">
-              <SectionHead
-                index="04"
-                title="REVOCATION"
-                note="Effective immediately"
-              />
-              <p className="pb-6 font-ui text-[14px] text-text-secondary">
-                You can end this delegation at any moment, from three places. None
-                of them require Canopy to be online or to agree.
-              </p>
+              <SectionHead index="04" title={d.secRevocation} note={d.secRevocationNote} />
+              <p className="pb-6 font-ui text-[14px] text-text-secondary">{d.revocationIntro}</p>
 
               <div className="flex border border-grid">
-                {WALLET.revocation.map((r) => (
+                {data.revocation.map((r) => (
                   <div
                     key={r.where}
                     className="flex-1 space-y-3 border-r border-grid p-6 last:border-r-0"
@@ -194,10 +190,10 @@ export default function WalletPage() {
                   <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                   <div className="space-y-1.5">
                     <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                      {WALLET.revocationWarning.title}
+                      {data.revocationWarning.title}
                     </p>
                     <p className="max-w-[820px] font-ui text-[13px] leading-relaxed text-text-secondary">
-                      {WALLET.revocationWarning.body}
+                      {data.revocationWarning.body}
                     </p>
                   </div>
                 </div>
@@ -207,19 +203,17 @@ export default function WalletPage() {
         }
         rail={
           <>
-            <RailSection title="Grant summary">
-              {WALLET.grantSummary.map(([k, v, tone]) => (
+            <RailSection title={d.grantSummary}>
+              {data.grantSummary.map(([k, v, tone]) => (
                 <RailRow key={k} label={k} value={v} tone={tone} />
               ))}
             </RailSection>
 
-            <RailSection title="You will sign" note="Message · Not a transfer">
+            <RailSection title={d.youWillSign} note={d.youWillSignNote}>
               <div className="mt-3 border border-grid bg-panel p-5">
-                <p className="pb-4 font-mono text-[12px] text-accent">
-                  Canopy Agent Delegation v1
-                </p>
+                <p className="pb-4 font-mono text-[12px] text-accent">{d.payloadTitle}</p>
                 <div className="space-y-2">
-                  {WALLET.payload.map(([k, v]) => (
+                  {PAYLOAD.map(([k, v]) => (
                     <div key={k} className="flex gap-3 font-mono text-[11.5px]">
                       <span className="w-[86px] shrink-0 text-text-dim">{k}</span>
                       <span className="text-text-secondary">{v}</span>
@@ -229,13 +223,13 @@ export default function WalletPage() {
               </div>
               <div className="flex items-center justify-between pt-4">
                 <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  Human readable
+                  {d.humanReadable}
                 </span>
                 <button
                   type="button"
                   className="font-mono text-[10px] tracking-[0.1em] text-accent uppercase"
                 >
-                  View raw payload
+                  {d.viewRaw}
                 </button>
               </div>
             </RailSection>
@@ -245,13 +239,13 @@ export default function WalletPage() {
               total={5}
               primary={
                 <PrimaryButton href="/deploy/fund">
-                  <SignGlyph /> Review in wallet
+                  <SignGlyph /> {d.reviewInWallet}
                 </PrimaryButton>
               }
               secondary={
-                <GhostButton href="/deploy/autonomy">Back to autonomy</GhostButton>
+                <GhostButton href="/deploy/autonomy">{d.backToAutonomy}</GhostButton>
               }
-              note="Canopy never receives your keys. No funds move until the agent executes."
+              note={d.proceedNote}
             />
           </>
         }

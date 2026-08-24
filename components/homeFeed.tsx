@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/states";
 import { MiniCurve } from "@/components/charts";
 import { useAccountBalance } from "@/lib/useAccountBalance";
 import { hitRatePct, num, return30dPct, type StrategyRow } from "@/lib/api";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The mobile home — wireframe M01.
@@ -30,14 +31,16 @@ import { hitRatePct, num, return30dPct, type StrategyRow } from "@/lib/api";
 
 type Chip = "all" | "top" | "new" | "held";
 
-const CHIPS: { key: Chip; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "top", label: "Top PnL" },
-  { key: "new", label: "New" },
-  { key: "held", label: "Most deployed" },
+// Keys rather than labels — the table is module-level and cannot call a hook.
+const CHIPS: { key: Chip; labelKey: TranslationKey }[] = [
+  { key: "all", labelKey: "home_chip_all" },
+  { key: "top", labelKey: "home_chip_top" },
+  { key: "new", labelKey: "home_chip_new" },
+  { key: "held", labelKey: "home_chip_held" },
 ];
 
 export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
+  const t = useT();
   const balance = useAccountBalance();
   const [chip, setChip] = useState<Chip>("all");
 
@@ -91,7 +94,9 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
               {balance.moved24hUsd === null ? "—" : signed(balance.moved24hUsd)}
             </span>
             <span className="font-mono text-[9.5px] font-semibold tracking-[0.7px] text-text-dim uppercase">
-              24H · ACROSS {balance.agents} {balance.agents === 1 ? "AGENT" : "AGENTS"}
+              {balance.agents === 1
+                ? t("home_balance_window_one")
+                : t("home_balance_window_many", { count: balance.agents })}
             </span>
           </p>
         </div>
@@ -103,7 +108,7 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
           <div className="flex items-center gap-[7px] px-[18px]">
             <Flame className="size-[15px] text-warning" aria-hidden />
             <span className="font-mono text-[10.5px] font-semibold tracking-[0.9px] text-text-secondary uppercase">
-              Top performers
+              {t("home_top_performers")}
             </span>
           </div>
           {/* Overflows on purpose — a card clipped at the right edge is what
@@ -159,7 +164,7 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
                   : "border-border-soft font-medium text-text-secondary"
               }`}
             >
-              {c.label}
+              {t(c.labelKey)}
             </button>
           );
         })}
@@ -169,9 +174,9 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
       {shown.length === 0 ? (
         <div className="px-[18px] py-8">
           <EmptyState
-            title="Nothing listed yet"
-            body="Published strategies show up here with a live record. Build one and it starts on live data in paper mode."
-            action={{ label: "Create agent", href: "/build/new" }}
+            title={t("home_empty_title")}
+            body={t("home_empty_body")}
+            action={{ label: t("home_empty_action"), href: "/build/new" }}
           />
         </div>
       ) : (
@@ -187,6 +192,7 @@ export function HomeFeed({ strategies }: { strategies: StrategyRow[] }) {
 }
 
 function StrategyFeedRow({ row, first }: { row: StrategyRow; first: boolean }) {
+  const t = useT();
   const pct = return30dPct(row);
   const hit = hitRatePct(row);
   const deployments = num(row.deployments) ?? 0;
@@ -206,11 +212,13 @@ function StrategyFeedRow({ row, first }: { row: StrategyRow; first: boolean }) {
               {row.name}
             </span>
             <span className="shrink-0 rounded bg-surface-2 px-[5px] py-0.5 font-mono text-[8.5px] font-semibold tracking-[0.6px] text-text-secondary uppercase">
-              {row.all_paper ? "paper" : row.strategy_class}
+              {row.all_paper ? t("home_badge_paper") : row.strategy_class}
             </span>
           </span>
           <span className="block font-mono text-[11.5px] text-text-dim">
-            {deployments} deployed{hit === null ? "" : ` · ${hit.toFixed(0)}% win`}
+            {hit === null
+              ? t("home_row_deployed", { count: deployments })
+              : t("home_row_deployed_win", { count: deployments, pct: hit.toFixed(0) })}
           </span>
         </span>
 

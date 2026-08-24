@@ -1,5 +1,7 @@
 import { LimitRow } from "@/components/charts";
-import { DEPLOY_STEPS, MANDATE } from "@/lib/data";
+import { DEPLOY_STEPS } from "@/lib/data";
+import { deployCopy, fill } from "@/lib/deployCopy";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   AgentTile,
   ArrowRight,
@@ -17,26 +19,22 @@ import {
   WizardHeader,
 } from "@/components/wizard";
 
-const PRESETS = [
-  "Low-risk SOL momentum",
-  "Meme sniper · tight stops",
-  "LP fees only",
-];
+export default async function DescribePage() {
+  const c = deployCopy(await getServerLocale());
+  const d = c.describe;
+  const m = c.mandate;
 
-const CAPITAL_STOPS = ["500", "1,000", "2,000", "5,240 · MAX"];
-
-export default function DescribePage() {
   return (
     <main>
       <StepBar steps={DEPLOY_STEPS} current={0} />
 
       <WizardHeader
-        eyebrow="New mandate"
-        title="What should this agent do?"
+        eyebrow={d.eyebrow}
+        title={d.title}
         meta={[
-          { label: "Agent", value: "alpha_hunter" },
-          { label: "Class", value: "SPOT" },
-          { label: "Venue", value: "SOLANA" },
+          { label: c.agentLabel, value: "alpha_hunter" },
+          { label: c.classLabel, value: d.classValue },
+          { label: c.venueLabel, value: d.venueValue },
         ]}
       />
 
@@ -45,27 +43,23 @@ export default function DescribePage() {
           <>
             {/* ---------------------------------------------------- intent */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="01"
-                title="INTENT"
-                note="Plain language · Parsed to a mandate"
-              />
+              <SectionHead index="01" title={d.secIntent} note={d.secIntentNote} />
 
               <div className="border border-accent bg-panel">
                 <p className="p-6 font-mono text-[14px] leading-relaxed text-text-primary">
-                  {MANDATE.intent}
+                  {m.intent}
                 </p>
                 <div className="flex items-center justify-between px-6 pb-4 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-                  <span className="tnum">{MANDATE.intentChars} / 500</span>
-                  <span>No trading jargon required</span>
+                  <span className="tnum">{fill(d.charCount, { used: m.intentChars })}</span>
+                  <span>{d.noJargon}</span>
                 </div>
               </div>
 
               <div className="mt-6 flex items-center gap-3">
                 <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  Presets
+                  {d.presetsLabel}
                 </span>
-                {PRESETS.map((p) => (
+                {d.presets.map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -80,16 +74,18 @@ export default function DescribePage() {
               <div className="mt-7 border border-grid bg-panel">
                 <div className="flex items-center justify-between px-6 py-5">
                   <span className="font-mono text-[12px] tracking-[0.08em] text-accent uppercase">
-                    Parse output
+                    {d.parseOutput}
                   </span>
                   <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                    {MANDATE.parse.resolved} fields resolved ·{" "}
-                    {MANDATE.parse.defaulted} defaulted
+                    {fill(d.parseCount, {
+                      resolved: m.parse.resolved,
+                      defaulted: m.parse.defaulted,
+                    })}
                   </span>
                 </div>
 
                 <div className="flex gap-12 px-6">
-                  {[MANDATE.parse.left, MANDATE.parse.right].map((col, ci) => (
+                  {[m.parse.left, m.parse.right].map((col, ci) => (
                     <div key={ci} className="flex-1">
                       {col.map(([k, v]) => (
                         <div
@@ -99,9 +95,7 @@ export default function DescribePage() {
                           <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
                             {k}
                           </span>
-                          <span className="tnum font-mono text-[12px] text-accent">
-                            {v}
-                          </span>
+                          <span className="tnum font-mono text-[12px] text-accent">{v}</span>
                         </div>
                       ))}
                     </div>
@@ -110,9 +104,7 @@ export default function DescribePage() {
 
                 <div className="flex gap-3 px-6 py-5">
                   <WarnIcon className="mt-px shrink-0 text-warning" />
-                  <p className="font-ui text-[13px] text-text-secondary">
-                    {MANDATE.parse.warning}
-                  </p>
+                  <p className="font-ui text-[13px] text-text-secondary">{m.parse.warning}</p>
                 </div>
               </div>
             </section>
@@ -121,8 +113,8 @@ export default function DescribePage() {
             <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
-                title="CAPITAL"
-                note={`Wallet balance  ${MANDATE.walletBalance} USDC`}
+                title={d.secCapital}
+                note={fill(d.secCapitalNote, { balance: m.walletBalance })}
               />
 
               <div className="flex items-end justify-between">
@@ -136,28 +128,28 @@ export default function DescribePage() {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                    Allocation
+                    {d.allocation}
                   </span>
                   <span className="tnum font-mono text-[14px] tracking-[0.06em] text-accent uppercase">
-                    {MANDATE.allocationPct}% of balance
+                    {fill(d.allocationValue, { pct: m.allocationPct })}
                   </span>
                 </div>
               </div>
 
               <div className="mt-7 h-1.5 w-full bg-surface-2">
-                <div
-                  className="h-full bg-accent"
-                  style={{ width: `${MANDATE.allocationPct}%` }}
-                />
+                <div className="h-full bg-accent" style={{ width: `${m.allocationPct}%` }} />
               </div>
 
               <div className="mt-5 flex border border-grid">
-                {CAPITAL_STOPS.map((stop) => (
+                {d.capitalStops.map((stop, i) => (
                   <button
                     key={stop}
                     type="button"
                     className={`flex-1 border-r border-grid py-4 font-mono text-[13px] last:border-r-0 ${
-                      stop === "2,000"
+                      // By POSITION, not by matching the label: the last stop
+                      // carries a translated "MAX" and the third is the one
+                      // that is selected in the mock.
+                      i === 2
                         ? "bg-accent-wash text-accent"
                         : "text-text-secondary hover:text-text-primary"
                     }`}
@@ -170,19 +162,15 @@ export default function DescribePage() {
 
             {/* ------------------------------------------------ risk posture */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="03"
-                title="RISK POSTURE"
-                note="Derived from your description"
-              />
+              <SectionHead index="03" title={d.secPosture} note={d.secPostureNote} />
               <ChoiceRow>
-                {MANDATE.postures.map((p) => (
+                {m.postures.map((p) => (
                   <ChoiceCard key={p.name} title={p.name} active={p.active}>
                     <div className="mt-1">
                       {[
-                        ["Pos", p.pos],
-                        ["DD", p.dd],
-                        ["Slip", p.slip],
+                        [d.postureCols.pos, p.pos],
+                        [d.postureCols.dd, p.dd],
+                        [d.postureCols.slip, p.slip],
                       ].map(([k, v]) => (
                         <div
                           key={k}
@@ -191,9 +179,7 @@ export default function DescribePage() {
                           <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
                             {k}
                           </span>
-                          <span className="tnum font-mono text-[12px] text-text-primary">
-                            {v}
-                          </span>
+                          <span className="tnum font-mono text-[12px] text-text-primary">{v}</span>
                         </div>
                       ))}
                     </div>
@@ -204,13 +190,9 @@ export default function DescribePage() {
 
             {/* ---------------------------------------------------- limits */}
             <section className="px-5 sm:px-8 py-8">
-              <SectionHead
-                index="04"
-                title="LIMITS"
-                note="Tighten only · Cannot exceed agent design"
-              />
+              <SectionHead index="04" title={d.secLimits} note={d.secLimitsNote} />
               <div className="divide-y divide-grid">
-                {MANDATE.limits.map((l) => (
+                {m.limits.map((l) => (
                   <LimitRow key={l.label} {...l} />
                 ))}
               </div>
@@ -221,10 +203,10 @@ export default function DescribePage() {
                   <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                   <div className="space-y-1.5">
                     <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                      {MANDATE.drawdownWarning.title}
+                      {m.drawdownWarning.title}
                     </p>
                     <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                      {MANDATE.drawdownWarning.body}
+                      {m.drawdownWarning.body}
                     </p>
                   </div>
                 </div>
@@ -236,32 +218,30 @@ export default function DescribePage() {
           <>
             <div className="border-b border-grid px-5 sm:px-8 py-7">
               <p className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                Target agent
+                {d.targetAgent}
               </p>
               <div className="flex items-center gap-4">
                 <AgentTile size={40} />
                 <div className="space-y-1.5">
-                  <p className="font-mono text-[15px] text-text-primary">
-                    alpha_hunter
-                  </p>
+                  <p className="font-mono text-[15px] text-text-primary">alpha_hunter</p>
                   <p className="font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
-                    Spot · Solana · +18.2% / 90D
+                    {d.targetAgentSub}
                   </p>
                 </div>
               </div>
             </div>
 
-            <MandateRail rows={MANDATE.rows} readsAs={MANDATE.readsAs} />
+            <MandateRail rows={m.rows} readsAs={m.readsAs} />
 
             <Proceed
               step={1}
               total={5}
               primary={
                 <PrimaryButton href="/deploy/constraints">
-                  Continue to constraints <ArrowRight />
+                  {d.continue} <ArrowRight />
                 </PrimaryButton>
               }
-              note="Nothing signed or funded yet"
+              note={d.proceedNote}
             />
           </>
         }

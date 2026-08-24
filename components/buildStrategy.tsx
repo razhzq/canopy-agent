@@ -9,6 +9,7 @@ import type {
   DetectionRule,
   ExitRules,
 } from "@/lib/api";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * Step 2 of the builder: what makes the agent buy.
@@ -43,9 +44,19 @@ export type RuleBasis = "bars" | "daily" | "static";
 
 export interface RuleSpec {
   key: string;
-  /** Unit-free. Windows come from `periods`, rendered against the timeframe. */
-  label: string;
-  help: string;
+  /**
+   * Dictionary keys, not text.
+   *
+   * The catalogue below is module-level, so a finished string here would be
+   * frozen in whichever language loaded first — and these two are the most
+   * load-bearing strings in the product: someone reads them, sets a threshold,
+   * and an agent trades on it. `ruleLabel` resolves the first against the
+   * strategy's timeframe; `helpKey` is read straight by the slider.
+   *
+   * Unit-free. Windows come from `periods`, rendered against the timeframe.
+   */
+  labelKey: TranslationKey;
+  helpKey: TranslationKey;
   op: "gte" | "lte";
   value: number;
   min: number;
@@ -101,9 +112,9 @@ export interface RuleSpec {
 export const RWA_RULES: RuleSpec[] = [
   {
     key: "liquidityUsd",
-    label: "Liquidity floor",
+    labelKey: "rule_liquidityUsd",
     basis: "static",
-    help: "Pool depth on Solana. Applies to every asset, including gold.",
+    helpKey: "rule_liquidityUsd_help",
     op: "gte",
     value: 50_000,
     min: 0,
@@ -115,9 +126,9 @@ export const RWA_RULES: RuleSpec[] = [
     key: "dailyVolPct",
     // RWA only — needs research market activity, which an SPL token does not have.
     classes: ["rwa"] as ("rwa" | "spot")[],
-    label: "Max daily volatility",
+    labelKey: "rule_dailyVolPct",
     basis: "daily",
-    help: "Trailing realised volatility of the underlying, from Wintel.",
+    helpKey: "rule_dailyVolPct_help",
     op: "lte",
     value: 5,
     min: 1,
@@ -129,9 +140,9 @@ export const RWA_RULES: RuleSpec[] = [
     key: "maxEventScore",
     // RWA only — needs a detected-events feed, which an SPL token does not have.
     classes: ["rwa"] as ("rwa" | "spot")[],
-    label: "Max recent event severity",
+    labelKey: "rule_maxEventScore",
     basis: "daily",
-    help: "Skip anything that has had a serious abnormal-activity event this week.",
+    helpKey: "rule_maxEventScore_help",
     op: "lte",
     value: 70,
     min: 0,
@@ -143,9 +154,9 @@ export const RWA_RULES: RuleSpec[] = [
     key: "netMarginPct",
     // RWA only — needs a balance sheet, which an SPL token does not have.
     classes: ["rwa"] as ("rwa" | "spot")[],
-    label: "Min net margin",
+    labelKey: "rule_netMarginPct",
     basis: "static",
-    help: "From SEC filings. Applies to equities; skipped for commodities.",
+    helpKey: "rule_netMarginPct_help",
     op: "gte",
     value: 5,
     min: -20,
@@ -155,9 +166,9 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "changePct",
-    label: "Max change on the day",
+    labelKey: "rule_changePct",
     basis: "daily",
-    help: "Buy only after a fall. −4 means it must already be down 4% or more today.",
+    helpKey: "rule_changePct_help",
     op: "lte",
     value: -4,
     min: -20,
@@ -181,10 +192,10 @@ export const RWA_RULES: RuleSpec[] = [
    */
   {
     key: "momentum20dPct",
-    label: "Min momentum",
+    labelKey: "rule_momentum20dPct",
     basis: "bars",
     periods: "20",
-    help: "Percent change over the last 20 bars. Above 0 requires it to have risen; negative buys weakness. This is the change rule that follows your timeframe.",
+    helpKey: "rule_momentum20dPct_help",
     op: "gte",
     value: 0,
     min: -50,
@@ -196,10 +207,10 @@ export const RWA_RULES: RuleSpec[] = [
   // Technical, computed from daily closes. Windows fit the 120-day history.
   {
     key: "rsi14",
-    label: "Max RSI",
+    labelKey: "rule_rsi14",
     basis: "bars",
     periods: "14",
-    help: "70+ is conventionally overbought — lower this to avoid buying into a run. Scale-free: 70 means the same thing on every bar size.",
+    helpKey: "rule_rsi14_help",
     op: "lte",
     value: 70,
     min: 10,
@@ -209,10 +220,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "smaSpreadPct",
-    label: "Min trend",
+    labelKey: "rule_smaSpreadPct",
     basis: "bars",
     periods: "20 vs 50",
-    help: "Gap between the 20- and 50-bar averages. Above 0 means the short average leads — an uptrend.",
+    helpKey: "rule_smaSpreadPct_help",
     op: "gte",
     value: 0,
     min: -20,
@@ -223,10 +234,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "belowHigh60dPct",
-    label: "Min below high",
+    labelKey: "rule_belowHigh60dPct",
     basis: "bars",
     periods: "60",
-    help: "How far under the 60-bar high it must sit. Above 0 buys pullbacks rather than breakouts.",
+    helpKey: "rule_belowHigh60dPct_help",
     op: "gte",
     value: 0,
     min: 0,
@@ -237,10 +248,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "macdHistPct",
-    label: "Min MACD histogram",
+    labelKey: "rule_macdHistPct",
     basis: "bars",
     periods: "12/26/9",
-    help: "MACD (12/26/9), measured as a percent of price so one setting works across gold and equities. Above 0 means the crossover has already happened.",
+    helpKey: "rule_macdHistPct_help",
     op: "gte",
     value: 0,
     min: -2,
@@ -251,10 +262,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "atrPct",
-    label: "Max ATR",
+    labelKey: "rule_atrPct",
     basis: "bars",
     periods: "14",
-    help: "Average True Range over 14 bars, as a percent of price — how much this token typically moves in a bar, gaps included. Lower admits only calmer tokens.",
+    helpKey: "rule_atrPct_help",
     op: "lte",
     value: 10,
     min: 1,
@@ -271,10 +282,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "bollingerPctB",
-    label: "Max Bollinger %B",
+    labelKey: "rule_bollingerPctB",
     basis: "bars",
     periods: "20",
-    help: "Where price sits in the 20-bar bands: 0 is the lower band, 50 the average, 100 the upper. Lower this to buy near the bottom of the range.",
+    helpKey: "rule_bollingerPctB_help",
     op: "lte",
     value: 50,
     min: -20,
@@ -284,10 +295,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "bollingerBandwidthPct",
-    label: "Max Bollinger bandwidth",
+    labelKey: "rule_bollingerBandwidthPct",
     basis: "bars",
     periods: "20",
-    help: "How wide the bands are, as a percent of price. Lower this to trade only when volatility has squeezed.",
+    helpKey: "rule_bollingerBandwidthPct_help",
     op: "lte",
     value: 20,
     min: 1,
@@ -304,10 +315,10 @@ export const RWA_RULES: RuleSpec[] = [
   // offering these on a tokenized-stock strategy would silently stop it trading.
   {
     key: "supertrendDistancePct",
-    label: "Min Supertrend distance",
+    labelKey: "rule_supertrendDistancePct",
     basis: "bars",
     periods: "10 · ×3",
-    help: "How far price sits above the Supertrend band, as a percent. Above 0 means Supertrend is bullish right now, and stays true for the whole trend — set it to 0 for 'only buy while the trend is up'. For the flip itself, use the rule below.",
+    helpKey: "rule_supertrendDistancePct_help",
     op: "gte",
     value: 0,
     min: -20,
@@ -319,10 +330,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "supertrendFlipUpBars",
-    label: "Supertrend flipped up within",
+    labelKey: "rule_supertrendFlipUpBars",
     basis: "bars",
     periods: "10 · ×3",
-    help: "How many bars ago Supertrend turned bullish. 0 means on the latest bar, 3 means within the last three. This is the EVENT — a fresh signal — so most tokens are skipped most of the time, which is the point of a trend follower.",
+    helpKey: "rule_supertrendFlipUpBars_help",
     op: "lte",
     value: 3,
     min: 0,
@@ -333,10 +344,10 @@ export const RWA_RULES: RuleSpec[] = [
   },
   {
     key: "supertrendFlipDownBars",
-    label: "Supertrend flipped down within",
+    labelKey: "rule_supertrendFlipDownBars",
     basis: "bars",
     periods: "10 · ×3",
-    help: "How many bars ago Supertrend turned bearish. Rarely an entry condition — for a strategy that buys weakness deliberately.",
+    helpKey: "rule_supertrendFlipDownBars_help",
     op: "lte",
     value: 3,
     min: 0,
@@ -353,8 +364,8 @@ export const DEFAULT_TIMEFRAME: Timeframe = "1d";
 
 export const TIMEFRAMES: {
   tf: Timeframe;
-  label: string;
-  detail: string;
+  labelKey: TranslationKey;
+  detailKey: TranslationKey;
   /**
    * Which asset classes are actually SERVED at this bar size.
    *
@@ -367,16 +378,16 @@ export const TIMEFRAMES: {
    */
   classes?: ("rwa" | "spot")[];
 }[] = [
-  { tf: "1d", label: "1 day", detail: "The default. ~120 days of history behind every indicator." },
-  { tf: "1h", label: "1 hour", detail: "Two months of history. A 14-period RSI spans two days." },
+  { tf: "1d", labelKey: "tf_1d", detailKey: "tf_1d_detail" },
+  { tf: "1h", labelKey: "tf_1h", detailKey: "tf_1h_detail" },
   {
     tf: "30m",
-    label: "30 min",
-    detail: "Six weeks of history. Tokenized assets only — token pools are not built at this size.",
+    labelKey: "tf_30m",
+    detailKey: "tf_30m_detail",
     classes: ["rwa"] as ("rwa" | "spot")[],
   },
-  { tf: "15m", label: "15 min", detail: "A month of history. A 14-period RSI spans about 3½ hours." },
-  { tf: "5m", label: "5 min", detail: "A month of history. The finest the scheduler can act on." },
+  { tf: "15m", labelKey: "tf_15m", detailKey: "tf_15m_detail" },
+  { tf: "5m", labelKey: "tf_5m", detailKey: "tf_5m_detail" },
 ];
 
 /** The bar sizes one class can actually be screened at. */
@@ -492,20 +503,20 @@ export function rescaleRuleValue(rule: RuleSpec, from: Timeframe, to: Timeframe)
  * Null when the window is not a plain count of bars (MACD's 12/26/9, a 20 vs 50
  * spread) or on daily, where the label already reads in days.
  */
-export function ruleSpan(spec: RuleSpec, timeframe: Timeframe): string | null {
+export function ruleSpan(spec: RuleSpec, timeframe: Timeframe, t: Translate): string | null {
   if (spec.basis !== "bars" || !spec.periods || timeframe === "1d") return null;
   const bars = Number(spec.periods);
   if (!Number.isFinite(bars) || bars <= 0) return null;
   const minutes = (bars * 1440) / BARS_PER_DAY[timeframe];
-  if (minutes < 60) return `≈ ${Math.round(minutes)} min`;
+  if (minutes < 60) return t("rule_span_minutes", { n: Math.round(minutes) });
   const hours = minutes / 60;
   if (hours < 24) {
     const h = Math.floor(hours);
     const m = Math.round(minutes - h * 60);
-    return m === 0 ? `≈ ${h}h` : `≈ ${h}h ${m}m`;
+    return m === 0 ? t("rule_span_hours", { n: h }) : t("rule_span_hours_minutes", { h, m });
   }
   const days = hours / 24;
-  return `≈ ${days < 10 ? days.toFixed(1) : Math.round(days)} days`;
+  return t("rule_span_days", { n: days < 10 ? days.toFixed(1) : Math.round(days) });
 }
 
 /**
@@ -521,24 +532,32 @@ export function ruleSpan(spec: RuleSpec, timeframe: Timeframe): string | null {
  * NOT follow the timeframe, so on a 5-minute strategy they are the one thing
  * still measured in days.
  */
-export function ruleLabel(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRAME): string {
-  if (spec.basis !== "bars" || !spec.periods) return spec.label;
+export function ruleLabel(
+  spec: RuleSpec,
+  timeframe: Timeframe = DEFAULT_TIMEFRAME,
+  t: Translate,
+): string {
+  const label = t(spec.labelKey);
+  if (spec.basis !== "bars" || !spec.periods) return label;
   // "14d" reads better than "14 × 1d" and is what every chart calls it.
-  const window = timeframe === "1d" ? `${spec.periods}d` : `${spec.periods} × ${timeframe}`;
-  return `${spec.label} (${window})`;
+  return timeframe === "1d"
+    ? t("rule_window_daily", { label, periods: spec.periods })
+    : t("rule_window_bars", { label, periods: spec.periods, timeframe });
 }
 
 /** One line stating what a rule is measured against. Pairs with the label. */
-export function ruleBasisNote(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIMEFRAME): string | null {
+export function ruleBasisNote(
+  spec: RuleSpec,
+  timeframe: Timeframe = DEFAULT_TIMEFRAME,
+  t: Translate,
+): string | null {
   if (spec.basis !== "daily" || timeframe === "1d") return null;
   // Naming the replacement, not just the problem. "Does not follow the
   // timeframe" told an intraday author their rule was wrong and left them with
   // no way to say the thing they meant — while the fact that says it has been
   // computed on their own bars the whole time, one row down this list.
-  if (spec.key === "changePct") {
-    return "Always 24 hours — this one does not follow the strategy timeframe. For a change measured on your bars, use Min momentum below.";
-  }
-  return "Always daily — this one does not follow the strategy timeframe.";
+  if (spec.key === "changePct") return t("rule_basis_change");
+  return t("rule_basis_daily");
 }
 
 /**
@@ -555,16 +574,16 @@ export function ruleBasisNote(spec: RuleSpec, timeframe: Timeframe = DEFAULT_TIM
  * The 5-minute floor is the sweep cron's own period — anything faster is a
  * promise the scheduler cannot keep.
  */
-export const CADENCES: { sec: number; label: string; detail: string }[] = [
-  { sec: 300, label: "5 min", detail: "Fastest stops. ~288 model calls a day." },
-  { sec: 900, label: "15 min", detail: "Reacts within the session. ~96 a day." },
+export const CADENCES: { sec: number; labelKey: TranslationKey; detailKey: TranslationKey }[] = [
+  { sec: 300, labelKey: "cad_5m", detailKey: "cad_5m_detail" },
+  { sec: 900, labelKey: "cad_15m", detailKey: "cad_15m_detail" },
   // Present for the same reason as the 30-minute timeframe: without it,
   // picking 30m bars moved cadence to a value with no pill to show it, so the
   // row rendered with nothing selected and the choice looked lost.
-  { sec: 1800, label: "30 min", detail: "~48 a day." },
-  { sec: 3600, label: "1 hour", detail: "The default. ~24 a day." },
-  { sec: 14_400, label: "4 hours", detail: "Quiet. ~6 a day." },
-  { sec: 86_400, label: "1 day", detail: "One cycle a day." },
+  { sec: 1800, labelKey: "cad_30m", detailKey: "cad_30m_detail" },
+  { sec: 3600, labelKey: "cad_1h", detailKey: "cad_1h_detail" },
+  { sec: 14_400, labelKey: "cad_4h", detailKey: "cad_4h_detail" },
+  { sec: 86_400, labelKey: "cad_1d", detailKey: "cad_1d_detail" },
 ];
 
 /** The cadence that gives exactly one new bar per cycle. */
@@ -583,25 +602,25 @@ export const CADENCE_FOR_TIMEFRAME: Record<Timeframe, number> = {
 export const TEMPLATES = [
   {
     key: "quality",
-    title: "Quality accumulation",
-    body: "Liquid, profitable, calm. Buys what is boring and skips what is moving. The default.",
-    meta: "Most conservative",
+    titleKey: "tpl_quality",
+    bodyKey: "tpl_quality_body",
+    metaKey: "tpl_quality_meta",
     values: { liquidityUsd: 50_000, dailyVolPct: 5, maxEventScore: 70, netMarginPct: 5 },
     exits: { takeProfitPct: 25, stopLossPct: 12, maxHoldDays: 0 },
   },
   {
     key: "averse",
-    title: "Event-averse",
-    body: "The same idea, tightened: deeper liquidity, calmer tape, and nothing that has had an abnormal week.",
-    meta: "Fewest trades",
+    titleKey: "tpl_averse",
+    bodyKey: "tpl_averse_body",
+    metaKey: "tpl_averse_meta",
     values: { liquidityUsd: 100_000, dailyVolPct: 3, maxEventScore: 30, netMarginPct: 8 },
     exits: { takeProfitPct: 15, stopLossPct: 8, maxHoldDays: 45 },
   },
   {
     key: "opportunistic",
-    title: "Opportunistic",
-    body: "Tolerates volatility and weaker margins to see more candidates. Expect more proposals and more rejections.",
-    meta: "Most active",
+    titleKey: "tpl_opportunistic",
+    bodyKey: "tpl_opportunistic_body",
+    metaKey: "tpl_opportunistic_meta",
     values: { liquidityUsd: 50_000, dailyVolPct: 10, maxEventScore: 85, netMarginPct: 0 },
     exits: { takeProfitPct: 45, stopLossPct: 20, maxHoldDays: 14 },
   },
@@ -614,12 +633,13 @@ export const TEMPLATES = [
  * greyed is more honest than hiding them and more useful than a button that
  * does nothing.
  */
-const SOURCES = [
-  { name: "Fundamentals", detail: "Margins, filings, balance sheet", via: "Wintel", ready: true },
-  { name: "News & events", detail: "Abnormal activity, filings search", via: "Wintel", ready: true },
-  { name: "Technical", detail: "RSI, trend, distance from high — daily", via: "Wintel", ready: true },
-  { name: "Sentiment", detail: "X and social", via: "Elfa.ai", ready: false },
-  { name: "Smart money", detail: "Wallet flow", via: "Nansen", ready: false },
+// `via` is a company name in every row and stays as it is.
+const SOURCES: { nameKey: TranslationKey; detailKey: TranslationKey; via: string; ready: boolean }[] = [
+  { nameKey: "src_fundamentals", detailKey: "src_fundamentals_detail", via: "Wintel", ready: true },
+  { nameKey: "src_news", detailKey: "src_news_detail", via: "Wintel", ready: true },
+  { nameKey: "src_technical", detailKey: "src_technical_detail", via: "Wintel", ready: true },
+  { nameKey: "src_sentiment", detailKey: "src_sentiment_detail", via: "Elfa.ai", ready: false },
+  { nameKey: "src_smart_money", detailKey: "src_smart_money_detail", via: "Nansen", ready: false },
 ];
 
 export function fmt(v: number, unit: string): string {
@@ -654,13 +674,15 @@ export function StrategyStep({
   onTimeframe?: (tf: Timeframe) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
 
   function pick(key: string): void {
-    const t = TEMPLATES.find((x) => x.key === key);
-    if (!t) return;
-    const values = t.values as Record<string, number>;
+    // `tpl`, not `t` — the translator owns that name in this component.
+    const tpl = TEMPLATES.find((x) => x.key === key);
+    if (!tpl) return;
+    const values = tpl.values as Record<string, number>;
     onChange(rules.map((r) => (r.key in values ? { ...r, value: values[r.key] } : r)));
-    onExits({ ...t.exits });
+    onExits({ ...tpl.exits });
     onTemplate(key);
   }
 
@@ -676,39 +698,45 @@ export function StrategyStep({
     onTemplate("");
   }
 
-  const active = TEMPLATES.find((t) => t.key === template);
+  const active = TEMPLATES.find((x) => x.key === template);
 
   return (
     <div className="space-y-7">
       <section>
-        <StepHead index="01" title="Starting point" note="Each one runs as-is." />
+        <StepHead
+          index="01"
+          title={t("bs_starting_point")}
+          note={t("bs_starting_note")}
+        />
         <PillRow>
-          {TEMPLATES.map((t) => (
-            <Pill key={t.key} active={template === t.key} onClick={() => pick(t.key)}>
-              {t.title}
+          {TEMPLATES.map((tpl) => (
+            <Pill key={tpl.key} active={template === tpl.key} onClick={() => pick(tpl.key)}>
+              {t(tpl.titleKey)}
             </Pill>
           ))}
-          {!template ? <Pill active>Custom</Pill> : null}
+          {!template ? <Pill active>{t("bs_custom")}</Pill> : null}
         </PillRow>
         <p className="max-w-[64ch] pt-4 font-ui text-[13px] leading-relaxed text-text-secondary">
           {active ? (
             <>
-              {active.body}{" "}
-              <span className="font-mono text-[11.5px] text-text-dim">· {active.meta}</span>
+              {t(active.bodyKey)}{" "}
+              <span className="font-mono text-[11.5px] text-text-dim">
+                {t("bs_template_meta", { meta: t(active.metaKey) })}
+              </span>
             </>
           ) : (
-            "Adjusted from a template. Pick one above to start over from a known set."
+            t("bs_adjusted")
           )}
         </p>
       </section>
 
       <section>
-        <StepHead index="02" title="Entry rules" note="What has to be true before it buys." />
+        <StepHead index="02" title={t("bs_entry_rules")} note={t("bs_entry_note")} />
 
         <div className="flex flex-wrap items-center gap-2">
           {rules.map((r) => (
             <PillTag key={r.key} tone="accent">
-              {ruleLabel(r, timeframe)} {r.op === "gte" ? "≥" : "≤"} {fmt(r.value, r.unit)}
+              {ruleLabel(r, timeframe, t)} {r.op === "gte" ? "≥" : "≤"} {fmt(r.value, r.unit)}
             </PillTag>
           ))}
           <button
@@ -716,7 +744,7 @@ export function StrategyStep({
             onClick={() => setOpen((o) => !o)}
             className="h-9 px-2 font-mono text-[10.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
           >
-            {open ? "Done" : "Tune"}
+            {t(open ? "bs_done" : "bs_tune")}
           </button>
         </div>
 
@@ -725,9 +753,9 @@ export function StrategyStep({
             {rules.map((r) => (
               <Slider
                 key={r.key}
-                label={ruleLabel(r, timeframe)}
-                qualifier={r.op === "gte" ? "at least" : "at most"}
-                help={r.help}
+                label={ruleLabel(r, timeframe, t)}
+                qualifier={t(r.op === "gte" ? "rule_at_least" : "rule_at_most")}
+                help={t(r.helpKey)}
                 value={r.value}
                 min={r.min}
                 max={r.max}
@@ -741,15 +769,11 @@ export function StrategyStep({
       </section>
 
       <section>
-        <StepHead
-          index="03"
-          title="Exit rules"
-          note="Entry rules alone would buy and never sell."
-        />
+        <StepHead index="03" title={t("bs_exit_rules")} note={t("bs_exit_note")} />
         <div className="border-t border-grid">
           <Slider
-            label="Take profit"
-            help="Close when the position is up this much."
+            label={t("bs_take_profit")}
+            help={t("bs_take_profit_help")}
             value={exits.takeProfitPct}
             min={2}
             max={200}
@@ -758,8 +782,8 @@ export function StrategyStep({
             onChange={(v) => setExit({ takeProfitPct: v })}
           />
           <Slider
-            label="Stop loss"
-            help="Close when it is down this much. A magnitude — 12 means twelve percent down."
+            label={t("bs_stop_loss")}
+            help={t("bs_stop_loss_help")}
             value={exits.stopLossPct}
             min={1}
             max={90}
@@ -768,20 +792,22 @@ export function StrategyStep({
             onChange={(v) => setExit({ stopLossPct: v })}
           />
           <Slider
-            label="Time limit"
-            help="Close regardless of price after this long."
+            label={t("bs_time_limit")}
+            help={t("bs_time_limit_help")}
             value={exits.maxHoldDays ?? 0}
             min={0}
             max={180}
             step={1}
-            display={exits.maxHoldDays ? `${exits.maxHoldDays}d` : "Never"}
+            display={
+              exits.maxHoldDays
+                ? t("bs_days", { n: exits.maxHoldDays })
+                : t("bs_time_never")
+            }
             onChange={(v) => setExit({ maxHoldDays: v })}
           />
         </div>
         <p className="pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          Exits are evaluated every cycle, before the agent looks for anything new — including
-          on cycles where it finds nothing to buy. A position whose price cannot be read is
-          never closed on a guess.
+          {t("bs_exits_note")}
         </p>
       </section>
 
@@ -789,35 +815,33 @@ export function StrategyStep({
         <section>
           <StepHead
             index="04"
-            title="Chart timeframe"
-            note="The bar size every rule above is measured on."
+            title={t("bs_timeframe")}
+            note={t("bs_timeframe_note")}
           />
           <PillRow>
-            {TIMEFRAMES.map((t) => (
+            {TIMEFRAMES.map((tf) => (
               <Pill
-                key={t.tf}
-                active={timeframe === t.tf}
+                key={tf.tf}
+                active={timeframe === tf.tf}
                 onClick={() => {
-                  onTimeframe(t.tf);
+                  onTimeframe(tf.tf);
                   // Move cadence with it. Leaving a 1-day cadence on a
                   // 5-minute chart reads every 288th bar and ignores the rest,
                   // which is not a thing anyone picks on purpose — and the
                   // pairing is still editable in the next step.
-                  onCadence(CADENCE_FOR_TIMEFRAME[t.tf]);
+                  onCadence(CADENCE_FOR_TIMEFRAME[tf.tf]);
                 }}
               >
-                {t.label}
+                {t(tf.labelKey)}
               </Pill>
             ))}
           </PillRow>
           <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {TIMEFRAMES.find((t) => t.tf === timeframe)?.detail}{" "}
-            <span className="text-text-dim">
-              This changes what your rules mean, not just how often they run. RSI 14 is a
-              fortnight of selling on daily bars and about three hours on 15-minute ones — the
-              labels above update to match. Volatility, change on the day and event severity
-              stay daily whatever you pick here.
-            </span>
+            {(() => {
+              const hit = TIMEFRAMES.find((tf) => tf.tf === timeframe);
+              return hit ? t(hit.detailKey) : null;
+            })()}{" "}
+            <span className="text-text-dim">{t("bs_timeframe_help")}</span>
           </p>
         </section>
       ) : null}
@@ -825,40 +849,48 @@ export function StrategyStep({
       <section>
         <StepHead
           index={onTimeframe ? "05" : "04"}
-          title="Cycle"
-          note="How often it wakes — not the chart timeframe."
+          title={t("bs_cycle")}
+          note={t("bs_cycle_note")}
         />
         <PillRow>
           {CADENCES.map((c) => (
             <Pill key={c.sec} active={cadenceSec === c.sec} onClick={() => onCadence(c.sec)}>
-              {c.label}
+              {t(c.labelKey)}
             </Pill>
           ))}
         </PillRow>
         <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          {CADENCES.find((c) => c.sec === cadenceSec)?.detail}{" "}
+          {(() => {
+            const hit = CADENCES.find((c) => c.sec === cadenceSec);
+            return hit ? t(hit.detailKey) : null;
+          })()}{" "}
           <span className="text-text-dim">
-            {cadenceSec === CADENCE_FOR_TIMEFRAME[timeframe]
-              ? "Matched to your timeframe — one new bar each cycle."
-              : cadenceSec < CADENCE_FOR_TIMEFRAME[timeframe]
-                ? "Faster than your timeframe: some cycles re-read a bar that has not changed yet, and pay for a model call to reach the same answer. What it does buy is tighter stops, since exits are checked every cycle."
-                : "Slower than your timeframe: the agent will step over bars without ever seeing them. Deliberate if you want to sample a fast chart slowly."}
+            {t(
+              cadenceSec === CADENCE_FOR_TIMEFRAME[timeframe]
+                ? "bs_cadence_matched"
+                : cadenceSec < CADENCE_FOR_TIMEFRAME[timeframe]
+                  ? "bs_cadence_faster"
+                  : "bs_cadence_slower",
+            )}
           </span>
         </p>
       </section>
 
       <section>
-        <StepHead index={onTimeframe ? "06" : "05"} title="Signal sources" note="What these rules draw on today." />
+        <StepHead
+          index={onTimeframe ? "06" : "05"}
+          title={t("bs_sources")}
+          note={t("bs_sources_note")}
+        />
         <PillRow>
-          {SOURCES.map((s) => (
-            <PillTag key={s.name} tone={s.ready ? "accent" : "dim"} suffix={s.via}>
-              {s.name}
+          {SOURCES.map((src) => (
+            <PillTag key={src.nameKey} tone={src.ready ? "accent" : "dim"} suffix={src.via}>
+              {t(src.nameKey)}
             </PillTag>
           ))}
         </PillRow>
         <p className="max-w-[64ch] pt-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          Dimmed sources are not wired yet. Your rules run on the two that are — nothing here
-          silently does nothing.
+          {t("bs_sources_help")}
         </p>
       </section>
     </div>
@@ -934,11 +966,11 @@ export const DEFAULT_EXITS: ExitRules = { takeProfitPct: 25, stopLossPct: 12, ma
  * one switch — and turning it on says plainly what it changes about the exits
  * above, because that is the part nobody expects.
  */
-const SPACINGS: { sec: number; label: string }[] = [
-  { sec: 3600, label: "1 hour" },
-  { sec: 86_400, label: "1 day" },
-  { sec: 604_800, label: "1 week" },
-  { sec: 2_592_000, label: "1 month" },
+const SPACINGS: { sec: number; labelKey: TranslationKey }[] = [
+  { sec: 3600, labelKey: "sp_1h" },
+  { sec: 86_400, labelKey: "sp_1d" },
+  { sec: 604_800, labelKey: "sp_1w" },
+  { sec: 2_592_000, labelKey: "sp_1mo" },
 ];
 
 /** A starting plan that is coherent on its own — weekly, fixed, bounded. */
@@ -964,36 +996,43 @@ const DEFAULT_ADD_PLAN: AddPlan = {
 export function localAddPlanWarnings(
   plan: AddPlan | undefined,
   exits: ExitRules,
+  t: Translate,
 ): string[] {
   if (!plan) return [];
   const out: string[] = [];
   const stop = Math.abs(exits.stopLossPct);
   const target = Math.abs(exits.takeProfitPct);
 
-  for (const t of plan.triggers) {
-    if (t.kind === "drawdown" && t.pct >= stop) {
+  // `trig`, not `t` — the translator owns that name now.
+  for (const trig of plan.triggers) {
+    if (trig.kind === "drawdown" && trig.pct >= stop) {
+      out.push(t("warn_drawdown_never", { pct: trig.pct, stop }));
+    } else if (trig.kind === "drawdown" && stop - trig.pct <= 3) {
       out.push(
-        `Adding at −${t.pct}% will rarely fire: the ${stop}% stop closes the position first.`,
-      );
-    } else if (t.kind === "drawdown" && stop - t.pct <= 3) {
-      out.push(
-        `Adding at −${t.pct}% leaves only ${(stop - t.pct).toFixed(0)} points before the ${stop}% stop — expect to buy, then be stopped out of the bigger position.`,
+        t("warn_drawdown_tight", {
+          pct: trig.pct,
+          gap: (stop - trig.pct).toFixed(0),
+          stop,
+        }),
       );
     }
     // The stop collision, stated the only way it honestly can be for a rung
     // with no fixed depth. Whether it fires depends on a reading taken every
     // cycle, so this names the volatility at which the rung crosses the stop —
     // a number the author can check against the assets they picked.
-    if (t.kind === "drawdownVolatility" && stop > 0) {
-      const crossesAt = stop / Math.abs(t.multiple);
+    if (trig.kind === "drawdownVolatility" && stop > 0) {
+      const crossesAt = stop / Math.abs(trig.multiple);
       out.push(
-        `Rungs sit at ${t.multiple}× ${
-          t.measure === "atr" ? "ATR" : "bandwidth"
-        }, so on anything more volatile than ${crossesAt.toFixed(1)}% the first rung falls past the ${stop}% stop and the position closes before it ever adds.`,
+        t("warn_vol_crosses", {
+          multiple: trig.multiple,
+          measure: t(trig.measure === "atr" ? "acc_measure_atr" : "acc_measure_bandwidth"),
+          crossesAt: crossesAt.toFixed(1),
+          stop,
+        }),
       );
     }
-    if (t.kind === "gain" && t.pct >= target) {
-      out.push(`Adding at +${t.pct}% will rarely fire: the ${target}% target sells first.`);
+    if (trig.kind === "gain" && trig.pct >= target) {
+      out.push(t("warn_gain_never", { pct: trig.pct, target }));
     }
   }
 
@@ -1004,12 +1043,10 @@ export function localAddPlanWarnings(
         ? plan.sizing.baseUsd
         : null;
   if (plan.maxTotalUsd !== undefined && first !== null && plan.maxTotalUsd < first) {
-    out.push(
-      `A $${plan.maxTotalUsd} ceiling is smaller than the $${first} first add, so this plan can never buy.`,
-    );
+    out.push(t("warn_ceiling_below_first", { ceiling: plan.maxTotalUsd, first }));
   }
   if (plan.sizing.kind === "ladder" && plan.sizing.factor > 1 && plan.maxAdds === undefined) {
-    out.push("A doubling ladder with no limit on adds compounds fast. Set a maximum.");
+    out.push(t("warn_ladder_unbounded"));
   }
   return out;
 }
@@ -1033,8 +1070,9 @@ export function AddPlanCard({
    */
   strategyClass: "rwa" | "spot";
 }) {
+  const t = useT();
   const on = !!plan;
-  const warnings = localAddPlanWarnings(plan, exits);
+  const warnings = localAddPlanWarnings(plan, exits, t);
 
   // The plan has one TIMING trigger — schedule, falls, or rises — and may also
   // carry `rules` alongside it. They are edited separately because they answer
@@ -1061,8 +1099,8 @@ export function AddPlanCard({
     <section>
       <StepHead
         index="04"
-        title="Accumulation"
-        note="Buying more of what it already holds. Off by default."
+        title={t("acc_title")}
+        note={t("acc_note")}
       />
 
       <button
@@ -1073,43 +1111,41 @@ export function AddPlanCard({
           on ? "border-accent text-accent" : "border-grid text-text-muted hover:text-text-secondary"
         }`}
       >
-        {on ? "Accumulating" : "One entry per asset"}
+        {t(on ? "acc_on" : "acc_off")}
       </button>
 
       {!on ? (
         <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          The agent buys once and then manages that position. Turn this on to average in — on a
-          schedule, on dips, or on strength.
+          {t("acc_off_body")}
         </p>
       ) : (
         <div className="mt-4 space-y-5">
           <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-warning">
-            Your take profit and stop loss now measure the BLEND of everything you have bought,
-            not each entry separately. A position averaged down three times exits as one.
+            {t("acc_blend_warning")}
           </p>
 
           <div>
             <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              When to add
+              {t("acc_when")}
             </p>
             <PillRow>
               <Pill
                 active={trigger?.kind === "schedule"}
                 onClick={() => setTrigger({ kind: "schedule", everySec: 604_800 })}
               >
-                On a schedule
+                {t("acc_schedule")}
               </Pill>
               <Pill
                 active={trigger?.kind === "drawdown"}
                 onClick={() => setTrigger({ kind: "drawdown", pct: 5 })}
               >
-                When it falls
+                {t("acc_falls")}
               </Pill>
               <Pill
                 active={trigger?.kind === "gain"}
                 onClick={() => setTrigger({ kind: "gain", pct: 5 })}
               >
-                When it rises
+                {t("acc_rises")}
               </Pill>
               <Pill
                 active={trigger?.kind === "drawdownVolatility"}
@@ -1123,7 +1159,7 @@ export function AddPlanCard({
                   })
                 }
               >
-                When it falls by volatility
+                {t("acc_falls_vol")}
               </Pill>
             </PillRow>
 
@@ -1135,7 +1171,7 @@ export function AddPlanCard({
                     active={trigger.everySec === sp.sec}
                     onClick={() => setTrigger({ kind: "schedule", everySec: sp.sec })}
                   >
-                    Every {sp.label}
+                    {t("acc_every", { spacing: t(sp.labelKey) })}
                   </Pill>
                 ))}
               </PillRow>
@@ -1151,25 +1187,25 @@ export function AddPlanCard({
                       active={trigger.measure === "bollingerBandwidth"}
                       onClick={() => setTrigger({ ...trigger, measure: "bollingerBandwidth" })}
                     >
-                      Bollinger bandwidth
+                      {t("acc_measure_bandwidth")}
                     </Pill>
                     <Pill
                       active={trigger.measure === "atr"}
                       onClick={() => setTrigger({ ...trigger, measure: "atr" })}
                     >
-                      ATR
+                      {t("acc_measure_atr")}
                     </Pill>
                   </PillRow>
                 ) : null}
                 <Slider
-                  label="Falls by"
+                  label={t("acc_falls_by")}
                   help={
-                    `Each rung is this many times the asset's own volatility, ` +
-                    `re-read every cycle — so the steps widen when it gets choppy and ` +
-                    `tighten when it calms. Measured from your average cost.` +
-                    (strategyClass === "spot" && trigger.measure === "atr"
-                      ? " ATR is the average true range over 14 bars."
-                      : " Bollinger bandwidth is how wide the 20-period bands are.")
+                    t("acc_vol_help") +
+                    t(
+                      strategyClass === "spot" && trigger.measure === "atr"
+                        ? "acc_vol_help_atr"
+                        : "acc_vol_help_bandwidth",
+                    )
                   }
                   value={trigger.multiple}
                   min={0.5}
@@ -1177,20 +1213,21 @@ export function AddPlanCard({
                   step={0.5}
                   // No percent, because there is not one until the cycle runs.
                   // Showing "−2%" here would be a number the agent never uses.
-                  display={`−${trigger.multiple}× ${
-                    trigger.measure === "atr" ? "ATR" : "bandwidth"
-                  }`}
+                  display={t("acc_vol_display", {
+                    multiple: trigger.multiple,
+                    measure: t(
+                      trigger.measure === "atr" ? "acc_measure_atr" : "acc_measure_bandwidth",
+                    ),
+                  })}
                   onChange={(v) => setTrigger({ ...trigger, multiple: v })}
                 />
               </>
             ) : trigger ? (
               <Slider
-                label={trigger.kind === "drawdown" ? "Falls by" : "Rises by"}
-                help={
-                  trigger.kind === "drawdown"
-                    ? "Measured from your average cost, not from the last entry."
-                    : "Adding to a winner. Measured from your average cost."
-                }
+                label={t(trigger.kind === "drawdown" ? "acc_falls_by" : "acc_rises_by")}
+                help={t(
+                  trigger.kind === "drawdown" ? "acc_drawdown_help" : "acc_gain_help",
+                )}
                 value={trigger.pct}
                 min={1}
                 max={90}
@@ -1203,7 +1240,7 @@ export function AddPlanCard({
 
           <div>
             <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              Only while it still qualifies
+              {t("acc_guard_heading")}
             </p>
             <button
               type="button"
@@ -1215,44 +1252,42 @@ export function AddPlanCard({
                   : "border-grid text-text-muted hover:text-text-secondary"
               }`}
             >
-              {guarded ? "Re-check my rules" : "Add regardless"}
+              {t(guarded ? "acc_guard_on" : "acc_guard_off")}
             </button>
             <p className="max-w-[64ch] pt-2.5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              {guarded
-                ? "Before each add, the agent re-runs the entry rules you set. If the asset would no longer be bought today — liquidity gone, bad news, fundamentals turned — it stops adding and holds what it has."
-                : "The agent keeps buying on the condition above without re-checking your rules. Your stop loss still protects you if the price falls, but nothing notices if the situation changes while the price holds up."}
+              {t(guarded ? "acc_guard_on_body" : "acc_guard_off_body")}
             </p>
           </div>
 
           <div>
             <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              How much
+              {t("acc_how_much")}
             </p>
             <PillRow>
               <Pill
                 active={plan!.sizing.kind === "fixedUsd"}
                 onClick={() => setSizing({ kind: "fixedUsd", usd: 100 })}
               >
-                Fixed amount
+                {t("acc_fixed")}
               </Pill>
               <Pill
                 active={plan!.sizing.kind === "pctOfCapital"}
                 onClick={() => setSizing({ kind: "pctOfCapital", pct: 5 })}
               >
-                Share of capital
+                {t("acc_share")}
               </Pill>
               <Pill
                 active={plan!.sizing.kind === "ladder"}
                 onClick={() => setSizing({ kind: "ladder", baseUsd: 100, factor: 1.5 })}
               >
-                Growing ladder
+                {t("acc_ladder")}
               </Pill>
             </PillRow>
 
             {plan!.sizing.kind === "fixedUsd" ? (
               <Slider
-                label="Each add"
-                help="The same amount every time."
+                label={t("acc_each_add")}
+                help={t("acc_fixed_help")}
                 value={plan!.sizing.usd}
                 min={10}
                 max={5_000}
@@ -1262,8 +1297,8 @@ export function AddPlanCard({
               />
             ) : plan!.sizing.kind === "pctOfCapital" ? (
               <Slider
-                label="Each add"
-                help="A share of the capital this agent was given."
+                label={t("acc_each_add")}
+                help={t("acc_share_help")}
                 value={plan!.sizing.pct}
                 min={1}
                 max={50}
@@ -1274,8 +1309,8 @@ export function AddPlanCard({
             ) : (
               <>
                 <Slider
-                  label="First add"
-                  help="Where the ladder starts."
+                  label={t("acc_first_add")}
+                  help={t("acc_first_add_help")}
                   value={plan!.sizing.baseUsd}
                   min={10}
                   max={2_000}
@@ -1286,8 +1321,8 @@ export function AddPlanCard({
                   }
                 />
                 <Slider
-                  label="Each add grows by"
-                  help="Compounds. A 2x ladder makes the tenth add 512 times the first."
+                  label={t("acc_grows_by")}
+                  help={t("acc_grows_help")}
                   value={(plan!.sizing as { factor: number }).factor}
                   min={1}
                   max={3}
@@ -1303,11 +1338,11 @@ export function AddPlanCard({
 
           <div>
             <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              Where it stops
+              {t("acc_where_stops")}
             </p>
             <Slider
-              label="Most adds"
-              help="Per position. The count resets when the position closes."
+              label={t("acc_most_adds")}
+              help={t("acc_most_adds_help")}
               value={plan!.maxAdds ?? 10}
               min={1}
               max={100}
@@ -1316,16 +1351,20 @@ export function AddPlanCard({
               onChange={(v) => onChange({ ...plan!, maxAdds: v })}
             />
             <Slider
-              label="Wait at least"
-              help="A floor between adds, whatever the condition above says."
+              label={t("acc_wait_at_least")}
+              help={t("acc_wait_help")}
               value={plan!.minSpacingSec ?? 86_400}
               min={300}
               max={2_592_000}
               step={300}
-              display={
-                SPACINGS.find((sp) => sp.sec === (plan!.minSpacingSec ?? 86_400))?.label ??
-                `${Math.round((plan!.minSpacingSec ?? 86_400) / 3600)}h`
-              }
+              display={(() => {
+                const hit = SPACINGS.find((sp) => sp.sec === (plan!.minSpacingSec ?? 86_400));
+                return hit
+                  ? t(hit.labelKey)
+                  : t("acc_hours", {
+                      n: Math.round((plan!.minSpacingSec ?? 86_400) / 3600),
+                    });
+              })()}
               onChange={(v) => onChange({ ...plan!, minSpacingSec: v })}
             />
           </div>
@@ -1341,8 +1380,7 @@ export function AddPlanCard({
           ) : null}
 
           <p className="max-w-[64ch] font-ui text-[12px] leading-relaxed text-text-dim">
-            Every add goes through the same checks as a first purchase — position cap, compliance,
-            safety screen. A plan cannot buy past a limit you set elsewhere.
+            {t("acc_all_checks")}
           </p>
         </div>
       )}
@@ -1359,50 +1397,58 @@ export function AddPlanCard({
  * has to assemble, and the thing they actually want to check is whether it
  * matches what they meant.
  */
-export function describeAddPlan(plan: AddPlan | null | undefined): string | null {
+export function describeAddPlan(plan: AddPlan | null | undefined, t: Translate): string | null {
   if (!plan) return null;
 
   const money = (n: number) => `$${n.toLocaleString("en-US")}`;
   const every = (sec: number) => {
-    const opt = SPACINGS.find((s) => s.sec === sec);
-    if (opt) return opt.label;
-    if (sec % 86_400 === 0) return `${sec / 86_400} days`;
-    if (sec % 3600 === 0) return `${sec / 3600} hours`;
-    return `${Math.round(sec / 60)} min`;
+    const opt = SPACINGS.find((sp) => sp.sec === sec);
+    if (opt) return t(opt.labelKey);
+    if (sec % 86_400 === 0) return t("plan_every_days", { n: sec / 86_400 });
+    if (sec % 3600 === 0) return t("plan_every_hours", { n: sec / 3600 });
+    return t("plan_every_minutes", { n: Math.round(sec / 60) });
   };
 
   const size =
     plan.sizing.kind === "fixedUsd"
       ? money(plan.sizing.usd)
       : plan.sizing.kind === "pctOfCapital"
-        ? `${plan.sizing.pct}% of capital`
-        : `${money(plan.sizing.baseUsd)}, growing ${plan.sizing.factor}x`;
+        ? t("plan_size_pct", { pct: plan.sizing.pct })
+        : t("plan_size_ladder", {
+            base: money(plan.sizing.baseUsd),
+            factor: plan.sizing.factor,
+          });
 
   const timing = plan.triggers
-    .filter((t) => t.kind !== "rules")
-    .map((t) =>
-      t.kind === "schedule"
-        ? `every ${every(t.everySec)}`
-        : t.kind === "drawdown"
-          ? `when down ${t.pct}%`
-          : t.kind === "drawdownVolatility"
+    .filter((trig) => trig.kind !== "rules")
+    .map((trig) =>
+      trig.kind === "schedule"
+        ? t("plan_every", { spacing: every(trig.everySec) })
+        : trig.kind === "drawdown"
+          ? t("plan_when_down", { pct: trig.pct })
+          : trig.kind === "drawdownVolatility"
             ? // No percent, because the rung moves with the asset. Naming the
               // measure is what keeps this honest — "down 2x" alone reads as 2%.
-              `when down ${t.multiple}× its ${
-                t.measure === "atr" ? "ATR" : "Bollinger bandwidth"
-              }`
-            : `when up ${t.pct}%`,
+              t("plan_when_down_vol", {
+                multiple: trig.multiple,
+                measure: t(
+                  trig.measure === "atr" ? "plan_measure_atr" : "plan_measure_bandwidth",
+                ),
+              })
+            : t("plan_when_up", { pct: trig.pct }),
     );
 
-  const guarded = plan.triggers.some((t) => t.kind === "rules");
+  const guarded = plan.triggers.some((trig) => trig.kind === "rules");
 
-  const parts = [`Adds ${size}`];
-  if (timing.length) parts.push(timing.join(plan.mode === "any" ? " or " : " and "));
+  const parts = [t("plan_adds", { size })];
+  if (timing.length) parts.push(timing.join(t(plan.mode === "any" ? "plan_or" : "plan_and")));
   // Named because it changes what the plan DOES, not merely how often: without
   // it the agent keeps buying something that would no longer qualify.
-  if (guarded) parts.push("only while the rules still pass");
-  if (plan.maxAdds !== undefined) parts.push(`max ${plan.maxAdds}`);
-  if (plan.maxTotalUsd !== undefined) parts.push(`up to ${money(plan.maxTotalUsd)}`);
+  if (guarded) parts.push(t("plan_guarded"));
+  if (plan.maxAdds !== undefined) parts.push(t("plan_max_adds", { n: plan.maxAdds }));
+  if (plan.maxTotalUsd !== undefined) {
+    parts.push(t("plan_up_to", { amount: money(plan.maxTotalUsd) }));
+  }
 
   return parts.join(" · ");
 }

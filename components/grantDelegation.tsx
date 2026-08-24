@@ -48,6 +48,7 @@ import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
 import { getClaimedWallets, registerAgentWallet, type RegisteredWallet } from "@/lib/api";
 import { assignableWallets, type WalletFacts } from "@/lib/wallets";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 type EmbeddedWallet = Extract<
   NonNullable<User["linkedAccounts"]>[number],
@@ -110,13 +111,13 @@ type Phase =
   | { step: "done"; result: RegisteredWallet }
   | { step: "error"; message: string };
 
-const LABEL: Record<Phase["step"], string> = {
-  idle: "Grant delegation",
-  preparing: "Preparing this agent's wallet…",
-  granting: "Approve in your wallet…",
-  registering: "Recording…",
-  done: "Grant delegation",
-  error: "Grant delegation",
+const LABEL: Record<Phase["step"], TranslationKey> = {
+  idle: "gd_grant",
+  preparing: "gd_preparing",
+  granting: "gd_granting",
+  registering: "gd_registering",
+  done: "gd_grant",
+  error: "gd_grant",
 };
 
 export function GrantDelegation({
@@ -131,6 +132,7 @@ export function GrantDelegation({
   onGranted?: (result: RegisteredWallet) => void;
 }) {
   const { user, getAccessToken } = usePrivy();
+  const t = useT();
   const { addSigners } = useSigners();
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
@@ -171,12 +173,12 @@ export function GrantDelegation({
         // from ever being granted, rather than relying on the backend to reject
         // it after the user has already approved something broader than they
         // were shown.
-        throw new Error("delegation is not configured — the signer and policy ids are missing");
+        throw new Error(t("gd_err_not_configured"));
       }
 
       setPhase({ step: "preparing" });
       let token = await getAccessToken();
-      if (!token) throw new Error("your session expired — sign in and try again");
+      if (!token) throw new Error(t("gd_err_session"));
 
       // Chosen once. Everything below is pinned to this string, so the wallet
       // that receives the signer and the wallet that gets registered cannot
@@ -209,13 +211,11 @@ export function GrantDelegation({
       // Re-read: choosing a wallet and waiting for a wallet approval can take
       // long enough for a token minted before them to be close to expiry.
       token = await getAccessToken();
-      if (!token) throw new Error("your session expired — sign in and try again");
+      if (!token) throw new Error(t("gd_err_session"));
 
       const delegated = walletAt(granted, address);
       if (!delegated?.id) {
-        throw new Error(
-          "the grant completed but Privy did not return a wallet id — nothing was registered",
-        );
+        throw new Error(t("gd_err_no_wallet_id"));
       }
 
       const result = await registerAgentWallet(token, agentId, {
@@ -250,12 +250,10 @@ export function GrantDelegation({
             custodial ? "text-warning" : "text-accent"
           }`}
         >
-          {custodial ? "Delegation active — custodial" : "Delegation active"}
+          {t(custodial ? "gd_active_custodial" : "gd_active")}
         </p>
         <p className="pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-          {custodial
-            ? "This wallet is owned by Canopy, not by you. Ending the delegation requires Canopy."
-            : "You own this wallet. You can end this delegation from your wallet settings at any time, without Canopy."}
+          {t(custodial ? "gd_custodial_body" : "gd_self_custody_body")}
         </p>
       </div>
     );
@@ -274,7 +272,7 @@ export function GrantDelegation({
         disabled={busy || misconfigured}
         className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black disabled:cursor-not-allowed disabled:border-border disabled:text-text-dim disabled:hover:bg-transparent"
       >
-        {LABEL[phase.step]}
+        {t(LABEL[phase.step])}
       </button>
 
       {/* No "you have no Solana wallet" case any more: this flow creates one
@@ -282,11 +280,7 @@ export function GrantDelegation({
           path rather than a blocked one. */}
 
       {misconfigured && (
-        <p className="font-ui text-[13px] text-warning">
-          Delegation is not configured on this deployment. Run{" "}
-          <code className="font-mono">pnpm provision:privy</code> and set the signer and
-          policy ids.
-        </p>
+        <p className="font-ui text-[13px] text-warning">{t("gd_misconfigured")}</p>
       )}
 
       {phase.step === "error" && (

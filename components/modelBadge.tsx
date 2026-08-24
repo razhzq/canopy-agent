@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useT } from "@/lib/i18n";
 
 /**
  * Which model reasons inside every agent on this platform.
@@ -57,9 +60,10 @@ export function ModelBadge({
   label?: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <span
-      title={`Reasons with ${label} — Canopy-hosted Qwen3`}
+      title={t("model_badge_title", { label })}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-grid-strong py-[3px] pr-2.5 pl-1.5 font-mono text-[10px] leading-none tracking-[0.08em] text-text-dim ${className}`}
     >
       <Image

@@ -9,7 +9,7 @@ import { SkeletonPanel } from "@/components/skeleton";
  */
 export default function PublishPage() {
   return (
-    <Suspense fallback={<SkeletonPanel label="Loading record" />}>
+    <Suspense fallback={<SkeletonPanel labelKey="loading_record" />}>
       <PublishScreen />
     </Suspense>
   );

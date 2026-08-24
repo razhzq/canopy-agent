@@ -25,6 +25,9 @@
 // fixed cycle indexed by row instead — visually irregular, deterministically
 // so.
 
+import { LoadingLabel } from "@/components/loadingLabel";
+import type { TranslationKey } from "@/lib/i18n";
+
 const WIDTHS = ["w-[68%]", "w-[42%]", "w-[81%]", "w-[55%]", "w-[73%]", "w-[38%]"];
 const width = (i: number) => WIDTHS[i % WIDTHS.length];
 
@@ -50,10 +53,19 @@ function Bar({ className = "" }: { className?: string }) {
  * `aria-busy` marks the region as in-flight; the label is the same wording the
  * spinner used, so nothing is lost by the change.
  */
-function Screen({ label, children }: { label: string; children: React.ReactNode }) {
+function Screen({
+  labelKey,
+  children,
+}: {
+  labelKey: TranslationKey;
+  children: React.ReactNode;
+}) {
   return (
     <div role="status" aria-busy="true" aria-live="polite">
-      <span className="sr-only">{label}</span>
+      {/* A key rather than a finished string, because half the callers are
+          `loading.tsx` files — server components, where no hook can run. The
+          client boundary is one span wide. */}
+      <LoadingLabel labelKey={labelKey} />
       {children}
     </div>
   );
@@ -80,19 +92,19 @@ function Band({ cells = 5 }: { cells?: number }) {
  * the skeleton's columns land where the real ones will.
  */
 export function SkeletonRows({
-  label,
+  labelKey,
   cols,
   rows = 6,
   band,
 }: {
-  label: string;
+  labelKey: TranslationKey;
   cols: string;
   rows?: number;
   band?: number;
 }) {
   const columns = cols.split(/\s+/).length;
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       {band ? <Band cells={band} /> : null}
       <div>
         {Array.from({ length: rows }, (_, r) => (
@@ -112,9 +124,15 @@ export function SkeletonRows({
 }
 
 /** The marketplace's card grid. */
-export function SkeletonCards({ label, count = 6 }: { label: string; count?: number }) {
+export function SkeletonCards({
+  labelKey,
+  count = 6,
+}: {
+  labelKey: TranslationKey;
+  count?: number;
+}) {
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       <div className="grid gap-4 px-5 sm:px-8 py-8 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: count }, (_, i) => (
           <div key={i} className="space-y-4 border border-grid bg-panel p-5">
@@ -133,9 +151,15 @@ export function SkeletonCards({ label, count = 6 }: { label: string; count?: num
 }
 
 /** Activity log and cycle traces: a marker column and a line of text. */
-export function SkeletonLog({ label, rows = 8 }: { label: string; rows?: number }) {
+export function SkeletonLog({
+  labelKey,
+  rows = 8,
+}: {
+  labelKey: TranslationKey;
+  rows?: number;
+}) {
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       <ul>
         {Array.from({ length: rows }, (_, i) => (
           <li
@@ -157,9 +181,13 @@ export function SkeletonLog({ label, rows = 8 }: { label: string; rows?: number 
  * The heaviest screen in the product and the one that benefits most — four
  * requests compose it, so the spinner it replaces was on screen the longest.
  */
-export function SkeletonAgentDetail({ label = "Loading agent" }: { label?: string }) {
+export function SkeletonAgentDetail({
+  labelKey = "loading_agent",
+}: {
+  labelKey?: TranslationKey;
+}) {
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       <section className="border-b border-grid px-5 sm:px-8 pt-6 pb-7">
         <Bar className="h-[7px] w-[90px]" />
         <div className="flex flex-wrap items-center gap-4 pt-4">
@@ -196,9 +224,13 @@ export function SkeletonAgentDetail({ label = "Loading agent" }: { label?: strin
 }
 
 /** The steer thread: alternating message blocks. */
-export function SkeletonThread({ label = "Loading the thread" }: { label?: string }) {
+export function SkeletonThread({
+  labelKey = "loading_thread",
+}: {
+  labelKey?: TranslationKey;
+}) {
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       <div className="space-y-5 px-5 py-6">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className={i % 2 ? "flex justify-end" : ""}>
@@ -217,9 +249,15 @@ export function SkeletonThread({ label = "Loading the thread" }: { label?: strin
 }
 
 /** A single panel's worth, for regions that load inside an already-drawn page. */
-export function SkeletonPanel({ label, lines = 4 }: { label: string; lines?: number }) {
+export function SkeletonPanel({
+  labelKey,
+  lines = 4,
+}: {
+  labelKey: TranslationKey;
+  lines?: number;
+}) {
   return (
-    <Screen label={label}>
+    <Screen labelKey={labelKey}>
       <div className="space-y-3.5 border border-grid p-6">
         {Array.from({ length: lines }, (_, i) => (
           <Bar key={i} className={width(i)} />

@@ -5,6 +5,7 @@ import { MessageSquare, X } from "lucide-react";
 import { AgentThread } from "@/components/agentThread";
 import { Modal } from "@/components/modal";
 import type { AgentRow } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 /**
  * The agent's thread, as a sheet.
@@ -30,8 +31,15 @@ export function AgentChatSheet({
   agent: AgentRow | null;
   onClose: () => void;
 }) {
+  const t = useT();
+
   return (
-    <Modal title={`Chat with ${agent?.strategy_name ?? "your agent"}`} variant="sheet" headless onClose={onClose}>
+    <Modal
+      title={t("chat_title", { name: agent?.strategy_name ?? t("chat_your_agent") })}
+      variant="sheet"
+      headless
+      onClose={onClose}
+    >
       <div className="flex shrink-0 items-center gap-3 border-b border-grid px-4 py-3">
         {/* The grab handle. Decorative — dismissal is the × and the backdrop,
             both of which are real controls; a drag gesture nobody can find with
@@ -42,16 +50,16 @@ export function AgentChatSheet({
         />
         <div className="min-w-0 flex-1 pt-1.5 sm:pt-0">
           <p className="truncate font-mono text-[13.5px] text-text-primary">
-            {agent?.strategy_name ?? "Your agent"}
+            {agent?.strategy_name ?? t("chat_agent_fallback")}
           </p>
           <p className="pt-0.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-            Proposes · you decide
+            {t("chat_subtitle")}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close chat"
+          aria-label={t("chat_close_aria")}
           className="-mr-1 flex size-8 shrink-0 items-center justify-center text-text-dim transition-colors hover:text-text-primary"
         >
           <X className="size-4" aria-hidden />
@@ -83,14 +91,16 @@ export function ChatButton({
   onOpen: () => void;
 }) {
   const waiting = Number(agent?.needs_you ?? 0);
+  const t = useT();
+
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={
         waiting > 0
-          ? `Chat with your agent — ${waiting} waiting on you`
-          : "Chat with your agent"
+          ? t("chat_button_aria_waiting", { count: waiting })
+          : t("chat_button_aria")
       }
       className="relative flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-text-primary transition-colors hover:border-accent hover:text-accent lg:hidden"
     >
