@@ -462,6 +462,120 @@ export function CanopyBody({ onLogin }: Props) {
         </div>
       </section>
 
+      {/* "anywhere" — the iPhone. The device says mobile so the copy never
+          has to; it leans on "Anywhere" and the screen instead. */}
+      <section className="sec appshow" id="app" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="wrap">
+          <div className="sec-head rv">
+            <span className="eyebrow center">{t("ld_app_eyebrow")}</span>
+            <h2 className="sec-title">
+              {t("ld_app_title_a")}
+              <span className="mint">{t("ld_app_title_mint")}</span>
+            </h2>
+            <p className="sec-sub">{t("ld_app_sub")}</p>
+          </div>
+          <div className="appshow-grid">
+            <div className="phone-stage rv">
+              <div className="phone">
+                <div className="phone-screen">
+                  <span className="island" />
+                  <div className="sbar">
+                    <span>9:41</span>
+                    <span className="ico">
+                      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden>
+                        <rect x="0" y="7" width="3" height="4" rx="1" />
+                        <rect x="4.5" y="5" width="3" height="6" rx="1" />
+                        <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
+                        <rect x="13.5" y="0" width="3" height="11" rx="1" opacity="0.4" />
+                      </svg>
+                      <svg width="16" height="11" viewBox="0 0 16 12" fill="currentColor" aria-hidden>
+                        <path d="M8 2.5c2.3 0 4.4.9 6 2.4l-1.4 1.5A6.5 6.5 0 0 0 8 5.5c-1.8 0-3.4.7-4.6 1.9L2 5.9A8.5 8.5 0 0 1 8 2.5Zm0 3.6c1.3 0 2.5.5 3.4 1.4l-1.5 1.5C9.4 8.5 8.7 8.2 8 8.2s-1.4.3-1.9.8L4.6 7.5A4.8 4.8 0 0 1 8 6.1Zm0 3.4 1.4 1.5-1.4 1.4-1.4-1.4L8 9.5Z" />
+                      </svg>
+                      <svg width="26" height="12" viewBox="0 0 26 12" fill="none" aria-hidden>
+                        <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.5" />
+                        <rect x="2" y="2" width="17" height="8" rx="1.5" fill="currentColor" />
+                        <rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" opacity="0.5" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="scr">
+                    <div className="scr-top">
+                      <h5>Home</h5>
+                      <span className="avatar">SL</span>
+                    </div>
+                    <div className="bal-lbl">Balance</div>
+                    <div className="bal">
+                      <span className="amt tnum">$24,193</span>
+                      <span className="chg tnum">+47.3%</span>
+                    </div>
+                    <div className="chart">
+                      <svg viewBox="0 0 260 150" preserveAspectRatio="none" aria-hidden>
+                        <defs>
+                          <linearGradient id="cnpAppFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.35" />
+                            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d="M0 120 L20 112 L40 118 L60 100 L80 107 L100 86 L120 93 L140 72 L160 79 L180 55 L200 62 L220 38 L240 28 L260 16 L260 150 L0 150 Z"
+                          fill="url(#cnpAppFill)"
+                        />
+                        <path
+                          d="M0 120 L20 112 L40 118 L60 100 L80 107 L100 86 L120 93 L140 72 L160 79 L180 55 L200 62 L220 38 L240 28 L260 16"
+                          fill="none"
+                          stroke="var(--accent)"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+                    <div className="tabs">
+                      <span>1D</span>
+                      <span>7D</span>
+                      <span>1M</span>
+                      <span className="on">1Y</span>
+                      <span>ALL</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="appfeat rv">
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0 3 3m-3-3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_1_h")}</h4>
+                  <p>{t("ld_app_1_p")}</p>
+                </div>
+              </div>
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <path d="M3 12h4l3 8 4-16 3 8h4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_2_h")}</h4>
+                  <p>{t("ld_app_2_p")}</p>
+                </div>
+              </div>
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M8.5 12.5l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_3_h")}</h4>
+                  <p>{t("ld_app_3_p")}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* routing / venues */}
       <section className="sec" id="venues" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="wrap route">

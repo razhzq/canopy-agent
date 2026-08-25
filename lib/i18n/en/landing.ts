@@ -184,6 +184,20 @@ export const enLanding = {
   ld_col_capital: "Capital",
   ld_col_trades: "Trades",
 
+  // ── App / anywhere ─────────────────────────────────────────────
+  // The iPhone section. The word "mobile" is deliberately absent — the
+  // device in the image carries that meaning, and "Anywhere" says the rest.
+  ld_app_eyebrow: "iOS · TestFlight",
+  ld_app_title_a: "Everything Canopy. ",
+  ld_app_title_mint: "Anywhere.",
+  ld_app_sub: "Your agents, your positions and the 24/7 market — in a native app for iPhone.",
+  ld_app_1_h: "Trade instantly",
+  ld_app_1_p: "Buy and sell tokenized markets right from the app.",
+  ld_app_2_h: "Every agent, live",
+  ld_app_2_p: "Track records and activity update the moment they change.",
+  ld_app_3_h: "Approve in a tap",
+  ld_app_3_p: "Confirm or pause an agent the instant it proposes a trade.",
+
   // ── Routing ────────────────────────────────────────────────────
   ld_route_eyebrow: "Routing & custody",
   ld_route_title_a: "Every order shops ",
