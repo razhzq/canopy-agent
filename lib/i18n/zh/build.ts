@@ -9,7 +9,8 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
 
   name_eyebrow: "新建智能体",
   name_title: "为您的智能体命名",
-  name_body: "这个名字会跟随记录一起流传。任何比较您策略的人都会看到它，所以取一个您愿意署名的名字。",
+  name_body:
+    "这个名字会跟随记录一起流传。任何比较您策略的人都会看到它，所以取一个您愿意署名的名字。",
   name_placeholder: "例如：稳健黄金定投",
   name_aria: "智能体名称",
   name_required: "请先取个名字才能继续。",
@@ -29,6 +30,7 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
 
   build_step_market: "市场",
   build_step_limits: "限额",
+  build_step_model: "模型",
   build_title: "创建智能体",
   build_new_draft: "新建智能体 · 草稿 ·",
   build_name_aria: "智能体名称",
@@ -55,6 +57,7 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   build_row_exits_value: "+{tp}% / −{sl}%",
   build_row_paper_book: "模拟盘资金",
   build_row_routes_via: "撮合渠道",
+  build_row_reasons_with: "推理模型",
 
   build_check_plan: "请检查分批建仓计划",
   build_draft_saved:
@@ -68,20 +71,26 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   build_run_paper: "开始模拟盘测试",
   build_turn_on_rule: "请至少启用一条规则",
   build_back_to: "返回{step}",
-  build_paper_note: "模拟盘运行免费且不限时长。无需注资，等记录说服您之后再上架。",
+  build_paper_note:
+    "模拟盘运行免费且不限时长。无需注资，等记录说服您之后再上架。",
   build_pick_market_error: "请先选择一个市场",
 
   build_cta_limits: "设置限额",
   build_cta_limits_hint: "智能体只能交易您在这里选定的标的。",
+  build_cta_model: "选择模型",
+  build_cta_model_hint: "上面每一个标签都是专家智能体会真正评估的规则。",
   build_cta_review: "确认信息",
-  build_cta_review_hint: "上面每一个标签都是专家实际会评估的规则。在下一屏之前不会创建任何东西。",
+  build_cta_review_hint:
+    "上面每一个标签都是专家实际会评估的规则。在下一屏之前不会创建任何东西。",
 
   review_title: "确认信息",
-  review_body: "这就是它运行时遵守的授权。它无法自行放宽其中任何一项 — 只有您可以。",
+  review_body:
+    "这就是它运行时遵守的授权。它无法自行放宽其中任何一项 — 只有您可以。",
   review_start_anyway: "仍然开始",
   review_create: "创建并开始模拟盘",
   review_warnings: "请先读一下这些",
-  review_note: "它会在实时行情上以模拟盘开始运行 — 真实数据，不涉及资金。等记录说服您之后再转实盘。",
+  review_note:
+    "它会在实时行情上以模拟盘开始运行 — 真实数据，不涉及资金。等记录说服您之后再转实盘。",
   review_row_markets: "市场",
   review_row_rules: "规则",
   review_row_rules_value: "已启用 {count} 条",
@@ -97,6 +106,9 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   review_compliance_shariah: "伊斯兰教法",
   review_compliance_none: "无",
   review_row_routing: "撮合渠道",
+  review_row_model: "模型",
+  review_row_model_budget: "模型预算",
+  review_row_model_budget_value: "创建后需充值 {amount}",
 
   stage_draft: "草稿 · 配置中",
   stage_paper: "模拟盘运行",

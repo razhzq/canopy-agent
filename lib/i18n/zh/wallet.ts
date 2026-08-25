@@ -5,6 +5,12 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   wallet_copy_aria: "复制钱包地址 {address}",
   wallet_balance_unknown: "余额 —",
   wallet_deposit: "充值",
+  wallet_withdraw: "提现",
+  wallet_usdc_balance: "USDC 余额",
+  wallet_solana_mainnet: "Solana 主网",
+  wallet_model_credit: "模型额度",
+  wallet_model_credit_title:
+    "预付模型额度 — 用于支付该智能体的推理费用，不可提现",
   wallet_agent_wallet: "智能体钱包",
   wallet_esc: "Esc",
 
@@ -20,7 +26,8 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_sent_body: "转账已提交，数秒内即可确认。",
   withdraw_done: "完成",
   withdraw_not_sent: "未发送",
-  withdraw_not_sent_body: "没有任何资金离开您的钱包。重试之前请先确认余额，以防它其实已经到账。",
+  withdraw_not_sent_body:
+    "没有任何资金离开您的钱包。重试之前请先确认余额，以防它其实已经到账。",
   withdraw_back: "返回",
   withdraw_to_label: "收款方 · Solana 地址",
   withdraw_to_placeholder: "粘贴目标地址",
@@ -31,8 +38,15 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_amount_label: "金额 · {asset}",
   withdraw_max: "最大 {amount}",
   withdraw_review: "确认信息",
+  withdraw_your_wallet: "您的钱包",
+  withdraw_send_elsewhere: "转到其他地址",
+  withdraw_back_to_your_wallet: "转回您的钱包",
+  withdraw_view_transaction: "查看交易",
+  withdraw_available: "可用 {asset}",
+  withdraw_amount_aria: "{asset} 金额",
   withdraw_above_zero: "请输入大于零的金额。",
-  withdraw_over_sendable_sol: "超过可转出的额度。有 {reserve} SOL 被保留用于支付手续费。",
+  withdraw_over_sendable_sol:
+    "超过可转出的额度。有 {reserve} SOL 被保留用于支付手续费。",
   withdraw_over_balance: "超过该钱包的余额。",
   withdraw_not_valid_amount: "不是有效的金额。",
   withdraw_wallet_not_connected: "该钱包未在当前会话中连接",
@@ -41,7 +55,8 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_to: "收款方",
   withdraw_rent_warning:
     "该地址还没有 USDC 账户，系统会为它开一个。这需要您额外支付约 0.002 SOL 的租金，另计网络手续费。",
-  withdraw_final: "转账不可逆。一旦提交，就无法撤销；地址填错的话资金也无法找回。",
+  withdraw_final:
+    "转账不可逆。一旦提交，就无法撤销；地址填错的话资金也无法找回。",
   withdraw_send: "发送",
   withdraw_sending_busy: "发送中…",
 
@@ -51,7 +66,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   funding_both_failed: "{backend}。直接查询链上也失败了：{chain}",
   funding_direct_title: "直接从链上读取",
   funding_direct_body:
-    "Canopy 无法连接它的 RPC 节点，因此这些数字来自您的浏览器。余额本身是真实的 — 但显示的手续费门槛是本应用自带的副本，所以对临界值请视为近似值。",
+    "Canopy 无法连接它的 RPC 节点，因此该数字来自您的浏览器。它是从链上读取的真实余额。",
   funding_usdc_available: "可用于交易",
   funding_usdc_none: "没有 — 请转入 USDC",
   funding_sol_covers: "足够支付手续费",
@@ -61,15 +76,21 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   funding_funded_body: "该钱包既有可交易的 USDC，也有支付手续费的 SOL。",
   funding_deposit_address: "充值地址 · Solana",
   funding_copy_aria: "复制充值地址 {address}",
-  funding_send_usdc: "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
-  funding_send_sol: "另外请至少转入 {min} SOL。没有它，即使持有 USDC，钱包也无法支付交易手续费。",
+  funding_send_usdc:
+    "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
+  funding_send_sol:
+    "另外请至少转入 {min} SOL。没有它，即使持有 USDC，钱包也无法支付交易手续费。",
   funding_fees_covered: "交易手续费由 Canopy 承担 — 该钱包不需要 SOL。",
   funding_check_balance: "查询余额",
+  funding_wallet_balance: "钱包余额",
+  funding_ready: "可以开始交易",
+  funding_waiting: "等待入金",
 
   audit_crumb_settings: "设置",
   audit_crumb_audit: "钱包审计",
   audit_title: "钱包审计",
-  audit_intro: "只读页面。Privy 无法删除内嵌钱包，所以这个页面的作用是弄清哪一个才是关键的，而不是删掉任何一个。",
+  audit_intro:
+    "只读页面。Privy 无法删除内嵌钱包，所以这个页面的作用是弄清哪一个才是关键的，而不是删掉任何一个。",
   audit_none_title: "还没有智能体钱包",
   audit_none_body:
     "没有任何智能体持有授权。这 {count} 个钱包都未被占用 — 其中一个是您的个人登录钱包，其余是登录竞态产生的多余钱包。",

@@ -37,6 +37,9 @@ export const enAgentDetail = {
   ad_starting: "starting",
   ad_next: " · next {when}",
   ad_not_ticking: "not ticking",
+  ad_model_unfunded:
+    "Waiting for its model balance. {model} is prepaid — fund it and this agent starts on its own, no restart needed.",
+  ad_model_generic: "The model",
   ad_entry_note: "Entry condition. Nothing is bought until this is met.",
   ad_rules_unreadable:
     "This strategy's rules are not readable — the detail route returned no rule set.",
@@ -56,7 +59,8 @@ export const enAgentDetail = {
 
   // ── Activity ───────────────────────────────────────────────────
   ad_all_cycles: "All cycles →",
-  ad_append_only: "Append-only. Every check is recorded, whether it traded or not.",
+  ad_append_only:
+    "Append-only. Every check is recorded, whether it traded or not.",
   ad_append_only_skipped:
     "Append-only. Every check is recorded, whether it traded or not — the last cycle did not trade: {reason}.",
 
@@ -64,7 +68,8 @@ export const enAgentDetail = {
   ad_first_wait: "First, wait for",
   ad_then_bars:
     "Then the rules below apply, on a later bar, for up to {bars} bars. Nothing is bought on the bar the setup appears.",
-  ad_then_bars_invalidate: " The wait is cancelled if the setup breaks down first.",
+  ad_then_bars_invalidate:
+    " The wait is cancelled if the setup breaks down first.",
   ad_then_buy: "Then buy when",
   ad_no_rules: "No rules returned.",
   ad_chip_take_profit: "Take profit:",
@@ -80,7 +85,8 @@ export const enAgentDetail = {
   ad_universe: "Universe",
   ad_screening_one: "Screening 1 market",
   ad_screening_many: "Screening {count} markets",
-  ad_no_universe: "No universe is pinned, so the agent screens the whole {class} class each cycle.",
+  ad_no_universe:
+    "No universe is pinned, so the agent screens the whole {class} class each cycle.",
   ad_add_market: "+ Add market",
   ad_not_priced: "not priced",
   ad_remove: "Remove",
@@ -122,8 +128,10 @@ export const enAgentDetail = {
     "It closes 1 position at the current pool price — {amount} invested. This is a real sale and the result lands in your record.",
   ad_delete_1_many:
     "It closes {count} positions at the current pool price — {amount} invested. This is a real sale and the result lands in your record.",
-  ad_delete_2: "It revokes its own wallet authority. That cannot be undone here.",
-  ad_delete_3: "It disappears from your agents. Pausing is the reversible option.",
+  ad_delete_2:
+    "It revokes its own wallet authority. That cannot be undone here.",
+  ad_delete_3:
+    "It disappears from your agents. Pausing is the reversible option.",
   ad_delete_4:
     "{name} comes off Explore with it — this is your last agent on it. Anyone already deployed keeps running; nobody new can deploy.",
   ad_delete_kept:
@@ -139,8 +147,10 @@ export const enAgentDetail = {
     "It sells 1 position at the current pool price — {amount} invested. Real sales, and the result lands in your record.",
   ad_flatten_1_many:
     "It sells {count} positions at the current pool price — {amount} invested. Real sales, and the result lands in your record.",
-  ad_flatten_2: "It then pauses. Otherwise it would start buying again on its next cycle.",
-  ad_flatten_3: "The agent, its strategy and its whole record stay exactly as they are.",
+  ad_flatten_2:
+    "It then pauses. Otherwise it would start buying again on its next cycle.",
+  ad_flatten_3:
+    "The agent, its strategy and its whole record stay exactly as they are.",
   ad_flatten_resume: "Resume it whenever you want. Nothing here is one-way.",
   ad_flatten_unpriced:
     "A position that cannot be priced right now is left open rather than sold at a guess. The agent keeps trying and stays visible while it settles.",

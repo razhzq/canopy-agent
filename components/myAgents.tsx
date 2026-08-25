@@ -60,8 +60,6 @@ import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
  * thing you would actually act on.
  */
 
-
-
 interface Enriched {
   agent: AgentRow;
   /** Null when the agent has no wallet — the normal state for a paper agent. */
@@ -122,23 +120,34 @@ export function MyAgents() {
 
       // Settled, not all: one agent whose equity 500s must not blank the whole
       // page. A row with a missing figure still shows its status and capital.
-      const enriched = await pooled(agents, CONCURRENCY, async (agent): Promise<Enriched> => {
-        const [detail, equity] = await Promise.allSettled([
-          // Only for an agent that can have a wallet. A paper agent's row shows
-          // "unfunded" whatever comes back, so the request buys nothing.
-          agent.is_paper ? Promise.resolve(null) : getAgent(token, agent.id),
-          getEquity(token, agent.id),
-        ]);
-        return {
-          agent,
-          wallet: detail.status === "fulfilled" ? (detail.value?.wallet ?? null) : null,
-          equity: equity.status === "fulfilled" ? equity.value : null,
-          equityGap: equity.status === "fulfilled" ? null : ("failed" as const),
-        };
-      });
+      const enriched = await pooled(
+        agents,
+        CONCURRENCY,
+        async (agent): Promise<Enriched> => {
+          const [detail, equity] = await Promise.allSettled([
+            // Only for an agent that can have a wallet. A paper agent's row shows
+            // "unfunded" whatever comes back, so the request buys nothing.
+            agent.is_paper ? Promise.resolve(null) : getAgent(token, agent.id),
+            getEquity(token, agent.id),
+          ]);
+          return {
+            agent,
+            wallet:
+              detail.status === "fulfilled"
+                ? (detail.value?.wallet ?? null)
+                : null,
+            equity: equity.status === "fulfilled" ? equity.value : null,
+            equityGap:
+              equity.status === "fulfilled" ? null : ("failed" as const),
+          };
+        },
+      );
       setState({ phase: "ready", rows: enriched });
     } catch (err) {
-      setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
+      setState({
+        phase: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
     // `getAccessToken` is read through tokenRef, deliberately — see above.
   }, [ready, authenticated]);
@@ -236,7 +245,10 @@ export function MyAgents() {
    * mandate. The note below carries the difference, because the number cannot.
    */
   const counted = rows.filter((r) => r.agent.status !== "stopped");
-  const deployed = counted.reduce((s, r) => s + (Number(r.agent.capital_usd) || 0), 0);
+  const deployed = counted.reduce(
+    (s, r) => s + (Number(r.agent.capital_usd) || 0),
+    0,
+  );
   // Every agent here trades on paper until a signing rail exists, so "deployed"
   // would otherwise claim real money is at work. The agent page already flips
   // its own label to "Paper book" for exactly this; the band said nothing.
@@ -244,22 +256,32 @@ export function MyAgents() {
 
   const pnlWindow = sumWindow(rows);
 
-  const live = rows.filter((r) => !r.agent.is_paper && r.agent.status === "active").length;
-  const paper = rows.filter((r) => r.agent.is_paper && r.agent.status === "active").length;
-  const needsYou = rows.reduce((s, r) => s + (Number(r.agent.needs_you) || 0), 0);
+  const live = rows.filter(
+    (r) => !r.agent.is_paper && r.agent.status === "active",
+  ).length;
+  const paper = rows.filter(
+    (r) => r.agent.is_paper && r.agent.status === "active",
+  ).length;
+  const needsYou = rows.reduce(
+    (s, r) => s + (Number(r.agent.needs_you) || 0),
+    0,
+  );
 
   // Only the breaker writes paused_reason. A human pause leaves it null, and
   // "you paused this agent" is not news worth a red band.
   const stoppedItself = rows.filter(
     (r) =>
-      (r.agent.status === "paused" || r.agent.status === "liquidating") && r.agent.paused_reason,
+      (r.agent.status === "paused" || r.agent.status === "liquidating") &&
+      r.agent.paused_reason,
   );
 
   return (
     <div>
       <div className="grid grid-cols-2 border-b border-grid sm:grid-cols-3 lg:grid-cols-5">
         <Cell
-          label={t(allPaper ? "my_band_paper_capital" : "my_band_capital_deployed")}
+          label={t(
+            allPaper ? "my_band_paper_capital" : "my_band_capital_deployed",
+          )}
           value={money(deployed)}
           note={
             counted.length === 1
@@ -270,7 +292,13 @@ export function MyAgents() {
         <Cell
           label={t("my_band_pnl")}
           value={pnlWindow === null ? "—" : signed(pnlWindow)}
-          tone={pnlWindow === null ? undefined : pnlWindow >= 0 ? "accent" : "negative"}
+          tone={
+            pnlWindow === null
+              ? undefined
+              : pnlWindow >= 0
+                ? "accent"
+                : "negative"
+          }
           note={pnlWindow === null ? t("my_band_no_readings") : undefined}
         />
         <Cell label={t("my_band_live")} value={String(live)} />
@@ -279,7 +307,9 @@ export function MyAgents() {
           label={t("my_band_needs_you")}
           value={String(needsYou)}
           tone={needsYou > 0 ? "accent" : undefined}
-          note={t(needsYou > 0 ? "my_band_unanswered" : "my_band_nothing_waiting")}
+          note={t(
+            needsYou > 0 ? "my_band_unanswered" : "my_band_nothing_waiting",
+          )}
         />
       </div>
 
@@ -352,7 +382,9 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error(t("error_not_signed_in"));
-      await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      await (paused
+        ? resumeAgent(token, agent.id)
+        : pauseAgent(token, agent.id));
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -377,7 +409,7 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
           >
             {agent.strategy_name}
           </Link>
-          <ModelBadge />
+          <ModelBadge model={agent.model} />
         </div>
         <p className="truncate font-ui text-[11.5px] text-text-dim">
           {/* Both values are backend enums the product uses as its own
@@ -427,7 +459,9 @@ function Row({ row, onChanged }: { row: Enriched; onChanged: () => void }) {
                   : "border border-grid-strong text-text-muted"
           }`}
         >
-          {STATUS_LABEL_KEY[agent.status] ? t(STATUS_LABEL_KEY[agent.status]) : agent.status}
+          {STATUS_LABEL_KEY[agent.status]
+            ? t(STATUS_LABEL_KEY[agent.status])
+            : agent.status}
         </span>
       </span>
 
@@ -517,7 +551,9 @@ function Cell({
 }) {
   return (
     <div className="border-r border-grid px-6 py-4 last:border-r-0">
-      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+        {label}
+      </p>
       <p
         className={`tnum pt-1.5 font-mono text-[26px] leading-none ${
           tone === "accent"
@@ -529,7 +565,9 @@ function Cell({
       >
         {value}
       </p>
-      {note ? <p className="pt-1.5 font-ui text-[11px] text-text-dim">{note}</p> : null}
+      {note ? (
+        <p className="pt-1.5 font-ui text-[11px] text-text-dim">{note}</p>
+      ) : null}
     </div>
   );
 }
@@ -579,6 +617,8 @@ const REASON_KEY: Record<string, TranslationKey> = {
   wallet_expired: "reason_wallet_expired",
   mandate_expired: "reason_mandate_expired",
   insufficient_funds: "reason_insufficient_funds",
+  // Its trading wallet may be full — this is the balance it reasons with.
+  model_balance_exhausted: "reason_model_balance_exhausted",
 };
 
 function humanReason(reason: string, t: Translate): string {

@@ -34,7 +34,8 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   nc_tg_unmute: "取消静音",
   nc_tg_busy: "…",
   nc_tg_reconnect: "重新连接",
-  nc_tg_reconnect_title: "签发一条新的连接链接。在新链接确认之前，当前聊天仍然可用。",
+  nc_tg_reconnect_title:
+    "签发一条新的连接链接。在新链接确认之前，当前聊天仍然可用。",
 
   nc_kind_fill: "成交",
   nc_kind_proposal: "待处理",
@@ -50,6 +51,7 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   chat_subtitle: "它提方案 · 由您决定",
   chat_close_aria: "关闭对话",
   chat_button_aria: "与您的智能体对话",
+  chat_button_close: "关闭对话",
   chat_button_aria_waiting: "与您的智能体对话 — {count} 条待您处理",
 };
 

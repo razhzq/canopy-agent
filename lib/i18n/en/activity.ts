@@ -51,8 +51,10 @@ export const enActivity = {
   feed_badge_paper: "Paper",
   // The footer, whole rather than assembled: it counts three different things
   // and English pluralises two of them with an apostrophe that has no analogue.
-  feed_footer_one: "{shown} of {total} · last {per} cycles from 1 agent you own",
-  feed_footer_many: "{shown} of {total} · last {per} cycles from {agents} agents you own",
+  feed_footer_one:
+    "{shown} of {total} · last {per} cycles from 1 agent you own",
+  feed_footer_many:
+    "{shown} of {total} · last {per} cycles from {agents} agents you own",
   feed_footer_partial_one: " · 1 agent's log didn't load",
   feed_footer_partial_many: " · {count} agents' logs didn't load",
 
@@ -60,6 +62,9 @@ export const enActivity = {
   skip_market_closed: "Markets were closed",
   skip_no_candidates: "Nothing passed the screen",
   skip_budget_exhausted: "Out of model budget",
+  skip_model_balance_exhausted: "Out of model balance",
+  skip_model_unfunded: "Waiting to be funded",
+  skip_model_unavailable: "Model unavailable",
   skip_paused: "Agent is paused",
   skip_expired: "Mandate expired",
   skip_not_active: "Agent is not active",

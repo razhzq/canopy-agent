@@ -182,6 +182,16 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
           {run.skip_reason ? (
             <Badge tone="muted">{run.skip_reason.replace(/_/g, " ")}</Badge>
           ) : null}
+          {/* What this cycle's thinking cost, next to what it did. The seats
+              below each carry their own share; this is the sum, and it comes
+              from the server rather than being added up here so the total and
+              the parts cannot disagree. Absent on an agent whose model is
+              included — there is no price to state. */}
+          {run.costUsd && Number(run.costUsd) > 0 ? (
+            <span className="tnum font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+              ${Number(run.costUsd).toFixed(4)} to think
+            </span>
+          ) : null}
         </div>
       </section>
 

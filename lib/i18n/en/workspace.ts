@@ -26,7 +26,8 @@ export const enWorkspace = {
   // ── Self-stopped alert ─────────────────────────────────────────
   // One sentence: the agent's name, when it stopped and why all sit in
   // different places in the two languages.
-  my_stopped_itself: "{name} stopped itself — {when}, {reason}. Review the limits or resume.",
+  my_stopped_itself:
+    "{name} stopped itself — {when}, {reason}. Review the limits or resume.",
   my_review: "Review",
 
   // ── Breaker reasons ────────────────────────────────────────────
@@ -35,6 +36,7 @@ export const enWorkspace = {
   reason_wallet_expired: "its wallet delegation expired",
   reason_mandate_expired: "its mandate expired",
   reason_insufficient_funds: "it ran out of funds",
+  reason_model_balance_exhausted: "its model balance ran out",
 
   // ── Table ──────────────────────────────────────────────────────
   my_col_agent: "Agent",
@@ -47,7 +49,8 @@ export const enWorkspace = {
   my_row_copied: "copied",
   my_row_unfunded: "unfunded",
   my_retry: "Retry",
-  my_retry_title: "The equity reading did not load. Its own page has the figure.",
+  my_retry_title:
+    "The equity reading did not load. Its own page has the figure.",
   my_no_data: "no data",
   my_no_data_title: "No cycle has recorded an equity reading yet.",
   my_resume: "Resume",

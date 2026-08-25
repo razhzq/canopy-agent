@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import { LABEL, BODY, QUIET, SURFACE } from "@/components/kit";
 import { useEffect, useId, useRef, useState } from "react";
 import { getActivity, type ActivityCycle } from "@/lib/api";
 import { narrateCycle, type SeatedLine } from "@/lib/narrate";
@@ -38,7 +39,10 @@ export function ActivityLog({
   const [tick, setTick] = useState(0);
   const t = useT();
   // `token` rather than `t` — the translator holds that name in this file.
-  const state = useApi((token) => getActivity(token, agentId, 5, book), [agentId, tick, book]);
+  const state = useApi(
+    (token) => getActivity(token, agentId, 5, book),
+    [agentId, tick, book],
+  );
 
   // THE LAST GOOD LOG, KEPT ACROSS REFETCHES.
   //
@@ -56,7 +60,8 @@ export function ActivityLog({
   // would only make it arrive one frame late.
   const lastGood = useRef<ActivityCycle[] | null>(null);
   if (state.phase === "ready") lastGood.current = state.data.cycles;
-  const cycles = state.phase === "ready" ? state.data.cycles : (lastGood.current ?? []);
+  const cycles =
+    state.phase === "ready" ? state.data.cycles : (lastGood.current ?? []);
 
   // Which cycle ids we have already shown. A cycle animates in only the first
   // time it appears — without this the whole list would re-animate on every
@@ -82,7 +87,9 @@ export function ActivityLog({
   const freshIds =
     seen.current === null
       ? new Set<string>()
-      : new Set(cycles.filter((c) => !seen.current!.has(c.id)).map((c) => c.id));
+      : new Set(
+          cycles.filter((c) => !seen.current!.has(c.id)).map((c) => c.id),
+        );
 
   // Joined into a string so the dependency is stable by value. Depending on the
   // array itself would re-run this on every render — and because React clears
@@ -148,16 +155,12 @@ export function ActivityLog({
 
   if (cycles.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
-        <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-grid bg-panel px-5 py-12 text-center sm:px-8">
+        <p className="font-mono text-[14px] text-text-primary">
           {t("activity_empty_title")}
         </p>
-        <p className="max-w-[48ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-          {t("activity_empty_body")}
-        </p>
-        <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-          {t("activity_checking")}
-        </p>
+        <p className={`max-w-[48ch] ${BODY}`}>{t("activity_empty_body")}</p>
+        <p className={LABEL}>{t("activity_checking")}</p>
       </div>
     );
   }
@@ -317,7 +320,7 @@ function Cycle({
 
   return (
     <div
-      className={`border border-l-2 border-grid transition-colors ${
+      className={`overflow-hidden rounded-lg border border-l-2 border-grid transition-colors ${
         flash
           ? "animate-[log-enter_320ms_ease-out,log-flash_1400ms_ease-out_forwards] border-l-accent"
           : "border-l-transparent"
@@ -352,7 +355,9 @@ function Cycle({
           <span className="tnum font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
             {relativeTime(cycle.started_at, t)}
           </span>
-          <Badge tone={STATUS_TONE[cycle.status]}>{t(STATUS_LABEL_KEY[cycle.status])}</Badge>
+          <Badge tone={STATUS_TONE[cycle.status]}>
+            {t(STATUS_LABEL_KEY[cycle.status])}
+          </Badge>
           {/* The row was expandable with nothing to say so. The caret both
               advertises that and reports which way it currently is. */}
           <svg
@@ -405,7 +410,9 @@ function Cycle({
                   revealed={revealed}
                   // Only while the replay is actually moving. A finished cycle
                   // has no active step — every one of them is complete.
-                  active={revealing || running ? (primary[shown - 1] ?? null) : null}
+                  active={
+                    revealing || running ? (primary[shown - 1] ?? null) : null
+                  }
                 />
               ))}
 
@@ -421,9 +428,12 @@ function Cycle({
                       aria-hidden
                       className="ml-0.5 block h-3.5 w-[2px] animate-[live-pulse_0.9s_ease-in-out_infinite] bg-accent"
                     />
-                    <span className="font-mono text-[10px] tracking-[0.1em] text-text-muted uppercase">
+                    <span className={LABEL}>
                       {revealing
-                        ? t("activity_reveal_progress", { shown, total: primary.length })
+                        ? t("activity_reveal_progress", {
+                            shown,
+                            total: primary.length,
+                          })
                         : t("activity_still_running")}
                     </span>
                   </span>
@@ -558,7 +568,11 @@ function SeatRun({
           <Step
             key={`${line.symbol ?? ""}:${line.detail}`}
             status={
-              line === active ? "active" : revealed.has(line) || line.secondary ? "complete" : "pending"
+              line === active
+                ? "active"
+                : revealed.has(line) || line.secondary
+                  ? "complete"
+                  : "pending"
             }
             // Runs to the next step, and on to the notes button when there is
             // one, so the rule does not stop short of the run's last row.
@@ -576,7 +590,7 @@ function SeatRun({
             <button
               type="button"
               onClick={() => setOpen((o) => !o)}
-              className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+              className={`grid grid-cols-[18px_minmax(0,1fr)] items-center gap-3.5 ${QUIET}`}
             >
               <ChevronRight
                 aria-hidden
@@ -618,10 +632,16 @@ export function headline(c: ActivityCycle, t: Translate): string {
   }
 
   const closes = c.decisions.filter(
-    (d) => d.role === "trader" && d.output?.exit === true && d.output?.filledUsd !== undefined,
+    (d) =>
+      d.role === "trader" &&
+      d.output?.exit === true &&
+      d.output?.filledUsd !== undefined,
   );
   const fills = c.decisions.filter(
-    (d) => d.role === "trader" && d.output?.exit !== true && d.output?.filledUsd !== undefined,
+    (d) =>
+      d.role === "trader" &&
+      d.output?.exit !== true &&
+      d.output?.filledUsd !== undefined,
   );
   if (closes.length > 0 && fills.length > 0)
     return t("activity_headline_closed_and_opened", {
@@ -651,14 +671,18 @@ export function headline(c: ActivityCycle, t: Translate): string {
 
 /* ---------------------------------------------------------------- lookups -- */
 
-export const STATUS_LABEL_KEY: Record<ActivityCycle["status"], TranslationKey> = {
-  running: "activity_status_running",
-  ok: "activity_status_ok",
-  error: "activity_status_error",
-  skipped: "activity_status_skipped",
-};
+export const STATUS_LABEL_KEY: Record<ActivityCycle["status"], TranslationKey> =
+  {
+    running: "activity_status_running",
+    ok: "activity_status_ok",
+    error: "activity_status_error",
+    skipped: "activity_status_skipped",
+  };
 
-export const STATUS_TONE: Record<ActivityCycle["status"], "accent" | "warning" | "negative" | "neutral"> = {
+export const STATUS_TONE: Record<
+  ActivityCycle["status"],
+  "accent" | "warning" | "negative" | "neutral"
+> = {
   running: "accent",
   ok: "neutral",
   error: "negative",
@@ -669,6 +693,14 @@ const SKIP_LABEL_KEY: Record<string, TranslationKey> = {
   market_closed: "skip_market_closed",
   no_candidates: "skip_no_candidates",
   budget_exhausted: "skip_budget_exhausted",
+  // Distinct from the line above, which is the per-cycle cap. This one is the
+  // agent's prepaid balance at the marketplace running dry — the fix is money,
+  // not a setting.
+  model_balance_exhausted: "skip_model_balance_exhausted",
+  // Not a fault: the agent is built, correct, and waiting for its first
+  // deposit. It starts on its own once one lands.
+  model_unfunded: "skip_model_unfunded",
+  model_unavailable: "skip_model_unavailable",
   paused: "skip_paused",
   expired: "skip_expired",
   not_active: "skip_not_active",
@@ -685,7 +717,9 @@ const SKIP_LABEL_KEY: Record<string, TranslationKey> = {
  * "Analyst" block would put the two in one breath and reorder the cycle, which
  * is the one thing a log of an audit trail must not do.
  */
-function groupBySeat(lines: SeatedLine[]): { role: SeatedLine["role"]; lines: SeatedLine[] }[] {
+function groupBySeat(
+  lines: SeatedLine[],
+): { role: SeatedLine["role"]; lines: SeatedLine[] }[] {
   const runs: { role: SeatedLine["role"]; lines: SeatedLine[] }[] = [];
   for (const line of lines) {
     const current = runs[runs.length - 1];

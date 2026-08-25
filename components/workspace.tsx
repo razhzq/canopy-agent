@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { ActivityLog } from "@/components/activity";
 import { AgentDetailView } from "@/components/agentDetail";
 import { AgentChatSheet, ChatButton } from "@/components/agentChatSheet";
+import { AgentChatRail } from "@/components/agentChatRail";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentThread } from "@/components/agentThread";
 import { Badge } from "@/components/ui";
 import { listAgents, type AgentRow } from "@/lib/api";
@@ -40,36 +42,90 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  */
 export type WorkspaceTab = "overview" | "chat" | "cycles";
 
+/**
+ * CHAT IS NOT A TAB ANY MORE.
+ *
+ * It is a panel over whatever you are looking at — the sheet on a phone, the
+ * docked rail on a desktop. The type keeps "chat" because links to it exist and
+ * must keep working; the effect below turns one into the panel.
+ *
+ * The argument is the one `agentChatSheet.tsx` already made and then exempted
+ * the desktop from: everything you say to this agent is about something on the
+ * page, and a tab takes the page away to talk about it.
+ */
 const TABS: { key: WorkspaceTab; labelKey: TranslationKey }[] = [
   { key: "overview", labelKey: "ws_tab_overview" },
-  { key: "chat", labelKey: "ws_tab_chat" },
   { key: "cycles", labelKey: "ws_tab_cycles" },
 ];
 
-export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab }) {
+/**
+ * A tab link that keeps everything else in the query.
+ *
+ * This used to be `?tab=${key}` built from nothing, which silently deleted any
+ * other parameter the URL was carrying. That is what killed the builder's
+ * funding hand-off: it arrived as `?tab=cycles&fund=model`, and the first tab
+ * click rebuilt the query without `fund`, so the page that knows how to read it
+ * never saw it. `?checkout=` on the same page has the identical exposure.
+ *
+ * Rebuilding from the live URL rather than from a remembered value because the
+ * flags here are one-shot — the receiving effects strip them once handled, and
+ * a stale copy would resurrect a dialog the owner already dismissed.
+ */
+function tabHref(agentId: number, key: string): string {
+  const params =
+    typeof window === "undefined"
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+  params.set("tab", key);
+  return `/workspace/${agentId}?${params.toString()}`;
+}
+
+export function Workspace({
+  agentId,
+  tab,
+}: {
+  agentId: number;
+  tab: WorkspaceTab;
+}) {
   const router = useRouter();
   const t = useT();
   const [chatOpen, setChatOpen] = useState(false);
+  /**
+   * ONE OWNER FOR THE THREAD, at both widths.
+   *
+   * `chatOpen` lived here already and nothing rendered from it — the sheet was
+   * owned by `agentDetailMobile`, so the `?tab=chat` deep link set a flag no
+   * component read and the link opened nothing. Mounting the panel here fixes
+   * that and gives the two presentations one switch.
+   *
+   * It also has to live above the tab bar rather than inside a view: a thread
+   * that closed itself because you looked at Cycles would be unusable for the
+   * thing people actually do, which is ask about what they are looking at and
+   * then go look at something else.
+   */
+  const mobile = useIsMobile();
   // Only for the compact header the non-overview tabs need. Overview fetches
   // the agent itself, in far more detail than the list row carries.
   const state = useApi<{ agents: AgentRow[] }>((token) => listAgents(token));
 
-  // A `?tab=chat` link opened on a phone becomes the sheet.
+  // A `?tab=chat` link becomes the panel, at EVERY width now.
   //
   // The link is real — a notification deep-links to it, and so does anything
-  // bookmarked before the sheet existed. Without this, one product would have
-  // two mobile chat experiences: the sheet from the icon and a full-page thread
-  // from a link, which behave differently on dismiss. Runs once on mount and
-  // only below `lg`, where the tab is hidden.
+  // bookmarked from when chat was a page. This used to run only below `lg`,
+  // because above it the tab still existed. It does not, so the guard would now
+  // strand a desktop visitor on a tab with nothing behind it.
+  //
+  // Lands them on Overview with the thread open, which is the same place the
+  // chat button goes — one destination for chat, however you arrive.
   useEffect(() => {
     if (tab !== "chat") return;
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(min-width: 1024px)").matches) return;
     setChatOpen(true);
-    router.replace(`/workspace/${agentId}?tab=overview`);
+    router.replace(tabHref(agentId, "overview"));
   }, [tab, agentId, router]);
   const agent =
-    state.phase === "ready" ? (state.data.agents.find((a) => a.id === agentId) ?? null) : null;
+    state.phase === "ready"
+      ? (state.data.agents.find((a) => a.id === agentId) ?? null)
+      : null;
 
   return (
     <div className="min-h-[calc(100vh-64px)]">
@@ -95,15 +151,28 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
             {agent ? (
               <>
                 <Badge tone={agent.status === "active" ? "accent" : "warning"}>
-                  {STATUS_WORD_KEY[agent.status] ? t(STATUS_WORD_KEY[agent.status]) : agent.status}
+                  {STATUS_WORD_KEY[agent.status]
+                    ? t(STATUS_WORD_KEY[agent.status])
+                    : agent.status}
                 </Badge>
-                {agent.is_paper ? <Badge tone="muted">{t("ws_badge_paper")}</Badge> : null}
+                {agent.is_paper ? (
+                  <Badge tone="muted">{t("ws_badge_paper")}</Badge>
+                ) : null}
               </>
             ) : null}
           </div>
         )}
 
-        <ChatButton agent={agent} onOpen={() => setChatOpen(true)} />
+        {/* Not on Overview, for the same reason the name is not: that page's own
+            header carries both. Two chat buttons on one screen is the "two doors
+            to one room" this merge was meant to remove. */}
+        {tab === "overview" ? null : (
+          <ChatButton
+            agent={agent}
+            active={chatOpen}
+            onOpen={() => setChatOpen((o) => !o)}
+          />
+        )}
 
         <nav
           aria-label={t("ws_views_aria")}
@@ -115,7 +184,7 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
               key={entry.key}
               type="button"
               aria-current={entry.key === tab ? "page" : undefined}
-              onClick={() => router.push(`/workspace/${agentId}?tab=${entry.key}`)}
+              onClick={() => router.push(tabHref(agentId, entry.key))}
               // Chat is the sheet below lg — see AgentChatSheet — so its tab
               // is hidden there rather than offering a second door to one room.
               className={`h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${
@@ -132,14 +201,34 @@ export function Workspace({ agentId, tab }: { agentId: number; tab: WorkspaceTab
         </nav>
       </section>
 
-      {tab === "overview" ? (
-        <AgentDetailView agentId={agentId} />
-      ) : tab === "chat" ? (
-        <AgentThread agentId={agentId} agent={agent} />
-      ) : (
+      {chatOpen ? (
+        mobile ? (
+          <AgentChatSheet
+            agentId={agentId}
+            agent={agent}
+            onClose={() => setChatOpen(false)}
+          />
+        ) : (
+          <AgentChatRail
+            agentId={agentId}
+            agent={agent}
+            onClose={() => setChatOpen(false)}
+          />
+        )
+      ) : null}
+
+      {tab === "cycles" ? (
         <section className="px-8 py-7">
           <ActivityLog agentId={agentId} />
         </section>
+      ) : (
+        // Overview, and anything unrecognised. `tab=chat` is redirected by the
+        // effect above, but it renders for one frame before that lands — and
+        // the page under the thread is the right thing to show in that frame.
+        <AgentDetailView
+          agentId={agentId}
+          onOpenChat={() => setChatOpen(true)}
+        />
       )}
     </div>
   );

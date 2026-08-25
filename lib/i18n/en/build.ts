@@ -23,7 +23,8 @@ export const enBuild = {
 
   // ── Naming (mobile) ────────────────────────────────────────────
   name_m_title: "Create agent",
-  name_m_hint: "You can rename it later. Everything else is set in the next two steps.",
+  name_m_hint:
+    "You can rename it later. Everything else is set in the next two steps.",
   name_m_body:
     "Asked first because it is the one field that outlives the draft — it travels with the published record and with every deployment of it.",
   name_m_suggestions: "Or start from one of these",
@@ -36,6 +37,7 @@ export const enBuild = {
   // ── Builder steps ──────────────────────────────────────────────
   build_step_market: "Market",
   build_step_limits: "Limits",
+  build_step_model: "Model",
   build_title: "Create agent",
   build_new_draft: "New agent · Draft ·",
   build_name_aria: "Agent name",
@@ -62,6 +64,7 @@ export const enBuild = {
   build_row_exits_value: "+{tp}% / −{sl}%",
   build_row_paper_book: "Paper book",
   build_row_routes_via: "Routes via",
+  build_row_reasons_with: "Reasons with",
 
   // ── Proceed panel ──────────────────────────────────────────────
   build_check_plan: "Check the accumulation plan",
@@ -83,13 +86,17 @@ export const enBuild = {
   // ── Mobile CTAs ────────────────────────────────────────────────
   build_cta_limits: "Set the limits",
   build_cta_limits_hint: "An agent may only ever trade what you pick here.",
+  build_cta_model: "Choose the model",
+  build_cta_model_hint:
+    "Every chip above is a rule the specialist actually evaluates.",
   build_cta_review: "Review",
   build_cta_review_hint:
     "Every chip above is a rule the specialist actually evaluates. Nothing is created until the next screen.",
 
   // ── Review ─────────────────────────────────────────────────────
   review_title: "Review",
-  review_body: "This is the mandate it runs under. It cannot widen any of it — only you can.",
+  review_body:
+    "This is the mandate it runs under. It cannot widen any of it — only you can.",
   review_start_anyway: "Start anyway",
   review_create: "Create and start on paper",
   review_warnings: "Worth reading first",
@@ -110,6 +117,9 @@ export const enBuild = {
   review_compliance_shariah: "Shariah",
   review_compliance_none: "None",
   review_row_routing: "Routing",
+  review_row_model: "Model",
+  review_row_model_budget: "Model budget",
+  review_row_model_budget_value: "{amount} to fund after creating",
 
   // ── Build lifecycle bar ────────────────────────────────────────
   stage_draft: "Draft · configure",

@@ -3,11 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Modal } from "@/components/modal";
+import {
+  Field,
+  AmountInput,
+  StatusLine,
+  FieldNote as Note,
+  NamedValue,
+  SectionLabel,
+  Figure,
+  PRIMARY,
+  SECONDARY,
+  QUIET,
+  MICRO,
+  SURFACE,
+  BODY,
+} from "@/components/kit";
 import { QRCodeSVG } from "qrcode.react";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import {
+  useSignAndSendTransaction,
+  useWallets,
+} from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
 
-import { readChainFunding, USDC_MINT, type ChainFunding } from "@/lib/chainBalance";
+import {
+  readChainFunding,
+  USDC_MINT,
+  type ChainFunding,
+} from "@/lib/chainBalance";
 import {
   AmountError,
   formatAmountInput,
@@ -15,7 +37,6 @@ import {
   isValidAddress,
   planTransfer,
   sendTransfer,
-  SOL_RESERVE,
   toBaseUnits,
   type Asset,
   type TransferPlan,
@@ -50,12 +71,21 @@ function amountMessage(err: unknown, t: Translate): string {
  * against a shortened one is how people convince themselves a wrong address is
  * right, and this is the screen where that mistake is permanent.
  */
-export function DepositModal({ address, onClose }: { address: string; onClose: () => void }) {
-  const t = useT();
+export function DepositModal({
+  address,
+  onClose,
+}: {
+  address: string;
+  onClose: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t = useT();
 
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  useEffect(
+    () => () => void (timer.current && clearTimeout(timer.current)),
+    [],
+  );
 
   const copy = async () => {
     try {
@@ -132,9 +162,21 @@ type Step =
 export function WithdrawModal({
   address: from,
   onClose,
+  defaultTo,
 }: {
   address: string;
   onClose: () => void;
+  /**
+   * Prefilled destination.
+   *
+   * Set when the source is an AGENT wallet, where the answer is almost always
+   * "back to me" — the agent's wallet is an additional wallet on the owner's own
+   * Privy account, so the owner can sign for it, and the money coming out has
+   * exactly one obvious home. Prefilled rather than forced: the field stays
+   * editable, and the confirm step still restates the destination in full,
+   * because a prefilled address nobody read is the same hazard as a typed one.
+   */
+  defaultTo?: string;
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
@@ -143,8 +185,23 @@ export function WithdrawModal({
   // picking the wrong one here would spend an agent's money. Everything in the
   // dialog is pinned to `from`, which the menu resolved as the user's own.
   const wallet = wallets.find((w) => w.address === from);
-  const [asset, setAsset] = useState<Asset>("USDC");
-  const [to, setTo] = useState("");
+  // USDC ONLY. The SOL half of this dialog went when the SOL floor did — an
+  // agent wallet is not asked to hold SOL, so a control for withdrawing it was
+  // offering to move an asset the product no longer says anything about. Kept
+  // as a typed constant rather than inlined, so the transfer plumbing — which
+  // is written against `Asset` — still states what it is being handed.
+  const asset: Asset = "USDC";
+  const [to, setTo] = useState(defaultTo ?? "");
+  /**
+   * Whether the owner has asked to send somewhere other than their own wallet.
+   *
+   * When this dialog is opened from an agent (`defaultTo` set) the destination
+   * is not really a question — the money comes back to the wallet they signed
+   * in with — so showing a 44-character field they must read and approve is
+   * ceremony around a foregone conclusion. It collapses to "Your wallet", and
+   * this opens it back up for the rarer case.
+   */
+  const [custom, setCustom] = useState(false);
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<Step>({ at: "form" });
   const [balance, setBalance] = useState<ChainFunding | null>(null);
@@ -159,10 +216,10 @@ export function WithdrawModal({
     };
   }, [from]);
 
-  const held = balance ? (asset === "SOL" ? balance.sol : balance.usdc) : null;
-  // SOL keeps a reserve back so the wallet can still pay a fee afterwards; see
-  // SOL_RESERVE. USDC has no such constraint — its fees are paid in SOL.
-  const sendable = held === null ? null : asset === "SOL" ? Math.max(held - SOL_RESERVE, 0) : held;
+  // No reserve to hold back. That existed so a SOL withdrawal could not leave
+  // the wallet unable to pay its own fee; USDC fees are paid in SOL, so the
+  // whole balance is sendable.
+  const sendable = balance ? balance.usdc : null;
 
   const toValid = to.trim() !== "" && isValidAddress(to);
   const sendingToSelf = toValid && to.trim() === from;
@@ -170,25 +227,29 @@ export function WithdrawModal({
   let amountError: string | null = null;
   if (amount.trim() !== "") {
     try {
-      const units = toBaseUnits(amount, asset === "SOL" ? 9 : 6);
+      const units = toBaseUnits(amount, 6);
       if (units <= 0n) amountError = t("withdraw_above_zero");
-      else if (sendable !== null && Number(formatUnits(units, asset === "SOL" ? 9 : 6)) > sendable)
-        amountError =
-          asset === "SOL"
-            ? t("withdraw_over_sendable_sol", { reserve: SOL_RESERVE })
-            : t("withdraw_over_balance");
+      else if (sendable !== null && Number(formatUnits(units, 6)) > sendable)
+        amountError = t("withdraw_over_balance");
     } catch (err) {
       amountError = amountMessage(err, t);
     }
   }
 
-  const ready = toValid && !sendingToSelf && amount.trim() !== "" && !amountError;
+  const ready =
+    toValid && !sendingToSelf && amount.trim() !== "" && !amountError;
 
   async function review() {
     try {
-      setStep({ at: "confirm", plan: await planTransfer({ asset, from, to, amount }) });
+      setStep({
+        at: "confirm",
+        plan: await planTransfer({ asset, from, to, amount }),
+      });
     } catch (err) {
-      setStep({ at: "error", message: err instanceof Error ? err.message : String(err) });
+      setStep({
+        at: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -208,49 +269,54 @@ export function WithdrawModal({
       });
       setStep({ at: "sent", signature });
     } catch (err) {
-      setStep({ at: "error", message: err instanceof Error ? err.message : String(err) });
+      setStep({
+        at: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   return (
     <Modal title={t("withdraw_title")} onClose={onClose}>
       {step.at === "sent" ? (
-        <div className="space-y-4 px-5 py-8 text-center">
-          <p className="font-mono text-[12px] tracking-[0.08em] text-accent uppercase">
+        <div className="space-y-4 px-6 py-6">
+          <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-accent uppercase">
+            <span className="size-[5px] rounded-full bg-accent" aria-hidden />
             {t("withdraw_sent")}
           </p>
-          <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
+          <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
             {t("withdraw_sent_body")}
           </p>
-          <a
-            href={`https://solscan.io/tx/${step.signature}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block truncate font-mono text-[11px] text-accent underline underline-offset-4"
-          >
-            {step.signature}
-          </a>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full border border-grid-strong px-3 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:bg-surface"
-          >
-            {t("withdraw_done")}
-          </button>
+          <div className="flex items-center gap-4">
+            <a
+              href={`https://solscan.io/tx/${step.signature}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={QUIET}
+            >
+              {t("withdraw_view_transaction")}
+            </a>
+            <button type="button" onClick={onClose} className={QUIET}>
+              {t("withdraw_done")}
+            </button>
+          </div>
         </div>
       ) : step.at === "error" ? (
-        <div className="space-y-4 px-5 py-8">
-          <p className="font-mono text-[12px] tracking-[0.08em] text-negative uppercase">
+        <div className="space-y-4 px-6 py-6">
+          <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-negative uppercase">
+            <span className="size-[5px] rounded-full bg-negative" aria-hidden />
             {t("withdraw_not_sent")}
           </p>
-          <p className="font-ui text-[13px] leading-relaxed text-text-secondary">{step.message}</p>
+          <p className="font-ui text-[12.5px] leading-relaxed text-text-primary">
+            {step.message}
+          </p>
           <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
             {t("withdraw_not_sent_body")}
           </p>
           <button
             type="button"
             onClick={() => setStep({ at: "form" })}
-            className="w-full border border-grid-strong px-3 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:bg-surface"
+            className={SECONDARY}
           >
             {t("withdraw_back")}
           </button>
@@ -258,81 +324,101 @@ export function WithdrawModal({
       ) : step.at === "confirm" || step.at === "sending" ? (
         <Confirm
           plan={step.plan}
+          // Named rather than spelled out when it is the wallet they signed in
+          // with. An address is only worth 44 characters of screen when it is
+          // one the reader has to verify.
+          toLabel={
+            step.plan.to === defaultTo ? t("withdraw_your_wallet") : null
+          }
           busy={step.at === "sending"}
           onBack={() => setStep({ at: "form" })}
           onSend={() => void send(step.plan)}
         />
       ) : (
-        <div className="space-y-5 px-5 py-6">
-          <div className="flex border border-grid-strong">
-            {(["USDC", "SOL"] as const).map((a) => (
+        <div className="space-y-5 px-6 py-6">
+          {defaultTo && !custom ? (
+            <Field label={t("withdraw_to")}>
+              <NamedValue
+                name={t("withdraw_your_wallet")}
+                detail={`${defaultTo.slice(0, 4)}…${defaultTo.slice(-4)}`}
+              />
               <button
-                key={a}
                 type="button"
                 onClick={() => {
-                  setAsset(a);
-                  setAmount("");
+                  setCustom(true);
+                  setTo("");
                 }}
-                aria-pressed={asset === a}
-                className={`flex-1 py-2.5 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors ${
-                  asset === a ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-secondary"
-                }`}
+                className={MICRO}
               >
-                {a}
+                {t("withdraw_send_elsewhere")}
               </button>
-            ))}
-          </div>
-
-          <Field label={t("withdraw_to_label")}>
-            <input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              spellCheck={false}
-              autoComplete="off"
-              placeholder={t("withdraw_to_placeholder")}
-              className="w-full border border-grid bg-bg px-3 py-2.5 font-mono text-[12px] break-all text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
-            />
-            {to.trim() !== "" && !toValid ? (
-              <Note tone="negative">{t("withdraw_not_an_address")}</Note>
-            ) : sendingToSelf ? (
-              <Note tone="negative">{t("withdraw_is_this_wallet")}</Note>
-            ) : toValid ? (
-              <Note tone="dim">{t("withdraw_shape_only")}</Note>
-            ) : null}
-          </Field>
+            </Field>
+          ) : (
+            <Field label={t("withdraw_to_label")}>
+              <input
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={t("withdraw_to_placeholder")}
+                className="w-full rounded-lg border border-grid bg-surface px-3.5 py-2.5 font-mono text-[12px] break-all text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
+              />
+              {to.trim() !== "" && !toValid ? (
+                <Note tone="bad">{t("withdraw_not_an_address")}</Note>
+              ) : sendingToSelf ? (
+                <Note tone="bad">{t("withdraw_is_this_wallet")}</Note>
+              ) : toValid ? (
+                <Note tone="dim">{t("withdraw_shape_only")}</Note>
+              ) : null}
+              {defaultTo ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustom(false);
+                    setTo(defaultTo);
+                  }}
+                  className={MICRO}
+                >
+                  {t("withdraw_back_to_your_wallet")}
+                </button>
+              ) : null}
+            </Field>
+          )}
 
           <Field
             label={t("withdraw_amount_label", { asset })}
             aside={
               sendable === null ? null : (
-                <button
-                  type="button"
-                  onClick={() => setAmount(formatAmountInput(sendable, asset === "SOL" ? 9 : 6))}
-                  className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
-                >
-                  {t("withdraw_max", {
-                    amount: sendable.toLocaleString("en-US", { maximumFractionDigits: 6 }),
-                  })}
-                </button>
+                <span className="font-ui text-[11.5px] text-text-dim">
+                  <span className="tnum font-mono">
+                    {sendable.toLocaleString("en-US", {
+                      maximumFractionDigits: 6,
+                    })}
+                  </span>{" "}
+                  {t("withdraw_available", { asset })}
+                </span>
               )
             }
           >
-            <input
+            <AmountInput
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="decimal"
-              autoComplete="off"
-              placeholder="0.00"
-              className="tnum w-full border border-grid bg-bg px-3 py-2.5 font-mono text-[15px] text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
+              onChange={setAmount}
+              unit={asset}
+              label={t("withdraw_amount_aria", { asset })}
+              onMax={
+                sendable !== null && sendable > 0
+                  ? () => setAmount(formatAmountInput(sendable, 6))
+                  : undefined
+              }
             />
-            {amountError ? <Note tone="negative">{amountError}</Note> : null}
+            {amountError ? <Note tone="bad">{amountError}</Note> : null}
           </Field>
 
           <button
             type="button"
             disabled={!ready || !wallet}
             onClick={() => void review()}
-            className="w-full bg-accent py-3 font-mono text-[11.5px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+            className={`w-full ${PRIMARY}`}
           >
             {t("withdraw_review")}
           </button>
@@ -344,11 +430,14 @@ export function WithdrawModal({
 
 function Confirm({
   plan,
+  toLabel,
   busy,
   onBack,
   onSend,
 }: {
   plan: TransferPlan;
+  /** Set when the destination is the owner's own wallet; null when it is not. */
+  toLabel: string | null;
   busy: boolean;
   onBack: () => void;
   onSend: () => void;
@@ -356,95 +445,65 @@ function Confirm({
   const decimals = plan.asset === "SOL" ? 9 : 6;
   const t = useT();
   return (
-    <div className="space-y-5 px-5 py-6">
-      <div className="space-y-1.5 text-center">
-        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-          {t("withdraw_sending")}
-        </p>
-        <p className="tnum font-mono text-[26px] leading-none text-text-primary">
-          {formatUnits(plan.amount, decimals)} {plan.asset}
-        </p>
+    <div className="space-y-6 px-6 py-6">
+      {/* Left-aligned, like the balance on the deposit dialog. Centred type
+          reads as a receipt; this is a decision still being made. */}
+      <div className="space-y-2">
+        <SectionLabel>{t("withdraw_sending")}</SectionLabel>
+        <Figure
+          value={formatUnits(plan.amount, decimals)}
+          unit={plan.asset}
+          size={30}
+        />
       </div>
 
-      <div className="space-y-2 border border-grid bg-bg px-3 py-3">
-        <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-          {t("withdraw_to")}
-        </p>
-        {/* In full, again. The confirm step exists to be read. */}
-        <p className="font-mono text-[12px] leading-relaxed break-all text-text-primary">
-          {plan.to}
-        </p>
+      <div className="space-y-2">
+        <SectionLabel>{t("withdraw_to")}</SectionLabel>
+        {/* IN FULL ONLY WHEN IT NEEDS CHECKING. An address the owner typed or
+            pasted gets all 44 characters — this is their one chance to catch a
+            wrong one. Their own wallet gets its name and a short form: nobody
+            proof-reads an address they did not choose, and a wall of base58 in
+            the confirm step trains people to click past it. */}
+        {toLabel ? (
+          <NamedValue
+            name={toLabel}
+            detail={`${plan.to.slice(0, 4)}…${plan.to.slice(-4)}`}
+          />
+        ) : (
+          <p className="rounded-lg border border-grid bg-surface px-3.5 py-3 font-mono text-[12px] leading-relaxed break-all text-text-primary">
+            {plan.to}
+          </p>
+        )}
       </div>
 
-      {plan.createsRecipientAccount ? (
-        <Note tone="warning">{t("withdraw_rent_warning")}</Note>
-      ) : null}
+      <div className="space-y-1.5">
+        {plan.createsRecipientAccount ? (
+          <Note tone="warn">{t("withdraw_rent_warning")}</Note>
+        ) : null}
+        <Note tone="dim">{t("withdraw_final")}</Note>
+      </div>
 
-      <Note tone="dim">{t("withdraw_final")}</Note>
-
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={busy}
-          className="flex-1 border border-grid-strong py-3 font-mono text-[11.5px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:bg-surface disabled:opacity-40"
-        >
-          {t("withdraw_back")}
-        </button>
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onSend}
           disabled={busy}
-          className="flex-1 bg-accent py-3 font-mono text-[11.5px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
+          className={`flex-1 ${PRIMARY}`}
         >
           {t(busy ? "withdraw_sending_busy" : "withdraw_send")}
         </button>
+        {/* Quiet, and second. Back is the safe direction and does not need to
+            compete for the eye with the one action that spends money. */}
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={busy}
+          className={`shrink-0 px-3 py-2.5 ${QUIET}`}
+        >
+          {t("withdraw_back")}
+        </button>
       </div>
     </div>
-  );
-}
-
-function Field({
-  label,
-  aside,
-  children,
-}: {
-  label: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-          {label}
-        </span>
-        {aside}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Note({
-  tone,
-  children,
-}: {
-  tone: "dim" | "negative" | "warning";
-  children: React.ReactNode;
-}) {
-  return (
-    <p
-      className={`font-ui text-[11.5px] leading-relaxed ${
-        tone === "negative"
-          ? "text-negative"
-          : tone === "warning"
-            ? "text-warning"
-            : "text-text-dim"
-      }`}
-    >
-      {children}
-    </p>
   );
 }
 

@@ -55,9 +55,17 @@ type Sort = "return" | "newest" | "capital" | "users";
 
 // Dictionary keys, not labels: these tables are module-level, so a finished
 // string here would be frozen in whichever language loaded first.
-const TABS: { key: Tab; labelKey: TranslationKey; admits: (r: StrategyRow) => boolean }[] = [
+const TABS: {
+  key: Tab;
+  labelKey: TranslationKey;
+  admits: (r: StrategyRow) => boolean;
+}[] = [
   { key: "all", labelKey: "market_tab_all", admits: () => true },
-  { key: "published", labelKey: "market_tab_listed", admits: (r) => r.status === "published" },
+  {
+    key: "published",
+    labelKey: "market_tab_listed",
+    admits: (r) => r.status === "published",
+  },
   {
     key: "paper",
     labelKey: "market_tab_paper",
@@ -76,7 +84,9 @@ const PER_PAGE = 12;
 
 export function Marketplace() {
   const t = useT();
-  const state = useApi<{ strategies: StrategyRow[] }>((token) => listStrategies(token));
+  const state = useApi<{ strategies: StrategyRow[] }>((token) =>
+    listStrategies(token),
+  );
   const [tab, setTab] = useState<Tab>("all");
   const [sort, setSort] = useState<Sort>("return");
   const [query, setQuery] = useState("");
@@ -87,7 +97,8 @@ export function Marketplace() {
   const visible = useMemo(() => {
     if (!rows) return [];
     const q = query.trim().toLowerCase();
-    const admits = TABS.find((entry) => entry.key === tab)?.admits ?? (() => true);
+    const admits =
+      TABS.find((entry) => entry.key === tab)?.admits ?? (() => true);
     const filtered = rows.filter(
       (r) =>
         admits(r) &&
@@ -107,7 +118,10 @@ export function Marketplace() {
               // without it every draft dates to the epoch and sorts below
               // everything under "Newest" — the opposite of the truth.
               new Date(
-                r.published_at ?? r.verification_started_at ?? r.created_at ?? 0,
+                r.published_at ??
+                  r.verification_started_at ??
+                  r.created_at ??
+                  0,
               ).getTime();
     return [...filtered].sort((a, b) => by(b) - by(a));
   }, [rows, tab, sort, query]);
@@ -116,13 +130,18 @@ export function Marketplace() {
   // nobody can explain is a badge nobody should trust.
   const hottest = useMemo(() => {
     if (!rows) return null;
-    const ranked = [...rows].sort((a, b) => Number(b.deployments) - Number(a.deployments));
+    const ranked = [...rows].sort(
+      (a, b) => Number(b.deployments) - Number(a.deployments),
+    );
     return Number(ranked[0]?.deployments ?? 0) > 0 ? ranked[0].id : null;
   }, [rows]);
 
   const pages = Math.max(Math.ceil(visible.length / PER_PAGE), 1);
   const current = Math.min(page, pages - 1);
-  const slice = visible.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
+  const slice = visible.slice(
+    current * PER_PAGE,
+    current * PER_PAGE + PER_PAGE,
+  );
 
   /*
    * EVERY AGENT GETS THE SAME CARD.
@@ -158,152 +177,160 @@ export function Marketplace() {
       <HomeFeed strategies={rows ?? []} />
 
       <div className="hidden lg:block">
-      {/* Above the fold and above the heading: it answers a question the reader
+        {/* Above the fold and above the heading: it answers a question the reader
           asked weeks ago and has probably stopped expecting an answer to. It
           renders nothing at all when there is nothing to say. */}
-      <CapabilityNotices />
+        <CapabilityNotices />
 
-      <section className="border-b border-grid px-5 sm:px-8 pt-7 pb-6">
-        <h1 className="font-mono text-[34px] leading-none text-text-primary">
-          {t("market_title")}
-        </h1>
-        <p className="max-w-[70ch] pt-2.5 font-ui text-[14px] text-text-secondary">
-          {t("market_intro")}
-        </p>
-        <StatRail rows={rows} />
-      </section>
+        <section className="border-b border-grid px-5 sm:px-8 pt-7 pb-6">
+          <h1 className="font-mono text-[34px] leading-none text-text-primary">
+            {t("market_title")}
+          </h1>
+          <p className="max-w-[70ch] pt-2.5 font-ui text-[14px] text-text-secondary">
+            {t("market_intro")}
+          </p>
+          <StatRail rows={rows} />
+        </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-x-6 border-b border-grid px-5 sm:px-8">
-        <div className="flex flex-wrap items-center">
-          {/* `entry`, not `t` — the translator holds that name in this scope. */}
-          {TABS.map((entry) => {
-            const active = entry.key === tab;
-            const n = rows?.filter(entry.admits).length;
-            return (
-              <button
-                key={entry.key}
-                type="button"
-                onClick={() => reset(() => setTab(entry.key))}
-                aria-pressed={active}
-                className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[12px] tracking-[0.1em] uppercase transition-colors ${
-                  active
-                    ? "border-accent text-text-primary"
-                    : "border-transparent text-text-dim hover:text-text-secondary"
-                }`}
+        <section className="flex flex-wrap items-center justify-between gap-x-6 border-b border-grid px-5 sm:px-8">
+          <div className="flex flex-wrap items-center">
+            {/* `entry`, not `t` — the translator holds that name in this scope. */}
+            {TABS.map((entry) => {
+              const active = entry.key === tab;
+              const n = rows?.filter(entry.admits).length;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => reset(() => setTab(entry.key))}
+                  aria-pressed={active}
+                  className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[12px] tracking-[0.1em] uppercase transition-colors ${
+                    active
+                      ? "border-accent text-text-primary"
+                      : "border-transparent text-text-dim hover:text-text-secondary"
+                  }`}
+                >
+                  {t(entry.labelKey)}
+                  <span className={active ? "text-accent" : "text-text-muted"}>
+                    {n ?? "—"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-5 py-2.5">
+            <input
+              value={query}
+              onChange={(e) => reset(() => setQuery(e.target.value))}
+              placeholder={t("market_search_placeholder")}
+              spellCheck={false}
+              aria-label={t("market_search_aria")}
+              className="h-9 w-[190px] border-b border-grid-strong bg-transparent font-mono text-[12px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+            />
+            <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+              {t("market_sort")}
+              <select
+                value={sort}
+                onChange={(e) => reset(() => setSort(e.target.value as Sort))}
+                className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
               >
-                {t(entry.labelKey)}
-                <span className={active ? "text-accent" : "text-text-muted"}>{n ?? "—"}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-5 py-2.5">
-          <input
-            value={query}
-            onChange={(e) => reset(() => setQuery(e.target.value))}
-            placeholder={t("market_search_placeholder")}
-            spellCheck={false}
-            aria-label={t("market_search_aria")}
-            className="h-9 w-[190px] border-b border-grid-strong bg-transparent font-mono text-[12px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-          />
-          <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-            {t("market_sort")}
-            <select
-              value={sort}
-              onChange={(e) => reset(() => setSort(e.target.value as Sort))}
-              className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
-            >
-              {SORTS.map((s) => (
-                <option key={s.key} value={s.key} className="bg-bg">
-                  {t(s.labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section className="px-5 sm:px-8 py-7">
-        {state.phase === "loading" ? (
-          <SkeletonCards labelKey="loading_marketplace" />
-        ) : state.phase === "signed-out" ? (
-          <SignedOutState />
-        ) : state.phase === "error" ? (
-          <ErrorState message={state.message} onRetry={state.reload} />
-        ) : rows!.length === 0 ? (
-          <EmptyState
-            title={t("market_empty_title")}
-            body={t("market_empty_body")}
-            action={{ label: t("market_empty_action"), href: "/build/new" }}
-          />
-        ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
-            <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-              {t("market_nomatch_title")}
-            </p>
-            <p className="max-w-[44ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-              {rows!.length === 1
-                ? t("market_nomatch_one")
-                : t("market_nomatch_many", { count: rows!.length })}
-            </p>
-            <button
-              type="button"
-              onClick={() =>
-                reset(() => {
-                  setTab("all");
-                  setQuery("");
-                })
-              }
-              className="font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
-            >
-              {t("market_show_all")}
-            </button>
+                {SORTS.map((s) => (
+                  <option key={s.key} value={s.key} className="bg-bg">
+                    {t(s.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {slice.map((r) => (
-                <AgentCard key={r.id} row={r} hot={r.id === hottest} />
-              ))}
-            </div>
+        </section>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-3">
-              <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                {t("market_showing", {
-                  from: current * PER_PAGE + 1,
-                  to: current * PER_PAGE + slice.length,
-                  total: visible.length,
-                })}
+        <section className="px-5 sm:px-8 py-7">
+          {state.phase === "loading" ? (
+            <SkeletonCards labelKey="loading_marketplace" />
+          ) : state.phase === "signed-out" ? (
+            <SignedOutState />
+          ) : state.phase === "error" ? (
+            <ErrorState message={state.message} onRetry={state.reload} />
+          ) : rows!.length === 0 ? (
+            <EmptyState
+              title={t("market_empty_title")}
+              body={t("market_empty_body")}
+              action={{ label: t("market_empty_action"), href: "/build/new" }}
+            />
+          ) : visible.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
+              <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+                {t("market_nomatch_title")}
               </p>
-              {pages > 1 ? (
-                <div className="flex items-center gap-1">
-                  <PageButton disabled={current === 0} onClick={() => setPage(current - 1)}>
-                    {t("market_previous")}
-                  </PageButton>
-                  {Array.from({ length: pages }).map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setPage(i)}
-                      className={`h-8 min-w-8 px-2 font-mono text-[11px] transition-colors ${
-                        i === current
-                          ? "border border-accent text-accent"
-                          : "text-text-dim hover:text-text-primary"
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                  <PageButton disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>
-                    {t("market_next")}
-                  </PageButton>
-                </div>
-              ) : null}
+              <p className="max-w-[44ch] font-ui text-[13px] leading-relaxed text-text-secondary">
+                {rows!.length === 1
+                  ? t("market_nomatch_one")
+                  : t("market_nomatch_many", { count: rows!.length })}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  reset(() => {
+                    setTab("all");
+                    setQuery("");
+                  })
+                }
+                className="font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
+              >
+                {t("market_show_all")}
+              </button>
             </div>
-          </div>
-        )}
-      </section>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {slice.map((r) => (
+                  <AgentCard key={r.id} row={r} hot={r.id === hottest} />
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-3">
+                <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                  {t("market_showing", {
+                    from: current * PER_PAGE + 1,
+                    to: current * PER_PAGE + slice.length,
+                    total: visible.length,
+                  })}
+                </p>
+                {pages > 1 ? (
+                  <div className="flex items-center gap-1">
+                    <PageButton
+                      disabled={current === 0}
+                      onClick={() => setPage(current - 1)}
+                    >
+                      {t("market_previous")}
+                    </PageButton>
+                    {Array.from({ length: pages }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setPage(i)}
+                        className={`h-8 min-w-8 px-2 font-mono text-[11px] transition-colors ${
+                          i === current
+                            ? "border border-accent text-accent"
+                            : "text-text-dim hover:text-text-primary"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <PageButton
+                      disabled={current >= pages - 1}
+                      onClick={() => setPage(current + 1)}
+                    >
+                      {t("market_next")}
+                    </PageButton>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </>
   );
@@ -330,24 +357,39 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           {hot ? (
             <Badge tone="warning">{t("market_badge_hot")}</Badge>
           ) : isNew(r) ? (
-            <Badge tone="accent">{t("market_badge_new")}</Badge>
+            // Rounded like the model pill, not square like the status chips:
+            // "new" is a fact about the record's age, not a state the agent is
+            // sitting in, and the shape is what keeps the two apart.
+            <Badge tone="accent" className="rounded-full px-2">
+              {t("market_badge_new")}
+            </Badge>
           ) : null}
           {/* Beside the name, where the reader is already looking to tell one
               card from another. `min-w-0` on the wrapper means the NAME is what
               gives way when the card is narrow — the pill is shrink-0, so it
               survives the truncation that a 15-character agent name causes. */}
-          <ModelBadge />
+          <ModelBadge model={r.model} />
         </span>
-        {r.is_mine ? <Badge tone="muted">{t("market_badge_yours")}</Badge> : null}
+        {r.is_mine ? (
+          <Badge tone="muted">{t("market_badge_yours")}</Badge>
+        ) : null}
       </div>
 
       <p className="truncate pt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
-        {t("market_card_class_days", { class: r.strategy_class, days: recordDays(r) })}
+        {t("market_card_class_days", {
+          class: r.strategy_class,
+          days: recordDays(r),
+        })}
       </p>
 
       <div className="py-4">
         {points.length > 1 ? (
-          <EquityCurve values={points} baseline={capital || undefined} height={56} hoverAnimate />
+          <EquityCurve
+            values={points}
+            baseline={capital || undefined}
+            height={56}
+            hoverAnimate
+          />
         ) : (
           // No curve rather than a flat line pretending to be one.
           <div className="flex h-[56px] items-center font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
@@ -368,12 +410,21 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           value={ret === null ? "—" : signedPct(ret)}
           tone={ret === null ? "neutral" : ret >= 0 ? "accent" : "negative"}
         />
-        <Metric label={t("market_metric_capital")} value={money(Number(r.aum_usd))} />
+        <Metric
+          label={t("market_metric_capital")}
+          value={money(Number(r.aum_usd))}
+        />
         {/* `?? "—"` rather than `?? "0"`: these are list-only aggregates, so on
             this page they are always present, and if one ever is not, "0" would
             be a claim about the agent where "—" is an admission about the data. */}
-        <Metric label={t("market_metric_trades_30d")} value={r.trades_30d ?? "—"} />
-        <Metric label={t("market_metric_open_now")} value={r.open_positions ?? "—"} />
+        <Metric
+          label={t("market_metric_trades_30d")}
+          value={r.trades_30d ?? "—"}
+        />
+        <Metric
+          label={t("market_metric_open_now")}
+          value={r.open_positions ?? "—"}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-3 pt-3.5">
@@ -407,7 +458,9 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   const listed = rows?.filter((r) => r.status === "published").length ?? 0;
   const n = rows?.length ?? 0;
   const over =
-    n === 1 ? t("market_rail_over_one") : t("market_rail_over_many", { count: n });
+    n === 1
+      ? t("market_rail_over_one")
+      : t("market_rail_over_many", { count: n });
 
   // `num()` rather than `Number()`, because these aggregates are optional on
   // StrategyRow — they exist on the list route and not the detail one. A bare
@@ -434,11 +487,17 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
       <Metric
         label={t("market_rail_listed")}
         value={String(listed)}
-        note={n === listed ? undefined : t("market_rail_listed_note", { total: n })}
+        note={
+          n === listed ? undefined : t("market_rail_listed_note", { total: n })
+        }
         big
       />
       <Metric
-        label={t(allPaper ? "market_rail_paper_capital" : "market_rail_capital_deployed")}
+        label={t(
+          allPaper
+            ? "market_rail_paper_capital"
+            : "market_rail_capital_deployed",
+        )}
         value={money(capital)}
         note={over}
         big
@@ -449,7 +508,12 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
         note={over}
         big
       />
-      <Metric label={t("market_rail_positions_open")} value={String(open)} note={over} big />
+      <Metric
+        label={t("market_rail_positions_open")}
+        value={String(open)}
+        note={over}
+        big
+      />
     </div>
   );
 }
@@ -502,12 +566,14 @@ function Metric({
 
 function StatusBadge({ row: r }: { row: StrategyRow }) {
   const t = useT();
-  if (r.status === "published") return <Badge tone="accent">{t("market_badge_listed")}</Badge>;
+  if (r.status === "published")
+    return <Badge tone="accent">{t("market_badge_listed")}</Badge>;
   // Unreachable while the list endpoint excludes delisted, and kept anyway: the
   // fallback below says "Paper", so dropping this would label a delisted
   // strategy as a live paper record if one ever arrived. A branch that cannot
   // fire costs a line; a badge that lies costs trust.
-  if (r.status === "delisted") return <Badge tone="warning">{t("market_badge_delisted")}</Badge>;
+  if (r.status === "delisted")
+    return <Badge tone="warning">{t("market_badge_delisted")}</Badge>;
   // Draft and verifying alike. Both are trading on paper and neither can be
   // deployed, so one badge tells the reader the one thing that is true of both
   // — and "Paper" rather than "Paper run" because it is also what the agent
@@ -548,7 +614,10 @@ function PageButton({
 function recordDays(r: StrategyRow): number {
   const from = r.verification_started_at ?? r.published_at ?? r.created_at;
   if (!from) return 0;
-  return Math.max(Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000), 0);
+  return Math.max(
+    Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000),
+    0,
+  );
 }
 
 /** Under a fortnight of record. Objective, unlike a curated "featured" flag. */

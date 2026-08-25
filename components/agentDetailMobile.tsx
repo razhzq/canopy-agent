@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Gavel, Pause, Play, Plus, Share2, Star, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft,
+  Gavel,
+  Pause,
+  Play,
+  Plus,
+  Share2,
+  Star,
+  TrendingUp,
+} from "lucide-react";
 
 import { AddMarketModal } from "@/components/addMarket";
 import { RouteBadge, routeOfMint } from "@/components/routeBadge";
@@ -10,7 +19,6 @@ import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve } from "@/components/charts";
-import { AgentChatSheet } from "@/components/agentChatSheet";
 import { headline, STATUS_LABEL_KEY } from "@/components/activity";
 import {
   getActivity,
@@ -27,6 +35,8 @@ import {
 } from "@/lib/api";
 import { markAgent } from "@/lib/perf";
 import { ModelBadge } from "@/components/modelBadge";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { relativeTime } from "@/lib/format";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -62,6 +72,8 @@ export function AgentDetailMobile({
   assetsPending,
   universe,
   onChanged,
+  fundOnMount,
+  onOpenChat,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
@@ -72,14 +84,40 @@ export function AgentDetailMobile({
   /** What the strategy is allowed to trade, not what it currently holds. */
   universe: UniverseSelection[];
   onChanged: () => void;
+  /**
+   * The parent read `?fund=model` and wants the model panel open.
+   *
+   * A PROP RATHER THAN THIS COMPONENT READING THE URL, because the parent has
+   * already consumed it. AgentDetailView declares that effect above its own
+   * `if (mobile) return <AgentDetailMobile/>` — so on a phone it still ran,
+   * still stripped `fund` from the URL, and set a `modelOpen` that belongs to a
+   * branch which never renders. The hand-off did not merely fail here, it ate
+   * its own trigger: the param was gone, so a reload could not retry either.
+   */
+  fundOnMount?: boolean;
+  /**
+   * Opens the thread.
+   *
+   * The panel is owned by `workspace.tsx` at both widths, so this reports the
+   * intent upward rather than mounting a second sheet. It used to mount its own,
+   * which meant two components could each believe they owned the conversation.
+   */
+  onOpenChat?: () => void;
 }) {
   const { getAccessToken } = usePrivy();
   const t = useT();
   const [range, setRange] = useState<"7D" | "30D" | "ALL">("ALL");
-  const [chatOpen, setChatOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cycle, setCycle] = useState<ActivityCycle | null>(null);
   const [adding, setAdding] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  // Mirrors the parent's decision. Effect rather than an initial value because
+  // the parent resolves the URL in an effect of its own, which lands after this
+  // component has already mounted with its state initialised.
+  useEffect(() => {
+    if (fundOnMount) setModelOpen(true);
+  }, [fundOnMount]);
+  const personalWallet = usePersonalWallet();
 
   // The newest cycle, for the phase bar. One request, one cycle deep.
   useEffect(() => {
@@ -116,7 +154,9 @@ export function AgentDetailMobile({
 
   const reached = phaseIndex(cycle);
   const running = cycle?.status === "running";
-  const [whole, cents] = splitMoney(mark?.equityUsd ?? num(agent.capital_usd) ?? 0);
+  const [whole, cents] = splitMoney(
+    mark?.equityUsd ?? num(agent.capital_usd) ?? 0,
+  );
   const paused = agent.status === "paused" || agent.status === "stopped";
 
   async function toggle() {
@@ -124,7 +164,9 @@ export function AgentDetailMobile({
     try {
       const token = await getAccessToken();
       if (!token) return;
-      await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      await (paused
+        ? resumeAgent(token, agent.id)
+        : pauseAgent(token, agent.id));
       onChanged();
     } finally {
       setBusy(false);
@@ -158,7 +200,14 @@ export function AgentDetailMobile({
                 about where this fact lives. The name truncates before the pill
                 does, which is the right order: the name has a second copy in
                 the header bar above, the model has none. */}
-            <ModelBadge />
+            <button
+              type="button"
+              onClick={() => setModelOpen(true)}
+              aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+              className="shrink-0 transition-opacity active:opacity-70"
+            >
+              <ModelBadge model={agent.model} />
+            </button>
             {agent.status === "active" ? (
               <span className="flex shrink-0 items-center gap-1.5 rounded-[5px] bg-accent-wash px-1.5 py-[3px]">
                 <span className="size-[5px] rounded-full bg-accent" />
@@ -171,23 +220,34 @@ export function AgentDetailMobile({
           <p className="truncate font-mono text-[11.5px] text-text-muted">
             {points.length
               ? t("agent_subtitle_cycle", {
-                  mode: t(agent.is_paper ? "agent_mode_paper" : "agent_mode_live"),
+                  mode: t(
+                    agent.is_paper ? "agent_mode_paper" : "agent_mode_live",
+                  ),
                   class: agent.strategy_class.toUpperCase(),
                   cycle: points[points.length - 1].tickSeq,
                 })
               : t("agent_subtitle", {
-                  mode: t(agent.is_paper ? "agent_mode_paper" : "agent_mode_live"),
+                  mode: t(
+                    agent.is_paper ? "agent_mode_paper" : "agent_mode_live",
+                  ),
                   class: agent.strategy_class.toUpperCase(),
                 })}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setChatOpen(true)}
+          onClick={() => onOpenChat?.()}
           aria-label={t("agent_chat_aria")}
           className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface"
         >
-          <svg viewBox="0 0 24 24" className="size-[18px] text-text-primary" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <svg
+            viewBox="0 0 24 24"
+            className="size-[18px] text-text-primary"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           {Number(agent.needs_you ?? 0) > 0 ? (
@@ -198,13 +258,33 @@ export function AgentDetailMobile({
         </button>
       </div>
 
+      {/* An agent waiting for its first deposit is mid-SETUP, not broken, so it
+          gets an action rather than a red sentence — the same call the desktop
+          layout makes. This had no mobile counterpart at all: the note and its
+          button lived only in the desktop branch, so a phone showed nothing and
+          the only route to funding was the model pill beside the name, which
+          says what the model IS and not that it needs paying for. */}
+      {detail.lastRun?.skip_reason === "model_unfunded" ? (
+        // No button here either — the model pill beside the name is the way in,
+        // and on a phone a second control competing with it is worse.
+        <div className="border-y border-warning/30 bg-warning/10 px-[18px] py-3">
+          <p className="font-ui text-[12px] leading-snug text-warning">
+            Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
+            is prepaid — fund it and this agent starts on its own, no restart
+            needed.
+          </p>
+        </div>
+      ) : null}
+
       {/* --------------------------------------------------------- NAV --- */}
       <div className="border-y border-grid bg-panel">
         <div className="flex items-start justify-between px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
             <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
               {points.length
-                ? t("agent_nav_label_cycle", { cycle: points[points.length - 1].tickSeq })
+                ? t("agent_nav_label_cycle", {
+                    cycle: points[points.length - 1].tickSeq,
+                  })
                 : t("agent_nav_label")}
             </p>
             <p className="flex items-end font-mono text-[30px] leading-none font-semibold tracking-[-1px]">
@@ -213,10 +293,14 @@ export function AgentDetailMobile({
             </p>
             {mark ? (
               <p className="flex flex-wrap items-center gap-1.5">
-                <span className={`font-mono text-[13px] font-semibold ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}>
+                <span
+                  className={`font-mono text-[13px] font-semibold ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}
+                >
                   {signed(mark.pnlUsd)}
                 </span>
-                <span className={`font-mono text-[13px] font-semibold ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}>
+                <span
+                  className={`font-mono text-[13px] font-semibold ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}
+                >
                   {signedPct(mark.returnPct)}
                 </span>
                 <span className="font-mono text-[9px] font-semibold tracking-[0.7px] text-text-dim uppercase">
@@ -233,7 +317,9 @@ export function AgentDetailMobile({
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
                 className={`rounded-[7px] px-2 py-[5px] font-mono text-[10px] font-semibold tracking-[0.4px] ${
-                  range === r ? "bg-surface-2 text-text-primary" : "text-text-muted"
+                  range === r
+                    ? "bg-surface-2 text-text-primary"
+                    : "text-text-muted"
                 }`}
               >
                 {r}
@@ -260,10 +346,34 @@ export function AgentDetailMobile({
             risk-free rate and no return series to annualise — so the slot
             carries realised P&L, which the equity payload does report. */}
         <div className="flex border-t border-grid">
-          <Cell label={t("agent_cell_return")} value={mark ? signedPct(mark.returnPct) : "—"} tone={mark && mark.returnPct < 0 ? "negative" : "accent"} first />
-          <Cell label={t("agent_cell_win_rate")} value={mark?.hitRatePct === null || !mark ? "—" : `${mark.hitRatePct.toFixed(0)}%`} />
-          <Cell label={t("agent_cell_max_dd")} value={mark && mark.maxDrawdownPct > 0 ? `−${mark.maxDrawdownPct.toFixed(1)}%` : "—"} tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"} />
-          <Cell label={t("agent_cell_realised")} value={mark ? signed(mark.realizedPnlUsd) : "—"} tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"} />
+          <Cell
+            label={t("agent_cell_return")}
+            value={mark ? signedPct(mark.returnPct) : "—"}
+            tone={mark && mark.returnPct < 0 ? "negative" : "accent"}
+            first
+          />
+          <Cell
+            label={t("agent_cell_win_rate")}
+            value={
+              mark?.hitRatePct === null || !mark
+                ? "—"
+                : `${mark.hitRatePct.toFixed(0)}%`
+            }
+          />
+          <Cell
+            label={t("agent_cell_max_dd")}
+            value={
+              mark && mark.maxDrawdownPct > 0
+                ? `−${mark.maxDrawdownPct.toFixed(1)}%`
+                : "—"
+            }
+            tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"}
+          />
+          <Cell
+            label={t("agent_cell_realised")}
+            value={mark ? signed(mark.realizedPnlUsd) : "—"}
+            tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"}
+          />
         </div>
       </div>
 
@@ -274,11 +384,15 @@ export function AgentDetailMobile({
             <span className="font-mono text-[10px] font-semibold tracking-[0.9px] text-text-secondary uppercase">
               {t("agent_cycle_label", {
                 seq: cycle.tick_seq,
-                status: running ? t("agent_cycle_running") : t(STATUS_LABEL_KEY[cycle.status]),
+                status: running
+                  ? t("agent_cycle_running")
+                  : t(STATUS_LABEL_KEY[cycle.status]),
               })}
             </span>
             <span className="font-mono text-[10px] font-semibold text-text-dim">
-              {running ? t("agent_cycle_in_progress") : relativeTime(cycle.started_at, t)}
+              {running
+                ? t("agent_cycle_in_progress")
+                : relativeTime(cycle.started_at, t)}
             </span>
           </div>
 
@@ -287,7 +401,11 @@ export function AgentDetailMobile({
               <div key={phaseKey} className="flex-1 space-y-2">
                 <div
                   className={`h-[3px] rounded-sm ${
-                    i < reached ? "bg-accent/60" : i === reached ? "bg-accent" : "bg-grid-strong"
+                    i < reached
+                      ? "bg-accent/60"
+                      : i === reached
+                        ? "bg-accent"
+                        : "bg-grid-strong"
                   }`}
                 />
                 <p
@@ -306,7 +424,10 @@ export function AgentDetailMobile({
           </div>
 
           <div className="flex items-start gap-2.5 rounded-[11px] border border-border-soft bg-surface px-3 py-2.5">
-            <Gavel className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
+            <Gavel
+              className="mt-0.5 size-3.5 shrink-0 text-warning"
+              aria-hidden
+            />
             <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
               {headline(cycle, t)}
             </p>
@@ -334,10 +455,14 @@ export function AgentDetailMobile({
               const price = assets.find((a) => a.symbol === p.symbol)?.priceUsd;
               const qty = num(p.qty);
               const cost = num(p.cost_basis_usd) ?? 0;
-              const value = num(price) !== null && qty !== null ? num(price)! * qty : cost;
+              const value =
+                num(price) !== null && qty !== null ? num(price)! * qty : cost;
               const pnl = value - cost;
               return (
-                <li key={p.symbol} className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}>
+                <li
+                  key={p.symbol}
+                  className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}
+                >
                   <span className="min-w-0 flex-1 space-y-1">
                     <span className="block truncate font-mono text-[14px] font-semibold text-text-primary">
                       {p.symbol}
@@ -347,10 +472,14 @@ export function AgentDetailMobile({
                     </span>
                   </span>
                   <span className="shrink-0 space-y-1 text-right">
-                    <span className={`block font-mono text-[14px] font-semibold ${pnl >= 0 ? "text-accent" : "text-negative"}`}>
+                    <span
+                      className={`block font-mono text-[14px] font-semibold ${pnl >= 0 ? "text-accent" : "text-negative"}`}
+                    >
                       {signed(pnl)}
                     </span>
-                    <span className="block font-mono text-[11.5px] text-text-dim">{money(value)}</span>
+                    <span className="block font-mono text-[11.5px] text-text-dim">
+                      {money(value)}
+                    </span>
                   </span>
                 </li>
               );
@@ -405,7 +534,9 @@ export function AgentDetailMobile({
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-accent hover:text-accent"
           >
             <Plus className="size-4" aria-hidden />
-            <span className="font-ui text-[13.5px] font-semibold">{t("agent_add_market")}</span>
+            <span className="font-ui text-[13.5px] font-semibold">
+              {t("agent_add_market")}
+            </span>
           </button>
         </div>
       </div>
@@ -424,7 +555,9 @@ export function AgentDetailMobile({
             <Pause className="size-4 text-text-primary" aria-hidden />
           )}
           <span className="font-ui text-[15px] font-semibold text-text-primary">
-            {busy ? t("agent_busy") : t(paused ? "agent_resume" : "agent_pause")}
+            {busy
+              ? t("agent_busy")
+              : t(paused ? "agent_resume" : "agent_pause")}
           </span>
         </button>
         <Link
@@ -432,12 +565,21 @@ export function AgentDetailMobile({
           className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-accent"
         >
           <Plus className="size-4 text-bg" aria-hidden />
-          <span className="font-ui text-[15px] font-semibold text-bg">{t("agent_add_funds")}</span>
+          <span className="font-ui text-[15px] font-semibold text-bg">
+            {t("agent_add_funds")}
+          </span>
         </Link>
       </div>
 
-      {chatOpen ? (
-        <AgentChatSheet agentId={agent.id} agent={agent} onClose={() => setChatOpen(false)} />
+      {modelOpen ? (
+        <ModelPanel
+          agentId={agent.id}
+          agentWallet={detail.wallet?.address ?? null}
+          personalWallet={personalWallet}
+          expiresAt={agent.expires_at ?? null}
+          onChanged={onChanged}
+          onClose={() => setModelOpen(false)}
+        />
       ) : null}
 
       {adding ? (
@@ -485,13 +627,19 @@ function Cell({
   first?: boolean;
 }) {
   return (
-    <div className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}>
+    <div
+      className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}
+    >
       <p className="font-mono text-[8.5px] font-semibold tracking-[0.7px] text-text-dim uppercase">
         {label}
       </p>
       <p
         className={`font-mono text-[14.5px] font-semibold ${
-          tone === "accent" ? "text-accent" : tone === "negative" ? "text-negative" : "text-text-primary"
+          tone === "accent"
+            ? "text-accent"
+            : tone === "negative"
+              ? "text-negative"
+              : "text-text-primary"
         }`}
       >
         {value}
@@ -504,7 +652,10 @@ function Cell({
 
 function splitMoney(n: number): [string, string] {
   if (!Number.isFinite(n)) return ["—", ""];
-  const s = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const s = Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const [w, f] = s.split(".");
   return [`${n < 0 ? "−" : ""}$${w}`, `.${f}`];
 }

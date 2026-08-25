@@ -11,7 +11,8 @@ export const enNotifs = {
     "Nothing yet. Your agents report here when they trade, when something needs you, and when a limit is breached — a quiet feed means they looked and found nothing worth doing.",
   nc_empty_filter: "Nothing in this filter.",
   nc_unread: "{count} unread",
-  nc_undeliverable: "Couldn't reach your Telegram — you're seeing this here instead.",
+  nc_undeliverable:
+    "Couldn't reach your Telegram — you're seeing this here instead.",
 
   // ── Filters ────────────────────────────────────────────────────
   nc_filter_all: "All",
@@ -57,6 +58,7 @@ export const enNotifs = {
   chat_subtitle: "Proposes · you decide",
   chat_close_aria: "Close chat",
   chat_button_aria: "Chat with your agent",
+  chat_button_close: "Close chat",
   chat_button_aria_waiting: "Chat with your agent — {count} waiting on you",
 } as const;
 
@@ -85,7 +87,8 @@ export const enThread = {
   th_settled_suffix: " · settled",
   th_see_cycle: "See the cycle →",
   th_mark_handled: "Mark handled",
-  th_takes_effect: "Takes effect from the next cycle. Same agent, same positions.",
+  th_takes_effect:
+    "Takes effect from the next cycle. Same agent, same positions.",
   th_leave_it: "Leave it",
   th_apply: "Apply",
   th_applying: "Applying…",

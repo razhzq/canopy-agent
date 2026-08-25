@@ -79,17 +79,35 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     </div>
   );
 
-  if (meta.phase === "loading") return <>{crumbs()}<SkeletonAgentDetail labelKey="loading_strategy" /></>;
-  if (meta.phase === "signed-out") return <>{crumbs()}<SignedOutState /></>;
+  if (meta.phase === "loading")
+    return (
+      <>
+        {crumbs()}
+        <SkeletonAgentDetail labelKey="loading_strategy" />
+      </>
+    );
+  if (meta.phase === "signed-out")
+    return (
+      <>
+        {crumbs()}
+        <SignedOutState />
+      </>
+    );
   if (meta.phase === "error")
-    return <>{crumbs()}<ErrorState message={meta.message} onRetry={meta.reload} /></>;
+    return (
+      <>
+        {crumbs()}
+        <ErrorState message={meta.message} onRetry={meta.reload} />
+      </>
+    );
 
   const { strategy, verification, isMine } = meta.data;
   const live = strategy.status === "published";
   // Both unpublished-with-a-record states. A draft reaches this page for a
   // non-author only when an agent is running on it, so it is a paper record in
   // exactly the sense a verifying one is — and neither can be deployed.
-  const onPaper = strategy.status === "verifying" || strategy.status === "draft";
+  const onPaper =
+    strategy.status === "verifying" || strategy.status === "draft";
   const days = verification.day;
 
   // null means the API did not send a daily breakdown at all — an older build.
@@ -100,7 +118,10 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
   const capital = ready?.capitalUsd ?? 0;
 
   const equity = points.length > 0 ? points[points.length - 1].equityUsd : null;
-  const ret = equity === null || capital === 0 ? null : ((equity - capital) / capital) * 100;
+  const ret =
+    equity === null || capital === 0
+      ? null
+      : ((equity - capital) / capital) * 100;
   const drawdown = maxDrawdownPct(points.map((p) => p.equityUsd));
   const trades30 = (daily ?? [])
     .filter((d) => withinDays(d.day, 30))
@@ -120,7 +141,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             </h1>
             {/* Straight after the name, ahead of the state badges: what it is
                 made of, before what it is currently doing. */}
-            <ModelBadge />
+            <ModelBadge model={strategy.model} />
             {live ? <Badge tone="accent">{t("sd_badge_listed")}</Badge> : null}
             {/* Draft and verifying are both paper, and the page says so the
                 same way for both. A draft only reaches a non-author at all
@@ -193,7 +214,10 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
               Just "Capital", not "Capital deployed": on a paper run nothing is
               deployed, and the head already carries a Paper run badge saying
               so. The plain noun is true of both books. */}
-          <Stat label={t("sd_capital")} value={ready === null ? "—" : money(capital)} />
+          <Stat
+            label={t("sd_capital")}
+            value={ready === null ? "—" : money(capital)}
+          />
           <Stat
             label={t("sd_max_drawdown")}
             value={drawdown === 0 ? "—" : `−${drawdown.toFixed(2)}%`}
@@ -253,7 +277,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                     </span>
                   ) : null}
                 </span>
-                <span className="font-mono text-[11.5px] text-text-dim">{p.venue}</span>
+                <span className="font-mono text-[11.5px] text-text-dim">
+                  {p.venue}
+                </span>
                 <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
                   {qty(p.qty)}
                 </span>
@@ -280,7 +306,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
                 className={`h-7 rounded-full px-3.5 font-mono text-[11px] transition-colors ${
-                  range === r ? "bg-accent-wash text-accent" : "text-text-dim hover:text-text-primary"
+                  range === r
+                    ? "bg-accent-wash text-accent"
+                    : "text-text-dim hover:text-text-primary"
                 }`}
               >
                 {r}
@@ -304,11 +332,19 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           </div>
         ) : (
           <div className="border border-grid p-4">
-            <EquityCurve values={windowed.map((p) => p.equityUsd)} baseline={capital} height={200} />
+            <EquityCurve
+              values={windowed.map((p) => p.equityUsd)}
+              baseline={capital}
+              height={200}
+            />
             <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
               <span>{t("sd_cycle_n", { seq: windowed[0].tickSeq })}</span>
               <span className="text-text-muted">{t("sd_dashed_line")}</span>
-              <span>{t("sd_cycle_n", { seq: windowed[windowed.length - 1].tickSeq })}</span>
+              <span>
+                {t("sd_cycle_n", {
+                  seq: windowed[windowed.length - 1].tickSeq,
+                })}
+              </span>
             </div>
           </div>
         )}
@@ -324,15 +360,25 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             {t("sd_public_info")}
           </h2>
           <div>
-            <Fact label={t("sd_fact_class")} value={strategy.strategy_class.toUpperCase()} />
+            <Fact
+              label={t("sd_fact_class")}
+              value={strategy.strategy_class.toUpperCase()}
+            />
             <Fact
               label={t("sd_fact_status")}
-              value={t(days === 1 ? "sd_status_days_one" : "sd_status_days_many", {
-                status: t(
-                  live ? "sd_status_listed" : onPaper ? "sd_status_paper" : "sd_status_delisted",
-                ),
-                count: days,
-              })}
+              value={t(
+                days === 1 ? "sd_status_days_one" : "sd_status_days_many",
+                {
+                  status: t(
+                    live
+                      ? "sd_status_listed"
+                      : onPaper
+                        ? "sd_status_paper"
+                        : "sd_status_delisted",
+                  ),
+                  count: days,
+                },
+              )}
             />
             <Fact
               label={t("sd_fact_trades_day")}
@@ -346,7 +392,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                   : `${ready.winRatePct.toFixed(0)}%`
               }
               note={
-                ready ? t("sd_closed_note", { count: ready.closedPositions }) : undefined
+                ready
+                  ? t("sd_closed_note", { count: ready.closedPositions })
+                  : undefined
               }
             />
             <Fact label={t("sd_fact_custody")} value={t("sd_custody_value")} />
@@ -385,7 +433,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             </p>
           ) : (
             <div>
-              <div className={`${DAY_COLS} border-b border-grid pb-2.5 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase`}>
+              <div
+                className={`${DAY_COLS} border-b border-grid pb-2.5 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase`}
+              >
                 <span>{t("sd_col_day")}</span>
                 <span className="text-right">{t("sd_col_return")}</span>
                 <span className="text-right">{t("sd_col_trades")}</span>
@@ -436,7 +486,9 @@ function DayRow({ day: d }: { day: RecordDay }) {
         {/* Cycles run, so a day it held rather than traded still reads as a
             day it was working. */}
         <span className="shrink-0 font-mono text-[9.5px] tracking-[0.06em] text-text-muted uppercase">
-          {d.cycles === 1 ? t("sd_cycles_one") : t("sd_cycles_many", { count: d.cycles })}
+          {d.cycles === 1
+            ? t("sd_cycles_one")
+            : t("sd_cycles_many", { count: d.cycles })}
         </span>
       </span>
       <span
@@ -456,7 +508,9 @@ function DayRow({ day: d }: { day: RecordDay }) {
         {d.trades}
       </span>
       <span className="tnum text-right font-mono text-[12.5px] text-text-dim">
-        {num(d.maxDrawdownPct) === null ? "—" : `−${num(d.maxDrawdownPct)!.toFixed(2)}%`}
+        {num(d.maxDrawdownPct) === null
+          ? "—"
+          : `−${num(d.maxDrawdownPct)!.toFixed(2)}%`}
       </span>
     </div>
   );
@@ -484,7 +538,9 @@ function Fact({
       </span>
       <span className="truncate font-mono text-[12.5px] text-text-primary">
         {value}
-        {note ? <span className="pl-2 text-[10px] text-text-muted">{note}</span> : null}
+        {note ? (
+          <span className="pl-2 text-[10px] text-text-muted">{note}</span>
+        ) : null}
       </span>
     </div>
   );
@@ -501,7 +557,9 @@ function Stat({
 }) {
   return (
     <div className="space-y-2">
-      <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
+        {label}
+      </p>
       <p
         className={`tnum font-mono text-[22px] leading-none whitespace-nowrap ${
           tone === "accent"

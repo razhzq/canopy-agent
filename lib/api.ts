@@ -62,8 +62,12 @@ export interface PaywallDetail {
  * Checks the status rather than the code so an unrecognised future `code` still
  * routes to the upgrade prompt instead of falling through to a generic error.
  */
-export function isPaywallError(err: unknown): err is ApiError & { detail: PaywallDetail } {
-  return err instanceof ApiError && err.status === 402 && Boolean(err.detail?.code);
+export function isPaywallError(
+  err: unknown,
+): err is ApiError & { detail: PaywallDetail } {
+  return (
+    err instanceof ApiError && err.status === 402 && Boolean(err.detail?.code)
+  );
 }
 
 async function request<T>(
@@ -86,7 +90,10 @@ async function request<T>(
     let message = res.statusText;
     let detail: Record<string, unknown> | undefined;
     try {
-      const body = (await res.json()) as { error?: string } & Record<string, unknown>;
+      const body = (await res.json()) as { error?: string } & Record<
+        string,
+        unknown
+      >;
       if (body.error) message = body.error;
       // Kept whole rather than picked apart here: a 402 carries the plan and
       // slot counts the upgrade prompt needs, and this helper has no business
@@ -204,13 +211,36 @@ export async function openSession(
  * renders that message rather than inventing its own. The backend knows which
  * of those it was; the client would have to guess from a status code.
  */
-export const redeemInvite = (token: string, code: string, profile: SessionProfile = {}) =>
+export const redeemInvite = (
+  token: string,
+  code: string,
+  profile: SessionProfile = {},
+) =>
   request<InviteStatus>("/agents/invite", token, {
     method: "POST",
     body: JSON.stringify({ code, ...profile }),
   });
 
 /* ------------------------------------------------------------ marketplace -- */
+
+/**
+ * Which model an agent reasons with, as the rows that only need to NAME it
+ * carry it: enough to badge, not enough to bill. Absent on anything created
+ * before models were a choice, which all ran Canopy's — so a reader defaults
+ * rather than treating absence as unknown.
+ */
+export interface ModelRef {
+  id: string;
+  label: string;
+  provider: "canopy" | "pod";
+  /**
+   * A mark for the badge. Absent means the label stands alone, which is the
+   * right answer for most marketplace models — we are not going to hold a logo
+   * for every model Pod ever lists, and a placeholder disc is decoration
+   * standing where a fact should be.
+   */
+  logo?: string | null;
+}
 
 export interface StrategyRow {
   id: number;
@@ -225,6 +255,8 @@ export interface StrategyRow {
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
+  /** What its agents reason with. Absent means the Canopy model. */
+  model?: ModelRef | null;
 
   /* ---- present only on `listStrategies` -----------------------------------
    *
@@ -359,10 +391,11 @@ export const listStrategies = (token: string) =>
   request<{ strategies: StrategyRow[] }>("/agents/strategies", token);
 
 export const getStrategy = (token: string, id: number) =>
-  request<{ strategy: StrategyRow; verification: VerificationStatus; isMine: boolean }>(
-    `/agents/strategies/${id}`,
-    token,
-  );
+  request<{
+    strategy: StrategyRow;
+    verification: VerificationStatus;
+    isMine: boolean;
+  }>(`/agents/strategies/${id}`, token);
 
 /* ---------------------------------------------------------- verification -- */
 
@@ -508,7 +541,9 @@ export function selectionLabel(u: UniverseSelection): string {
 
 /** A stable local key. The two variants cannot collide. */
 export function selectionKey(u: UniverseSelection): string {
-  return u.kind === "crypto" ? `mint:${u.mint}` : `${u.underlying}/${u.issuer ?? ""}`;
+  return u.kind === "crypto"
+    ? `mint:${u.mint}`
+    : `${u.underlying}/${u.issuer ?? ""}`;
 }
 
 /** The issuer, where the variant has one. */
@@ -529,11 +564,16 @@ export function selectionIssuer(u: UniverseSelection): string | undefined {
  * assets, and the reason a gold pick stored back then resolved to nothing and
  * rendered as "not priced".
  */
-export function assetMatchesSelection(a: UniverseAsset, sel: UniverseSelection): boolean {
+export function assetMatchesSelection(
+  a: UniverseAsset,
+  sel: UniverseSelection,
+): boolean {
   if (sel.kind === "crypto") return Boolean(a.mint) && a.mint === sel.mint;
   const rwa = sel as { underlying?: string; issuer?: string };
   if (!rwa.underlying) return false;
-  return a.underlying === rwa.underlying && (!rwa.issuer || a.issuer === rwa.issuer);
+  return (
+    a.underlying === rwa.underlying && (!rwa.issuer || a.issuer === rwa.issuer)
+  );
 }
 
 export interface UniverseResponse {
@@ -695,7 +735,9 @@ export async function getMarketsForClass(
   if (strategyClass !== "spot") {
     return res.assets.map((a) => ({ ...a, kind: a.kind ?? ("rwa" as const) }));
   }
-  return (res.assets as unknown as CryptoPickerMarket[]).filter((r) => r?.mint).map(cryptoRowToAsset);
+  return (res.assets as unknown as CryptoPickerMarket[])
+    .filter((r) => r?.mint)
+    .map(cryptoRowToAsset);
 }
 
 /**
@@ -707,7 +749,9 @@ export async function getMarketsForClass(
  * it must agree on what "the same asset" means.
  */
 export function marketKey(a: UniverseAsset): string {
-  return a.kind === "crypto" ? `crypto:${a.mint}` : `rwa:${a.issuer}/${a.underlying}`;
+  return a.kind === "crypto"
+    ? `crypto:${a.mint}`
+    : `rwa:${a.issuer}/${a.underlying}`;
 }
 
 /**
@@ -731,7 +775,8 @@ function mergeMarkets(
   };
 
   // Rows written before `kind` existed carry none; they are all RWA.
-  if (rwa) for (const a of rwa.assets) add({ ...a, kind: a.kind ?? ("rwa" as const) });
+  if (rwa)
+    for (const a of rwa.assets) add({ ...a, kind: a.kind ?? ("rwa" as const) });
   if (crypto) {
     for (const r of crypto.assets as unknown as CryptoPickerMarket[]) {
       if (r?.mint) add(cryptoRowToAsset(r));
@@ -799,10 +844,14 @@ export interface ComposedDraft {
 }
 
 export const composeAgent = (token: string, prompt: string) =>
-  request<{ draft: ComposedDraft | null; notes: string[] }>("/agents/compose", token, {
-    method: "POST",
-    body: JSON.stringify({ prompt }),
-  });
+  request<{ draft: ComposedDraft | null; notes: string[] }>(
+    "/agents/compose",
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    },
+  );
 
 /**
  * How a strategy accumulates. Mirrors the backend contract — the same shape is
@@ -912,6 +961,24 @@ export const createStrategy = (
     tradesPerCycle?: number;
     /** Keep the best N of what passed the rules. Omitted keeps all. */
     ranking?: RankingSpec;
+    /**
+     * Which model the agent's council reasons with, chosen in step 3.
+     *
+     * Omitted means the Canopy model, which is what every strategy authored
+     * before this was a choice runs — so absence is a real answer here, not a
+     * missing field.
+     *
+     * It rides on the STRATEGY rather than on the deploy call because that is
+     * where creation actually happens: `deployAgent` has no callers, and the
+     * builder goes createStrategy → startPaperRun, which deploys server-side.
+     */
+    model?: {
+      id: string;
+      /** The price the creator accepted, USD per million tokens. */
+      maxPriceInputUsd?: number | null;
+      maxPriceOutputUsd?: number | null;
+      fallbackToCanopy?: boolean;
+    };
   },
 ) =>
   // `warnings` are plans that are legal but probably not what the author meant —
@@ -970,7 +1037,12 @@ export const forkStrategy = (
 export const getCreatorDashboard = (token: string) =>
   request<{
     strategies: StrategyRow[];
-    counts: { live: number; verifying: number; delisted: number; superseded: number };
+    counts: {
+      live: number;
+      verifying: number;
+      delisted: number;
+      superseded: number;
+    };
   }>("/agents/creator", token);
 
 /* ------------------------------------------------------------- deployment -- */
@@ -1037,6 +1109,8 @@ export interface AgentRow {
   paused_reason?: string | null;
   /** Opaque provider ref. The wallet ADDRESS only comes back from `getAgent`. */
   wallet_ref?: string | null;
+  /** What it reasons with. Absent means the Canopy model. */
+  model?: ModelRef | null;
   mandate?: AgentMandate;
   /** Unsettled messages needing a human. Drives the rail count. */
   needs_you?: string;
@@ -1151,9 +1225,12 @@ export async function sendMessageStreaming(
         continue;
       }
       if (event.type === "stage" && event.stage) onStage(event.stage);
-      else if (event.type === "delta" && typeof event.text === "string") onDelta?.(event.text);
-      else if (event.type === "messages" && event.messages) messages = event.messages;
-      else if (event.type === "error") throw new Error(event.message ?? "The agent stopped early.");
+      else if (event.type === "delta" && typeof event.text === "string")
+        onDelta?.(event.text);
+      else if (event.type === "messages" && event.messages)
+        messages = event.messages;
+      else if (event.type === "error")
+        throw new Error(event.message ?? "The agent stopped early.");
     }
   }
 
@@ -1181,7 +1258,11 @@ export interface ProposedChange {
  * thread and its history, and follows the new rule from its next cycle.
  * Returns the fields that changed, for the confirmation.
  */
-export const applyProposal = (token: string, agentId: number, messageId: string) =>
+export const applyProposal = (
+  token: string,
+  agentId: number,
+  messageId: string,
+) =>
   request<{ agentId: number; changed: string[] }>(
     `/agents/${agentId}/messages/${messageId}/apply`,
     token,
@@ -1205,10 +1286,14 @@ export const ackMessage = (
   messageId: string,
   approved?: boolean,
 ) =>
-  request<{ ok: boolean }>(`/agents/${agentId}/messages/${messageId}/ack`, token, {
-    method: "POST",
-    body: JSON.stringify(approved === undefined ? {} : { approved }),
-  });
+  request<{ ok: boolean }>(
+    `/agents/${agentId}/messages/${messageId}/ack`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(approved === undefined ? {} : { approved }),
+    },
+  );
 
 export const listAgents = (token: string) =>
   request<{ agents: AgentRow[] }>("/agents", token);
@@ -1325,7 +1410,10 @@ export const getCapabilityNotices = (token: string) =>
  * Dismissal. The server scopes the update to the caller, so a phrase key from
  * one person cannot clear another's notice.
  */
-export const dismissCapabilityNotices = (token: string, phraseNorms: string[]) =>
+export const dismissCapabilityNotices = (
+  token: string,
+  phraseNorms: string[],
+) =>
   request<{ seen: number }>("/agents/capability-notices/seen", token, {
     method: "POST",
     body: JSON.stringify({ phraseNorms }),
@@ -1341,10 +1429,11 @@ export const deployAgent = (
     constraints?: Record<string, unknown>;
     tickIntervalSec?: number;
   },
-) => request<{ agent: AgentRow }>("/agents", token, {
-  method: "POST",
-  body: JSON.stringify(body),
-});
+) =>
+  request<{ agent: AgentRow }>("/agents", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
 /* ---------------------------------------------------------------- funding -- */
 
@@ -1374,6 +1463,250 @@ export interface AgentFunding {
 export const getAgentFunding = (token: string, agentId: number) =>
   request<AgentFunding>(`/agents/${agentId}/funding`, token);
 
+/* ----------------------------------------------------------------- models -- */
+
+// Which model an agent reasons with.
+//
+// Two providers, and they are not symmetrical. "canopy" is the Canopy-hosted
+// Qwen3-14B every agent has always run: included, no balance, nothing to fund.
+// "pod" is usepod.ai — an OpenAI-compatible marketplace that routes each call to
+// the cheapest provider willing to serve it, priced in USDC and settled on
+// Solana. A Pod agent spends its own money to think.
+//
+// NOTHING ABOUT POD'S CREDENTIALS REACHES THIS FILE, and that is deliberate.
+// Pod's API key is a token embedded in the request URL — `/proxy/<token>/v1` —
+// so a browser that has ever seen it can spend the balance. canopy-be holds it,
+// makes every inference call, and hands this client only the things a person
+// needs to see: a model id, a balance, a deposit code, and what has been spent.
+//
+// The builder's strategy compiler (`composeAgent`) is NOT affected by any of
+// this. It runs before an agent exists, so it runs on Canopy always.
+
+export interface ModelOption {
+  /** Stable id the agent is stored against, e.g. "canopy:qwen3-14b", "pod:deepseek-v4". */
+  id: string;
+  provider: "canopy" | "pod";
+  /** What the badge and the picker show: "cQWEN3", "DeepSeek V4". */
+  label: string;
+  /** A mark, if one is worth carrying. Same rule as {@link ModelRef.logo}. */
+  logo?: string | null;
+  /**
+   * Marketplace price in USD per MILLION tokens, input and output.
+   *
+   * Null on the Canopy model, which is included rather than free — the
+   * distinction matters, because "$0.00" would invite a comparison on price
+   * with a row that has no price.
+   */
+  inputPerMTokenUsd: number | null;
+  outputPerMTokenUsd: number | null;
+  /**
+   * The most this model can cost, USD per million tokens — the figure the
+   * creator accepts and the agent then enforces.
+   *
+   * Pod's own centralized price wherever it lists one: marketplace providers
+   * are capped at it, so this is a documented maximum rather than a multiple of
+   * today's price that we made up.
+   */
+  maxPriceInputUsd: number | null;
+  maxPriceOutputUsd: number | null;
+  /** Providers online for this model right now. Null for Canopy. */
+  providersOnline: number | null;
+  contextTokens: number | null;
+  /**
+   * What one cycle costs, as the backend measures it.
+   *
+   * A per-million price is not a number anyone can act on: what a creator wants
+   * is "this agent costs about 4 cents an hour". The server has the council's
+   * real token usage and this client does not, so the estimate is computed
+   * there. Null until enough cycles exist to mean anything — better absent than
+   * extrapolated from one run.
+   */
+  estCostPerCycleUsd: number | null;
+  /** False when Pod lists it but we will not run it. Show it greyed, not hidden. */
+  selectable: boolean;
+}
+
+export interface ModelCatalogue {
+  /** Canopy's own model is always the first entry. */
+  models: ModelOption[];
+  /**
+   * Whether Pod is open at all.
+   *
+   * Server-owned, like `AgentDetail.liveTradingEnabled` — the client learns the
+   * answer rather than carrying its own copy of the switch. False hides the
+   * whole step and every agent keeps the Canopy model, which is the state this
+   * product was in before Pod existed and is therefore always safe to return to.
+   */
+  podEnabled: boolean;
+  /** What to put in the amount field the first time. Backend-owned so it can be tuned. */
+  suggestedTopUpUsd: number;
+  /**
+   * Why the Pod half of the list is empty, when it is.
+   *
+   * `disabled` is the kill switch, `unreachable` is an outage — different
+   * sentences to a reader, indistinguishable from an empty array, which is why
+   * the server names it rather than leaving the UI to guess.
+   */
+  podStatus?: "ok" | "disabled" | "unreachable";
+  /**
+   * How far above list price the accepted ceiling sits, e.g. 1.5.
+   *
+   * A marketplace price moves; the agreement should have headroom or every
+   * small rise pauses the agent. It should NOT be unbounded, or the number the
+   * creator accepted means nothing.
+   */
+  priceCeilingMultiple: number;
+}
+
+/**
+ * The catalogue.
+ *
+ * Under `/agents` like everything else on this surface, rather than a top-level
+ * `/models`: canopy-be mounts the whole agent API there, and a second mount
+ * point for one route is a second thing to keep in sync.
+ */
+export const getModels = (token: string) =>
+  request<ModelCatalogue>("/agents/models", token);
+
+/**
+ * What an agent thinks with, and what that is costing.
+ *
+ * `balance` is null for a Canopy agent — not zero. Zero is a Pod agent that has
+ * run out, which is a state that pauses it; a Canopy agent has no balance to
+ * be out of.
+ */
+export interface AgentModel {
+  modelId: string;
+  provider: "canopy" | "pod";
+  label: string;
+  /**
+   * The price ceiling accepted when this model was chosen, USD per million
+   * tokens. Sent as `X-Pod-Max-Price-*` on every call, so a marketplace spike
+   * refuses the request instead of quietly costing more than was agreed.
+   */
+  maxPriceInputUsd: number | null;
+  maxPriceOutputUsd: number | null;
+  /**
+   * Whether to fall back to the Canopy model when Pod cannot serve.
+   *
+   * Opt-in, and off by default: the creator picked a model, and silently
+   * running a different one is a worse failure than skipping a cycle. When it
+   * IS on, the cycle transcript shows which model actually answered.
+   */
+  fallbackToCanopy: boolean;
+  /** Pod only. Null while the agent runs the Canopy model. */
+  balance: {
+    usdc: number;
+    /**
+     * The 16-hex code that binds an on-chain deposit to this agent's Pod
+     * balance. Safe to show and safe to share — it can only ADD credit. The
+     * token it credits is the secret, and never leaves the backend.
+     */
+    depositCode: string;
+    /** Cycles the balance should cover at the measured rate. Null before any ran. */
+    cyclesRemaining: number | null;
+    lowBalance: boolean;
+  } | null;
+  /** Lifetime inference spend, summed from the decision rows' own `cost_usd`. */
+  spentUsd: number;
+  /**
+   * What this agent has actually consumed, joined through the decision rows.
+   *
+   * A RUNNING TOTAL, NOT A LIFETIME ONE. Every figure comes through
+   * `trading_agent_decisions.llm_call_id`, which the specialists left null until
+   * 2026-08-25 — so an agent that ran before that reports what there is evidence
+   * for, which is less than it used. Present the number as "since tracking
+   * began", never as the whole history.
+   */
+  /**
+   * OPTIONAL, because a server that predates it does not send it.
+   *
+   * This was declared as required and read as `model.usage.calls`, which threw
+   * the moment the panel opened against a backend that had not shipped the
+   * field yet — a typed contract describes what the server WILL send once
+   * deployed, never what the one you are talking to does. Every added response
+   * field is optional on the client until the old server is gone.
+   */
+  usage?: {
+    tokensIn: number;
+    tokensOut: number;
+    /** Model calls with a ledger row behind them. */
+    calls: number;
+  };
+}
+
+export const getAgentModel = (token: string, agentId: number) =>
+  request<AgentModel>(`/agents/${agentId}/model`, token);
+
+export const setAgentModel = (
+  token: string,
+  agentId: number,
+  body: {
+    modelId: string;
+    maxPriceInputUsd?: number | null;
+    maxPriceOutputUsd?: number | null;
+    fallbackToCanopy?: boolean;
+  },
+) =>
+  request<AgentModel>(`/agents/${agentId}/model`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/**
+ * A top-up, as a transaction for the browser to sign.
+ *
+ * THE BACKEND BUILDS IT, and there are two reasons rather than one. Pod's
+ * deposit is an Anchor instruction whose account list is resolved from an IDL,
+ * and Anchor's client is built on @solana/web3.js — a second Solana runtime
+ * this bundle deliberately does not carry (see the header of lib/transfer.ts).
+ * Hand-encoding the account metas here would be guesswork against a program we
+ * do not own.
+ *
+ * What stays in the browser is the only part that must: the signature. The
+ * agent's delegated signer is scoped to swaps and cannot pay for inference, so
+ * the person signs — from the agent's wallet, or from their own for an agent
+ * that has no wallet yet.
+ */
+export interface TopUpTx {
+  /** Base64 UNSIGNED transaction. Sign with Privy, submit, then confirm below. */
+  transactionBase64: string;
+  /** When the blockhash dies. Past this, ask for a new one rather than submit. */
+  expiresAt: string;
+  amountUsdc: number;
+}
+
+export const buildModelTopUp = (
+  token: string,
+  agentId: number,
+  body: {
+    amountUsdc: number;
+    /** Who pays. The agent's wallet, or the owner's for an unfunded paper agent. */
+    payer: string;
+  },
+) =>
+  request<TopUpTx>(`/agents/${agentId}/model/topup`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+/**
+ * Tell the backend the deposit landed, and get the new balance.
+ *
+ * Pod credits within seconds of finalization, but the client cannot read a Pod
+ * balance itself — so this is the round trip that turns a signature into a
+ * number on screen.
+ */
+export const confirmModelTopUp = (
+  token: string,
+  agentId: number,
+  signature: string,
+) =>
+  request<AgentModel>(`/agents/${agentId}/model/topup/confirm`, token, {
+    method: "POST",
+    body: JSON.stringify({ signature }),
+  });
+
 /* ----------------------------------------------------------------- invite -- */
 
 export interface PersonalInvite {
@@ -1383,7 +1716,11 @@ export interface PersonalInvite {
   remaining: number;
   disabled: boolean;
   /** Who came in on this code, most recent first. */
-  referrals: Array<{ privyId: string; email: string | null; redeemedAt: string }>;
+  referrals: Array<{
+    privyId: string;
+    email: string | null;
+    redeemedAt: string;
+  }>;
   /**
    * Whether an invite code is currently required to get in.
    *
@@ -1516,7 +1853,12 @@ export interface AgentDetail {
     opened_by_signal: string | null;
     opened_at: string;
   }[];
-  lastRun: { id: string; tick_seq: string; status: string; skip_reason: string | null } | null;
+  lastRun: {
+    id: string;
+    tick_seq: string;
+    status: string;
+    skip_reason: string | null;
+  } | null;
   wallet: {
     address: string;
     chain: string;
@@ -1562,7 +1904,11 @@ export interface AgentDetail {
  *
  * `book` chooses which one to show. Omitted means the agent's current mode.
  */
-export const getAgent = (token: string, agentId: number, book?: "paper" | "live") =>
+export const getAgent = (
+  token: string,
+  agentId: number,
+  book?: "paper" | "live",
+) =>
   request<AgentDetail>(
     `/agents/${agentId}${book ? `?book=${book}` : ""}`,
     token,
@@ -1670,10 +2016,22 @@ export interface CycleRow {
   ended_at: string | null;
   risk_decisions: string;
   blocked: string;
+  /**
+   * What this cycle's reasoning cost, in USD.
+   *
+   * Summed server-side from the same `cost_usd` the decision rows carry, so the
+   * total and the per-seat figures can never disagree. Null on a Canopy agent —
+   * its reasoning is included, and "$0.00" would be a claim about a price
+   * rather than an admission that there isn't one.
+   */
+  costUsd: string | null;
 }
 
 export const listCycles = (token: string, agentId: number, limit = 50) =>
-  request<{ cycles: CycleRow[] }>(`/agents/${agentId}/cycles?limit=${limit}`, token);
+  request<{ cycles: CycleRow[] }>(
+    `/agents/${agentId}/cycles?limit=${limit}`,
+    token,
+  );
 
 /**
  * The council transcript for one tick — a direct rendering of
@@ -1743,6 +2101,15 @@ export interface ActivityCycle {
   ended_at: string | null;
   error: string | null;
   decisions: ActivityDecision[];
+  /**
+   * What this cycle's reasoning cost, in USD.
+   *
+   * Summed server-side from the same `cost_usd` the decision rows carry, so the
+   * total and the per-seat figures can never disagree. Null on a Canopy agent —
+   * its reasoning is included, and "$0.00" would be a claim about a price
+   * rather than an admission that there isn't one.
+   */
+  costUsd: string | null;
 }
 
 /** The last few cycles with their full transcript — the agent's activity log. */
@@ -1858,7 +2225,11 @@ export const getStrategyRecord = (token: string, strategyId: number) =>
  * track record and draw the result as performance. Omitted means the book the
  * agent is in now, which is what a fresh page load should show.
  */
-export const getEquity = (token: string, agentId: number, book?: "paper" | "live") =>
+export const getEquity = (
+  token: string,
+  agentId: number,
+  book?: "paper" | "live",
+) =>
   request<EquitySeries>(
     `/agents/${agentId}/equity${book ? `?book=${book}` : ""}`,
     token,
@@ -1881,7 +2252,11 @@ export interface ProposalRow {
   created_at: string;
 }
 
-export const listProposals = (token: string, agentId: number, status?: string) =>
+export const listProposals = (
+  token: string,
+  agentId: number,
+  status?: string,
+) =>
   request<{ proposals: ProposalRow[] }>(
     `/agents/${agentId}/proposals${status ? `?status=${status}` : ""}`,
     token,
@@ -1909,10 +2284,14 @@ export const decideProposal = (
 /* ----------------------------------------------------------------- control -- */
 
 export const pauseAgent = (token: string, agentId: number) =>
-  request<{ status: string }>(`/agents/${agentId}/pause`, token, { method: "POST" });
+  request<{ status: string }>(`/agents/${agentId}/pause`, token, {
+    method: "POST",
+  });
 
 export const resumeAgent = (token: string, agentId: number) =>
-  request<{ status: string }>(`/agents/${agentId}/resume`, token, { method: "POST" });
+  request<{ status: string }>(`/agents/${agentId}/resume`, token, {
+    method: "POST",
+  });
 
 /**
  * Promotes a paper agent to live. One-way.
@@ -1939,9 +2318,13 @@ export const goLive = (token: string, agentId: number) =>
  * revocation works even if the agent runtime is wedged mid-tick.
  */
 export const stopAgent = (token: string, agentId: number) =>
-  request<{ status: string; walletRevoked: boolean }>(`/agents/${agentId}/stop`, token, {
-    method: "POST",
-  });
+  request<{ status: string; walletRevoked: boolean }>(
+    `/agents/${agentId}/stop`,
+    token,
+    {
+      method: "POST",
+    },
+  );
 
 /**
  * Soft-deletes an agent: closes its book, revokes the wallet, hides it from the
@@ -1964,11 +2347,12 @@ export const stopAgent = (token: string, agentId: number) =>
  * a partial success to report, not a failure to swallow.
  */
 export const flattenAgent = (token: string, agentId: number) =>
-  request<{ closed: number; remaining: number; alreadyFlat?: boolean; status?: string }>(
-    `/agents/${agentId}/flatten`,
-    token,
-    { method: "POST" },
-  );
+  request<{
+    closed: number;
+    remaining: number;
+    alreadyFlat?: boolean;
+    status?: string;
+  }>(`/agents/${agentId}/flatten`, token, { method: "POST" });
 
 /**
  * Deletes an agent, and delists its strategy if that was the author's last one.
@@ -1979,11 +2363,11 @@ export const flattenAgent = (token: string, agentId: number) =>
  * backend, so a reader must treat it as unknown rather than false.
  */
 export const deleteAgent = (token: string, agentId: number) =>
-  request<{ status: string; walletRevoked: boolean; strategyDelisted?: boolean }>(
-    `/agents/${agentId}/delete`,
-    token,
-    { method: "POST" },
-  );
+  request<{
+    status: string;
+    walletRevoked: boolean;
+    strategyDelisted?: boolean;
+  }>(`/agents/${agentId}/delete`, token, { method: "POST" });
 
 /* --------------------------------------------------------- notifications -- */
 
@@ -2005,12 +2389,7 @@ export interface TelegramStatus {
 /* -------------------------------------------------- notification centre -- */
 
 export type NotificationKind =
-  | "fill"
-  | "proposal"
-  | "breach"
-  | "risk_hold"
-  | "state_change"
-  | "cycle";
+  "fill" | "proposal" | "breach" | "risk_hold" | "state_change" | "cycle";
 
 export interface NotificationItem {
   id: string;
@@ -2085,14 +2464,20 @@ export const linkTelegram = (token: string) =>
 
 /** Mutes or unmutes without forgetting the chat. */
 export const setTelegramEnabled = (token: string, enabled: boolean) =>
-  request<{ ok: true; enabled: boolean }>("/agents/notifications/telegram", token, {
-    method: "PATCH",
-    body: JSON.stringify({ enabled }),
-  });
+  request<{ ok: true; enabled: boolean }>(
+    "/agents/notifications/telegram",
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    },
+  );
 
 /** Forgets the chat entirely. Reconnecting needs a new link. */
 export const unlinkTelegram = (token: string) =>
-  request<{ ok: true }>("/agents/notifications/telegram", token, { method: "DELETE" });
+  request<{ ok: true }>("/agents/notifications/telegram", token, {
+    method: "DELETE",
+  });
 
 /**
  * Closes one position at the owner's request, leaving the rest of the book and

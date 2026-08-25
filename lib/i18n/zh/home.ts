@@ -16,10 +16,14 @@ export const zhHome: Record<keyof typeof enHome, string> = {
   home_row_deployed_win: "{count} 次部署 · 胜率 {pct}%",
   home_badge_paper: "模拟",
 
-  capability_asked_shipped: "您曾提出 {example}。该功能已经上线，现在可以使用了。",
-  capability_asked_existing: "您曾提出 {example}。其实智能体本来就支持这项功能。",
+  capability_asked_shipped:
+    "您曾提出 {example}。该功能已经上线，现在可以使用了。",
+  capability_asked_existing:
+    "您曾提出 {example}。其实智能体本来就支持这项功能。",
   capability_set_up_under: "可在 {key} 中设置。",
   capability_dismiss: "忽略",
 
   model_badge_title: "由 {label} 推理 — Canopy 自托管的 Qwen3",
+  model_badge_title_pod: "由 {label} 推理 — 通过 Pod 购买",
+  model_badge_credit: "剩余预付额度 ${amount}",
 };

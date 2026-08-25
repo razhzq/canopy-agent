@@ -2,7 +2,8 @@ import type { enWorkspace } from "../en/workspace";
 
 export const zhWorkspace: Record<keyof typeof enWorkspace, string> = {
   my_empty_title: "还没有智能体",
-  my_empty_body: "创建一个，它会先在实时行情上以模拟盘运行 — 免费、不限时长，也不需要注资。",
+  my_empty_body:
+    "创建一个，它会先在实时行情上以模拟盘运行 — 免费、不限时长，也不需要注资。",
   my_empty_action: "创建智能体",
 
   my_band_paper_capital: "模拟盘资金",
@@ -17,7 +18,8 @@ export const zhWorkspace: Record<keyof typeof enWorkspace, string> = {
   my_band_unanswered: "尚未回复",
   my_band_nothing_waiting: "没有待处理事项",
 
-  my_stopped_itself: "{name} 自行停止了 — {when}，{reason}。请检查限额或恢复运行。",
+  my_stopped_itself:
+    "{name} 自行停止了 — {when}，{reason}。请检查限额或恢复运行。",
   my_review: "查看",
 
   reason_max_drawdown: "它触发了回撤上限",
@@ -25,6 +27,7 @@ export const zhWorkspace: Record<keyof typeof enWorkspace, string> = {
   reason_wallet_expired: "它的钱包授权已过期",
   reason_mandate_expired: "它的授权已到期",
   reason_insufficient_funds: "它的资金已耗尽",
+  reason_model_balance_exhausted: "它的模型额度已用尽",
 
   my_col_agent: "智能体",
   my_col_wallet: "钱包",

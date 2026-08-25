@@ -100,21 +100,40 @@ export function Modal({
               // whether or not it is showing, so a 90vh sheet is taller than the
               // screen and its composer sits under the browser chrome.
               "flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-grid-strong bg-panel shadow-[0_-16px_48px_-16px_rgba(0,0,0,0.9)] outline-none sm:h-[80dvh] sm:max-w-[520px] sm:rounded-2xl"
-            : "my-auto w-full max-w-[420px] border border-grid-strong bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+            : // Rounded, matching the deposit dialog and the rest of the wallet
+              // surfaces. The square panel was the last place in this flow with
+              // hard corners, and two dialogs opened from adjacent buttons
+              // reading as different products is exactly the kind of seam a
+              // shared shell exists to prevent.
+              "my-auto w-full max-w-[420px] rounded-xl border border-grid bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
         }
       >
         {headless ? null : (
-          <div className="flex shrink-0 items-center justify-between border-b border-grid px-5 py-4">
-            <h2 className="font-mono text-[12px] tracking-[0.1em] text-text-primary uppercase">
+          <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-5 pb-1">
+            <h2 className="font-mono text-[20px] leading-none text-text-primary">
               {title}
             </h2>
+            {/* A mark in a hit target, not a bare glyph. 16px of text is a hard
+                thing to aim at, and this is the control every dialog needs to
+                offer and none of them are opened for. */}
             <button
               type="button"
               onClick={onClose}
               aria-label={t("common_close")}
-              className="font-mono text-[16px] leading-none text-text-dim transition-colors hover:text-text-primary"
+              className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary"
             >
-              ×
+              <svg
+                viewBox="0 0 24 24"
+                className="size-[15px]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+                focusable="false"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
         )}
@@ -124,4 +143,3 @@ export function Modal({
     document.body,
   );
 }
-

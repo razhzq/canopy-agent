@@ -31,8 +31,10 @@ export const zhActivity: Record<keyof typeof enActivity, string> = {
   activity_headline_nothing: "已筛选标的池，未提出任何方案",
 
   feed_empty_title: "暂无记录",
-  feed_empty_no_agents: "部署一个智能体后，它运行的每个周期都会显示在这里 — 包括那些它决定什么都不做的周期。",
-  feed_empty_no_cycles: "您的智能体还没有完成过任何周期。它们唤醒后，第一个周期就会出现在这里。",
+  feed_empty_no_agents:
+    "部署一个智能体后，它运行的每个周期都会显示在这里 — 包括那些它决定什么都不做的周期。",
+  feed_empty_no_cycles:
+    "您的智能体还没有完成过任何周期。它们唤醒后，第一个周期就会出现在这里。",
   feed_empty_action: "创建智能体",
   feed_filter_all: "全部",
   feed_filter_traded: "有成交",
@@ -40,14 +42,19 @@ export const zhActivity: Record<keyof typeof enActivity, string> = {
   feed_none_traded: "此区间内没有产生成交的周期。",
   feed_all_traded: "此区间内的每个周期都产生了成交。",
   feed_badge_paper: "模拟盘",
-  feed_footer_one: "显示 {shown} / {total} · 来自您拥有的 1 个智能体，各取最近 {per} 个周期",
-  feed_footer_many: "显示 {shown} / {total} · 来自您拥有的 {agents} 个智能体，各取最近 {per} 个周期",
+  feed_footer_one:
+    "显示 {shown} / {total} · 来自您拥有的 1 个智能体，各取最近 {per} 个周期",
+  feed_footer_many:
+    "显示 {shown} / {total} · 来自您拥有的 {agents} 个智能体，各取最近 {per} 个周期",
   feed_footer_partial_one: " · 有 1 个智能体的记录未能加载",
   feed_footer_partial_many: " · 有 {count} 个智能体的记录未能加载",
 
   skip_market_closed: "市场休市",
   skip_no_candidates: "没有标的通过筛选",
   skip_budget_exhausted: "模型额度已用尽",
+  skip_model_balance_exhausted: "模型额度已用尽",
+  skip_model_unfunded: "等待入金",
+  skip_model_unavailable: "模型不可用",
   skip_paused: "智能体已暂停",
   skip_expired: "授权已到期",
   skip_not_active: "智能体未处于运行状态",

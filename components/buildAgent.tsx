@@ -10,18 +10,41 @@ import {
   createStrategy,
   selectionFor,
   startPaperRun,
+  getAgent,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
 import { BUILD_STAGES } from "@/lib/data";
-import { BuildName, BuildReview, BuildFrame, BuildCta } from "@/components/buildAgentMobile";
+import {
+  BuildName,
+  BuildReview,
+  BuildFrame,
+  BuildCta,
+} from "@/components/buildAgentMobile";
 import { NameAgentModal } from "@/components/nameAgent";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
-import { CAPITAL_USD, RWA_RULES, SetLimits, type Limits } from "@/components/setLimits";
-import { CADENCES, rulesForClass, rulesForClasses, toPayload } from "@/components/buildStrategy";
+import {
+  CAPITAL_USD,
+  RWA_RULES,
+  SetLimits,
+  type Limits,
+} from "@/components/setLimits";
+import {
+  CADENCES,
+  rulesForClass,
+  rulesForClasses,
+  toPayload,
+} from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
+import {
+  DEFAULT_MODEL,
+  PickModel,
+  type ModelChoice,
+} from "@/components/pickModel";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
@@ -38,7 +61,7 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
 /**
  * The agent builder — wireframes 1d and 1e, after the naming modal.
  *
- *   name → 01 Market → 02 Limits → paper run
+ *   name → 01 Market → 02 Limits → 03 Model → paper run
  *
  * ROUTE IS NOT A STEP
  *
@@ -59,11 +82,23 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
  * editable rules happens inside step 2, beside the chips it produced — which
  * is the thing the old flow missed: it read a description, filled two pages
  * elsewhere, and never showed its working.
+ *
+ * STEP 3 IS THE MODEL, AND IT IS A REAL QUESTION
+ *
+ * Unlike the venue step, which restated an answer the market had already given,
+ * nothing else on this wizard decides what the council reasons with. The choice
+ * also costs money — a marketplace model is paid for in USDC by the agent
+ * itself — so it cannot be defaulted quietly on someone's behalf.
+ *
+ * What step 3 does NOT touch is step 2. The compiler that turns a sentence into
+ * chips runs on Canopy's model and always will: it runs before an agent, a
+ * wallet or a balance exists.
  */
 
 const STEPS: { index: string; labelKey: TranslationKey }[] = [
   { index: "01", labelKey: "build_step_market" },
   { index: "02", labelKey: "build_step_limits" },
+  { index: "03", labelKey: "build_step_model" },
 ];
 
 const DEFAULT_LIMITS: Limits = {
@@ -111,6 +146,22 @@ export function BuildAgent() {
   const [markets, setMarkets] = useState<UniverseAsset[]>([]);
   const asset = markets[0] ?? null;
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  // What the council will reason with. Canopy's model until someone chooses
+  // otherwise — the state every agent built before step 3 existed is in.
+  const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
+  const personalWallet = usePersonalWallet();
+  /**
+   * The agent that exists but cannot yet think.
+   *
+   * Non-null between starting a Pod agent's paper run and the owner finishing
+   * (or dismissing) its funding. The agent is already created and deployed by
+   * this point — delegation is granted against an agent id, so there is nothing
+   * to fund until one exists — it simply has no balance to reason with.
+   */
+  const [funding, setFunding] = useState<{
+    agentId: number;
+    wallet: string | null;
+  } | null>(null);
   // Where the selection fills. Derived, never state: it follows from the
   // markets, so there is nothing to keep in sync and nothing to strand.
   const venues = describeVenues(markets, t);
@@ -119,7 +170,10 @@ export function BuildAgent() {
   // A created-but-not-yet-started strategy, held back because its plan drew
   // warnings. The id is kept so confirming starts THAT strategy rather than
   // creating a second one.
-  const [pending, setPending] = useState<{ id: number; warnings: string[] } | null>(null);
+  const [pending, setPending] = useState<{
+    id: number;
+    warnings: string[];
+  } | null>(null);
   /**
    * Below lg the builder is wireframes B1–B6: full screens with one action,
    * rather than the two-column rail.
@@ -147,7 +201,63 @@ export function BuildAgent() {
     // deploys the agent, so the button does what it says rather than leaving a
     // half-made thing behind.
     const { agentId } = await startPaperRun(token, strategyId);
-    router.push(`/workspace/${agentId}?tab=cycles`);
+
+    // A Pod agent funds itself HERE, before leaving the builder.
+    //
+    // It used to be handed off with `?tab=cycles&fund=model` and a receiving
+    // effect on the agent page. That never once worked: the effect lives in
+    // AgentDetailView, which `workspace.tsx` renders only on `tab=overview`, so
+    // on the cycles tab nothing read the flag — and the tab bar rebuilds the
+    // query from scratch, so switching to Overview deleted it on the way past.
+    // Every Pod agent ever created landed on an empty cycles tab with no way to
+    // fund it in sight, which is exactly the failure that hand-off was written
+    // to prevent.
+    //
+    // Doing it inline removes the whole class of problem: there is no flag to
+    // carry, no tab that has to be the right one, and no navigation between the
+    // decision and the step it requires. The owner is already here.
+    if (model.provider === "pod") {
+      // The agent's own wallet, which a fresh one does not have yet — null is
+      // the honest answer and the one that makes ModelPanel open on delegation
+      // rather than on a balance. A failed read lands on the same null, so the
+      // panel degrades to asking for the grant it would have asked for anyway.
+      let wallet: string | null = null;
+      try {
+        wallet = (await getAgent(token, agentId)).wallet?.address ?? null;
+      } catch {
+        // Not worth failing the run over: the agent is created and deployed,
+        // and the panel's own state is fetched from the agent id regardless.
+      }
+      setFunding({ agentId, wallet });
+      return;
+    }
+
+    router.push(`/workspace/${agentId}?tab=overview`);
+  }
+
+  /**
+   * Leaves for the agent's page once funding is done with — or dismissed.
+   *
+   * OVERVIEW, not cycles. A brand-new agent has no cycles to show, and overview
+   * is the only tab carrying the unfunded note and its Top up button, so an
+   * owner who closed the panel without paying still lands somewhere that offers
+   * the thing they just skipped.
+   */
+  function leaveFunding(agentId: number): void {
+    setFunding(null);
+    router.push(`/workspace/${agentId}?tab=overview`);
+  }
+
+  /** Re-reads the wallet after a grant, so the panel moves on to the top-up. */
+  async function refreshFunding(agentId: number): Promise<void> {
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const wallet = (await getAgent(token, agentId)).wallet?.address ?? null;
+      setFunding((f) => (f && f.agentId === agentId ? { ...f, wallet } : f));
+    } catch {
+      // The panel keeps working from what it has; the next open re-reads.
+    }
   }
 
   async function confirmPending(): Promise<void> {
@@ -217,6 +327,14 @@ export function BuildAgent() {
         // asset. Sent regardless when set, because the engine treats a ranking
         // wider than the universe as a no-op rather than an error.
         ranking: limits.ranking,
+        // Step 3. The RUNTIME council model — what the five seats reason with
+        // every cycle. It is deliberately NOT what compiled the rules above:
+        // that ran on Canopy's model, before this agent existed.
+        model: {
+          id: model.modelId,
+          maxPriceInputUsd: model.maxPriceInputUsd,
+          maxPriceOutputUsd: model.maxPriceOutputUsd,
+        },
       });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
@@ -333,11 +451,48 @@ export function BuildAgent() {
       },
       // Step 01, not a step of its own: the venue came with the market.
       { label: t("review_row_routing"), value: venues, step: "01" },
+      { label: t("review_row_model"), value: model.label, step: "03" },
+      // Only when there is a bill to state. A Canopy agent has no budget row
+      // because it has no budget — it has an inclusion.
+      ...(model.provider === "pod"
+        ? [
+            {
+              label: t("review_row_model_budget"),
+              value: t("review_row_model_budget_value", {
+                amount: money(model.intendedTopUpUsd ?? 0),
+              }),
+              step: "03",
+            },
+          ]
+        : []),
     ];
   }
 
   // Neither layout renders against a guess at the viewport.
   if (mobile === null) return null;
+
+  /* The funding step, once the agent exists and before the builder is left.
+     Mounted here rather than inside either layout: both reach it, and Modal
+     portals to document.body anyway, so one mount serves both. The builder
+     behind it is finished — every field is frozen into the deployed agent by
+     this point — which is why replacing it rather than layering over it costs
+     nothing. */
+  if (funding) {
+    return (
+      <ModelPanel
+        agentId={funding.agentId}
+        agentWallet={funding.wallet}
+        personalWallet={personalWallet}
+        // Re-read after the grant lands, so the panel moves from asking for a
+        // wallet to asking for a balance without the owner reopening anything.
+        onChanged={() => void refreshFunding(funding.agentId)}
+        // Dismissing is allowed. The agent is real and scheduled either way —
+        // it simply waits, and the page it lands on says so and offers the
+        // same panel again.
+        onClose={() => leaveFunding(funding.agentId)}
+      />
+    );
+  }
 
   if (mobile) {
     if (!named) {
@@ -379,12 +534,19 @@ export function BuildAgent() {
             disabled: markets.length === 0,
             onClick: () => setStep(1),
           }
-        : {
-            label: t("build_cta_review"),
-            hint: t("build_cta_review_hint"),
-            disabled: activeRules.length === 0,
-            onClick: () => setReviewing(true),
-          };
+        : step === 1
+          ? {
+              label: t("build_cta_model"),
+              hint: t("build_cta_model_hint"),
+              disabled: activeRules.length === 0,
+              onClick: () => setStep(2),
+            }
+          : {
+              label: t("build_cta_review"),
+              hint: t("build_cta_review_hint"),
+              disabled: activeRules.length === 0,
+              onClick: () => setReviewing(true),
+            };
 
     return (
       <BuildFrame
@@ -396,13 +558,25 @@ export function BuildAgent() {
       >
         <div className="px-[18px] pb-6">
           {step === 0 || !asset ? (
-            <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-          ) : (
+            <PickMarket
+              value={markets}
+              onChange={onMarketsChange}
+              onNext={() => setStep(1)}
+            />
+          ) : step === 1 ? (
             <SetLimits
               markets={markets}
               value={limits}
               onChange={setLimits}
               onBack={() => setStep(0)}
+            />
+          ) : (
+            <PickModel
+              value={model}
+              onChange={setModel}
+              cadenceSec={limits.cadenceSec}
+              isPaper
+              onBack={() => setStep(1)}
             />
           )}
         </div>
@@ -465,8 +639,12 @@ export function BuildAgent() {
                     : "cursor-default text-text-muted"
               }`}
             >
-              <span className="tnum font-mono text-[9.5px] opacity-70">{s.index}</span>
-              <span className="font-mono text-[11.5px] tracking-[0.04em]">{t(s.labelKey)}</span>
+              <span className="tnum font-mono text-[9.5px] opacity-70">
+                {s.index}
+              </span>
+              <span className="font-mono text-[11.5px] tracking-[0.04em]">
+                {t(s.labelKey)}
+              </span>
             </button>
           ))}
         </nav>
@@ -476,13 +654,28 @@ export function BuildAgent() {
         main={
           <div className="px-5 sm:px-8 py-8">
             {step === 0 || !asset ? (
-              <PickMarket value={markets} onChange={onMarketsChange} onNext={() => setStep(1)} />
-            ) : (
+              <PickMarket
+                value={markets}
+                onChange={onMarketsChange}
+                onNext={() => setStep(1)}
+              />
+            ) : step === 1 ? (
               <SetLimits
                 markets={markets}
                 value={limits}
                 onChange={setLimits}
                 onBack={() => setStep(0)}
+              />
+            ) : (
+              // `isPaper` is unconditionally true: this wizard only ever ends in
+              // a paper run. Going live is a later, separate decision, and by
+              // then the agent has a wallet of its own to pay from.
+              <PickModel
+                value={model}
+                onChange={setModel}
+                cadenceSec={limits.cadenceSec}
+                isPaper
+                onBack={() => setStep(1)}
               />
             )}
           </div>
@@ -528,6 +721,18 @@ export function BuildAgent() {
               />
               <Trail
                 done={false}
+                here={step === 2}
+                label={t("build_step_model")}
+                value={
+                  step < 2
+                    ? t("build_trail_next")
+                    : step === 2
+                      ? `${model.label} · ${t("build_trail_this_step")}`
+                      : model.label
+                }
+              />
+              <Trail
+                done={false}
                 label={t("build_trail_paper")}
                 value={t("build_trail_paper_value")}
               />
@@ -546,7 +751,9 @@ export function BuildAgent() {
                   />
                   <Row
                     label={t("build_row_per_cycle")}
-                    value={t("build_row_trades", { count: limits.tradesPerCycle })}
+                    value={t("build_row_trades", {
+                      count: limits.tradesPerCycle,
+                    })}
                   />
                   <Row
                     label={t("build_row_exits")}
@@ -555,10 +762,19 @@ export function BuildAgent() {
                       sl: limits.exits.stopLossPct,
                     })}
                   />
-                  <Row label={t("build_row_paper_book")} value={money(CAPITAL_USD)} />
+                  <Row
+                    label={t("build_row_paper_book")}
+                    value={money(CAPITAL_USD)}
+                  />
                   {/* Where it fills. Stated, not chosen — the market settled
                       it back in step 1, and a row is what that deserves. */}
                   <Row label={t("build_row_routes_via")} value={venues} />
+                  {step >= 2 ? (
+                    <Row
+                      label={t("build_row_reasons_with")}
+                      value={model.label}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -589,7 +805,10 @@ export function BuildAgent() {
                     </span>
                     <ul className="space-y-1">
                       {pending.warnings.map((w) => (
-                        <li key={w} className="font-ui text-[12.5px] leading-relaxed">
+                        <li
+                          key={w}
+                          className="font-ui text-[12.5px] leading-relaxed"
+                        >
                           {w}
                         </li>
                       ))}
@@ -642,6 +861,25 @@ export function BuildAgent() {
                     </p>
                   ) : null}
                 </>
+              ) : step === 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    disabled={activeRules.length === 0}
+                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  >
+                    Continue to model
+                  </button>
+                  {activeRules.length === 0 ? (
+                    // A strategy with no active rule buys nothing, ever — so the
+                    // gate sits here, one step before the run it would have made
+                    // pointless.
+                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
+                      Turn on at least one rule
+                    </p>
+                  ) : null}
+                </>
               ) : ready && !authenticated ? (
                 <button
                   type="button"
@@ -662,8 +900,8 @@ export function BuildAgent() {
                   </button>
                   {activeRules.length === 0 ? (
                     // A strategy with no active rule buys nothing, ever — and
-                    // with the route step gone this is the last place to say
-                    // so before the run that would have proved it.
+                    // this is the last place to say so before the run that
+                    // would have proved it.
                     <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
                       {t("build_turn_on_rule")}
                     </p>
@@ -722,13 +960,23 @@ function Trail({
         >
           {label}
         </span>
-        <span className="block truncate font-ui text-[11px] text-text-dim">{value}</span>
+        <span className="block truncate font-ui text-[11px] text-text-dim">
+          {value}
+        </span>
       </span>
     </div>
   );
 }
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
+function Row({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "accent";
+}) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">

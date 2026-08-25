@@ -4,6 +4,7 @@ import { MessageSquare, X } from "lucide-react";
 
 import { AgentThread } from "@/components/agentThread";
 import { Modal } from "@/components/modal";
+import { ICON_BUTTON, ICON_BUTTON_ON, LABEL } from "@/components/kit";
 import type { AgentRow } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -35,7 +36,9 @@ export function AgentChatSheet({
 
   return (
     <Modal
-      title={t("chat_title", { name: agent?.strategy_name ?? t("chat_your_agent") })}
+      title={t("chat_title", {
+        name: agent?.strategy_name ?? t("chat_your_agent"),
+      })}
       variant="sheet"
       headless
       onClose={onClose}
@@ -86,9 +89,29 @@ export function AgentChatSheet({
 export function ChatButton({
   agent,
   onOpen,
+  compact = false,
+  active = false,
 }: {
   agent: AgentRow | null;
   onOpen: () => void;
+  /**
+   * The thread is open.
+   *
+   * Makes this a TOGGLE rather than a one-way opener. The rail is persistent and
+   * ignores outside clicks by design, so without a visible off-switch on the
+   * control that turned it on, the only way back is hunting for the × inside it.
+   * A control that opens something should say when that thing is open.
+   */
+  active?: boolean;
+  /**
+   * Icon only, for sitting beside the agent's name.
+   *
+   * The labelled form belongs in the workspace bar, where it replaced a tab and
+   * needs that tab's word to be recognised. Next to a 28px headline the word is
+   * noise — the thing it is attached to is already named, in type four times
+   * the size.
+   */
+  compact?: boolean;
 }) {
   const waiting = Number(agent?.needs_you ?? 0);
   const t = useT();
@@ -97,14 +120,40 @@ export function ChatButton({
     <button
       type="button"
       onClick={onOpen}
+      // The state is in the accessible name too, not only in the fill — the
+      // colour change is invisible to a screen reader and `aria-pressed` alone
+      // reads as "pressed", which is not what an open panel means to someone
+      // who cannot see it.
+      title={active ? t("chat_button_close") : t("chat_button_aria")}
       aria-label={
-        waiting > 0
-          ? t("chat_button_aria_waiting", { count: waiting })
-          : t("chat_button_aria")
+        active
+          ? t("chat_button_close")
+          : waiting > 0
+            ? t("chat_button_aria_waiting", { count: waiting })
+            : t("chat_button_aria")
       }
-      className="relative flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-text-primary transition-colors hover:border-accent hover:text-accent lg:hidden"
+      // NO `lg:hidden`. It carried that because the desktop had a Chat tab and
+      // this was the phone's substitute for it. The tab is gone, so the hidden
+      // button was the only way in to a panel with no way in.
+      //
+      // The LABEL comes back at `lg` too. It sits where the tab used to, and a
+      // bare icon in the space a word occupied yesterday is a feature people
+      // have to rediscover. Below `lg` the icon alone still carries it — the bar
+      // is narrow and the accessible name is on the button either way.
+      aria-pressed={active}
+      // QUIET AT REST. This was a bordered box beside a 28px headline — rule 6:
+      // a control pressed constantly and costing nothing does not draw an
+      // outline around itself all day. The target appears on hover as a fill,
+      // which says "this area responds" where an outline only says "here is an
+      // edge".
+      className={`relative ${ICON_BUTTON} ${active ? ICON_BUTTON_ON : ""} ${
+        compact ? "" : "w-auto gap-2 px-2.5"
+      }`}
     >
-      <MessageSquare className="size-4" aria-hidden />
+      <MessageSquare className="size-4 shrink-0" aria-hidden />
+      {compact ? null : (
+        <span className="hidden font-ui text-[13px] lg:inline">Chat</span>
+      )}
       {waiting > 0 ? (
         <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 font-mono text-[9px] leading-none text-bg">
           {waiting > 9 ? "9+" : waiting}

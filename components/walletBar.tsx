@@ -27,8 +27,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/lib/useApi";
-import { getAgentFunding } from "@/lib/api";
-import { FundingPanel } from "@/components/funding";
+import { getAgentFunding, getAgentModel } from "@/lib/api";
+import { WithdrawModal } from "@/components/walletModals";
+import { AddFundsModal } from "@/components/addFunds";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
+import { SolanaMark } from "@/components/chainMark";
+import { LABEL, PRIMARY, SECONDARY, SURFACE } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 
 export function WalletBar({
@@ -41,8 +45,13 @@ export function WalletBar({
   isPaper: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const [depositing, setDepositing] = useState(false);
   const t = useT();
+  const [moving, setMoving] = useState<"deposit" | "withdraw" | null>(null);
+  // Where a withdrawal goes by default. The agent's wallet is an ADDITIONAL
+  // wallet on the owner's own Privy account (grantDelegation calls
+  // `createWallet({ createAdditional: true })`), so the owner can sign for it
+  // and the obvious destination is the wallet they actually use.
+  const personalWallet = usePersonalWallet();
 
   const copy = useCallback((addr: string) => {
     void navigator.clipboard
@@ -70,34 +79,122 @@ export function WalletBar({
 
   return (
     <>
-      <span className="flex items-center gap-3">
-        <Balance agentId={agentId} />
+      {/* ONE GROUPED CONTROL, not three loose items on a divider.
+          
+          The chain is the addition that matters."0 USDC" beside a truncated
+          address says nothing about WHERE to send it, and USDC exists on a
+          dozen chains — sending Ethereum USDC to a Solana address loses it.
+          The deposit dialog said"Solana" and the header did not, so the one
+          screen you read before reaching for your wallet was the one that left
+          the chain out. */}
+      {/* ONE BLOCK, reading top-down on its own — the header no longer pairs
+          it line-by-line against the identity beside it.
 
-        <span className="h-4 w-px bg-grid-strong" aria-hidden />
+          NO CONTAINER around the readouts: rule 2. The pill this replaced put a
+          border around facts nobody can press. One bordered object survives and
+          it is the address — the only thing here you can do something with.
+          Rule 3. */}
+      <span className="flex w-[236px] shrink-0 flex-col gap-2">
+        <Row label={t("wallet_usdc_balance")}>
+          <Balance agentId={agentId} />
+        </Row>
+
+        {/* UNDER THE BALANCE, NOT BESIDE IT. Side by side these read as two of
+          the same thing, and no label undid that — one is capital that buys
+          assets and can be withdrawn, the other is inference credit that
+          cannot. */}
+        <ModelCredit agentId={agentId} />
 
         <button
           type="button"
           onClick={() => copy(address)}
           title={address}
           aria-label={t("wallet_copy_aria", { address })}
-          className="font-mono text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+          className={`group flex items-center gap-2 ${SURFACE} px-2 py-1.5 transition-colors hover:border-accent`}
         >
-          {copied ? t("common_copied") : `${address.slice(0, 4)}…${address.slice(-4)}`}
+          <ChainDisc />
+          <span className="font-mono text-[12px] text-text-secondary transition-colors group-hover:text-text-primary">
+            {`${address.slice(0, 4)}…${address.slice(-4)}`}
+          </span>
+          <span
+            className={`ml-auto font-mono text-[9px] tracking-[0.1em] uppercase transition-colors ${
+              copied ? "text-accent" : "text-text-dim group-hover:text-accent"
+            }`}
+          >
+            {t(copied ? "common_copied" : "common_copy")}
+          </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setDepositing(true)}
-          className="border border-accent px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
-        >
-          {t("wallet_deposit")}
-        </button>
+        {/* WHAT YOU CAN DO TO IT. Its own row, because an action is not a
+          property — and a PAIR, because money goes in and comes back out and
+          the way in cannot be the only one on screen. */}
+        <span className="w-[230px] flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMoving("deposit")}
+            className={`flex-1 ${PRIMARY}`}
+          >
+            {t("wallet_deposit")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoving("withdraw")}
+            // Quieter than Deposit on purpose. Both are one click, but taking
+            // capital out from under a running agent is the one that changes what
+            // it can do next.
+            className={`flex-1 ${SECONDARY}`}
+          >
+            {t("wallet_withdraw")}
+          </button>
+        </span>
       </span>
 
-      {depositing ? (
-        <DepositModal agentId={agentId} address={address} onClose={() => setDepositing(false)} />
+      {moving === "deposit" ? (
+        // The COMBINED dialog. Opens on trading capital, with model credit a
+        // segment away — the agent's own wallet is a valid payer for its
+        // inference, so the two are one errand.
+        <AddFundsModal
+          agentId={agentId}
+          agentWallet={address}
+          personalWallet={personalWallet}
+          initial="capital"
+          onClose={() => setMoving(null)}
+        />
+      ) : null}
+
+      {moving === "withdraw" ? (
+        // `from` is the AGENT's wallet, not the owner's — the same dialog the
+        // account menu uses, pointed at a different source. It pins the signer
+        // by address rather than by index, which is what makes that safe here:
+        // the account holds several Solana wallets and the agent's is only one
+        // of them.
+        <WithdrawModal
+          address={address}
+          defaultTo={personalWallet ?? undefined}
+          onClose={() => setMoving(null)}
+        />
       ) : null}
     </>
+  );
+}
+
+/** Shown beside the address so it reads as a control rather than a label. */
+function CopyMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-[11px] shrink-0 text-text-dim transition-colors group-hover:text-accent"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      focusable="false"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
   );
 }
 
@@ -106,15 +203,90 @@ export function WalletBar({
  *
  * USDC only. SOL is a fee balance rather than capital, and the deposit dialog is
  * where it belongs if the backend still asks for it at all — putting two numbers
- * in a header chip invites reading their sum as "what the agent has to trade
+ * in a header chip invites reading their sum as"what the agent has to trade
  * with", which is exactly wrong.
  */
+/** One fact: label on the left, value on the right, nothing around it. */
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="flex items-baseline justify-between gap-3 px-0.5">
+      <span className={LABEL}>{label}</span>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The chain, as a disc.
+ *
+ * On the ADDRESS, because the address is the chain-bound thing — a balance is
+ * just a number, but sending USDC to this string on the wrong network loses it.
+ * It replaces a"◆ SOLANA" text segment that spent a third of the bar's width
+ * saying what a 16px mark says.
+ */
+function ChainDisc() {
+  const t = useT();
+  return (
+    <span
+      title={t("wallet_solana_mainnet")}
+      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-grid bg-bg"
+    >
+      <SolanaMark className="size-[9px]" />
+    </span>
+  );
+}
+
+/**
+ * Prepaid inference, as a line under the wallet.
+ *
+ * QUIET BY CONSTRUCTION. No border, smaller type, its own row — everything that
+ * stops it competing with the balance above, because it is a different kind of
+ * money and the wallet is what this bar is about.
+ *
+ * A missing balance is not a zero: `balance` is null when the agent runs the
+ * Canopy-hosted model, which is billed to Canopy and has no prepaid account at
+ * all. That renders nothing rather than"$0.00", which would read as a problem
+ * to fix.
+ */
+function ModelCredit({ agentId }: { agentId: number }) {
+  const state = useApi((token) => getAgentModel(token, agentId), [agentId]);
+  const t = useT();
+  if (state.phase !== "ready") return null;
+  const balance = state.data.balance;
+  if (!balance) return null;
+
+  const low = balance.lowBalance || balance.usdc <= 0;
+  return (
+    <span title={t("wallet_model_credit_title")}>
+      <Row label={t("wallet_model_credit")}>
+        <span
+          className={`tnum font-mono text-[13px] ${low ? "text-warning" : "text-text-primary"}`}
+        >
+          $
+          {balance.usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        </span>
+      </Row>
+    </span>
+  );
+}
+
 function Balance({ agentId }: { agentId: number }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
   const t = useT();
 
   if (state.phase === "loading") {
-    return <span className="h-4 w-16 animate-pulse rounded bg-surface-2" aria-hidden />;
+    return (
+      <span
+        className="h-4 w-16 animate-pulse rounded bg-surface-2"
+        aria-hidden
+      />
+    );
   }
   // A failed read is NOT a zero balance and must never render as one — that is
   // the message that tells someone to send money they have already sent.
@@ -127,84 +299,13 @@ function Balance({ agentId }: { agentId: number }) {
   }
 
   const { usdc } = state.data;
+  // No unit here: the row's label already says USDC, and repeating it would put
+  // the word twice on one line.
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span
-        className={`tnum font-mono text-[13px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
-      >
-        {usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-      </span>
-      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-        USDC
-      </span>
-    </span>
-  );
-}
-
-function DepositModal({
-  agentId,
-  address,
-  onClose,
-}: {
-  agentId: number;
-  address: string;
-  onClose: () => void;
-}) {
-  const t = useT();
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-bg/80 px-4 py-10 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <span
+      className={`tnum font-mono text-[13px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="deposit-title"
-        className="w-full max-w-[560px] animate-[log-enter_180ms_ease-out] border border-grid-strong bg-panel shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]"
-      >
-        <div className="flex items-start justify-between gap-6 border-b border-grid px-7 pt-6 pb-5">
-          <div className="min-w-0 space-y-1.5">
-            <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              {t("wallet_agent_wallet")}
-            </p>
-            <h2 id="deposit-title" className="font-mono text-[21px] leading-none text-text-primary">
-              {t("wallet_deposit")}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("common_close")}
-            className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent"
-          >
-            {t("wallet_esc")}
-          </button>
-        </div>
-        <div className="px-7 py-6">
-          {/* The address is handed down so the panel can read the chain itself
-              when canopy-be cannot — see the fallback note in funding.tsx. */}
-          <FundingPanel agentId={agentId} address={address} />
-        </div>
-      </div>
-    </div>
+      ${usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+    </span>
   );
 }

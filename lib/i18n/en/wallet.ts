@@ -7,6 +7,12 @@ export const enWallet = {
   wallet_copy_aria: "Copy wallet address {address}",
   wallet_balance_unknown: "balance —",
   wallet_deposit: "Deposit",
+  wallet_withdraw: "Withdraw",
+  wallet_usdc_balance: "USDC balance",
+  wallet_solana_mainnet: "Solana mainnet",
+  wallet_model_credit: "Model credit",
+  wallet_model_credit_title:
+    "Prepaid model credit — pays for this agent's reasoning, and cannot be withdrawn",
   wallet_agent_wallet: "Agent wallet",
   wallet_esc: "Esc",
 
@@ -21,7 +27,8 @@ export const enWallet = {
   // ── Withdraw ───────────────────────────────────────────────────
   withdraw_title: "Withdraw",
   withdraw_sent: "Sent",
-  withdraw_sent_body: "The transfer was submitted. It settles in a few seconds.",
+  withdraw_sent_body:
+    "The transfer was submitted. It settles in a few seconds.",
   withdraw_done: "Done",
   withdraw_not_sent: "Not sent",
   withdraw_not_sent_body:
@@ -36,8 +43,15 @@ export const enWallet = {
   withdraw_amount_label: "Amount · {asset}",
   withdraw_max: "Max {amount}",
   withdraw_review: "Review",
+  withdraw_your_wallet: "Your wallet",
+  withdraw_send_elsewhere: "Send somewhere else",
+  withdraw_back_to_your_wallet: "Back to your wallet",
+  withdraw_view_transaction: "View transaction",
+  withdraw_available: "{asset} available",
+  withdraw_amount_aria: "Amount in {asset}",
   withdraw_above_zero: "Enter an amount above zero.",
-  withdraw_over_sendable_sol: "More than you can send. {reserve} SOL is held back for fees.",
+  withdraw_over_sendable_sol:
+    "More than you can send. {reserve} SOL is held back for fees.",
   withdraw_over_balance: "More than this wallet holds.",
   withdraw_not_valid_amount: "Not a valid amount.",
   withdraw_wallet_not_connected: "that wallet is not connected in this session",
@@ -54,14 +68,16 @@ export const enWallet = {
 
   // ── Funding panel ──────────────────────────────────────────────
   funding_no_wallet_title: "No wallet yet",
-  funding_fallback_reading: "Canopy could not read this balance. Checking the network directly…",
+  funding_fallback_reading:
+    "Canopy could not read this balance. Checking the network directly…",
   funding_read_failed: "Could not read this wallet's balance.",
   // Two failures, named separately: "Canopy is down" and "Canopy is down AND
   // the network would not answer either" call for different next moves.
-  funding_both_failed: "{backend}. Reading the network directly also failed: {chain}",
+  funding_both_failed:
+    "{backend}. Reading the network directly also failed: {chain}",
   funding_direct_title: "Read from the network directly",
   funding_direct_body:
-    "Canopy could not reach its RPC, so these figures came from your browser instead. They are real balances — but the fee threshold shown is this app's own copy, so treat a borderline reading as approximate.",
+    "Canopy could not reach its RPC, so this figure came from your browser instead. It is a real balance, read from the chain.",
   funding_usdc_available: "available to trade",
   funding_usdc_none: "none — send USDC",
   funding_sol_covers: "covers fees",
@@ -71,11 +87,16 @@ export const enWallet = {
   funding_funded_body: "This wallet has USDC to trade with and SOL for fees.",
   funding_deposit_address: "Deposit address · Solana",
   funding_copy_aria: "Copy deposit address {address}",
-  funding_send_usdc: "Send USDC on Solana — the agent trades against it and cannot convert other assets into it.",
+  funding_send_usdc:
+    "Send USDC on Solana — the agent trades against it and cannot convert other assets into it.",
   funding_send_sol:
     "Send at least {min} SOL as well. Without it the wallet cannot pay transaction fees, even holding USDC.",
-  funding_fees_covered: "Transaction fees are covered by Canopy — this wallet does not need SOL.",
+  funding_fees_covered:
+    "Transaction fees are covered by Canopy — this wallet does not need SOL.",
   funding_check_balance: "Check balance",
+  funding_wallet_balance: "Wallet balance",
+  funding_ready: "Ready to trade",
+  funding_waiting: "Waiting for a deposit",
 
   // ── Wallet audit (temporary diagnostic) ────────────────────────
   audit_crumb_settings: "Settings",

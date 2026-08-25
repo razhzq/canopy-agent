@@ -21,7 +21,8 @@ export const enHome = {
   // Split into whole sentences per status: the two are genuinely different
   // news — "it works now" after being told it did not is an apology, and
   // "we built it" is not — and neither survives being assembled from clauses.
-  capability_asked_shipped: "You asked for {example}. It has been built and you can use it now.",
+  capability_asked_shipped:
+    "You asked for {example}. It has been built and you can use it now.",
   capability_asked_existing:
     "You asked for {example}. It turns out the agent could already do this.",
   capability_set_up_under: "Set it up under {key}.",
@@ -29,4 +30,6 @@ export const enHome = {
 
   // ── Model badge ────────────────────────────────────────────────
   model_badge_title: "Reasons with {label} — Canopy-hosted Qwen3",
+  model_badge_title_pod: "Reasons with {label} — bought through Pod",
+  model_badge_credit: "${amount} prepaid credit left",
 } as const;
