@@ -669,3 +669,8 @@
 
 /* breathing room between the floating nav and the ticker below it */
 .cnp nav{padding-bottom:14px}
+
+/* nav: drop the grey outline (the blur + shadow still define the panel),
+   and remove the extra bottom spacing — the box sits close to the ticker */
+.cnp .nav-in{border:0}
+.cnp nav{padding-bottom:0}
