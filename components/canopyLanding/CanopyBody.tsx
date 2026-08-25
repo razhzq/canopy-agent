@@ -13,6 +13,15 @@ function fmt(n: number, dec: number) {
   return dec ? n.toFixed(dec) : Math.round(n).toLocaleString("en-US");
 }
 
+/** The mint tick beside each model-card feature. Decorative, so aria-hidden. */
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Each sample agent's badge, by the flag it carries. */
 const FLAG_KEY: Record<NonNullable<import("./data").Agent["flag"]>, TranslationKey> = {
   hot: "ld_flag_hot",
@@ -176,6 +185,97 @@ export function CanopyBody({ onLogin }: Props) {
         </div>
       </section>
 
+      {/* models — the LLM an agent reasons with */}
+      <section className="sec" id="models" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="wrap">
+          <div className="sec-head rv" style={{ maxWidth: 720, marginInline: "auto", textAlign: "center" }}>
+            <span className="eyebrow center">{t("ld_models_eyebrow")}</span>
+            <h2 className="sec-title">
+              {t("ld_models_title_a")}
+              <span className="mint">{t("ld_models_title_mint")}</span>
+            </h2>
+            <p className="sec-sub" style={{ marginInline: "auto", maxWidth: "60ch" }}>
+              {t("ld_models_sub")}
+            </p>
+          </div>
+          <div className="models">
+            {/* Canopy-hosted default */}
+            <div className="mcard feat rv">
+              <div className="mhead">
+                <span className="mlogo" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <defs>
+                      <linearGradient id="cnpQwen" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#b98cff" />
+                        <stop offset="1" stopColor="#6f6bff" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"
+                      fill="url(#cnpQwen)"
+                      opacity=".9"
+                    />
+                  </svg>
+                </span>
+                <div style={{ flex: 1 }}>
+                  <h4>cQWEN3</h4>
+                  <div className="msub">{t("ld_models_canopy_sub")}</div>
+                </div>
+                <span className="mtag inc">{t("ld_models_canopy_tag")}</span>
+              </div>
+              <p>{t("ld_models_canopy_body")}</p>
+              <div className="mfeat">
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_1")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_2")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_3")}
+                </div>
+              </div>
+              <div className="mprice">{t("ld_models_canopy_price")}</div>
+            </div>
+
+            {/* Bring-your-own via the Pod marketplace */}
+            <div className="mcard rv">
+              <div className="mhead">
+                <span className="mlogo" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.6">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+                  </svg>
+                </span>
+                <div style={{ flex: 1 }}>
+                  <h4>{t("ld_models_byo_h")}</h4>
+                  <div className="msub">{t("ld_models_byo_sub")}</div>
+                </div>
+                <span className="mtag byo">{t("ld_models_byo_tag")}</span>
+              </div>
+              <p>{t("ld_models_byo_body")}</p>
+              <div className="mchips">
+                {/* Model names are product identifiers — not translated. */}
+                <span className="mchip">DeepSeek-V3</span>
+                <span className="mchip">Llama 3.3 70B</span>
+                <span className="mchip">GLM-4.6</span>
+                <span className="mchip">Kimi K2</span>
+                <span className="mchip">{t("ld_models_byo_more")}</span>
+              </div>
+              <div className="mfeat">
+                <div>
+                  <CheckIcon /> {t("ld_models_byo_1")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_byo_2")}
+                </div>
+              </div>
+              <div className="mprice">{t("ld_models_byo_price")}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* build stepper */}
       <section className="sec" id="build" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="wrap">
@@ -191,34 +291,53 @@ export function CanopyBody({ onLogin }: Props) {
             <div className="draft">
               <i /> {t("ld_draft")}
             </div>
-            <div className="steps-track">
-              <div className="fstep">
-                <div className="node">01</div>
-                <h4>{t("ld_step1_h")}</h4>
-                <p>{t("ld_step1_p")}</p>
-                <span className="tag">AAPLx/USDC</span>
-              </div>
-              <div className="fstep">
-                <div className="node">02</div>
-                <h4>{t("ld_step2_h")}</h4>
-                <p>{t("ld_step2_p")}</p>
-                <span className="tag">
-                  {t("ld_step2_tag")} <b>·</b> Canopy + Jupiter
-                </span>
-              </div>
-              <div className="fstep">
-                <div className="node">03</div>
-                <h4>{t("ld_step3_h")}</h4>
-                <p>{t("ld_step3_p")}</p>
-                <span className="tag">
-                  {t("ld_step3_tag_a")} <b>·</b> {t("ld_step3_tag_b")}
-                </span>
-              </div>
-              <div className="fstep pending">
-                <div className="node">04</div>
-                <h4>{t("ld_step4_h")}</h4>
-                <p>{t("ld_step4_p")}</p>
-                <span className="tag">{t("ld_step4_tag")}</span>
+            {/* The steps sit along a flowing S-curve rather than a straight
+                rail — the organic connecting line is the reference site's
+                signature motif. The curve is decorative and hidden on the
+                stacked mobile layout. */}
+            <div className="journey">
+              <svg className="curve" viewBox="0 0 1140 300" preserveAspectRatio="none" aria-hidden>
+                <path
+                  d="M30 22 C 330 22 250 150 540 150 S 840 268 1110 268"
+                  fill="none"
+                  stroke="rgba(94,211,179,.35)"
+                  strokeWidth="1.4"
+                  strokeDasharray="3 6"
+                />
+              </svg>
+              <div className="steps-track">
+                <div className="fstep">
+                  <div className="num">
+                    <b>01</b> · {t("ld_step1_h")}
+                  </div>
+                  <p>{t("ld_step1_p")}</p>
+                  <span className="tag">AAPLx/USDC</span>
+                </div>
+                <div className="fstep">
+                  <div className="num">
+                    <b>02</b> · {t("ld_step2_h")}
+                  </div>
+                  <p>{t("ld_step2_p")}</p>
+                  <span className="tag">
+                    {t("ld_step2_tag")} <b>·</b> Canopy + Jupiter
+                  </span>
+                </div>
+                <div className="fstep">
+                  <div className="num">
+                    <b>03</b> · {t("ld_step3_h")}
+                  </div>
+                  <p>{t("ld_step3_p")}</p>
+                  <span className="tag">
+                    {t("ld_step3_tag_a")} <b>·</b> {t("ld_step3_tag_b")}
+                  </span>
+                </div>
+                <div className="fstep pending">
+                  <div className="num">
+                    <b>04</b> · {t("ld_step4_h")}
+                  </div>
+                  <p>{t("ld_step4_p")}</p>
+                  <span className="tag">{t("ld_step4_tag")}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -343,6 +462,128 @@ export function CanopyBody({ onLogin }: Props) {
         </div>
       </section>
 
+      {/* "anywhere" — the iPhone. The device says mobile so the copy never
+          has to; it leans on "Anywhere" and the screen instead. */}
+      <section className="sec appshow" id="app" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="wrap">
+          <div className="sec-head rv">
+            <span className="eyebrow center">{t("ld_app_eyebrow")}</span>
+            <h2 className="sec-title">
+              {t("ld_app_title_a")}
+              <span className="mint">{t("ld_app_title_mint")}</span>
+            </h2>
+            <p className="sec-sub">{t("ld_app_sub")}</p>
+          </div>
+          <div className="appshow-grid">
+            <div className="phone-stage rv">
+              <div className="phone">
+                {/* frame side buttons */}
+                <span className="btn-side btn-mute" />
+                <span className="btn-side btn-vup" />
+                <span className="btn-side btn-vdn" />
+                <span className="btn-side btn-pwr" />
+                <div className="phone-screen">
+                  <span className="glare" aria-hidden />
+                  <span className="island" />
+                  <div className="sbar">
+                    <span>9:41</span>
+                    <span className="ico">
+                      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden>
+                        <rect x="0" y="7" width="3" height="4" rx="1" />
+                        <rect x="4.5" y="5" width="3" height="6" rx="1" />
+                        <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
+                        <rect x="13.5" y="0" width="3" height="11" rx="1" opacity="0.4" />
+                      </svg>
+                      <svg width="16" height="11" viewBox="0 0 16 12" fill="currentColor" aria-hidden>
+                        <path d="M8 2.5c2.3 0 4.4.9 6 2.4l-1.4 1.5A6.5 6.5 0 0 0 8 5.5c-1.8 0-3.4.7-4.6 1.9L2 5.9A8.5 8.5 0 0 1 8 2.5Zm0 3.6c1.3 0 2.5.5 3.4 1.4l-1.5 1.5C9.4 8.5 8.7 8.2 8 8.2s-1.4.3-1.9.8L4.6 7.5A4.8 4.8 0 0 1 8 6.1Zm0 3.4 1.4 1.5-1.4 1.4-1.4-1.4L8 9.5Z" />
+                      </svg>
+                      <svg width="26" height="12" viewBox="0 0 26 12" fill="none" aria-hidden>
+                        <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.5" />
+                        <rect x="2" y="2" width="17" height="8" rx="1.5" fill="currentColor" />
+                        <rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" opacity="0.5" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="scr">
+                    <div className="scr-top">
+                      <h5>Home</h5>
+                      <span className="avatar">SL</span>
+                    </div>
+                    <div className="bal-lbl">Balance</div>
+                    <div className="bal">
+                      <span className="amt tnum">$24,193</span>
+                      <span className="chg tnum">+47.3%</span>
+                    </div>
+                    <div className="chart">
+                      <svg viewBox="0 0 260 150" preserveAspectRatio="none" aria-hidden>
+                        <defs>
+                          <linearGradient id="cnpAppFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.35" />
+                            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d="M0 120 L20 112 L40 118 L60 100 L80 107 L100 86 L120 93 L140 72 L160 79 L180 55 L200 62 L220 38 L240 28 L260 16 L260 150 L0 150 Z"
+                          fill="url(#cnpAppFill)"
+                        />
+                        <path
+                          d="M0 120 L20 112 L40 118 L60 100 L80 107 L100 86 L120 93 L140 72 L160 79 L180 55 L200 62 L220 38 L240 28 L260 16"
+                          fill="none"
+                          stroke="var(--accent)"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+                    <div className="tabs">
+                      <span>1D</span>
+                      <span>7D</span>
+                      <span>1M</span>
+                      <span className="on">1Y</span>
+                      <span>ALL</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="appfeat rv">
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0 3 3m-3-3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_1_h")}</h4>
+                  <p>{t("ld_app_1_p")}</p>
+                </div>
+              </div>
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <path d="M3 12h4l3 8 4-16 3 8h4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_2_h")}</h4>
+                  <p>{t("ld_app_2_p")}</p>
+                </div>
+              </div>
+              <div className="row">
+                <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                  <path d="M4 12a8 8 0 0 1 13.7-5.6L20 8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 4v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 12a8 8 0 0 1-13.7 5.6L4 16" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 20v-4h4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div>
+                  <h4>{t("ld_app_3_h")}</h4>
+                  <p>{t("ld_app_3_p")}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* routing / venues */}
       <section className="sec" id="venues" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="wrap route">
@@ -420,6 +661,8 @@ export function CanopyBody({ onLogin }: Props) {
 
       {/* final cta */}
       <section className="final">
+        {/* the card art as a faint, edge-faded backdrop behind the wordmark */}
+        <div className="final-photo" aria-hidden />
         <div className="aurora" style={{ top: "auto", bottom: -160, WebkitMaskImage: "linear-gradient(transparent,#000 40%)", maskImage: "linear-gradient(transparent,#000 40%)" }}>
           <b className="b1" /><b className="b2" /><b className="b3" />
         </div>

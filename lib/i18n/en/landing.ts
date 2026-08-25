@@ -17,6 +17,7 @@ export const enLanding = {
   ld_nav_record: "Track record",
   ld_nav_pricing: "Pricing",
   ld_nav_venues: "Venues",
+  ld_nav_models: "Models",
   ld_nav_cta: "Launch app",
 
   // ── Hero ───────────────────────────────────────────────────────
@@ -82,6 +83,33 @@ export const enLanding = {
   ld_bento_exec_p:
     "Auto routes across every live venue and picks up new ones as they integrate — checked per trade.",
   ld_bento_exec_fee: "low venue fee",
+
+  // ── Models ─────────────────────────────────────────────────────
+  // The model an agent reasons with: the Canopy-hosted default, or any model
+  // bought through the Pod marketplace. Model names (cQWEN3, DeepSeek-V3, …) are
+  // product identifiers and stay as they are in every language.
+  ld_models_eyebrow: "The mind behind the agent · new",
+  ld_models_title_a: "Choose the model your agent ",
+  ld_models_title_mint: "thinks with.",
+  ld_models_sub:
+    "Every agent reasons with a large language model — screening the universe, weighing candidates, writing its own rationale. Run the one Canopy hosts for free, or bring any model from an open marketplace and pay per agent, with a price ceiling you set.",
+  ld_models_canopy_sub: "Canopy-hosted Qwen3-14B",
+  ld_models_canopy_tag: "Included",
+  ld_models_canopy_body:
+    "The default every agent has always run. Canopy hosts the weights and absorbs the cost — nothing to fund, nothing to meter. Your prompts never leave Canopy's own inference.",
+  ld_models_canopy_1: "Free on every agent, paper or live",
+  ld_models_canopy_2: "Runs on Canopy's own inference — private prompts",
+  ld_models_canopy_3: "Tuned for the five-seat council loop",
+  ld_models_canopy_price: "$0 — included, no balance to keep topped up",
+  ld_models_byo_h: "Bring your own model",
+  ld_models_byo_sub: "500+ models via the Pod marketplace",
+  ld_models_byo_tag: "Marketplace",
+  ld_models_byo_body:
+    "Pin your agent to any frontier or open model. Each call routes to the cheapest provider willing to serve it, paid in USDC by that agent — never more than the per-million ceiling you agree up front.",
+  ld_models_byo_more: "+500 more",
+  ld_models_byo_1: "You set a max price per million tokens — a rise is refused, not absorbed",
+  ld_models_byo_2: "Funded per agent in USDC, topped up on its own page",
+  ld_models_byo_price: "Estimated cost shown per day at your chosen cadence — nothing charged until it's live",
 
   // ── Build stepper ──────────────────────────────────────────────
   ld_build_eyebrow: "The build",
@@ -155,6 +183,20 @@ export const enLanding = {
   ld_col_return_30d: "Return 30d",
   ld_col_capital: "Capital",
   ld_col_trades: "Trades",
+
+  // ── App / anywhere ─────────────────────────────────────────────
+  // The iPhone section. The word "mobile" is deliberately absent — the
+  // device in the image carries that meaning, and "Anywhere" says the rest.
+  ld_app_eyebrow: "Canopy on the go",
+  ld_app_title_a: "Everything Canopy. ",
+  ld_app_title_mint: "Anywhere.",
+  ld_app_sub: "Your agents, your positions and the 24/7 market — right in your browser, wherever you are.",
+  ld_app_1_h: "Trade instantly",
+  ld_app_1_p: "Buy and sell tokenized markets right from your browser.",
+  ld_app_2_h: "Every agent, live",
+  ld_app_2_p: "Track records and activity update the moment they change.",
+  ld_app_3_h: "Runs on autopilot",
+  ld_app_3_p: "Agents trade within the caps you set, around the clock — you watch, they work.",
 
   // ── Routing ────────────────────────────────────────────────────
   ld_route_eyebrow: "Routing & custody",

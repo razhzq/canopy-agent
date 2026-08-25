@@ -9,6 +9,7 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_nav_record: "业绩记录",
   ld_nav_pricing: "定价",
   ld_nav_venues: "交易场所",
+  ld_nav_models: "模型",
   ld_nav_cta: "进入应用",
 
   ld_hero_eyebrow: "代币化市场 · 7×24 小时不休市",
@@ -67,6 +68,31 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_bento_exec_h: "每一笔都拿到最优价格。",
   ld_bento_exec_p: "自动在所有已接入的交易场所之间路由，并随着新场所接入自动纳入 — 每笔交易都重新比价。",
   ld_bento_exec_fee: "极低的场所费率",
+
+  // 模型：智能体用来推理的大模型 — Canopy 自托管的默认模型，或经 Pod 市场购买的任意模型。
+  // 模型名称（cQWEN3、DeepSeek-V3……）为产品标识，各语言下均保持原样。
+  ld_models_eyebrow: "智能体的大脑 · 全新",
+  ld_models_title_a: "为您的智能体挑选",
+  ld_models_title_mint: "推理所用的模型。",
+  ld_models_sub:
+    "每个智能体都用一个大语言模型来推理 — 筛选标的、权衡候选、亲自写下理由。用 Canopy 免费托管的那一个，或从开放市场引入任意模型，按智能体付费，价格上限由您设定。",
+  ld_models_canopy_sub: "Canopy 自托管的 Qwen3-14B",
+  ld_models_canopy_tag: "已包含",
+  ld_models_canopy_body:
+    "每个智能体一直在跑的默认模型。Canopy 托管权重并承担成本 — 无需充值，无需计量。您的提示词从不离开 Canopy 自有的推理环境。",
+  ld_models_canopy_1: "对每个智能体免费，模拟盘或实盘皆然",
+  ld_models_canopy_2: "运行在 Canopy 自有推理环境 — 提示词私密",
+  ld_models_canopy_3: "针对五席议事循环调校",
+  ld_models_canopy_price: "$0 — 已包含，无需维持余额",
+  ld_models_byo_h: "引入您自己的模型",
+  ld_models_byo_sub: "经 Pod 市场提供 500+ 模型",
+  ld_models_byo_tag: "市场",
+  ld_models_byo_body:
+    "把智能体固定到任意前沿或开源模型。每次调用都路由到愿意提供服务的最低价供应商，由该智能体以 USDC 支付 — 绝不超过您事先约定的每百万 token 上限。",
+  ld_models_byo_more: "还有 500+",
+  ld_models_byo_1: "由您设定每百万 token 的最高价 — 涨价将被拒绝，而非默默承担",
+  ld_models_byo_2: "按智能体以 USDC 充值，在其自己的页面上补充",
+  ld_models_byo_price: "按您所选节奏预估每日成本 — 转实盘前不收取任何费用",
 
   ld_build_eyebrow: "创建流程",
   ld_build_title_a: "四个页面，之后它",
@@ -132,6 +158,18 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_col_return_30d: "30 日收益",
   ld_col_capital: "资金规模",
   ld_col_trades: "成交数",
+
+  // iPhone 版块。刻意不用“移动端”一词 — 图中的设备已经表达了这层意思，“随时随地”道出其余。
+  ld_app_eyebrow: "随时随地用 Canopy",
+  ld_app_title_a: "整个 Canopy，",
+  ld_app_title_mint: "随时随地。",
+  ld_app_sub: "您的智能体、持仓与 7×24 小时市场 — 打开浏览器，随时随地可用。",
+  ld_app_1_h: "即刻交易",
+  ld_app_1_p: "在浏览器里直接买卖代币化市场。",
+  ld_app_2_h: "每个智能体，实时可见",
+  ld_app_2_p: "业绩记录与活动一有变化即刻更新。",
+  ld_app_3_h: "自动运行",
+  ld_app_3_p: "智能体在您设定的额度内 7×24 小时自动交易 — 您只管看，交易交给它。",
 
   ld_route_eyebrow: "路由与托管",
   ld_route_title_a: "每一笔委托都会比遍",
