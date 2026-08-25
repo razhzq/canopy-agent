@@ -13,6 +13,16 @@ function fmt(n: number, dec: number) {
   return dec ? n.toFixed(dec) : Math.round(n).toLocaleString("en-US");
 }
 
+/** The four-point sparkle worn by each agent's identity badge. */
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2c.5 4.6 2.4 6.5 7 7-4.6.5-6.5 2.4-7 7-.5-4.6-2.4-6.5-7-7 4.6-.5 6.5-2.4 7-7Z" />
+      <path d="M19 3c.2 1.5.8 2.1 2.3 2.3C19.8 5.5 19.2 6.1 19 7.6c-.2-1.5-.8-2.1-2.3-2.3C18.2 5.1 18.8 4.5 19 3Z" opacity=".85" />
+    </svg>
+  );
+}
+
 /** The mint tick beside each model-card feature. Decorative, so aria-hidden. */
 function CheckIcon() {
   return (
@@ -462,6 +472,48 @@ export function CanopyBody({ onLogin }: Props) {
         </div>
       </section>
 
+      {/* agent cards — each agent is an identity card. One painting, fanned
+          across three cards with different crops so the trio reads as a set. */}
+      <section className="sec agentcards" id="agents" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="wrap">
+          <div className="sec-head rv">
+            <span className="eyebrow center">{t("ld_cards_eyebrow")}</span>
+            <h2 className="sec-title">
+              {t("ld_cards_title_a")}
+              <span className="mint">{t("ld_cards_title_mint")}</span>
+            </h2>
+            <p className="sec-sub" style={{ marginInline: "auto", maxWidth: "52ch" }}>
+              {t("ld_cards_sub")}
+            </p>
+          </div>
+          <div className="cards-row rv">
+            {[
+              { name: "Atlas", pos: "18% 32%", pair: "NVDAx/USDC", ret: "+18.0%" },
+              { name: "Nova", pos: "50% 46%", pair: "SOL/USDC", ret: "+31.5%" },
+              { name: "Paolo", pos: "82% 38%", pair: "PAXG/USDC", ret: "+9.4%" },
+            ].map((c) => (
+              <div
+                key={c.name}
+                className="idcard"
+                style={{
+                  backgroundImage: "url(/canopy-card.webp)",
+                  backgroundPosition: c.pos,
+                }}
+              >
+                <span className="badge2">
+                  <SparkIcon />
+                  <span className="nm">{c.name}</span>
+                </span>
+                <div className="cap">
+                  <span>{c.pair}</span>
+                  <span className="up">{c.ret}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* "anywhere" — the iPhone. The device says mobile so the copy never
           has to; it leans on "Anywhere" and the screen instead. */}
       <section className="sec appshow" id="app" style={{ borderTop: "1px solid var(--border)" }}>
@@ -661,6 +713,8 @@ export function CanopyBody({ onLogin }: Props) {
 
       {/* final cta */}
       <section className="final">
+        {/* the card art as a faint, edge-faded backdrop behind the wordmark */}
+        <div className="final-photo" aria-hidden />
         <div className="aurora" style={{ top: "auto", bottom: -160, WebkitMaskImage: "linear-gradient(transparent,#000 40%)", maskImage: "linear-gradient(transparent,#000 40%)" }}>
           <b className="b1" /><b className="b2" /><b className="b3" />
         </div>
