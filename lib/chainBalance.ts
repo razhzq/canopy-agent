@@ -84,6 +84,30 @@ interface RpcResponse<T> {
  * screen the user is already stuck on, and a public RPC that hangs rather than
  * refusing would replace a visible failure with an invisible one.
  */
+/**
+ * A transport failure with no message of its own from the endpoint.
+ *
+ * Coded rather than worded, for the same reason `AmountError` in lib/transfer
+ * is: this module is a chain reader with no dictionary, and its failures are
+ * rendered to a person by the funding panel. `message` stays as the English
+ * fallback for a console.
+ */
+export class RpcError extends Error {
+  readonly code: "status" | "empty";
+  readonly status?: number;
+
+  constructor(code: RpcError["code"], status?: number) {
+    super(
+      code === "status"
+        ? `the network returned ${status}`
+        : "the network returned no result",
+    );
+    this.name = "RpcError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function rpc<T>(
   method: string,
   params: unknown[],
@@ -103,10 +127,12 @@ async function rpc<T>(
     // the status alone is not the whole story — but a non-2xx with no body at
     // all still has to become an error rather than an undefined result.
     const body = (await res.json().catch(() => null)) as RpcResponse<T> | null;
+    // The RPC's OWN message when it gave one — it names the actual refusal
+    // ("Too many requests"), and no translation of ours would be more useful
+    // than the endpoint's own words.
     if (body?.error) throw new Error(body.error.message);
-    if (!res.ok) throw new Error(`the network returned ${res.status}`);
-    if (!body || body.result === undefined)
-      throw new Error("the network returned no result");
+    if (!res.ok) throw new RpcError("status", res.status);
+    if (!body || body.result === undefined) throw new RpcError("empty");
     return body.result;
   } finally {
     clearTimeout(timer);

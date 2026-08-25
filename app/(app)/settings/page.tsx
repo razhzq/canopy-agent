@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { NotificationSettings } from "@/components/notifications";
 import { BillingSettings } from "@/components/billing";
+import { SettingsHeader } from "@/components/settingsHeader";
+import { getServerT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Settings · Canopy",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_settings") };
+}
 
 /**
  * Account settings.
@@ -20,14 +22,7 @@ export const metadata: Metadata = {
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-[720px] px-6 py-14">
-      <div className="space-y-2 pb-12">
-        <h1 className="font-mono text-[20px] tracking-[0.04em] text-text-primary">
-          Settings
-        </h1>
-        <p className="font-ui text-[13px] text-text-secondary">
-          What your plan allows, and how Canopy reaches you about your agents.
-        </p>
-      </div>
+      <SettingsHeader />
 
       <div className="space-y-16">
         <BillingSettings />

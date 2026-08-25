@@ -14,6 +14,7 @@ import {
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -69,23 +70,38 @@ import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
  * not invent a second name for the same venue — the dialog draws the control as
  * a dropdown rather than chips, but the words have to match.
  */
-export const VENUE_LABEL: Record<Router, string> = {
+export const VENUE_LABEL: Record<Router, TranslationKey | "Jupiter"> = {
+  // A brand, not a description — it reads the same in every language.
   jupiter: "Jupiter",
-  kalqix: "CLOB DEX",
+  kalqix: "mk_venue_clob",
 };
+
+/** Jupiter's entry is its own name; KalqiX's is a key to resolve. */
+export function venueLabel(
+  router: Router,
+  t: (k: TranslationKey) => string,
+): string {
+  const entry = VENUE_LABEL[router];
+  return entry === "Jupiter" ? entry : t(entry);
+}
+
 export const MARKET_CLASSES = [
-  { key: "all", label: "All", admits: () => true },
+  { key: "all", labelKey: "mk_class_all" as TranslationKey, admits: () => true },
   {
     key: "stocks",
-    label: "Tokenized stocks",
+    labelKey: "mk_class_stocks" as TranslationKey,
     admits: (a: UniverseAsset) => a.assetClass === "equity" || a.assetClass === "etf",
   },
   {
     key: "commodity",
-    label: "Commodities",
+    labelKey: "mk_class_commodity" as TranslationKey,
     admits: (a: UniverseAsset) => a.assetClass === "commodity",
   },
-  { key: "token", label: "Crypto", admits: (a: UniverseAsset) => a.kind === "crypto" },
+  {
+    key: "token",
+    labelKey: "mk_class_token" as TranslationKey,
+    admits: (a: UniverseAsset) => a.kind === "crypto",
+  },
 ] as const;
 
 /** Kept so this file reads unchanged; the picker and the add-market modal
@@ -125,6 +141,7 @@ export function PickMarket({
   onNext: () => void;
 }) {
   const { authenticated } = usePrivy();
+  const t = useT();
   // Seeded from the module cache, so stepping back here from limits shows the
   // list it was already showing instead of a skeleton. `peekUniverse` is empty
   // on a cold load and on the server, so the first render of the page is
@@ -284,17 +301,13 @@ export function PickMarket({
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-          Step 1 of 2 · Assign
+          {t("mk_step")}
         </p>
         <h2 className="font-mono text-[22px] leading-none text-text-primary">
-          Pick what you&apos;re trading
+          {t("mk_title")}
         </h2>
         <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
-          Pick one or several — the agent screens every market you choose, on the same rules, and
-          buys whichever qualify. Tokenized stocks and commodities keep their underlying&apos;s
-          trading hours even though the token trades around the clock; crypto never closes.
-          Everything must come from one category, because a single specialist screens them all,
-          and that choice decides which rules are available in the next step.
+          {t("mk_intro")}
         </p>
       </div>
 
@@ -315,7 +328,7 @@ export function PickMarket({
                     : "border-border text-text-secondary hover:border-grid-strong"
                 }`}
               >
-                {c.label}
+                {t(c.labelKey)}
               </button>
             ))}
           </div>
@@ -330,7 +343,7 @@ export function PickMarket({
           {venuesPresent.length > 1 ? (
             <div className="flex items-center gap-2 border-l border-grid pl-3">
               <span className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-                Venue
+                {t("mk_venue")}
               </span>
               <div className="flex items-center gap-2">
                 {(["all", ...venuesPresent] as const).map((v) => (
@@ -348,7 +361,7 @@ export function PickMarket({
                         : "border-border text-text-secondary hover:border-grid-strong"
                     }`}
                   >
-                    {v === "all" ? "All" : VENUE_LABEL[v]}
+                    {v === "all" ? t("mk_venue_all") : venueLabel(v, t)}
                   </button>
                 ))}
               </div>
@@ -363,39 +376,41 @@ export function PickMarket({
               setQuery(e.target.value);
               setCursor(0);
             }}
-            placeholder="Search markets…  /"
+            placeholder={t("mk_search_placeholder")}
             spellCheck={false}
-            aria-label="Search markets"
+            aria-label={t("mk_search_aria")}
             className="h-9 w-[210px] border-b border-grid-strong bg-transparent font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
           />
           <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-            {rows.length} {rows.length === 1 ? "market" : "markets"}
+            {rows.length === 1
+              ? t("mk_count_one")
+              : t("mk_count_many", { count: rows.length })}
           </span>
         </div>
       </div>
 
       {universe.phase === "loading" ? (
-        <Note>Resolving tradable markets…</Note>
+        <Note>{t("mk_resolving")}</Note>
       ) : universe.phase === "signed-out" || !authenticated ? (
-        <Note>Sign in to see which markets are tradable.</Note>
+        <Note>{t("mk_signed_out")}</Note>
       ) : universe.phase === "error" ? (
-        <Note tone="negative">Could not load markets — {universe.message}</Note>
+        <Note tone="negative">{t("mk_load_failed", { message: universe.message })}</Note>
       ) : rows.length === 0 ? (
         <Note tone="warning">
           {assets.length === 0
-            ? "No market currently resolves as tradable."
+            ? t("mk_none_tradable")
             : query.trim()
-              ? `Nothing matches “${query}”.`
-              : "No market matches these filters."}
+              ? t("mk_no_query_match", { query })
+              : t("mk_no_filter_match")}
         </Note>
       ) : (
         <div ref={listRef} className="border border-grid">
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-            <span>Market</span>
-            <span className="text-right">Price</span>
-            <span className="text-right">24h</span>
+            <span>{t("mk_col_market")}</span>
+            <span className="text-right">{t("mk_col_price")}</span>
+            <span className="text-right">{t("mk_col_24h")}</span>
             {/* Not "volume": nothing here measures traded volume. */}
-            <span className="text-right">Pool depth</span>
+            <span className="text-right">{t("mk_col_depth")}</span>
           </div>
 
           {rows.map((a, i) => (
@@ -481,9 +496,9 @@ export function PickMarket({
       {/* The step no longer ends on a click, so it needs a way to end. */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-grid pt-5">
         <div className="flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-          <span>↑↓ navigate</span>
-          <span>⏎ add or remove</span>
-          <span>/ search</span>
+          <span>{t("mk_hint_navigate")}</span>
+          <span>{t("mk_hint_toggle")}</span>
+          <span>{t("mk_hint_search")}</span>
         </div>
 
         <div className="flex items-center gap-4">
@@ -493,7 +508,7 @@ export function PickMarket({
                   "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision. */}
               {value.length <= 4
                 ? value.map((a) => a.symbol).join(", ")
-                : `${value.length} markets`}
+                : t("mk_count_many", { count: value.length })}
             </span>
           ) : null}
           <button
@@ -502,7 +517,7 @@ export function PickMarket({
             disabled={value.length === 0}
             className="border border-border px-5 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
           >
-            {value.length === 0 ? "Pick a market" : "Continue"}
+            {t(value.length === 0 ? "mk_pick_a_market" : "mk_continue")}
           </button>
         </div>
       </div>

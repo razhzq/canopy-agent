@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { PortfolioOverview } from "@/components/portfolioOverview";
+import { getServerT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Portfolio · Canopy",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_portfolio") };
+}
 
 /**
  * The portfolio overview.

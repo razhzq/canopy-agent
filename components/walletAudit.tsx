@@ -8,6 +8,7 @@ import { Badge, Breadcrumb } from "@/components/ui";
 import { getClaimedWallets, type ClaimedWallets } from "@/lib/api";
 import { assignableWallets, isAgentWallet, personalWallet } from "@/lib/wallets";
 import { useApi } from "@/lib/useApi";
+import { useT } from "@/lib/i18n";
 
 /**
  * TEMPORARY diagnostic. Read-only, by construction — see the route file.
@@ -20,10 +21,11 @@ import { useApi } from "@/lib/useApi";
  */
 export function WalletAudit() {
   const { ready, authenticated, user } = usePrivy();
-  const state = useApi<ClaimedWallets>((t) => getClaimedWallets(t), []);
+  const t = useT();
+  const state = useApi<ClaimedWallets>((token) => getClaimedWallets(token), []);
 
   if (!ready || state.phase === "loading")
-    return <SkeletonPanel label="Reading your wallets" lines={6} />;
+    return <SkeletonPanel labelKey="loading_wallets" lines={6} />;
   if (!authenticated || state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={state.reload} />;
@@ -48,25 +50,27 @@ export function WalletAudit() {
     distinct.length === 0
       ? {
           tone: "warning" as const,
-          title: "No agent wallets yet",
-          body: `No agent holds a delegation. All ${solana.length} of these are unclaimed — one is your personal login wallet, the rest are spares from the login race.`,
+          title: t("audit_none_title"),
+          body: t("audit_none_body", { count: solana.length }),
         }
       : {
           tone: "accent" as const,
-          title: `${distinct.length} agent ${distinct.length === 1 ? "wallet" : "wallets"} · ${spares.length} unclaimed`,
-          body: `An agent wallet per agent is BY DESIGN — one agent, one wallet, funded from your personal wallet. Only the unclaimed ones are candidates for noise, and one of those is your personal wallet.`,
+          title:
+            distinct.length === 1
+              ? t("audit_verdict_one", { spares: spares.length })
+              : t("audit_verdict_many", { count: distinct.length, spares: spares.length }),
+          body: t("audit_verdict_body"),
         };
 
   return (
     <div className="mx-auto max-w-[860px] px-6 py-12 space-y-10">
       <div className="space-y-3">
-        <Breadcrumb parts={["Settings", "Wallet audit"]} />
+        <Breadcrumb parts={[t("audit_crumb_settings"), t("audit_crumb_audit")]} />
         <h1 className="font-mono text-[24px] tracking-[0.02em] text-text-primary">
-          Wallet audit
+          {t("audit_title")}
         </h1>
         <p className="max-w-[62ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-          Read-only. Privy cannot delete an embedded wallet, so this exists to work out which
-          one matters rather than to remove any.
+          {t("audit_intro")}
         </p>
       </div>
 
@@ -79,11 +83,13 @@ export function WalletAudit() {
 
       <section className="space-y-3">
         <h2 className="font-mono text-[11px] tracking-[0.12em] text-text-dim uppercase">
-          Privy wallets on this account · {wallets.length}
+          {t("audit_privy_heading", { count: wallets.length })}
         </h2>
         <div className="border border-grid">
           {wallets.length === 0 ? (
-            <p className="px-5 py-6 font-ui text-[13px] text-text-dim">None linked.</p>
+            <p className="px-5 py-6 font-ui text-[13px] text-text-dim">
+              {t("audit_none_linked")}
+            </p>
           ) : (
             wallets.map((w) => {
               const isClaimed = claimedSet.has(w.address);
@@ -96,21 +102,26 @@ export function WalletAudit() {
                     {w.address}
                   </span>
                   <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-                    idx {w.index ?? "—"} · {w.chain || "—"} ·{" "}
-                    {w.client === "privy" ? "embedded" : w.client}
+                    {t("audit_row_meta", {
+                      index: w.index ?? "—",
+                      chain: w.chain || "—",
+                      client: w.client === "privy" ? t("audit_client_embedded") : w.client,
+                    })}
                   </span>
                   {isClaimed ? (
-                    <Badge tone="accent">agent {agentFor(claimed, w.address) ?? "?"}</Badge>
+                    <Badge tone="accent">
+                      {t("audit_badge_agent", { id: agentFor(claimed, w.address) ?? "?" })}
+                    </Badge>
                   ) : w.address === yours?.address ? (
-                    <Badge tone="accent">yours · never assignable</Badge>
+                    <Badge tone="accent">{t("audit_badge_yours")}</Badge>
                   ) : w.delegated ? (
                     // Signer attached but no row: a grant that landed and then
                     // failed to register. Still an agent's wallet.
-                    <Badge tone="warning">delegated · not registered</Badge>
+                    <Badge tone="warning">{t("audit_badge_delegated")}</Badge>
                   ) : w.address === nextUp?.address ? (
-                    <Badge tone="muted">spare · next agent takes this</Badge>
+                    <Badge tone="muted">{t("audit_badge_next")}</Badge>
                   ) : (
-                    <Badge tone="muted">unclaimed</Badge>
+                    <Badge tone="muted">{t("audit_badge_unclaimed")}</Badge>
                   )}
                 </div>
               );
@@ -118,20 +129,18 @@ export function WalletAudit() {
           )}
         </div>
         <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-          A wallet with an agent badge is that agent&rsquo;s dedicated trading wallet — one
-          agent, one wallet, and it can never be changed. Unclaimed wallets include your
-          personal login wallet (normally index 0) and any spares the login race created.
+          {t("audit_privy_note")}
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="font-mono text-[11px] tracking-[0.12em] text-text-dim uppercase">
-          Registered to agents · {Object.keys(claimed.byAgent).length}
+          {t("audit_registered_heading", { count: Object.keys(claimed.byAgent).length })}
         </h2>
         <div className="border border-grid">
           {Object.keys(claimed.byAgent).length === 0 ? (
             <p className="px-5 py-6 font-ui text-[13px] text-text-dim">
-              No agent has registered a wallet.
+              {t("audit_none_registered")}
             </p>
           ) : (
             Object.entries(claimed.byAgent).map(([agentId, address]) => (
@@ -140,7 +149,7 @@ export function WalletAudit() {
                 className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-grid px-5 py-3.5 last:border-b-0"
               >
                 <span className="w-[90px] shrink-0 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase">
-                  agent {agentId}
+                  {t("audit_agent_label", { id: agentId })}
                 </span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text-primary">
                   {address}

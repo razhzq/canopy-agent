@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Breadcrumb } from "@/components/ui";
+import { CyclesHeader } from "@/components/cyclesHeader";
 import { CycleList } from "@/components/portfolio";
 
 export default async function CyclesPage({
@@ -13,20 +13,7 @@ export default async function CyclesPage({
 
   return (
     <main>
-      <section className="space-y-3 border-b border-grid px-8 pt-6 pb-6">
-        <Breadcrumb
-          parts={[
-            { label: "Portfolio", href: "/portfolio" },
-            { label: `Agent ${agentId}`, href: `/portfolio/${agentId}` },
-            "Cycles",
-          ]}
-        />
-        <h1 className="font-mono text-[30px] leading-none text-text-primary">Cycles</h1>
-        <p className="font-ui text-[14px] text-text-secondary">
-          One row per time the agent woke up — including the cycles where it decided to do
-          nothing, and why.
-        </p>
-      </section>
+      <CyclesHeader agentId={agentId} />
 
       <section className="px-8 py-8">
         <CycleList agentId={agentId} />

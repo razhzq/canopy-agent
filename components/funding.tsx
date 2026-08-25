@@ -51,10 +51,29 @@ import { getAgentFunding } from "@/lib/api";
 import {
   fallbackShortfall,
   readChainFunding,
+  RpcError,
   type ChainFunding,
 } from "@/lib/chainBalance";
 import { Callout, InfoIcon, WarnIcon } from "./ui";
 import { ErrorState } from "./states";
+import { useT, type Translate } from "@/lib/i18n";
+
+/**
+ * A chain-read failure, in the reader's language.
+ *
+ * `lib/chainBalance` throws a coded `RpcError` when the endpoint gave no
+ * message of its own. When it DID give one — a rate limit, a bad request — that
+ * message is the endpoint's and passes through as it arrived: it names the
+ * actual refusal, which is more useful than anything this side could say.
+ */
+function rpcMessage(err: unknown, t: Translate): string {
+  if (err instanceof RpcError) {
+    return err.code === "status"
+      ? t("error_rpc_status", { status: err.status ?? "" })
+      : t("error_rpc_empty");
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 
 const BTN =
   "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
@@ -90,6 +109,7 @@ export function FundingPanel({
   address?: string | null;
 }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
+  const t = useT();
   const [copied, setCopied] = useState(false);
   // The owner's own wallet — the source for an in-app deposit, and the signer.
   const personalWallet = usePersonalWallet();
@@ -109,17 +129,13 @@ export function FundingPanel({
         if (!cancelled) setFallback({ phase: "ready", data });
       })
       .catch((err) => {
-        if (!cancelled) {
-          setFallback({
-            phase: "failed",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
+        if (!cancelled)
+          setFallback({ phase: "failed", message: rpcMessage(err, t) });
       });
     return () => {
       cancelled = true;
     };
-  }, [state.phase, address, attempt]);
+  }, [state.phase, address, attempt, t]);
 
   const view: View | null =
     state.phase === "ready" && state.data.address
@@ -167,7 +183,11 @@ export function FundingPanel({
   // ready response rather than inferred from a missing address anywhere else.
   if (state.phase === "ready" && !state.data.address) {
     return (
-      <Callout tone="info" icon={<InfoIcon />} title="No wallet yet">
+      <Callout
+        tone="info"
+        icon={<InfoIcon />}
+        title={t("funding_no_wallet_title")}
+      >
         {state.data.shortfall}
       </Callout>
     );
@@ -184,7 +204,7 @@ export function FundingPanel({
             aria-hidden
           />
           <p className="font-ui text-[12.5px] text-text-dim">
-            Canopy could not read this balance. Checking the network directly…
+            {t("funding_fallback_reading")}
           </p>
         </div>
       );
@@ -196,9 +216,14 @@ export function FundingPanel({
     const message =
       state.phase === "error"
         ? fallback.phase === "failed"
-          ? `${state.message}. Reading the network directly also failed: ${fallback.message}`
+          ? // Both messages are the underlying errors' own text, quoted into a
+            // translated frame — neither is ours to rewrite.
+            t("funding_both_failed", {
+              backend: state.message,
+              chain: fallback.message,
+            })
           : state.message
-        : "Could not read this wallet's balance.";
+        : t("funding_read_failed");
     return <ErrorState message={message} onRetry={recheck} />;
   }
 
@@ -218,10 +243,9 @@ export function FundingPanel({
         <Callout
           tone="warning"
           icon={<WarnIcon />}
-          title="Read from the network directly"
+          title={t("funding_direct_title")}
         >
-          Canopy could not reach its RPC, so this figure came from your browser
-          instead. It is a real balance, read from the chain.
+          {t("funding_direct_body")}
         </Callout>
       ) : null}
 
@@ -238,7 +262,7 @@ export function FundingPanel({
         {/* Balance. No border, no tile — a number this size is its own emphasis,
             and a box around a single figure is chrome earning nothing. */}
         <div className="shrink-0 space-y-2">
-          <SectionLabel>Wallet balance</SectionLabel>
+          <SectionLabel>{t("funding_wallet_balance")}</SectionLabel>
           <Figure
             value={view.usdc.toLocaleString(undefined, {
               maximumFractionDigits: 2,
@@ -250,7 +274,7 @@ export function FundingPanel({
               kit.tsx. It leaves the loud styling for the fallback warning
               above, the only thing here worth interrupting for. */}
           <StatusLine tone={funded ? "good" : "pending"}>
-            {funded ? "Ready to trade" : "Waiting for a deposit"}
+            {t(funded ? "funding_ready" : "funding_waiting")}
           </StatusLine>
         </div>
 
@@ -270,7 +294,7 @@ export function FundingPanel({
           type="button"
           onClick={() => copy(view.address)}
           title={view.address}
-          aria-label={`Copy deposit address ${view.address}`}
+          aria-label={t("funding_copy_aria", { address: view.address })}
           className="group flex shrink-0 items-center gap-2.5 rounded-lg border border-grid bg-surface px-3.5 py-2.5 transition-colors hover:border-accent"
         >
           <SolanaMark />
@@ -282,7 +306,7 @@ export function FundingPanel({
               copied ? "text-accent" : "text-text-dim group-hover:text-accent"
             }`}
           >
-            {copied ? "Copied" : "Copy"}
+            {t(copied ? "common_copied" : "common_copy")}
           </span>
         </button>
       </div>
@@ -303,12 +327,12 @@ export function FundingPanel({
           reach for right after reading "send USDC", which is the sentence beside
           it. Quiet styling either way — it is a utility, not a call to action. */}
       <div className="flex items-end justify-between gap-6 border-t border-grid pt-4">
-        <p className={`max-w-[34ch] ${BODY}`}>
-          Send <span className="text-text-secondary">USDC on Solana</span>. The
-          agent trades against it and cannot convert other assets into it.
-        </p>
+        {/* The emphasis span is gone: the phrase it wrapped lands in a
+            different position in Chinese, and a <span> cannot travel with it.
+            The sentence is short enough to carry itself. */}
+        <p className={`max-w-[34ch] ${BODY}`}>{t("funding_send_usdc")}</p>
         <button type="button" onClick={recheck} className={`shrink-0 ${QUIET}`}>
-          Check balance
+          {t("funding_check_balance")}
         </button>
       </div>
     </div>

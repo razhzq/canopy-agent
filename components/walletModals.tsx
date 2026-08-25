@@ -31,6 +31,7 @@ import {
   type ChainFunding,
 } from "@/lib/chainBalance";
 import {
+  AmountError,
   formatAmountInput,
   formatUnits,
   isValidAddress,
@@ -40,6 +41,26 @@ import {
   type Asset,
   type TransferPlan,
 } from "@/lib/transfer";
+import { useT, type Translate } from "@/lib/i18n";
+
+/**
+ * A parse failure, said in the reader's language.
+ *
+ * `lib/transfer` throws a coded `AmountError` rather than a sentence, because
+ * it is a transaction builder and has no dictionary. Anything else that lands
+ * here is a genuine surprise and gets the generic line — its own message is
+ * an internal string, not something to put under a form field.
+ */
+function amountMessage(err: unknown, t: Translate): string {
+  if (err instanceof AmountError) {
+    if (err.code === "too_many_decimals") {
+      return t("transfer_max_decimals", { decimals: err.decimals ?? 0 });
+    }
+    if (err.code === "not_above_zero") return t("withdraw_above_zero");
+    return t("transfer_not_a_number");
+  }
+  return t("withdraw_not_valid_amount");
+}
 
 /* ------------------------------------------------------------- deposit -- */
 
@@ -59,6 +80,7 @@ export function DepositModal({
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t = useT();
 
   useEffect(
     () => () => void (timer.current && clearTimeout(timer.current)),
@@ -77,7 +99,7 @@ export function DepositModal({
   };
 
   return (
-    <Modal title="Deposit" onClose={onClose}>
+    <Modal title={t("deposit_title")} onClose={onClose}>
       <div className="space-y-5 px-5 py-6">
         <div className="flex justify-center">
           {/* White quiet zone, always. A QR rendered dark-on-dark to match the
@@ -90,12 +112,12 @@ export function DepositModal({
 
         <div className="space-y-2">
           <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-            Your wallet · Solana
+            {t("deposit_your_wallet")}
           </p>
           <button
             type="button"
             onClick={copy}
-            aria-label={`Copy your address ${address}`}
+            aria-label={t("deposit_copy_aria", { address })}
             className="group block w-full border border-grid bg-bg px-3 py-3 text-left transition-colors hover:border-grid-strong"
           >
             <span className="block font-mono text-[12px] leading-relaxed break-all text-text-primary">
@@ -106,15 +128,13 @@ export function DepositModal({
                 copied ? "text-accent" : "text-text-dim"
               }`}
             >
-              {copied ? "Copied" : "Click to copy"}
+              {t(copied ? "common_copied" : "deposit_click_to_copy")}
             </span>
           </button>
         </div>
 
         <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-          Solana network only. Sending any other chain&rsquo;s assets to this
-          address loses them. This is your personal wallet — funding an agent is
-          done on that agent&rsquo;s page.
+          {t("deposit_network_warning")}
         </p>
       </div>
     </Modal>
@@ -160,6 +180,7 @@ export function WithdrawModal({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
+  const t = useT();
   // Matched by ADDRESS, never by index — the account holds several wallets and
   // picking the wrong one here would spend an agent's money. Everything in the
   // dialog is pinned to `from`, which the menu resolved as the user's own.
@@ -207,11 +228,11 @@ export function WithdrawModal({
   if (amount.trim() !== "") {
     try {
       const units = toBaseUnits(amount, 6);
-      if (units <= 0n) amountError = "Enter an amount above zero.";
+      if (units <= 0n) amountError = t("withdraw_above_zero");
       else if (sendable !== null && Number(formatUnits(units, 6)) > sendable)
-        amountError = "More than this wallet holds.";
+        amountError = t("withdraw_over_balance");
     } catch (err) {
-      amountError = err instanceof Error ? err.message : "Not a valid amount.";
+      amountError = amountMessage(err, t);
     }
   }
 
@@ -235,8 +256,7 @@ export function WithdrawModal({
   async function send(plan: TransferPlan) {
     setStep({ at: "sending", plan });
     try {
-      if (!wallet)
-        throw new Error("that wallet is not connected in this session");
+      if (!wallet) throw new Error(t("withdraw_wallet_not_connected"));
       const signature = await sendTransfer(plan, async (wire) => {
         const { signature: bytes } = await signAndSendTransaction({
           transaction: wire,
@@ -257,15 +277,15 @@ export function WithdrawModal({
   }
 
   return (
-    <Modal title="Withdraw" onClose={onClose}>
+    <Modal title={t("withdraw_title")} onClose={onClose}>
       {step.at === "sent" ? (
         <div className="space-y-4 px-6 py-6">
           <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-accent uppercase">
             <span className="size-[5px] rounded-full bg-accent" aria-hidden />
-            Sent
+            {t("withdraw_sent")}
           </p>
           <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-            The transfer was submitted. It settles in a few seconds.
+            {t("withdraw_sent_body")}
           </p>
           <div className="flex items-center gap-4">
             <a
@@ -274,10 +294,10 @@ export function WithdrawModal({
               rel="noopener noreferrer"
               className={QUIET}
             >
-              View transaction
+              {t("withdraw_view_transaction")}
             </a>
             <button type="button" onClick={onClose} className={QUIET}>
-              Done
+              {t("withdraw_done")}
             </button>
           </div>
         </div>
@@ -285,21 +305,20 @@ export function WithdrawModal({
         <div className="space-y-4 px-6 py-6">
           <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-negative uppercase">
             <span className="size-[5px] rounded-full bg-negative" aria-hidden />
-            Not sent
+            {t("withdraw_not_sent")}
           </p>
           <p className="font-ui text-[12.5px] leading-relaxed text-text-primary">
             {step.message}
           </p>
           <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-            Nothing left your wallet. Check the balance before trying again in
-            case it did land.
+            {t("withdraw_not_sent_body")}
           </p>
           <button
             type="button"
             onClick={() => setStep({ at: "form" })}
             className={SECONDARY}
           >
-            Back
+            {t("withdraw_back")}
           </button>
         </div>
       ) : step.at === "confirm" || step.at === "sending" ? (
@@ -308,7 +327,9 @@ export function WithdrawModal({
           // Named rather than spelled out when it is the wallet they signed in
           // with. An address is only worth 44 characters of screen when it is
           // one the reader has to verify.
-          toLabel={step.plan.to === defaultTo ? "Your wallet" : null}
+          toLabel={
+            step.plan.to === defaultTo ? t("withdraw_your_wallet") : null
+          }
           busy={step.at === "sending"}
           onBack={() => setStep({ at: "form" })}
           onSend={() => void send(step.plan)}
@@ -316,9 +337,9 @@ export function WithdrawModal({
       ) : (
         <div className="space-y-5 px-6 py-6">
           {defaultTo && !custom ? (
-            <Field label="To">
+            <Field label={t("withdraw_to")}>
               <NamedValue
-                name="Your wallet"
+                name={t("withdraw_your_wallet")}
                 detail={`${defaultTo.slice(0, 4)}…${defaultTo.slice(-4)}`}
               />
               <button
@@ -329,28 +350,25 @@ export function WithdrawModal({
                 }}
                 className={MICRO}
               >
-                Send somewhere else
+                {t("withdraw_send_elsewhere")}
               </button>
             </Field>
           ) : (
-            <Field label="To · Solana address">
+            <Field label={t("withdraw_to_label")}>
               <input
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 spellCheck={false}
                 autoComplete="off"
-                placeholder="Paste the destination address"
+                placeholder={t("withdraw_to_placeholder")}
                 className="w-full rounded-lg border border-grid bg-surface px-3.5 py-2.5 font-mono text-[12px] break-all text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
               />
               {to.trim() !== "" && !toValid ? (
-                <Note tone="bad">Not a Solana address.</Note>
+                <Note tone="bad">{t("withdraw_not_an_address")}</Note>
               ) : sendingToSelf ? (
-                <Note tone="bad">That is this wallet.</Note>
+                <Note tone="bad">{t("withdraw_is_this_wallet")}</Note>
               ) : toValid ? (
-                <Note tone="dim">
-                  Checked for shape only — nobody can tell you whether this
-                  address is the one you meant. A transfer cannot be reversed.
-                </Note>
+                <Note tone="dim">{t("withdraw_shape_only")}</Note>
               ) : null}
               {defaultTo ? (
                 <button
@@ -361,14 +379,14 @@ export function WithdrawModal({
                   }}
                   className={MICRO}
                 >
-                  Back to your wallet
+                  {t("withdraw_back_to_your_wallet")}
                 </button>
               ) : null}
             </Field>
           )}
 
           <Field
-            label="Amount"
+            label={t("withdraw_amount_label", { asset })}
             aside={
               sendable === null ? null : (
                 <span className="font-ui text-[11.5px] text-text-dim">
@@ -377,7 +395,7 @@ export function WithdrawModal({
                       maximumFractionDigits: 6,
                     })}
                   </span>{" "}
-                  {asset} available
+                  {t("withdraw_available", { asset })}
                 </span>
               )
             }
@@ -386,7 +404,7 @@ export function WithdrawModal({
               value={amount}
               onChange={setAmount}
               unit={asset}
-              label={`Amount in ${asset}`}
+              label={t("withdraw_amount_aria", { asset })}
               onMax={
                 sendable !== null && sendable > 0
                   ? () => setAmount(formatAmountInput(sendable, 6))
@@ -402,7 +420,7 @@ export function WithdrawModal({
             onClick={() => void review()}
             className={`w-full ${PRIMARY}`}
           >
-            Review
+            {t("withdraw_review")}
           </button>
         </div>
       )}
@@ -425,12 +443,13 @@ function Confirm({
   onSend: () => void;
 }) {
   const decimals = plan.asset === "SOL" ? 9 : 6;
+  const t = useT();
   return (
     <div className="space-y-6 px-6 py-6">
       {/* Left-aligned, like the balance on the deposit dialog. Centred type
           reads as a receipt; this is a decision still being made. */}
       <div className="space-y-2">
-        <SectionLabel>Sending</SectionLabel>
+        <SectionLabel>{t("withdraw_sending")}</SectionLabel>
         <Figure
           value={formatUnits(plan.amount, decimals)}
           unit={plan.asset}
@@ -439,7 +458,7 @@ function Confirm({
       </div>
 
       <div className="space-y-2">
-        <SectionLabel>To</SectionLabel>
+        <SectionLabel>{t("withdraw_to")}</SectionLabel>
         {/* IN FULL ONLY WHEN IT NEEDS CHECKING. An address the owner typed or
             pasted gets all 44 characters — this is their one chance to catch a
             wrong one. Their own wallet gets its name and a short form: nobody
@@ -459,15 +478,9 @@ function Confirm({
 
       <div className="space-y-1.5">
         {plan.createsRecipientAccount ? (
-          <Note tone="warn">
-            This address holds no USDC account yet, so one is opened for it.
-            That costs you about 0.002 SOL in rent, on top of the network fee.
-          </Note>
+          <Note tone="warn">{t("withdraw_rent_warning")}</Note>
         ) : null}
-        <Note tone="dim">
-          Transfers are final. Once submitted there is no way to reverse this or
-          recover the funds if the address is wrong.
-        </Note>
+        <Note tone="dim">{t("withdraw_final")}</Note>
       </div>
 
       <div className="flex items-center gap-2">
@@ -477,7 +490,7 @@ function Confirm({
           disabled={busy}
           className={`flex-1 ${PRIMARY}`}
         >
-          {busy ? "Sending…" : "Send"}
+          {t(busy ? "withdraw_sending_busy" : "withdraw_send")}
         </button>
         {/* Quiet, and second. Back is the safe direction and does not need to
             compete for the eye with the one action that spends money. */}
@@ -487,7 +500,7 @@ function Confirm({
           disabled={busy}
           className={`shrink-0 px-3 py-2.5 ${QUIET}`}
         >
-          Back
+          {t("withdraw_back")}
         </button>
       </div>
     </div>

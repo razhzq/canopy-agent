@@ -11,6 +11,7 @@ import {
   type EquitySeries,
   type UniverseAsset,
 } from "@/lib/api";
+import { useLocale, type Locale, type Translate } from "@/lib/i18n";
 
 /**
  * The performance panel on the agent page: equity curve plus the figures a
@@ -47,15 +48,16 @@ export function EquityView({
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
 }) {
+  const { t, locale } = useLocale();
+
   if (series === null) {
     return (
       <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          Performance unavailable
+          {t("equity_unavailable_title")}
         </p>
         <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-          The equity readings did not load. Everything else on this page is current — reload to
-          try again.
+          {t("equity_unavailable_body")}
         </p>
       </div>
     );
@@ -68,11 +70,10 @@ export function EquityView({
     return (
       <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
         <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          No curve yet
+          {t("equity_no_curve_title")}
         </p>
         <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-          The curve plots one point per completed cycle. The first appears as soon as the agent
-          has run once.
+          {t("equity_no_curve_body")}
         </p>
       </div>
     );
@@ -102,7 +103,7 @@ export function EquityView({
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="space-y-1.5">
           <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-            {isPaper ? "Paper equity" : "Equity"}
+            {t(isPaper ? "equity_paper_equity" : "equity_equity")}
           </p>
           <p className="tnum font-mono text-[32px] leading-none text-text-primary">
             {money(equity)}
@@ -112,40 +113,54 @@ export function EquityView({
               pnl >= 0 ? "text-accent" : "text-negative"
             }`}
           >
-            {signed(pnl)} · {signedPct(returnPct)} against {money(deployedCapital)}
+            {t("equity_against_capital", {
+              pnl: signed(pnl),
+              pct: signedPct(returnPct),
+              capital: money(deployedCapital),
+            })}
           </p>
         </div>
 
         <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-          <Stat label="Realised" value={signed(realizedPnlUsd)} tone={toneOf(realizedPnlUsd)} />
           <Stat
-            label="Unrealised"
+            label={t("equity_realised")}
+            value={signed(realizedPnlUsd)}
+            tone={toneOf(realizedPnlUsd)}
+          />
+          <Stat
+            label={t("equity_unrealised")}
             value={signed(unrealized)}
             tone={toneOf(unrealized)}
             // Silent when it is marked live, because then it reconciles with
             // the positions table and needs no explaining. Only the degraded
             // case has something to say.
-            note={marked ? undefined : `at cycle ${last.tickSeq}`}
+            note={marked ? undefined : t("equity_at_cycle", { seq: last.tickSeq })}
           />
           <Stat
-            label="Max drawdown"
+            label={t("equity_max_drawdown")}
             value={drawdown === 0 ? "—" : `−${drawdown.toFixed(2)}%`}
             tone={drawdown > 0 ? "negative" : "neutral"}
           />
           <Stat
-            label="Hit rate"
+            label={t("equity_hit_rate")}
             value={hitRate === null ? "—" : `${hitRate.toFixed(0)}%`}
             note={closedPositions > 0 ? `${winningPositions}/${closedPositions}` : undefined}
           />
-          <Stat label="Deployed" value={deployed === null ? "—" : money(deployed)} />
+          <Stat label={t("equity_deployed")} value={deployed === null ? "—" : money(deployed)} />
         </div>
       </div>
 
       <div className="border border-grid p-4">
-        <ReadableCurve points={points} capitalUsd={capitalUsd} height={220} />
+        <ReadableCurve
+          points={points}
+          capitalUsd={capitalUsd}
+          height={220}
+          t={t}
+          locale={locale}
+        />
         <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-          <span>Cycle {points[0].tickSeq}</span>
-          <span>Cycle {points[points.length - 1].tickSeq}</span>
+          <span>{t("equity_cycle_n", { seq: points[0].tickSeq })}</span>
+          <span>{t("equity_cycle_n", { seq: points[points.length - 1].tickSeq })}</span>
         </div>
       </div>
     </div>
@@ -176,10 +191,16 @@ function ReadableCurve({
   points,
   capitalUsd,
   height,
+  t,
+  locale,
 }: {
   points: EquityPoint[];
   capitalUsd: number;
   height: number;
+  // Passed down rather than re-read from context: the readout is a leaf of the
+  // panel that already holds both, and threading them keeps this hook-free.
+  t: Translate;
+  locale: Locale;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const values = points.map((p) => p.equityUsd);
@@ -241,6 +262,8 @@ function ReadableCurve({
             /* And dropped below the point when there is no room above it. */
             below={topPct < 0.34}
             style={{ left: `${leftPct * 100}%`, top: `${topPct * 100}%` }}
+            t={t}
+            locale={locale}
           />
         </>
       ) : null}
@@ -255,12 +278,16 @@ function Readout({
   align,
   below,
   style,
+  t,
+  locale,
 }: {
   point: EquityPoint;
   capitalUsd: number;
   align: "left" | "center" | "right";
   below: boolean;
   style: CSSProperties;
+  t: Translate;
+  locale: Locale;
 }) {
   const pnl = point.equityUsd - capitalUsd;
   const pct = capitalUsd > 0 ? (pnl / capitalUsd) * 100 : 0;
@@ -277,7 +304,7 @@ function Readout({
       }}
     >
       <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-        Cycle {point.tickSeq} · {when(point.at)}
+        {t("equity_readout_head", { seq: point.tickSeq, when: when(point.at, locale) })}
       </p>
       <p className="tnum pt-1 font-mono text-[15px] leading-none text-text-primary">
         {money(point.equityUsd)}
@@ -287,10 +314,12 @@ function Readout({
           pnl >= 0 ? "text-accent" : "text-negative"
         }`}
       >
-        {signed(pnl)} · {signedPct(pct)}
+        {t("equity_readout_pnl", { pnl: signed(pnl), pct: signedPct(pct) })}
       </p>
       {cash === null ? null : (
-        <p className="tnum pt-1 font-mono text-[10px] text-text-muted">{money(cash)} cash</p>
+        <p className="tnum pt-1 font-mono text-[10px] text-text-muted">
+          {t("equity_readout_cash", { amount: money(cash) })}
+        </p>
       )}
     </div>
   );
@@ -302,10 +331,13 @@ function Readout({
  * Locale-formatted on the client only, which this is — the panel is behind a
  * signed-in fetch, so there is no server render of this string to disagree with.
  */
-function when(at: string): string {
+function when(at: string, locale: Locale): string {
   const d = new Date(at);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, {
+  // The reader's chosen language rather than the browser's regional setting:
+  // this sits inside a card of translated labels, and an English month in the
+  // middle of it reads as a rendering failure rather than as a preference.
+  return d.toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", {
     month: "short",
     day: "numeric",
     hour: "2-digit",

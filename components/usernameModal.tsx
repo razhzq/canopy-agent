@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Modal } from "@/components/modal";
 import { checkUsername } from "@/lib/api";
 import { useUsername } from "@/lib/useUsername";
+import { useT } from "@/lib/i18n";
 
 /**
  * Claiming a username.
@@ -32,6 +33,7 @@ type Check =
 
 export function UsernameModal({ onClose }: { onClose: () => void }) {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const { save } = useUsername();
   const [name, setName] = useState("");
   const [check, setCheck] = useState<Check>({ at: "idle" });
@@ -49,7 +51,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
     }
     setCheck({ at: "checking" });
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const token = await getAccessToken();
         if (!token || cancelled) return;
@@ -58,7 +60,10 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
         setCheck(
           res.available
             ? { at: "free" }
-            : { at: "taken", reason: res.reason ?? "That name is taken." },
+            // The server's own `reason` when it gave one — it is more
+            // specific than anything this side could say, and it arrives in
+            // English. Ours is the fallback.
+            : { at: "taken", reason: res.reason ?? t("username_taken") },
         );
       } catch {
         // A failed lookup is not a refusal — leave the button live and let the
@@ -68,9 +73,9 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
     }, 350);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
-  }, [name, getAccessToken]);
+  }, [name, getAccessToken, t]);
 
   async function submit() {
     setSaving(true);
@@ -87,11 +92,10 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
   const ready = name.length >= 3 && check.at !== "taken" && !saving;
 
   return (
-    <Modal title="Choose a username" onClose={onClose}>
+    <Modal title={t("username_title")} onClose={onClose}>
       <div className="space-y-5 px-5 py-6">
         <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          It replaces your email everywhere in Canopy, and it is how other people will find
-          you.
+          {t("username_body")}
         </p>
 
         <div className="space-y-2">
@@ -110,7 +114,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && ready) void submit();
               }}
-              placeholder="yourname"
+              placeholder={t("username_placeholder")}
               className="w-full bg-transparent px-2 py-2.5 font-mono text-[15px] text-text-primary outline-none placeholder:text-text-dim"
             />
             <span className="pr-3 font-mono text-[10px] text-text-dim">
@@ -124,13 +128,13 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
             ) : check.at === "taken" ? (
               <span className="text-negative">{check.reason}</span>
             ) : check.at === "free" ? (
-              <span className="text-accent">@{name} is available.</span>
+              <span className="text-accent">{t("username_available", { name })}</span>
             ) : check.at === "checking" ? (
-              <span className="text-text-dim">Checking…</span>
+              <span className="text-text-dim">{t("username_checking")}</span>
             ) : name.length > 0 && name.length < 3 ? (
-              <span className="text-text-dim">At least 3 characters.</span>
+              <span className="text-text-dim">{t("username_min_length")}</span>
             ) : (
-              <span className="text-text-dim">Letters, numbers and underscores.</span>
+              <span className="text-text-dim">{t("username_charset")}</span>
             )}
           </p>
         </div>
@@ -142,7 +146,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
             disabled={saving}
             className="flex-1 border border-grid-strong py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:bg-surface disabled:opacity-40"
           >
-            Later
+            {t("username_later")}
           </button>
           <button
             type="button"
@@ -150,7 +154,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
             disabled={!ready}
             className="flex-1 bg-accent py-2.5 font-mono text-[11px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {saving ? "Saving…" : "Claim"}
+            {t(saving ? "username_saving" : "username_claim")}
           </button>
         </div>
 
@@ -158,7 +162,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
             unique across Canopy, so the next person to want it cannot have it
             while you hold it. */}
         <p className="font-ui text-[11px] leading-relaxed text-text-dim">
-          Usernames are unique across Canopy and shared with the exchange.
+          {t("username_note")}
         </p>
       </div>
     </Modal>

@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useT } from "@/lib/i18n";
 
 import type { ModelRef } from "@/lib/api";
 import { RemoteIcon } from "@/components/remoteIcon";
@@ -80,14 +83,21 @@ export function ModelBadge({
   /** Renders the credit in the warning tone — low or empty. */
   creditLow?: boolean;
 }) {
+  const t = useT();
   const canopy = !model || model.provider === "canopy";
   const label = model?.label ?? AGENT_MODEL.label;
   const showCredit = typeof creditUsd === "number";
 
   return (
     <span
-      title={`Reasons with ${label}${canopy ? " — Canopy-hosted Qwen3" : " — bought through Pod"}${
-        showCredit ? ` · $${creditUsd!.toFixed(2)} prepaid credit left` : ""
+      title={`${
+        canopy
+          ? t("model_badge_title", { label })
+          : t("model_badge_title_pod", { label })
+      }${
+        showCredit
+          ? ` · ${t("model_badge_credit", { amount: creditUsd!.toFixed(2) })}`
+          : ""
       }`}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-grid-strong py-[3px] pr-2.5 pl-1.5 font-mono text-[10px] leading-none tracking-[0.08em] text-text-dim ${className}`}
     >

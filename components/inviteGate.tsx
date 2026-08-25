@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, openSession, redeemInvite, type SessionProfile } from "@/lib/api";
 import { readAccounts } from "@/components/nav";
 import { clearReferral, readReferral } from "@/lib/referral";
+import { useT } from "@/lib/i18n";
 
 /**
  * The invite gate.
@@ -66,6 +67,7 @@ function profileFrom(user: unknown): SessionProfile {
 
 export function InviteGate({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
+  const t = useT();
   const [phase, setPhase] = useState<Phase>(
     grantedThisSession ? { kind: "open" } : { kind: "checking" },
   );
@@ -157,10 +159,9 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
   if (phase.kind === "checking") return null;
 
   return phase.kind === "unreachable" ? (
-    <GateShell title="Cannot confirm access">
+    <GateShell title={t("gate_unreachable_title")}>
       <p className="font-ui text-[13.5px] leading-relaxed text-text-secondary">
-        We could not reach Canopy to check your access. This is not a decision
-        about your account — the check simply did not complete.
+        {t("gate_unreachable_body")}
       </p>
       <p className="pt-3 font-mono text-[11px] tracking-[0.06em] text-negative">
         {phase.message}
@@ -170,7 +171,7 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
         onClick={retry}
         className="mt-6 h-11 w-full border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
       >
-        Try again
+        {t("state_try_again")}
       </button>
     </GateShell>
   ) : (
@@ -182,6 +183,7 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
 
 function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
   const { getAccessToken, logout, user } = usePrivy();
+  const t = useT();
   // Pre-filled from a held `?ref=`. Someone who followed an invite link and
   // landed on this prompt has already told us their code — asking them to find
   // it again is asking them to re-derive something we are sitting on.
@@ -206,7 +208,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Your session expired. Sign in again.");
+      if (!token) throw new Error(t("gate_session_expired"));
       // Carries the profile too: on a gated stack this is the request that
       // fires before the account exists, so it is where registration lands.
       const status = await redeemInvite(token, trimmed, profileFrom(user));
@@ -214,7 +216,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
       // the backend is the authority on what the code did, and a code that
       // resolves to "still not granted" must keep the gate shut.
       if (!status.granted) {
-        setError("That code did not unlock access.");
+        setError(t("gate_code_rejected"));
         setBusy(false);
         return;
       }
@@ -229,10 +231,9 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
   }
 
   return (
-    <GateShell title="You need an invite code">
+    <GateShell title={t("gate_locked_title")}>
       <p className="font-ui text-[13.5px] leading-relaxed text-text-secondary">
-        Canopy Agent is in closed access. Your account is signed in — it just is
-        not on the list yet. Enter the code you were sent to open the stack.
+        {t("gate_locked_body")}
       </p>
 
       <form onSubmit={submit} className="pt-6">
@@ -240,7 +241,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
           htmlFor="invite-code"
           className="block pb-2 font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase"
         >
-          Invite code
+          {t("gate_code_label")}
         </label>
         <input
           ref={input}
@@ -250,7 +251,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
           // written down. The backend still normalises — this is legibility,
           // not validation.
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="CANOPY-XXXX-XXXX"
+          placeholder={t("gate_code_placeholder")}
           spellCheck={false}
           autoComplete="one-time-code"
           aria-invalid={error !== null}
@@ -274,7 +275,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
           disabled={!trimmed || busy}
           className="mt-5 h-12 w-full border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
         >
-          {busy ? "Checking…" : "Unlock access"}
+          {t(busy ? "gate_checking" : "gate_unlock")}
         </button>
       </form>
 
@@ -286,7 +287,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
         onClick={() => void logout()}
         className="mt-4 h-11 w-full border border-border font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:border-grid-strong hover:text-text-primary"
       >
-        Sign out
+        {t("gate_sign_out")}
       </button>
     </GateShell>
   );
@@ -307,6 +308,7 @@ function GateShell({
   children: React.ReactNode;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -347,7 +349,7 @@ function GateShell({
         className="w-full max-w-[440px] border border-grid-strong bg-panel px-8 py-8"
       >
         <p className="pb-2 font-mono text-[9.5px] tracking-[0.14em] text-accent uppercase">
-          Closed access
+          {t("gate_eyebrow")}
         </p>
         <h2
           id="invite-gate-title"

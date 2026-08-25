@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { WalletAudit } from "@/components/walletAudit";
+import { getServerT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Wallet audit · Canopy",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_wallet_audit") };
+}
 
 /**
  * TEMPORARY — read-only diagnostic for the duplicate-Solana-wallet issue.

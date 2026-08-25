@@ -1,0 +1,138 @@
+import type { enAgentDetail } from "../en/agentDetail";
+
+export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
+  ad_signed_out_note: "登录后可查看该智能体。",
+  ad_sign_in_to_change: "登录后才能修改该智能体。",
+  ad_back: "← 我的智能体",
+
+  ad_book_aria: "模拟盘或实盘账本",
+  ad_book_paper: "模拟盘",
+  ad_book_live: "实盘",
+  ad_live_closed: "真实资金交易尚未开放",
+  ad_no_paper_run: "该智能体没有模拟盘记录",
+  ad_promote_hint: "为该智能体开通真实资金交易",
+  ad_settled_paper_note: "这是已结算的模拟盘记录。该智能体现在以实盘运行。",
+  ad_hover_reason: "{reason}。",
+  ad_stopped_itself: "自行停止：{reason}。",
+
+  ad_status_running: "运行中",
+  ad_status_closing: "清仓中",
+
+  ad_sec_performance: "业绩",
+  ad_sec_positions: "持仓",
+  ad_sec_watching: "正在等待",
+  ad_sec_activity: "动态",
+  ad_sec_strategy: "策略 · 适用于所有市场",
+  ad_sec_agent_level: "智能体层面",
+
+  ad_checked: "{when}检查过",
+  ad_starting: "启动中",
+  ad_next: " · 下次 {when}",
+  ad_not_ticking: "未在运行",
+  ad_model_unfunded:
+    "正在等待模型额度。{model} 采用预付制 — 充值后该智能体会自行启动，无需重启。",
+  ad_model_generic: "该模型",
+  ad_entry_note: "入场条件。在满足之前不会买入任何标的。",
+  ad_rules_unreadable: "无法读取该策略的规则 — 详情接口没有返回规则集。",
+  ad_headline_drop: "{who} 当日跌幅达到 {pct}% 或以上",
+  ad_headline_rule: "{label} {op} {value}",
+  ad_headline_market: "市场",
+
+  ad_exit_take_profit: "出场 — 止盈",
+  ad_exit_stop_loss: "出场 — 止损",
+  ad_exit_unset: "未设置 — 使用该风格的平台默认值。",
+  ad_tp_body: "较入场价 +{pct}% 时卖出",
+  ad_sl_body: "较入场价 −{pct}% 时卖出",
+  ad_sl_body_hold: "较入场价 −{pct}% 时卖出，或持有满 {days} 天后卖出",
+  ad_breaker_note:
+    "智能体级熔断线为较历史高点 −{pct}%：一旦跌破，它会自行清仓并停止。",
+
+  ad_all_cycles: "全部周期 →",
+  ad_append_only: "只追加记录。无论是否成交，每一次检查都会被记录。",
+  ad_append_only_skipped:
+    "只追加记录。无论是否成交，每一次检查都会被记录 — 上一个周期没有交易：{reason}。",
+
+  ad_first_wait: "首先，等待",
+  ad_then_bars:
+    "随后在之后的 K 线上应用下列规则，最多持续 {bars} 根 K 线。形态出现的那根 K 线上不会买入。",
+  ad_then_bars_invalidate: " 如果形态先被破坏，等待随即取消。",
+  ad_then_buy: "然后在满足以下条件时买入",
+  ad_no_rules: "没有返回任何规则。",
+  ad_chip_take_profit: "止盈：",
+  ad_chip_stop_loss: "止损：",
+  ad_chip_chart: "周期：",
+  ad_accumulation: "分批建仓",
+  ad_accumulation_warning:
+    "止盈和止损衡量的是所有建仓的加权平均成本，而不是每一笔单独计算。",
+  ad_edit_strategy: "修改策略",
+  ad_anyof_or: "或",
+
+  ad_universe: "标的池",
+  ad_screening_one: "正在筛选 1 个市场",
+  ad_screening_many: "正在筛选 {count} 个市场",
+  ad_no_universe:
+    "没有固定标的池，因此智能体每个周期都会筛选整个 {class} 类别。",
+  ad_add_market: "+ 添加市场",
+  ad_not_priced: "无法定价",
+  ad_remove: "移除",
+  ad_removing: "…",
+  ad_remove_aria: "停止交易 {label}",
+  ad_remove_title: "停止交易该市场。已持有的仓位会保留。",
+  ad_of_target: "/ {target}%",
+
+  ad_row_book: "账本",
+  ad_book_paper_value: "模拟盘 · 模拟成交",
+  ad_book_live_value: "实盘 · 真实资金",
+  ad_row_capital: "资金",
+  ad_row_cadence: "运行频率",
+  ad_row_deployed: "部署时间",
+  ad_row_autonomy: "自主级别",
+  ad_row_position_cap: "单笔上限",
+  ad_position_cap_value: "每个市场 ≤ {amount}",
+  ad_row_open_positions: "当前持仓",
+  ad_row_compliance: "合规档案",
+  ad_cadence_days: "{n} 天",
+  ad_cadence_hours: "{n} 小时",
+  ad_cadence_minutes: "{n} 分钟",
+
+  ad_resume_agent: "恢复运行",
+  ad_pause_agent: "暂停智能体",
+  ad_close_all: "平掉全部持仓",
+  ad_delete_agent: "删除智能体",
+  ad_busy: "…",
+  ad_flatten_nothing: "没有可平掉的持仓。",
+  ad_flatten_one: "已平掉 1 笔持仓。智能体已暂停。",
+  ad_flatten_many: "已平掉 {count} 笔持仓。智能体已暂停。",
+
+  ad_delete_title: "确定删除这个智能体？",
+  ad_delete_1_empty: "它没有任何持仓，因此不需要卖出任何东西。",
+  ad_delete_1_one:
+    "它会按当前池子价格平掉 1 笔持仓 — 投入 {amount}。这是真实卖出，结果会计入您的记录。",
+  ad_delete_1_many:
+    "它会按当前池子价格平掉 {count} 笔持仓 — 投入 {amount}。这是真实卖出，结果会计入您的记录。",
+  ad_delete_2: "它会撤销自己的钱包授权。此操作无法在这里撤回。",
+  ad_delete_3: "它会从您的智能体列表中消失。如果想保留退路，请选择暂停。",
+  ad_delete_4:
+    "{name} 会随之从「探索」下架 — 这是您在该策略上的最后一个智能体。已经部署的人可以继续运行；新用户则无法再部署。",
+  ad_delete_kept:
+    "没有任何内容会被抹去。每一个周期、每一次决策和每一笔交易都会留在记录中，策略也会保留这个智能体挣得的全部业绩。",
+  ad_delete_unpriced:
+    "如果确认时某笔持仓无法定价，智能体会转为清仓状态并保持可见，而不是在仍持有资产的情况下被隐藏。",
+  ad_delete_confirm_with_positions: "平仓并删除",
+  ad_closing: "处理中…",
+
+  ad_flatten_title: "确定平掉全部持仓？",
+  ad_flatten_1_one:
+    "它会按当前池子价格卖出 1 笔持仓 — 投入 {amount}。这是真实卖出，结果会计入您的记录。",
+  ad_flatten_1_many:
+    "它会按当前池子价格卖出 {count} 笔持仓 — 投入 {amount}。这是真实卖出，结果会计入您的记录。",
+  ad_flatten_2: "随后它会暂停。否则下一个周期它又会开始买入。",
+  ad_flatten_3: "智能体本身、它的策略以及全部历史记录都原样保留。",
+  ad_flatten_resume: "您随时可以恢复它。这里没有任何一步是不可逆的。",
+  ad_flatten_unpriced:
+    "当前无法定价的持仓会保持不动，而不会按猜测的价格卖出。智能体会持续重试，并在此期间保持可见。",
+
+  ad_due_now: "即将开始",
+  ad_in_minutes: "{count} 分钟后",
+  ad_in_hours: "{count} 小时后",
+};

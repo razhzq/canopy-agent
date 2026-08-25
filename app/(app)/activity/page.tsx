@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { ActivityFeed } from "@/components/activityFeed";
+import { PageHeader } from "@/components/pageHeader";
+import { getServerT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Activity · Canopy",
-};
+// A function rather than a constant, because the title has to be looked up in
+// the reader's language and that lives in a cookie. See lib/i18n/server.
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_activity") };
+}
 
 /**
  * Every cycle your agents have run, newest first.
@@ -17,19 +21,11 @@ export const metadata: Metadata = {
 export default function ActivityPage() {
   return (
     <main>
-      <section className="space-y-2 border-b border-grid px-6 pt-6 pb-5 sm:px-8">
-        <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-          Portfolio
-        </p>
-        <h1 className="font-mono text-[26px] leading-none text-text-primary sm:text-[30px]">
-          Activity
-        </h1>
-        <p className="font-ui text-[13.5px] text-text-secondary">
-          Every cycle your agents have run — including the ones where they looked and did
-          nothing.
-        </p>
-      </section>
-
+      <PageHeader
+        eyebrowKey="page_eyebrow_portfolio"
+        titleKey="activity_page_title"
+        bodyKey="activity_page_body"
+      />
       <ActivityFeed />
     </main>
   );

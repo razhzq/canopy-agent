@@ -21,6 +21,8 @@ import {
   type PersonalInvite,
 } from "@/lib/api";
 import { usd } from "@/lib/format";
+import { LanguageSwitcher } from "@/components/languageSwitcher";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const NAV = [
   // "My agents" is the workspace — the rail plus one agent open beside it.
@@ -28,9 +30,25 @@ const NAV = [
   // to /workspace, and now it is the portfolio overview in its own right,
   // reached from the account menu. Leaving it in this match would light up
   // "My agents" while you were reading a different page.
-  { label: "My agents", href: "/workspace", match: ["/workspace"] },
-  { label: "Explore", href: "/agents", match: ["/agents", "/deploy"] },
-  { label: "Activity", href: "/activity", match: ["/activity"] },
+  // The labels are dictionary keys, not text: this table is module-level and
+  // therefore evaluated once, outside any component, where no hook can reach.
+  // Resolving the key at render is what lets the bar re-label itself when the
+  // language changes instead of freezing whatever locale loaded first.
+  {
+    key: "nav_my_agents" as TranslationKey,
+    href: "/workspace",
+    match: ["/workspace"],
+  },
+  {
+    key: "nav_explore" as TranslationKey,
+    href: "/agents",
+    match: ["/agents", "/deploy"],
+  },
+  {
+    key: "nav_activity" as TranslationKey,
+    href: "/activity",
+    match: ["/activity"],
+  },
 ];
 
 /**
@@ -118,8 +136,19 @@ function short(address: string): string {
     : address;
 }
 
-function walletLabel(w: LinkedWallet): string {
-  if (w.client === "privy") return "Canopy wallet";
+/**
+ * What to call a wallet in the menu.
+ *
+ * Takes `t` rather than calling `useT()` itself: this runs inside `.map()` and
+ * inside `aria-label` expressions, neither of which is a component. Only the
+ * Canopy-created wallet has a translatable name — a third-party wallet's is a
+ * brand ("Phantom"), and brands are not translated.
+ */
+function walletLabel(
+  w: LinkedWallet,
+  t: (k: TranslationKey) => string,
+): string {
+  if (w.client === "privy") return t("account_wallet_canopy");
   // "phantom" → "Phantom". The client type is the wallet the user chose.
   return w.client.charAt(0).toUpperCase() + w.client.slice(1);
 }
@@ -387,6 +416,7 @@ function AccountMenu() {
   const [namingOpen, setNamingOpen] = useState(false);
   const { username, loaded: usernameLoaded } = useUsername();
   const pathname = usePathname() ?? "";
+  const t = useT();
 
   // Derived up here, not below the early returns, because the balance effect
   // depends on the address. Pure reads off the Privy user object — safe to run
@@ -615,7 +645,7 @@ function AccountMenu() {
         onClick={() => login()}
         className={`h-9 rounded-md border border-border px-4 font-ui text-[14px] font-medium text-text-secondary transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent ${FOCUS}`}
       >
-        Sign in
+        {t("nav_sign_in")}
       </button>
     );
   }
@@ -639,17 +669,17 @@ function AccountMenu() {
     username ??
     (external.length > 0
       ? short(external[0].address)
-      : (email ?? (mine ? short(mine.address) : "Account")));
+      : (email ?? (mine ? short(mine.address) : t("account_fallback"))));
   // An address is set in mono because its characters have to be comparable
   // digit by digit; an email is prose and reads better in the UI face.
   const primaryIsAddress = !username && (external.length > 0 || !email);
   // Which of the two ways in this was. Named in the menu header so the account
   // is identifiable without expanding a wallet row.
   const method = email
-    ? "Email"
+    ? t("account_method_email")
     : external.length > 0
-      ? walletLabel(external[0])
-      : "Wallet";
+      ? walletLabel(external[0], t)
+      : t("account_method_wallet");
 
   // A row claims a number only once the request carrying it has landed.
   const agentCount = agents ? agents.length : null;
@@ -698,7 +728,7 @@ function AccountMenu() {
         }}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Account: ${primary}`}
+        aria-label={t("account_aria", { name: primary })}
         className={`flex h-9 items-center gap-2.5 rounded-lg border pr-2.5 pl-2 transition-colors ${FOCUS} ${
           open
             ? "border-grid-strong bg-surface-2"
@@ -737,13 +767,13 @@ function AccountMenu() {
       {/* Copying is a silent, purely visual event otherwise — this is the same
           confirmation, spoken. */}
       <span role="status" aria-live="polite" className="sr-only">
-        {copied ? "Address copied to clipboard" : ""}
+        {copied ? t("account_address_copied") : ""}
       </span>
 
       {open ? (
         <div
           role="menu"
-          aria-label="Account"
+          aria-label={t("account_menu_aria")}
           className="absolute right-0 z-40 mt-2 w-[288px] origin-top-right animate-[menu-enter_120ms_ease-out] overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)] sm:w-[320px]"
         >
           {/* Identity, stated once at the top. The rows below are things to DO
@@ -777,14 +807,14 @@ function AccountMenu() {
                   }}
                   className={`-mx-1 mt-0.5 rounded px-1 py-0.5 text-left font-ui text-[11.5px] text-accent transition-colors hover:underline ${FOCUS}`}
                 >
-                  + Set a username
+                  {t("account_set_username")}
                 </button>
               ) : (
                 // Neither name nor prompt until the profile has been read —
                 // flashing "set a username" at someone who has one is worse
                 // than a beat of nothing.
                 <p className="pt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase">
-                  Signed in · {method}
+                  {t("account_signed_in_via", { method })}
                 </p>
               )}
             </div>
@@ -797,7 +827,11 @@ function AccountMenu() {
           {shown.length > 0 ? (
             <div className="border-b border-grid pb-1.5">
               <MenuGroupLabel>
-                {shown.length === 1 ? "Your wallet" : "Your wallets"}
+                {t(
+                  shown.length === 1
+                    ? "account_your_wallet"
+                    : "account_your_wallets",
+                )}
               </MenuGroupLabel>
               {shown.map((w) => (
                 <button
@@ -805,7 +839,10 @@ function AccountMenu() {
                   type="button"
                   role="menuitem"
                   onClick={() => copy(w.address)}
-                  aria-label={`Copy ${walletLabel(w)} address ${w.address}`}
+                  aria-label={t("account_copy_wallet_aria", {
+                    label: walletLabel(w, t),
+                    address: w.address,
+                  })}
                   // `group` so the copy affordance stays quiet until the row is
                   // pointed at: a permanent "COPY" on every row competed with
                   // the addresses themselves. It shows on focus too, or the
@@ -825,14 +862,14 @@ function AccountMenu() {
                       aria-hidden
                     >
                       {copied === w.address ? (
-                        "Copied"
+                        t("common_copied")
                       ) : (
                         <CopyIcon className="size-3" />
                       )}
                     </span>
                   </div>
                   <p className="truncate pt-0.5 font-ui text-[11px] text-text-dim">
-                    {walletLabel(w)}
+                    {walletLabel(w, t)}
                     {w.chain ? ` · ${w.chain}` : ""}
                   </p>
                 </button>
@@ -844,9 +881,11 @@ function AccountMenu() {
                   number with no context. */}
               {agentWalletCount > 0 ? (
                 <p className="px-3.5 pt-1.5 font-ui text-[11px] leading-relaxed text-text-dim">
-                  {agentWalletCount} agent{" "}
-                  {agentWalletCount === 1 ? "wallet" : "wallets"} — each on its
-                  own agent&rsquo;s page.
+                  {agentWalletCount === 1
+                    ? t("account_agent_wallets_one")
+                    : t("account_agent_wallets_many", {
+                        count: agentWalletCount,
+                      })}
                 </p>
               ) : null}
             </div>
@@ -860,7 +899,7 @@ function AccountMenu() {
             <div className="border-b border-grid px-3.5 pt-3 pb-3.5">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
-                  Balance
+                  {t("account_balance")}
                 </span>
                 {balance.at === "ready" ? (
                   <span className="tnum font-mono text-[10px] text-text-dim">
@@ -878,14 +917,14 @@ function AccountMenu() {
                 // that the chain could not be reached.
                 <div className="flex items-baseline gap-2 pt-1.5">
                   <span className="font-mono text-[13px] text-text-dim">
-                    Couldn&rsquo;t load
+                    {t("account_balance_failed")}
                   </span>
                   <button
                     type="button"
                     onClick={() => setBalanceNonce((n) => n + 1)}
                     className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
                   >
-                    Retry
+                    {t("common_retry")}
                   </button>
                 </div>
               ) : (
@@ -918,7 +957,7 @@ function AccountMenu() {
                   }}
                   className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
                 >
-                  Deposit
+                  {t("account_deposit")}
                 </button>
                 <button
                   type="button"
@@ -929,7 +968,7 @@ function AccountMenu() {
                   }}
                   className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
                 >
-                  Withdraw
+                  {t("account_withdraw")}
                 </button>
               </div>
             </div>
@@ -938,7 +977,7 @@ function AccountMenu() {
           {!email && shown.length === 0 ? (
             <div className="border-b border-grid px-4 py-3.5">
               <p className="font-ui text-[13px] text-text-dim">
-                No linked account details.
+                {t("account_no_details")}
               </p>
             </div>
           ) : null}
@@ -949,17 +988,19 @@ function AccountMenu() {
               identity, destinations, and a code to hand out — and undifferentiated
               rows made them read as a single list. */}
           <div className="border-b border-grid pb-1.5">
-            <MenuGroupLabel>Account</MenuGroupLabel>
+            <MenuGroupLabel>{t("account_group_account")}</MenuGroupLabel>
             <MenuRow
               href="/portfolio"
               icon={<PortfolioIcon className="size-3.5" />}
-              label="Portfolio"
+              label={t("account_row_portfolio")}
               // Deployed capital, NOT portfolio equity. The suffix is load-bearing:
               // a bare "$2,650" beside the word "Portfolio" reads as what the
               // portfolio is worth, and that is a different — and more expensive —
               // number. See the fetch above.
               value={
-                deployedUsd === null ? null : `${usd(deployedUsd)} deployed`
+                deployedUsd === null
+                  ? null
+                  : t("account_row_deployed", { amount: usd(deployedUsd) })
               }
               active={isActive(pathname, ["/portfolio"])}
               onNavigate={() => close(false)}
@@ -967,7 +1008,7 @@ function AccountMenu() {
             <MenuRow
               href="/workspace"
               icon={<AgentsIcon className="size-3.5" />}
-              label="My agents"
+              label={t("account_row_my_agents")}
               value={agentCount === null ? null : String(agentCount)}
               active={isActive(pathname, ["/workspace"])}
               onNavigate={() => close(false)}
@@ -975,13 +1016,13 @@ function AccountMenu() {
           </div>
 
           <div className="border-b border-grid pb-1.5">
-            <MenuGroupLabel>Settings</MenuGroupLabel>
+            <MenuGroupLabel>{t("account_group_settings")}</MenuGroupLabel>
             <MenuRow
               href="/settings"
               icon={<SettingsIcon className="size-3.5" />}
               // Named for what the page actually holds. "Settings" over a group
               // already labelled SETTINGS says nothing twice.
-              label="Plan & notifications"
+              label={t("account_row_settings")}
               active={isActive(pathname, ["/settings"])}
               onNavigate={() => close(false)}
             />
@@ -995,12 +1036,15 @@ function AccountMenu() {
             <div className="border-b border-grid py-1.5">
               <div className="flex items-baseline justify-between gap-3 px-4 pt-1.5 pb-1">
                 <p className="font-mono text-[9px] tracking-[0.12em] text-text-muted uppercase">
-                  Your invite code
+                  {t("invite_your_code")}
                 </p>
                 {/* The budget, stated as remaining rather than used: the
                     question being asked is "can I still invite someone". */}
                 <p className="font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
-                  {invite.remaining} of {invite.maxUses} left
+                  {t("invite_remaining", {
+                    remaining: invite.remaining,
+                    max: invite.maxUses,
+                  })}
                 </p>
               </div>
 
@@ -1009,7 +1053,7 @@ function AccountMenu() {
                 role="menuitem"
                 onClick={() => copy(invite.code)}
                 disabled={invite.disabled}
-                aria-label={`Copy your invite code ${invite.code}`}
+                aria-label={t("invite_copy_code_aria", { code: invite.code })}
                 className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface disabled:opacity-50 ${FOCUS}`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -1025,7 +1069,7 @@ function AccountMenu() {
                     aria-hidden
                   >
                     {copied === invite.code ? (
-                      "Copied"
+                      t("common_copied")
                     ) : (
                       <CopyIcon className="size-3" />
                     )}
@@ -1042,11 +1086,11 @@ function AccountMenu() {
                   type="button"
                   role="menuitem"
                   onClick={() => copy(inviteLink(invite.code))}
-                  aria-label="Copy your invite link"
+                  aria-label={t("invite_copy_link_aria")}
                   className={`group flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
                 >
                   <span className="font-ui text-[12px] text-text-secondary">
-                    Copy invite link
+                    {t("invite_copy_link")}
                   </span>
                   <span
                     className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
@@ -1057,7 +1101,7 @@ function AccountMenu() {
                     aria-hidden
                   >
                     {copied === inviteLink(invite.code) ? (
-                      "Copied"
+                      t("common_copied")
                     ) : (
                       <CopyIcon className="size-3" />
                     )}
@@ -1066,38 +1110,62 @@ function AccountMenu() {
               ) : null}
 
               <p className="px-4 pt-0.5 pb-1.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-                {invite.disabled
-                  ? "This code has been disabled."
-                  : invite.remaining === 0
-                    ? "You've used every invite on this code."
-                    : invite.gateActive
-                      ? // The honest version of "invite your friends": the code
-                        // is what gets them in.
-                        "Share it with someone you want inside the closed access."
-                      : // Access is currently open, so the code does NOT unlock
-                        // anything — it only records that they came from you.
-                        // Saying "invite your friends" here would be selling a
-                        // door that is already unlocked.
-                        "Access is open right now, so this isn't needed to get in — it just records who you brought."}
+                {t(
+                  invite.disabled
+                    ? "invite_note_disabled"
+                    : invite.remaining === 0
+                      ? "invite_note_exhausted"
+                      : invite.gateActive
+                        ? // The honest version of "invite your friends": the
+                          // code is what gets them in.
+                          "invite_note_gated"
+                        : // Access is currently open, so the code does NOT
+                          // unlock anything — it only records that they came
+                          // from you. Saying "invite your friends" here would
+                          // be selling a door that is already unlocked.
+                          "invite_note_open",
+                )}
               </p>
 
-              {invite.uses > 0 ? (
-                <p className="px-4 pb-1.5 font-ui text-[11.5px] text-text-secondary">
-                  {invite.uses}{" "}
-                  {invite.uses === 1 ? "person has" : "people have"} joined on
-                  it
-                  {/* Names, not just a count, when there are few enough to read.
-                      A bare number is a metric; a name is a memory of who you
-                      actually brought. */}
-                  {invite.referrals.some((r) => r.email) && invite.uses <= 3
-                    ? ` — ${invite.referrals
-                        .map((r) => r.email)
-                        .filter(Boolean)
-                        .join(", ")}`
-                    : ""}
-                  .
-                </p>
-              ) : null}
+              {invite.uses > 0
+                ? (() => {
+                    /* Names, not just a count, when there are few enough to
+                       read. A bare number is a metric; a name is a memory of
+                       who you actually brought.
+
+                       Built as one complete sentence per case rather than
+                       assembled from "{n}" + "people have" + "joined on it":
+                       Chinese counts with a measure word and puts the verb
+                       last, so there is no arrangement of those fragments that
+                       is a sentence in both languages. */
+                    const names = invite.referrals
+                      .map((r) => r.email)
+                      .filter(Boolean)
+                      .join("、");
+                    const named = names.length > 0 && invite.uses <= 3;
+                    const one = invite.uses === 1;
+                    return (
+                      <p className="px-4 pb-1.5 font-ui text-[11.5px] text-text-secondary">
+                        {named
+                          ? t(
+                              one
+                                ? "invite_joined_one_named"
+                                : "invite_joined_many_named",
+                              {
+                                count: invite.uses,
+                                names,
+                              },
+                            )
+                          : t(
+                              one ? "invite_joined_one" : "invite_joined_many",
+                              {
+                                count: invite.uses,
+                              },
+                            )}
+                      </p>
+                    );
+                  })()
+                : null}
             </div>
           ) : null}
 
@@ -1122,7 +1190,7 @@ function AccountMenu() {
             >
               <SignOutIcon className="size-3.5 shrink-0" />
               <span className="font-ui text-[12.5px] font-medium">
-                Sign out
+                {t("account_sign_out")}
               </span>
             </button>
           </div>
@@ -1155,6 +1223,7 @@ function AccountMenu() {
 
 export function TopNav() {
   const pathname = usePathname() ?? "";
+  const t = useT();
 
   return (
     // Translucent + blurred rather than opaque: content scrolling under the bar
@@ -1170,7 +1239,7 @@ export function TopNav() {
               cropped to the ink so it sits correctly at navbar height. */}
           <Link
             href="/agents"
-            aria-label="Canopy — home"
+            aria-label={t("nav_home_aria")}
             // Shown on a phone again. It used to be dropped there because the
             // bar was 575px of shrink-0 content at a 375px viewport and the
             // wordmark was the only thing in it that was not a control. The
@@ -1191,7 +1260,7 @@ export function TopNav() {
               these links were a second set of destinations competing with it
               for the narrowest bar in the app. */}
           <nav
-            aria-label="Primary"
+            aria-label={t("nav_primary_aria")}
             className="hidden min-w-0 items-center gap-1 lg:flex"
           >
             {NAV.map((item) => {
@@ -1226,7 +1295,7 @@ export function TopNav() {
                         "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                   }`}
                 >
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               );
             })}
@@ -1250,8 +1319,22 @@ export function TopNav() {
             <PlusIcon className="size-3.5 shrink-0" />
             {/* On a phone the plus alone carries it; the label stays in the
                 accessibility tree so the control is still named. */}
-            <span className="max-sm:sr-only">Create agent</span>
+            <span className="max-sm:sr-only">{t("nav_create_agent")}</span>
           </Link>
+
+          {/* At every width, including a phone.
+              It sat on the Profile tab below lg, which put the one control a
+              reader needs BEFORE they can read anything two taps behind a page
+              whose own label they could not read. The top bar is the tightest
+              row in the app and this earns its slot there: it is the only
+              control on screen that is worth nothing to someone who already
+              understands the language, and everything to someone who does not.
+
+              The room comes from "Create agent", which is already icon-only
+              below sm, and from the bell and account menu, which are desktop
+              only — so on a phone this sits between a 36px plus button and the
+              wordmark rather than competing with a full row. */}
+          <LanguageSwitcher />
 
           {/* Between "create" and the account: notifications are about work
               already in flight, which sits nearer identity than action.

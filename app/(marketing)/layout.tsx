@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { getServerT } from "@/lib/i18n/server";
 
 /**
  * The landing routes, without the application chrome.
@@ -25,11 +26,13 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
 });
 
-export const metadata: Metadata = {
-  title: "Canopy — agents that trade your strategy",
-  description:
-    "Deploy a strategy as your own agent. You keep custody. You set every limit.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return {
+    title: t("page_title_landing"),
+    description: t("page_desc_landing"),
+  };
+}
 
 export default function MarketingLayout({
   children,

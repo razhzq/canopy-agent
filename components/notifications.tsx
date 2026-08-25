@@ -27,12 +27,14 @@ import {
 import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
 import { SkeletonPanel } from "./skeleton";
+import { useT } from "@/lib/i18n";
 
 const BTN =
   "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
 
 export function NotificationSettings() {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const state = useApi(getTelegramStatus, []);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function NotificationSettings() {
       setFailure(null);
       try {
         const token = await getAccessToken();
-        if (!token) throw new Error("Session expired. Sign in again.");
+        if (!token) throw new Error(t("billing_session_expired"));
         await fn(token);
         state.reload();
       } catch (err) {
@@ -61,7 +63,7 @@ export function NotificationSettings() {
         setBusy(false);
       }
     },
-    [getAccessToken, state],
+    [getAccessToken, state, t],
   );
 
   const connect = useCallback(async () => {
@@ -69,7 +71,7 @@ export function NotificationSettings() {
     setFailure(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Session expired. Sign in again.");
+      if (!token) throw new Error(t("billing_session_expired"));
       const { url } = await linkTelegram(token);
       // Opened rather than rendered as a link the user must click twice. The
       // token is single-use and minted by the call that just returned, so the
@@ -80,11 +82,11 @@ export function NotificationSettings() {
     } finally {
       setBusy(false);
     }
-  }, [getAccessToken]);
+  }, [getAccessToken, t]);
 
-  if (state.phase === "loading") return <SkeletonPanel label="TELEGRAM" lines={5} />;
+  if (state.phase === "loading") return <SkeletonPanel labelKey="loading_telegram" lines={5} />;
   if (state.phase === "signed-out") {
-    return <SignedOutState note="Notification settings belong to your account." />;
+    return <SignedOutState note={t("tg_signed_out_note")} />;
   }
   if (state.phase === "error") {
     return <ErrorState message={state.message} onRetry={state.reload} />;
@@ -96,51 +98,46 @@ export function NotificationSettings() {
     <div className="space-y-8">
       <SectionHead
         index="02"
-        title="TELEGRAM"
-        note={linked ? (enabled ? "connected" : "muted") : "not connected"}
+        title={t("tg_section")}
+        note={t(
+          linked ? (enabled ? "tg_state_connected" : "tg_state_muted") : "tg_state_not_connected",
+        )}
       />
 
       {!configured ? (
-        <Callout tone="info" icon={<InfoIcon />} title="Not available here">
-          This deployment has no Telegram bot configured, so there is nothing to
-          connect to yet.
+        <Callout tone="info" icon={<InfoIcon />} title={t("tg_unavailable_title")}>
+          {t("tg_unavailable_body")}
         </Callout>
       ) : (
         <>
           <div className="space-y-6 border border-grid px-6 py-6">
             <div className="space-y-3">
               <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                What you will be sent
+                {t("tg_will_send_title")}
               </p>
               <ul className="space-y-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-                <li>— Every trade an agent makes, with what it earned or lost.</li>
-                <li>— Anything waiting on your decision.</li>
-                <li>— A drawdown limit being hit, and the agent stopping itself.</li>
-                <li>— Trading being frozen because prices went unreadable, and it lifting.</li>
+                <li>{t("tg_will_send_1")}</li>
+                <li>{t("tg_will_send_2")}</li>
+                <li>{t("tg_will_send_3")}</li>
+                <li>{t("tg_will_send_4")}</li>
               </ul>
             </div>
 
             <div className="space-y-3 border-t border-grid pt-5">
               <p className="font-mono text-[12px] tracking-[0.06em] text-text-dim uppercase">
-                What you will not be sent
+                {t("tg_wont_send_title")}
               </p>
               <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                Ordinary cycles where the agent looked and did nothing. That is
-                most of them — about three in four — and sending those would bury
-                the messages above. Silence here means the agent is working, not
-                that it is stuck.
+                {t("tg_wont_send_body")}
               </p>
             </div>
 
             <div className="space-y-3 border-t border-grid pt-5">
               <p className="font-mono text-[12px] tracking-[0.06em] text-text-dim uppercase">
-                Approving from Telegram
+                {t("tg_approving_title")}
               </p>
               <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                Not possible, on purpose. Telegram identifies a chat, not a
-                person — so a reply that could authorise a trade would turn an
-                unlocked phone into trading authority. Proposals are approved in
-                Canopy, behind your login.
+                {t("tg_approving_body")}
               </p>
             </div>
           </div>
@@ -150,12 +147,10 @@ export function NotificationSettings() {
               <div className="flex items-center justify-between border border-grid px-6 py-5">
                 <div className="space-y-1">
                   <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                    Connected{username ? ` · @${username}` : ""}
+                    {username ? t("tg_connected_as", { username }) : t("tg_connected")}
                   </p>
                   <p className="font-ui text-[13px] text-text-secondary">
-                    {enabled
-                      ? "Alerts are being delivered to this chat."
-                      : "Muted. The chat stays connected; nothing is sent."}
+                    {t(enabled ? "tg_delivering" : "tg_muted_body")}
                   </p>
                 </div>
               </div>
@@ -164,10 +159,10 @@ export function NotificationSettings() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void run((t) => setTelegramEnabled(t, !enabled))}
+                  onClick={() => void run((token) => setTelegramEnabled(token, !enabled))}
                   className={`${BTN} border-border text-text-secondary hover:bg-surface`}
                 >
-                  {enabled ? "Mute" : "Unmute"}
+                  {t(enabled ? "tg_mute" : "tg_unmute")}
                 </button>
                 {/* RECONNECT, FOR THE PERSON WHO KNOWS BEFORE WE DO.
                     A link dies for reasons this panel cannot see — the chat was
@@ -187,7 +182,7 @@ export function NotificationSettings() {
                   onClick={() => void connect()}
                   className={`${BTN} border-border text-text-secondary hover:border-accent hover:text-accent`}
                 >
-                  {busy ? "Opening Telegram…" : "Reconnect"}
+                  {t(busy ? "tg_opening" : "tg_reconnect")}
                 </button>
                 <button
                   type="button"
@@ -195,18 +190,14 @@ export function NotificationSettings() {
                   onClick={() => void run(unlinkTelegram)}
                   className={`${BTN} border-border text-text-dim hover:border-negative hover:text-negative`}
                 >
-                  Disconnect
+                  {t("tg_disconnect")}
                 </button>
               </div>
 
               {/* Muting and disconnecting are not the same promise, and the
                   difference matters to someone acting on a lost phone. */}
               <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-                Muting keeps the connection and stops the messages. Disconnecting
-                forgets the chat entirely — reconnecting needs a new link. If
-                messages have stopped arriving and you did not mute them, use
-                Reconnect: it issues a fresh code without losing this one until
-                the new chat is confirmed.
+                {t("tg_mute_vs_disconnect")}
               </p>
             </div>
           ) : (
@@ -217,13 +208,10 @@ export function NotificationSettings() {
                 onClick={() => void connect()}
                 className={`${BTN} w-full border-accent text-accent hover:bg-accent-wash sm:w-auto`}
               >
-                {busy ? "Opening Telegram…" : "Connect Telegram"}
+                {t(busy ? "tg_opening" : "tg_connect")}
               </button>
               <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-                This opens a chat with the Canopy bot carrying a one-time code.
-                Send the message it pre-fills, then come back and refresh this
-                page — the connection completes in Telegram, so this screen only
-                learns about it on its next look.
+                {t("tg_connect_help")}
               </p>
             </div>
           )}

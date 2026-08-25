@@ -35,6 +35,8 @@ import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useApi } from "@/lib/useApi";
+import { compactAge } from "@/lib/format";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import {
   applyProposal,
   getNotificationFeed,
@@ -51,11 +53,13 @@ const POLL_MS = 60_000;
 
 export function NotificationCentre() {
   const { authenticated } = usePrivy();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const wrap = useRef<HTMLDivElement>(null);
 
-  const feed = useApi((t) => getNotificationFeed(t, 30), [tick]);
+  // `token`, not `t` — the translator holds that name in this file.
+  const feed = useApi((token) => getNotificationFeed(token, 30), [tick]);
 
   // A slow poll, and only while closed. An open panel is already being read;
   // refetching under the cursor would reorder rows mid-glance.
@@ -97,7 +101,7 @@ export function NotificationCentre() {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={
-          unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+          unread > 0 ? t("nc_aria_unread", { count: unread }) : t("nc_aria")
         }
         className={`relative flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-surface ${
           unread > 0
@@ -147,6 +151,7 @@ function Panel({
   onClose: () => void;
 }) {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const marked = useRef(false);
 
   // Marked once, on open, bounded by the newest row RENDERED. Anything that
@@ -172,12 +177,12 @@ function Panel({
   return (
     <div
       role="dialog"
-      aria-label="Notifications"
+      aria-label={t("nc_aria")}
       className="absolute right-0 z-40 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
     >
       <div className="flex items-center justify-between border-b border-grid px-4 py-3">
         <p className="font-mono text-[11px] tracking-[0.12em] text-text-secondary uppercase">
-          Notifications
+          {t("nc_title")}
         </p>
       </div>
 
@@ -194,9 +199,7 @@ function Panel({
           </p>
         ) : items.length === 0 ? (
           <p className="px-4 py-8 text-center font-ui text-[13px] leading-relaxed text-text-dim">
-            Nothing yet. Your agents will report here when they trade, when
-            something needs you, and when a limit is breached — a quiet feed
-            means they looked and found nothing worth doing.
+            {t("nc_empty")}
           </p>
         ) : (
           items.map((n) => (
@@ -236,6 +239,7 @@ export function NotificationRow({
   onNavigate: () => void;
   onActed: () => void;
 }) {
+  const t = useT();
   const kind = KIND[n.kind] ?? FALLBACK_KIND;
   // An approval can be answered here. Everything else is a report of something
   // already done, and a button on those would be a button with nothing to do.
@@ -253,7 +257,7 @@ export function NotificationRow({
           <span
             className={`font-mono text-[10px] tracking-[0.1em] uppercase ${kind.tone}`}
           >
-            {kind.label}
+            {t(kind.labelKey)}
           </span>
           {n.agentName ? (
             <span className="truncate font-mono text-[11px] text-text-dim">
@@ -261,7 +265,7 @@ export function NotificationRow({
             </span>
           ) : null}
           <span className="ml-auto shrink-0 font-mono text-[10px] text-text-muted">
-            {ago(n.createdAt)}
+            {compactAge(n.createdAt, t)}
           </span>
         </div>
         {/* Plain text, stripped server-side. Never markup: this table carries
@@ -271,8 +275,7 @@ export function NotificationRow({
         </p>
         {n.undeliverable ? (
           <p className="font-ui text-[11px] text-warning">
-            Couldn&apos;t reach your Telegram — you&apos;re seeing this here
-            instead.
+            {t("nc_undeliverable")}
           </p>
         ) : null}
         {approvable ? (
@@ -336,18 +339,19 @@ function ApproveBar({
     "idle" | "applying" | "applied" | "dismissed" | "error"
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const t = useT();
 
   if (state === "applied") {
     return (
       <p className="pt-1 font-mono text-[11px] text-accent">
-        Applied — it follows the new rule from its next cycle.
+        {t("nc_applied")}
       </p>
     );
   }
   if (state === "dismissed") {
     return (
       <p className="pt-1 font-mono text-[11px] text-text-dim">
-        Left as it was.
+        {t("nc_dismissed")}
       </p>
     );
   }
@@ -357,8 +361,7 @@ function ApproveBar({
     setMessage(null);
     try {
       const token = await getAccessToken();
-      if (!token)
-        throw new Error("your session expired — sign in and try again");
+      if (!token) throw new Error(t("nc_session_expired"));
       await applyProposal(token, agentId, messageId);
       setState("applied");
       // The feed's unread count and this row's state both live upstream.
@@ -378,7 +381,7 @@ function ApproveBar({
           disabled={state === "applying"}
           className={`border border-border px-3 py-1.5 font-ui text-[12px] text-text-secondary transition-colors hover:bg-surface disabled:opacity-40 ${FOCUS}`}
         >
-          Decline
+          {t("nc_decline")}
         </button>
         <button
           type="button"
@@ -386,13 +389,13 @@ function ApproveBar({
           disabled={state === "applying"}
           className={`bg-accent px-3.5 py-1.5 font-ui text-[12px] font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-50 ${FOCUS}`}
         >
-          {state === "applying" ? "Applying…" : "Apply"}
+          {t(state === "applying" ? "nc_applying" : "nc_apply")}
         </button>
         <Link
           href={`/workspace/${agentId}`}
           className={`ml-auto font-ui text-[12px] text-text-secondary underline-offset-4 hover:underline ${FOCUS}`}
         >
-          Why?
+          {t("nc_why")}
         </Link>
       </div>
       {state === "error" && message ? (
@@ -411,6 +414,7 @@ function ApproveBar({
  */
 export function TelegramSection() {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const status = useApi(getTelegramStatus, []);
   const [busy, setBusy] = useState(false);
 
@@ -455,10 +459,12 @@ export function TelegramSection() {
       <div className="min-w-0 flex-1">
         <p className="font-ui text-[12px] text-text-secondary">
           {!linked
-            ? "Get these on Telegram"
+            ? t("nc_tg_offer")
             : enabled
-              ? `Sending to ${username ? `@${username}` : "your Telegram"}`
-              : "Telegram muted"}
+              ? username
+                ? t("nc_tg_sending_to", { username })
+                : t("nc_tg_sending_generic")
+              : t("nc_tg_muted")}
         </p>
       </div>
       <button
@@ -471,7 +477,15 @@ export function TelegramSection() {
             : "border-accent text-accent hover:bg-accent hover:text-bg"
         } ${FOCUS}`}
       >
-        {busy ? "…" : !linked ? "Connect" : enabled ? "Mute" : "Unmute"}
+        {t(
+          busy
+            ? "nc_tg_busy"
+            : !linked
+              ? "nc_tg_connect"
+              : enabled
+                ? "nc_tg_mute"
+                : "nc_tg_unmute",
+        )}
       </button>
       {/* Mute was the ONLY control here, so a strip that said "Sending to
           @you" while nothing arrived offered no way out at all — not even the
@@ -485,10 +499,10 @@ export function TelegramSection() {
           type="button"
           onClick={() => void connect()}
           disabled={busy}
-          title="Issue a fresh link. The current chat keeps working until the new one is confirmed."
+          title={t("nc_tg_reconnect_title")}
           className={`shrink-0 border border-border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40 ${FOCUS}`}
         >
-          Reconnect
+          {t("nc_tg_reconnect")}
         </button>
       ) : null}
     </div>
@@ -506,34 +520,44 @@ export function TelegramSection() {
  * deploy where the backend knows one more word than it does.
  */
 const FALLBACK_KIND = {
-  label: "Update",
+  labelKey: "nc_kind_unknown" as TranslationKey,
   tone: "text-text-secondary",
   dot: "bg-text-dim",
 };
 
 const KIND: Record<
   NotificationKind,
-  { label: string; tone: string; dot: string }
+  { labelKey: TranslationKey; tone: string; dot: string }
 > = {
-  fill: { label: "Trade", tone: "text-accent", dot: "bg-accent" },
-  proposal: { label: "Needs you", tone: "text-warning", dot: "bg-warning" },
-  breach: { label: "Breach", tone: "text-negative", dot: "bg-negative" },
-  risk_hold: { label: "Risk hold", tone: "text-negative", dot: "bg-negative" },
+  fill: { labelKey: "nc_kind_fill", tone: "text-accent", dot: "bg-accent" },
+  proposal: {
+    labelKey: "nc_kind_proposal",
+    tone: "text-warning",
+    dot: "bg-warning",
+  },
+  breach: {
+    labelKey: "nc_kind_breach",
+    tone: "text-negative",
+    dot: "bg-negative",
+  },
+  risk_hold: {
+    labelKey: "nc_kind_risk_hold",
+    tone: "text-negative",
+    dot: "bg-negative",
+  },
   state_change: {
-    label: "Status",
+    labelKey: "nc_kind_state_change",
     tone: "text-text-secondary",
     dot: "bg-text-dim",
   },
-  cycle: { label: "Cycle", tone: "text-text-dim", dot: "bg-text-muted" },
+  cycle: {
+    labelKey: "nc_kind_cycle",
+    tone: "text-text-dim",
+    dot: "bg-text-muted",
+  },
 };
 
-function ago(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86_400)}d`;
-}
+// `ago` moved to lib/format as `compactAge`.
 
 function TelegramIcon({ className = "" }: { className?: string }) {
   return (

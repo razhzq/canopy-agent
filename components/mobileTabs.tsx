@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Bell, GitBranch, House, User } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * The bottom tab bar, below `lg`.
@@ -23,15 +24,19 @@ import { Bell, GitBranch, House, User } from "lucide-react";
  * browsers without `backdrop-filter` from showing text through solid chrome.
  */
 
+// Labels are dictionary keys: this table is module-level, so the text has to
+// be resolved at render or the bar keeps whichever language loaded first. The
+// label is never drawn — the tabs are icon-only — but it is the accessible
+// name of each one, which is the whole of what a screen reader gets here.
 const TABS = [
   // Home is EXPLORE — the feed with the performers strip.
-  { href: "/agents", label: "Home", icon: House, match: ["/agents", "/deploy"] },
-  { href: "/activity", label: "Activity", icon: GitBranch, match: ["/activity"] },
+  { href: "/agents", key: "tabs_home" as TranslationKey, icon: House, match: ["/agents", "/deploy"] },
+  { href: "/activity", key: "tabs_activity" as TranslationKey, icon: GitBranch, match: ["/activity"] },
   // The wireframe's Squads slot has no backend, so notifications take it —
   // real, and otherwise only reachable behind a bell in a top bar a thumb
   // never comfortably reaches.
-  { href: "/notifications", label: "Alerts", icon: Bell, match: ["/notifications"] },
-  { href: "/portfolio", label: "Profile", icon: User, match: ["/portfolio"] },
+  { href: "/notifications", key: "tabs_alerts" as TranslationKey, icon: Bell, match: ["/notifications"] },
+  { href: "/portfolio", key: "tabs_profile" as TranslationKey, icon: User, match: ["/portfolio"] },
 ] as const;
 
 function isActive(pathname: string, match: readonly string[]): boolean {
@@ -41,6 +46,7 @@ function isActive(pathname: string, match: readonly string[]): boolean {
 export function MobileTabs() {
   const pathname = usePathname() ?? "";
   const { ready, authenticated } = usePrivy();
+  const t = useT();
 
   // Nothing to navigate between until there is a session, and a row of tabs
   // that all bounce off a sign-in prompt is worse than no row.
@@ -48,18 +54,20 @@ export function MobileTabs() {
 
   return (
     <nav
-      aria-label="Sections"
+      aria-label={t("tabs_sections_aria")}
       className="fixed inset-x-0 bottom-0 z-30 bg-bg/90 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] supports-[backdrop-filter]:bg-bg/70 supports-[backdrop-filter]:backdrop-blur-md lg:hidden"
     >
       <ul className="mx-auto flex h-[60px] max-w-[520px] items-center justify-between rounded-[30px] border border-border bg-surface px-2 supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-xl">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = isActive(pathname, t.match);
+        {/* `tab`, not `t` — the translator owns that name now, and the tab
+            it used to hold is the thing being labelled by it. */}
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = isActive(pathname, tab.match);
           return (
-            <li key={t.href} className="min-w-0 flex-1">
+            <li key={tab.href} className="min-w-0 flex-1">
               <Link
-                href={t.href}
-                aria-label={t.label}
+                href={tab.href}
+                aria-label={t(tab.key)}
                 aria-current={active ? "page" : undefined}
                 className={`flex h-11 items-center justify-center rounded-[22px] transition-colors ${
                   active ? "bg-surface-2 text-text-primary" : "text-text-muted hover:text-text-secondary"

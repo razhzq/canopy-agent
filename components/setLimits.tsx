@@ -30,6 +30,7 @@ import {
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
 import { ModelBadge } from "@/components/modelBadge";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
  * Step 2 — set the limits. Wireframe 1e.
@@ -123,7 +124,10 @@ function retimeframe(limits: Limits, to: Timeframe): Limits {
     // Cadence follows the bar size. The row below stays editable, so this is a
     // default and not a lock.
     cadenceSec: CADENCE_FOR_TIMEFRAME[to],
-    rules: limits.rules.map((r) => ({ ...r, value: rescaleRuleValue(r, from, to) })),
+    rules: limits.rules.map((r) => ({
+      ...r,
+      value: rescaleRuleValue(r, from, to),
+    })),
   };
 }
 
@@ -147,6 +151,7 @@ export function SetLimits({
   onBack: () => void;
 }) {
   const market = markets[0];
+  const t = useT();
   // Every market in a strategy shares one class, so the first decides which bar
   // sizes are on offer — the same rule the ATR rule and the compliance screen
   // already follow.
@@ -192,7 +197,7 @@ export function SetLimits({
   // Recomputed on every render rather than stored: the author can edit a rule
   // or a budget field by hand at any time, and a checklist that only refreshed
   // on a chat turn would go on reporting a gap the sliders had already closed.
-  const reqs = requirements(value, spec.join(" "));
+  const reqs = requirements(value, spec.join(" "), t);
   const gap = reqs.find((r) => r.state !== "met");
 
   /**
@@ -213,7 +218,7 @@ export function SetLimits({
     const nextSpec = [...spec, said];
     setSpec(nextSpec);
     setSentence("");
-    setTurns((t) => [...t, { role: "you", text: said }]);
+    setTurns((prev) => [...prev, { role: "you", text: said }]);
     setBusy(true);
     setError(null);
 
@@ -226,7 +231,7 @@ export function SetLimits({
 
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to compile a rule.");
+      if (!token) throw new Error(t("sl_sign_in"));
       const { draft, notes: refused } = await composeAgent(
         token,
         // The market is named for it, so the sentence does not have to be. The
@@ -235,38 +240,50 @@ export function SetLimits({
         // Every market named, not just the first. The rules apply to all of
         // them, and a composer that believes it is writing for one asset will
         // reach for facts only that asset has.
-        `Trading ${markets
-          .map((m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`)
-          .join(", ")}. ` +
-          nextSpec.join(" "),
+        t("sl_trading_prefix", {
+          markets: markets
+            .map(
+              (m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`,
+            )
+            .join(", "),
+        }) + nextSpec.join(" "),
       );
       // A bar size this class cannot be screened at is refused HERE, where the
       // author is still in the sentence that asked for it. Left to travel, it
       // deploys cleanly and the agent buys nothing — the specialist states the
       // refusal in a screening trace, which is the last place anyone looks.
       const unserved =
-        draft?.timeframe && !servedTimeframes.includes(draft.timeframe) ? draft.timeframe : null;
+        draft?.timeframe && !servedTimeframes.includes(draft.timeframe)
+          ? draft.timeframe
+          : null;
       const notesOut = unserved
         ? [
+            // `refused` is the composer's own list of what it could not use,
+            // authored server-side and quoted as it arrives.
             ...refused,
-            `${unserved} bars are not served for ${
-              classFor(market) === "spot" ? "token pools" : "this asset class"
-            } — the venue cannot build them. Kept at ${
-              value.timeframe ?? DEFAULT_TIMEFRAME
-            }; ${servedTimeframes.join(", ")} are available.`,
+            t(
+              classFor(market) === "spot"
+                ? "sl_unserved_bars_spot"
+                : "sl_unserved_bars_rwa",
+              {
+                tf: unserved,
+                kept: value.timeframe ?? DEFAULT_TIMEFRAME,
+                available: servedTimeframes.join(", "),
+              },
+            ),
           ]
         : refused;
       setNotes(notesOut);
 
       if (!draft) {
-        const why = refused[0] ?? "That could not be turned into rules.";
+        const why = refused[0] ?? t("sl_not_rules");
         setError(why);
-        setTurns((t) => [
-          ...t,
+        setTurns((prev) => [
+          ...prev,
           { role: "agent", text: why, tone: "note" },
           {
             role: "agent",
-            text: "Say it in terms of a condition I can measure — a move on the day, a level, a depth of pool.",
+            text: t("sl_measurable"),
             tone: "ask",
           },
         ]);
@@ -287,7 +304,9 @@ export function SetLimits({
         ...next,
         timeframe: nextTf,
         cadenceSec:
-          nextTf && nextTf !== prevTf ? CADENCE_FOR_TIMEFRAME[nextTf] : next.cadenceSec,
+          nextTf && nextTf !== prevTf
+            ? CADENCE_FOR_TIMEFRAME[nextTf]
+            : next.cadenceSec,
         // The composer may have read an accumulation plan out of the sentence.
         // Absent means the sentence did not ask for one — which must CLEAR any
         // previous plan rather than leave a stale one attached to rules that no
@@ -319,25 +338,31 @@ export function SetLimits({
       // Read the gaps off what we just built, not off `value` — the parent's
       // state has not come back down yet, and asking about the previous draft
       // is how a chat ends up requesting something you just gave it.
-      const reqs = requirements(next, nextSpec.join(" "));
+      const reqs = requirements(next, nextSpec.join(" "), t);
       const gap = reqs.find((r) => r.state !== "met");
 
-      setTurns((t) => [
-        ...t,
-        ...(draft.reading ? [{ role: "agent" as const, text: draft.reading }] : []),
-        ...notesOut.map((n) => ({ role: "agent" as const, text: n, tone: "note" as const })),
+      setTurns((prev) => [
+        ...prev,
+        ...(draft.reading
+          ? [{ role: "agent" as const, text: draft.reading }]
+          : []),
+        ...notesOut.map((n) => ({
+          role: "agent" as const,
+          text: n,
+          tone: "note" as const,
+        })),
         gap?.ask
           ? { role: "agent" as const, text: gap.ask, tone: "ask" as const }
           : {
               role: "agent" as const,
-              text: "That is enough to trade on — entry, target, stop and size are all set. Adjust anything below, or carry on to the route.",
+              text: t("sl_ready"),
               tone: "ready" as const,
             },
       ]);
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
       setError(why);
-      setTurns((t) => [...t, { role: "agent", text: why, tone: "note" }]);
+      setTurns((prev) => [...prev, { role: "agent", text: why, tone: "note" }]);
     } finally {
       setBusy(false);
     }
@@ -353,22 +378,29 @@ export function SetLimits({
     <div className="space-y-7">
       <div className="space-y-2">
         <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-          Step 2 of 2 · Assign
+          {t("sl_step")}
         </p>
-        <h2 className="font-mono text-[22px] leading-none text-text-primary">Set your limits</h2>
+        <h2 className="font-mono text-[22px] leading-none text-text-primary">
+          {t("sl_title")}
+        </h2>
         <p className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-text-secondary">
-          {markets.length === 1 ? `${market.symbol}/USDC` : `${markets.length} markets`} ·{" "}
-          {market.kind === "crypto"
-            ? "Crypto"
-            : market.assetClass === "commodity"
-              ? "Tokenized commodity"
-              : "Tokenized equity"}
+          {markets.length === 1
+            ? t("sl_markets_one", { symbol: market.symbol })
+            : t("sl_markets_many", { count: markets.length })}{" "}
+          ·{" "}
+          {t(
+            market.kind === "crypto"
+              ? "sl_class_crypto"
+              : market.assetClass === "commodity"
+                ? "sl_class_commodity"
+                : "sl_class_equity",
+          )}
           <button
             type="button"
             onClick={onBack}
             className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
           >
-            — change
+            {t("sl_change")}
           </button>
         </p>
       </div>
@@ -377,7 +409,12 @@ export function SetLimits({
       <section>
         <div className="flex items-center justify-between pb-3">
           <h3 className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Strategy · {markets.length === 1 ? market.symbol : `${markets.length} markets`}
+            {t("sl_strategy_for", {
+              markets:
+                markets.length === 1
+                  ? market.symbol
+                  : t("sl_markets_many", { count: markets.length }),
+            })}
           </h3>
           <div className="flex items-center gap-0.5 rounded-full border border-grid p-1">
             {(["write", "preset"] as const).map((m) => (
@@ -386,10 +423,12 @@ export function SetLimits({
                 type="button"
                 onClick={() => setMode(m)}
                 className={`h-7 rounded-full px-3.5 font-mono text-[11px] transition-colors ${
-                  mode === m ? "bg-accent-wash text-accent" : "text-text-dim hover:text-text-primary"
+                  mode === m
+                    ? "bg-accent-wash text-accent"
+                    : "text-text-dim hover:text-text-primary"
                 }`}
               >
-                {m === "write" ? "Write it" : "Preset"}
+                {t(m === "write" ? "sl_mode_write" : "sl_mode_preset")}
               </button>
             ))}
           </div>
@@ -406,7 +445,7 @@ export function SetLimits({
                   {busy ? (
                     <li className="px-4 py-2.5">
                       <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
-                        Reading it…
+                        {t("sl_reading_it")}
                       </p>
                     </li>
                   ) : null}
@@ -426,16 +465,16 @@ export function SetLimits({
                 maxLength={2000}
                 placeholder={
                   turns.length === 0
-                    ? `e.g. buy ${market.symbol} when it is down 4% or more on the day and the pool is deep, take profit at 3%, stop out at 2%`
-                    : "Answer, or add anything else it should know…"
+                    ? t("sl_compose_placeholder", { symbol: market.symbol })
+                    : t("sl_compose_followup")
                 }
-                aria-label="Describe the rule"
+                aria-label={t("sl_compose_aria")}
                 className="w-full resize-none bg-transparent px-4 py-3 font-ui text-[14px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
               />
               <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
                 <span className="flex min-w-0 items-center gap-2.5">
                   <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-                    {busy ? "Compiling…" : "⌘⏎ to send"}
+                    {t(busy ? "sl_compiling" : "sl_send_hint")}
                   </span>
                   {/* WHO is reading the sentence, stated where it is read.
                       Step 3 lets an agent be given a different model to reason
@@ -450,7 +489,7 @@ export function SetLimits({
                   disabled={busy || sentence.trim().length === 0}
                   className="flex h-8 items-center border border-accent bg-accent-wash px-5 font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
                 >
-                  {turns.length === 0 ? "Compile" : "Send"}
+                  {t(turns.length === 0 ? "sl_compile" : "sl_send")}
                 </button>
               </div>
             </div>
@@ -484,7 +523,7 @@ export function SetLimits({
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((p) => (
               <button
-                key={p.label}
+                key={p.labelKey}
                 type="button"
                 // Sent, not typed into the box: a preset IS a first message,
                 // and dropping the author back at a full input with a Compile
@@ -492,18 +531,20 @@ export function SetLimits({
                 // worked.
                 onClick={() => {
                   setMode("write");
-                  void send(p.prompt);
+                  void send(t(p.promptKey));
                 }}
                 className="h-9 rounded-full border border-border px-4 font-mono text-[11.5px] text-text-secondary transition-colors hover:border-accent hover:text-accent"
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             ))}
           </div>
         )}
 
         {error ? (
-          <p className="pt-2.5 font-ui text-[12.5px] leading-relaxed text-negative">{error}</p>
+          <p className="pt-2.5 font-ui text-[12.5px] leading-relaxed text-negative">
+            {error}
+          </p>
         ) : null}
 
         {/* Before a compile there is nothing to read back, so this step is the
@@ -516,14 +557,13 @@ export function SetLimits({
             page opens on. */}
         {showRules ? null : (
           <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            The rules appear here once you compile — every one of them editable before anything
-            runs. Or{" "}
+            {t("sl_rules_appear")}{" "}
             <button
               type="button"
               onClick={() => setManualRules(true)}
               className="text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
             >
-              set them by hand
+              {t("sl_set_by_hand")}
             </button>
             .
           </p>
@@ -534,7 +574,7 @@ export function SetLimits({
       {showRules ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Read as — edit any rule
+            {t("sl_read_as")}
           </h3>
 
           {reading ? (
@@ -564,46 +604,62 @@ export function SetLimits({
                 Ask for it in the sentence and the composer will still hand back
                 200, because that clamp lives in canopy-be. */}
             <ExitChip
-              label="Take profit"
+              labelKey="sl_take_profit"
               value={value.exits.takeProfitPct}
               min={2}
               max={1000}
               suffix="%"
               resumeAt={45}
-              onChange={(n) => onChange({ ...value, exits: { ...value.exits, takeProfitPct: n } })}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, takeProfitPct: n },
+                })
+              }
             />
             <ExitChip
-              label="Stop loss"
+              labelKey="sl_stop_loss"
               value={value.exits.stopLossPct}
               min={1}
               max={90}
               suffix="%"
               resumeAt={20}
-              onChange={(n) => onChange({ ...value, exits: { ...value.exits, stopLossPct: n } })}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, stopLossPct: n },
+                })
+              }
             />
             {/* Both default to OFF, unlike the two above. A trailing stop nobody
                 asked for closes positions its author meant to keep, so these
                 are opt-in rather than a level to adjust. */}
             <ExitChip
-              label="Trailing stop"
+              labelKey="sl_trailing_stop"
               value={value.exits.trailingStopPct ?? 0}
               min={1}
               max={90}
               suffix="%"
               resumeAt={12}
               onChange={(n) =>
-                onChange({ ...value, exits: { ...value.exits, trailingStopPct: n } })
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, trailingStopPct: n },
+                })
               }
             />
             <ExitChip
-              label="Break-even at"
+              labelKey="sl_breakeven"
               value={value.exits.breakevenAfterPct ?? 0}
               min={1}
               max={200}
               suffix="%"
               resumeAt={5}
               onChange={(n) =>
-                onChange({ ...value, exits: { ...value.exits, breakevenAfterPct: n } })
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, breakevenAfterPct: n },
+                })
               }
             />
             <ScaleOutLadder
@@ -611,7 +667,10 @@ export function SetLimits({
               onChange={(next) =>
                 onChange({
                   ...value,
-                  exits: { ...value.exits, scaleOut: next.length > 0 ? next : undefined },
+                  exits: {
+                    ...value.exits,
+                    scaleOut: next.length > 0 ? next : undefined,
+                  },
                 })
               }
             />
@@ -620,7 +679,10 @@ export function SetLimits({
           {notes.length > 0 ? (
             <ul className="space-y-0.5 pt-2.5">
               {notes.map((n) => (
-                <li key={n} className="font-ui text-[12px] leading-relaxed text-warning">
+                <li
+                  key={n}
+                  className="font-ui text-[12px] leading-relaxed text-warning"
+                >
                   {n}
                 </li>
               ))}
@@ -628,9 +690,9 @@ export function SetLimits({
           ) : null}
 
           <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            Nothing runs until you confirm these. Switch a rule off to stop it applying, or
-            rewrite the sentence above and compile again. {active.length}{" "}
-            {active.length === 1 ? "rule is" : "rules are"} active.
+            {active.length === 1
+              ? t("sl_nothing_runs_one")
+              : t("sl_nothing_runs_many", { count: active.length })}
           </p>
         </section>
       ) : null}
@@ -667,41 +729,41 @@ export function SetLimits({
       {showRules ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Chart timeframe
+            {t("sl_chart_timeframe")}
           </h3>
           <PillRow>
-            {TIMEFRAMES.map((t) => {
+            {/* `tf`, not `t` — the translator owns that name in this file. */}
+            {TIMEFRAMES.map((tf) => {
               // Served for THIS class, not in general. A crypto strategy on 30m
               // deploys, wakes and buys nothing — the venue cannot build the
               // bar — so the pill is disabled rather than offered and refused
               // later by a screening trace nobody opens.
-              const served = servedTimeframes.includes(t.tf);
+              const served = servedTimeframes.includes(tf.tf);
               return (
                 <Pill
-                  key={t.tf}
-                  active={(value.timeframe ?? DEFAULT_TIMEFRAME) === t.tf}
+                  key={tf.tf}
+                  active={(value.timeframe ?? DEFAULT_TIMEFRAME) === tf.tf}
                   disabled={!served}
-                  suffix={served ? undefined : "not served"}
-                  onClick={() => onChange(retimeframe(value, t.tf))}
+                  suffix={served ? undefined : t("sl_not_served")}
+                  onClick={() => onChange(retimeframe(value, tf.tf))}
                 >
-                  {t.label}
+                  {t(tf.labelKey)}
                 </Pill>
               );
             })}
           </PillRow>
           <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {TIMEFRAMES.find((t) => t.tf === (value.timeframe ?? DEFAULT_TIMEFRAME))?.detail}{" "}
-            <span className="text-text-dim">
-              This changes what your rules mean, not just how often they run. Every rule above
-              relabels, states its window in real time, and moves its threshold with the bar —
-              a trend floor of 3% on daily becomes 0.3% here, because that is the same ask.
-              One exception, and it says so on the chip: change on the day is always 24 hours.
-              Use Min momentum for a change measured on your own bars.
-            </span>
+            {(() => {
+              const hit = TIMEFRAMES.find(
+                (tf) => tf.tf === (value.timeframe ?? DEFAULT_TIMEFRAME),
+              );
+              return hit ? t(hit.detailKey) : null;
+            })()}{" "}
+            <span className="text-text-dim">{t("sl_timeframe_help")}</span>
           </p>
 
           <h3 className="pt-6 pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Cycle
+            {t("sl_cycle")}
           </h3>
           <PillRow>
             {CADENCES.map((c) => (
@@ -709,11 +771,13 @@ export function SetLimits({
                 key={c.sec}
                 active={
                   (value.cadenceSec ??
-                    CADENCE_FOR_TIMEFRAME[value.timeframe ?? DEFAULT_TIMEFRAME]) === c.sec
+                    CADENCE_FOR_TIMEFRAME[
+                      value.timeframe ?? DEFAULT_TIMEFRAME
+                    ]) === c.sec
                 }
                 onClick={() => onChange({ ...value, cadenceSec: c.sec })}
               >
-                {c.label}
+                {t(c.labelKey)}
               </Pill>
             ))}
           </PillRow>
@@ -724,13 +788,18 @@ export function SetLimits({
               const paired = CADENCE_FOR_TIMEFRAME[tf];
               return (
                 <>
-                  {CADENCES.find((c) => c.sec === sec)?.detail}{" "}
+                  {(() => {
+                    const hit = CADENCES.find((c) => c.sec === sec);
+                    return hit ? t(hit.detailKey) : null;
+                  })()}{" "}
                   <span className="text-text-dim">
-                    {sec === paired
-                      ? "Matched to your timeframe — one new bar each cycle."
-                      : sec < paired
-                        ? "Faster than your timeframe: some cycles re-read a bar that has not changed yet, and pay for a model call to reach the same answer. What it does buy is tighter stops, since exits are checked every cycle."
-                        : "Slower than your timeframe: the agent will step over bars without ever seeing them. Deliberate if you want to sample a fast chart slowly."}
+                    {t(
+                      sec === paired
+                        ? "bs_cadence_matched"
+                        : sec < paired
+                          ? "bs_cadence_faster"
+                          : "bs_cadence_slower",
+                    )}
                   </span>
                 </>
               );
@@ -742,32 +811,32 @@ export function SetLimits({
       {/* ------------------------------------------------------- budget */}
       <section>
         <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-          Budget for this market
+          {t("sl_budget")}
         </h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Position size limit"
+            label={t("sl_position_limit")}
             value={value.positionUsd}
             unit="USDC"
             min={MIN_POSITION_USD}
             max={CAPITAL_USD}
             step={MIN_POSITION_USD}
-            help={`Most per trade, per market. Never exceeded. ${(
-              (value.positionUsd / CAPITAL_USD) *
-              100
-            ).toFixed(0)}% of the ${money(CAPITAL_USD)} paper book.`}
+            help={t("sl_position_help", {
+              pct: ((value.positionUsd / CAPITAL_USD) * 100).toFixed(0),
+              book: money(CAPITAL_USD),
+            })}
             onChange={(n) => onChange({ ...value, positionUsd: n })}
           />
           <Field
-            label="Max trades per cycle"
+            label={t("sl_trades_per_cycle")}
             value={value.tradesPerCycle}
-            unit="trades"
+            unit={t("sl_unit_trades")}
             min={1}
             max={10}
             step={1}
             // Deliberately not "per day": the ceiling the engine enforces is
             // per cycle, and relabelling it would misstate what it does.
-            help="Entries per wake-up. The agent never splits an order to get around it."
+            help={t("sl_trades_help")}
             onChange={(n) => onChange({ ...value, tradesPerCycle: n })}
           />
         </div>
@@ -783,7 +852,7 @@ export function SetLimits({
       {markets.length > 1 ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            How many to hold
+            {t("sl_how_many")}
           </h3>
           <RankingControl
             markets={markets.length}
@@ -803,7 +872,7 @@ export function SetLimits({
       {market.kind !== "crypto" ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            Compliance screen
+            {t("sl_compliance")}
           </h3>
           <div className="flex flex-wrap gap-2">
             {COMPLIANCE_CHOICES.map((choice) => {
@@ -813,7 +882,9 @@ export function SetLimits({
                   key={choice.id}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => onChange({ ...value, complianceProfile: choice.id })}
+                  onClick={() =>
+                    onChange({ ...value, complianceProfile: choice.id })
+                  }
                   className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                     active
                       ? "border-accent bg-accent/10 text-text"
@@ -821,10 +892,10 @@ export function SetLimits({
                   }`}
                 >
                   <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-                    {choice.label}
+                    {t(choice.labelKey)}
                   </span>
                   <span className="mt-1 block text-[11px] leading-snug text-text-dim">
-                    {choice.help}
+                    {t(choice.helpKey)}
                   </span>
                 </button>
               );
@@ -836,8 +907,7 @@ export function SetLimits({
               Someone who picks a screen and then cannot find an asset they
               expected deserves to have been told why in advance.
             */}
-            A screen narrows what the agent may hold. It is applied before the
-            analyst sees anything, so a filtered asset never appears in a cycle.
+            {t("sl_compliance_note")}
           </p>
         </section>
       ) : null}
@@ -862,6 +932,7 @@ function RankingControl({
   onChange: (next: RankingSpec | undefined) => void;
 }) {
   const on = !!value;
+  const t = useT();
 
   return (
     <div className="space-y-3">
@@ -871,74 +942,97 @@ function RankingControl({
           aria-pressed={!on}
           onClick={() => onChange(undefined)}
           className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-            !on ? "border-accent bg-accent/10 text-text" : "border-line text-text-dim hover:text-text"
+            !on
+              ? "border-accent bg-accent/10 text-text"
+              : "border-line text-text-dim hover:text-text"
           }`}
         >
           <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-            All of them
+            {t("sl_all_of_them")}
           </span>
           <span className="mt-1 block text-[11px] text-text-dim">
-            Buy anything that passes the rules.
+            {t("sl_all_of_them_help")}
           </span>
         </button>
         <button
           type="button"
           aria-pressed={on}
           onClick={() =>
-            onChange(value ?? { by: "momentum20dPct", take: Math.min(3, markets), prefer: "highest" })
+            onChange(
+              value ?? {
+                by: "momentum20dPct",
+                take: Math.min(3, markets),
+                prefer: "highest",
+              },
+            )
           }
           className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-            on ? "border-accent bg-accent/10 text-text" : "border-line text-text-dim hover:text-text"
+            on
+              ? "border-accent bg-accent/10 text-text"
+              : "border-line text-text-dim hover:text-text"
           }`}
         >
           <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-            Only the best
+            {t("sl_only_best")}
           </span>
           <span className="mt-1 block text-[11px] text-text-dim">
-            Rank what passes, act on the top few.
+            {t("sl_only_best_help")}
           </span>
         </button>
       </div>
 
       {value ? (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
-          <span className="text-text-dim">Hold the best</span>
+          <span className="text-text-dim">{t("sl_hold_best")}</span>
           <input
             type="number"
             min={1}
             max={Math.max(1, markets)}
             value={value.take}
             onChange={(e) =>
-              onChange({ ...value, take: Math.max(1, Math.min(markets, Number(e.target.value))) })
+              onChange({
+                ...value,
+                take: Math.max(1, Math.min(markets, Number(e.target.value))),
+              })
             }
             className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
-            aria-label="How many to hold"
+            aria-label={t("sl_how_many_aria")}
           />
-          <span className="text-text-dim">of {markets}, by</span>
+          <span className="text-text-dim">
+            {t("sl_of_by", { count: markets })}
+          </span>
           <select
             value={`${value.by}:${value.prefer}`}
             onChange={(e) => {
               const [by, prefer] = e.target.value.split(":");
-              onChange({ ...value, by, prefer: prefer as "highest" | "lowest" });
+              onChange({
+                ...value,
+                by,
+                prefer: prefer as "highest" | "lowest",
+              });
             }}
             className="border border-line bg-transparent px-2 py-1 text-text-primary"
-            aria-label="Rank by"
+            aria-label={t("sl_rank_by_aria")}
           >
             {/* Each option names the DIRECTION as well as the measure, because
                 both ends are wanted and neither is a sensible default. */}
-            <option value="momentum20dPct:highest">strongest recent return</option>
-            <option value="momentum20dPct:lowest">weakest recent return</option>
-            <option value="rsi14:lowest">most oversold</option>
-            <option value="liquidityUsd:highest">deepest pool</option>
-            <option value="dailyVolPct:lowest">calmest</option>
+            <option value="momentum20dPct:highest">
+              {t("rank_momentum_high")}
+            </option>
+            <option value="momentum20dPct:lowest">
+              {t("rank_momentum_low")}
+            </option>
+            <option value="rsi14:lowest">{t("rank_rsi_low")}</option>
+            <option value="liquidityUsd:highest">
+              {t("rank_liquidity_high")}
+            </option>
+            <option value="dailyVolPct:lowest">{t("rank_vol_low")}</option>
           </select>
         </div>
       ) : null}
 
       <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-        Ranking runs after your rules, never instead of them — a market that fails a rule is never
-        ranked back in. Anything left out is named in the cycle log, so a market that never trades
-        is never a mystery.
+        {t("sl_ranking_note")}
       </p>
     </div>
   );
@@ -973,9 +1067,12 @@ function ScaleOutLadder({
 }) {
   const sold = rungs.reduce((sum, r) => sum + r.fraction, 0);
   const left = Math.max(0, 1 - sold);
+  const t = useT();
 
-  const setRung = (i: number, patch: Partial<{ atPct: number; fraction: number }>) =>
-    onChange(rungs.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+  const setRung = (
+    i: number,
+    patch: Partial<{ atPct: number; fraction: number }>,
+  ) => onChange(rungs.map((r, n) => (n === i ? { ...r, ...patch } : r)));
 
   const add = () => {
     // Above the last rung, because they fire in ascending order — a new step
@@ -993,11 +1090,11 @@ function ScaleOutLadder({
     <div className="border-b border-grid px-4 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-[12px] text-text-primary">Take profit in steps</p>
+          <p className="font-mono text-[12px] text-text-primary">
+            {t("sl_steps_title")}
+          </p>
           <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-            {rungs.length === 0
-              ? "Off — the position closes in one go."
-              : "Each step sells part of the position once, then the rest keeps running."}
+            {t(rungs.length === 0 ? "sl_steps_off" : "sl_steps_on")}
           </p>
         </div>
         <button
@@ -1006,54 +1103,63 @@ function ScaleOutLadder({
           disabled={left <= 0.05}
           className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-30"
         >
-          + Add step
+          {t("sl_add_step")}
         </button>
       </div>
 
       {rungs.length > 0 ? (
         <ul className="space-y-2 pt-3">
           {rungs.map((r, i) => (
-            <li key={i} className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
-              <span className="text-text-dim">Sell</span>
+            <li
+              key={i}
+              className="flex flex-wrap items-center gap-2 font-mono text-[12px]"
+            >
+              <span className="text-text-dim">{t("sl_sell")}</span>
               <input
                 type="number"
                 min={1}
                 max={95}
                 value={Math.round(r.fraction * 100)}
                 onChange={(e) =>
-                  setRung(i, { fraction: Math.min(0.95, Math.max(0.01, Number(e.target.value) / 100)) })
+                  setRung(i, {
+                    fraction: Math.min(
+                      0.95,
+                      Math.max(0.01, Number(e.target.value) / 100),
+                    ),
+                  })
                 }
                 className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
-                aria-label={`Step ${i + 1} size in percent`}
+                aria-label={t("sl_step_size_aria", { n: i + 1 })}
               />
-              <span className="text-text-dim">% at</span>
+              <span className="text-text-dim">{t("sl_pct_at")}</span>
               <input
                 type="number"
                 min={1}
                 max={1000}
                 value={r.atPct}
-                onChange={(e) => setRung(i, { atPct: Math.max(1, Number(e.target.value)) })}
+                onChange={(e) =>
+                  setRung(i, { atPct: Math.max(1, Number(e.target.value)) })
+                }
                 className="w-20 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
-                aria-label={`Step ${i + 1} gain in percent`}
+                aria-label={t("sl_step_gain_aria", { n: i + 1 })}
               />
-              <span className="text-text-dim">% gain</span>
+              <span className="text-text-dim">{t("sl_pct_gain")}</span>
               <button
                 type="button"
                 onClick={() => onChange(rungs.filter((_, n) => n !== i))}
                 className="ml-auto text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-negative"
               >
-                Remove
+                {t("common_remove")}
               </button>
             </li>
           ))}
           <li className="flex items-center gap-2 pt-1 font-ui text-[11.5px] text-text-dim">
             {/* The consequence, not a field. */}
-            Leaves <span className="font-mono text-text-secondary">{Math.round(left * 100)}%</span>{" "}
-            running, governed by the exits above.
+            {t("sl_leaves_running", { pct: Math.round(left * 100) })}
           </li>
           {sold >= 1 ? (
             <li className="font-ui text-[11.5px] text-warning">
-              These steps sell the whole position. Leave something behind, or use Take profit.
+              {t("sl_sells_everything")}
             </li>
           ) : null}
         </ul>
@@ -1069,39 +1175,25 @@ function ScaleOutLadder({
  * fixed stop are both "stops" and behave differently enough that one branching
  * sentence was already misleading before the other two arrived.
  */
-const EXIT_COPY: Record<string, { on: string; off: string }> = {
-  "Take profit": {
-    on: "Closes the position once it is up this much.",
-    off: "Off — a winner runs until something else closes it.",
-  },
-  "Stop loss": {
-    on: "Closes without asking. A stop you can veto is not a stop.",
-    off: "Off — nothing closes this on a loss. The drawdown breaker still applies to the book.",
-  },
-  "Trailing stop": {
-    on: "Measured from the highest price since you entered, not from your entry. It only ever moves up.",
-    off: "Off — gains are not protected on the way back down.",
-  },
-  "Break-even at": {
-    on: "Once it has been up this much, it will not be allowed to close at a loss.",
-    off: "Off — a position that was up can still round-trip into a loss.",
-  },
+// Keyed by the exit's own label key rather than by its English words, so the
+// lookup cannot break when the label is translated.
+const EXIT_COPY: Record<string, { on: TranslationKey; off: TranslationKey }> = {
+  sl_take_profit: { on: "exit_tp_on", off: "exit_tp_off" },
+  sl_stop_loss: { on: "exit_sl_on", off: "exit_sl_off" },
+  sl_trailing_stop: { on: "exit_trail_on", off: "exit_trail_off" },
+  sl_breakeven: { on: "exit_be_on", off: "exit_be_off" },
 };
 
 const COMPLIANCE_CHOICES: {
   id: ComplianceProfile;
-  label: string;
-  help: string;
+  labelKey: TranslationKey;
+  helpKey: TranslationKey;
 }[] = [
-  {
-    id: "none",
-    label: "None",
-    help: "Every asset in the market, screened only by your own rules.",
-  },
+  { id: "none", labelKey: "compliance_none", helpKey: "compliance_none_help" },
   {
     id: "shariah",
-    label: "Shariah",
-    help: "Excludes conventional finance, leverage over the line, and non-compliant revenue.",
+    labelKey: "compliance_shariah",
+    helpKey: "compliance_shariah_help",
   },
 ];
 
@@ -1123,6 +1215,7 @@ type ReqState = "met" | "assumed" | "missing";
 
 interface Requirement {
   key: string;
+  /** Already translated — `requirements` takes the translator. */
   label: string;
   state: ReqState;
   /** Where the figure stands now, in the author's terms. */
@@ -1156,61 +1249,80 @@ function mentions(said: string, re: RegExp): boolean {
  * that are correct for the overwhelming majority of strategies (daily bars,
  * hourly wake-ups), and neither can make a position unsafe on its own.
  */
-function requirements(limits: Limits, said: string): Requirement[] {
+function requirements(
+  limits: Limits,
+  said: string,
+  t: Translate,
+): Requirement[] {
   const active = limits.rules.filter((r) => r.enabled !== false);
   const { takeProfitPct, stopLossPct } = limits.exits;
 
   return [
     {
       key: "entry",
-      label: "Entry condition",
+      label: t("req_entry"),
       state: active.length > 0 ? "met" : "missing",
       detail:
-        active.length > 0
-          ? `${active.length} ${active.length === 1 ? "rule" : "rules"} must all be true`
-          : "nothing would ever trigger a buy",
-      ask: "What has to be true before it buys?",
+        active.length === 0
+          ? t("req_entry_none")
+          : active.length === 1
+            ? t("req_entry_one")
+            : t("req_entry_many", { count: active.length }),
+      ask: t("req_entry_ask"),
+      // Sent verbatim as the author's own words, so they are written in the
+      // reader's language — the composer answers in whatever it is given.
       chips: [
-        "when it is down 4% or more on the day",
-        "when RSI is under 30",
-        "only when the pool is deep",
+        t("req_entry_chip_1"),
+        t("req_entry_chip_2"),
+        t("req_entry_chip_3"),
       ],
     },
     {
       key: "profit",
-      label: "Take profit",
+      label: t("req_profit"),
       // Switching an exit off is a decision, so the checklist reports it as met
       // rather than going on asking for a value the author has deliberately
       // removed. "+0%" would also read as a target of zero, which is the one
       // thing it does not mean.
       state:
-        takeProfitPct <= 0 || mentions(said, /take profit|profit at|target|upside|\btp\b/)
+        takeProfitPct <= 0 ||
+        mentions(said, /take profit|profit at|target|upside|\btp\b/)
           ? "met"
           : "assumed",
-      detail: takeProfitPct > 0 ? `+${takeProfitPct}%` : "off",
-      ask: `Where should it take profit? It is on +${takeProfitPct}% until you say.`,
-      chips: ["take profit at 5%", "take profit at 15%", "take profit at 30%"],
+      detail: takeProfitPct > 0 ? `+${takeProfitPct}%` : t("req_off"),
+      ask: t("req_profit_ask", { pct: takeProfitPct }),
+      chips: [
+        t("req_profit_chip_1"),
+        t("req_profit_chip_2"),
+        t("req_profit_chip_3"),
+      ],
     },
     {
       key: "stop",
-      label: "Stop loss",
+      label: t("req_stop"),
       state:
         stopLossPct <= 0 || mentions(said, /stop|cut it|\bsl\b|downside|lose/)
           ? "met"
           : "assumed",
-      detail: stopLossPct > 0 ? `−${stopLossPct}%` : "off",
-      ask: `Where should it stop out? It is on −${stopLossPct}% until you say.`,
-      chips: ["stop out at 3%", "stop out at 8%", "stop out at 15%"],
+      detail: stopLossPct > 0 ? `−${stopLossPct}%` : t("req_off"),
+      ask: t("req_stop_ask", { pct: stopLossPct }),
+      chips: [t("req_stop_chip_1"), t("req_stop_chip_2"), t("req_stop_chip_3")],
     },
     {
       key: "size",
-      label: "Position size",
-      state: mentions(said, /\$|per trade|position size|stake|put in/) ? "met" : "assumed",
-      detail: `${money(limits.positionUsd)} per trade · ${limits.tradesPerCycle} per cycle`,
-      ask: `How much may it put into one trade? It is on ${money(limits.positionUsd)} of the ${money(
-        CAPITAL_USD,
-      )} paper book.`,
-      chips: ["$500 per trade", "$1,000 per trade", "$2,500 per trade"],
+      label: t("req_size"),
+      state: mentions(said, /\$|per trade|position size|stake|put in/)
+        ? "met"
+        : "assumed",
+      detail: t("req_size_detail", {
+        amount: money(limits.positionUsd),
+        count: limits.tradesPerCycle,
+      }),
+      ask: t("req_size_ask", {
+        amount: money(limits.positionUsd),
+        book: money(CAPITAL_USD),
+      }),
+      chips: [t("req_size_chip_1"), t("req_size_chip_2"), t("req_size_chip_3")],
     },
   ];
 }
@@ -1228,9 +1340,10 @@ function requirements(limits: Limits, said: string): Requirement[] {
  * the field below allows.
  */
 function readSizing(text: string, limits: Limits): Limits | null {
-  const m = /\$\s?([\d,]+(?:\.\d+)?)\s*(?:k\b)?[^.]{0,24}?(?:per trade|a trade|each trade|per position|per entry)/i.exec(
-    text,
-  );
+  const m =
+    /\$\s?([\d,]+(?:\.\d+)?)\s*(?:k\b)?[^.]{0,24}?(?:per trade|a trade|each trade|per position|per entry)/i.exec(
+      text,
+    );
   if (!m) return null;
   const raw = Number(m[1].replace(/,/g, ""));
   if (!Number.isFinite(raw) || raw <= 0) return null;
@@ -1245,13 +1358,20 @@ function readSizing(text: string, limits: Limits): Limits | null {
   // Matches what the server accepts, which is the point: a client floor above
   // the server's makes a capability unreachable, and the two disagreeing is the
   // same class of gap that let the budget be dropped entirely.
-  const clamped = Math.min(Math.max(Math.round(usd / MIN_POSITION_USD) * MIN_POSITION_USD, MIN_POSITION_USD), CAPITAL_USD);
+  const clamped = Math.min(
+    Math.max(
+      Math.round(usd / MIN_POSITION_USD) * MIN_POSITION_USD,
+      MIN_POSITION_USD,
+    ),
+    CAPITAL_USD,
+  );
   return { ...limits, positionUsd: clamped };
 }
 
 /** One line of the exchange. */
 function TurnRow({ turn }: { turn: Turn }) {
   const you = turn.role === "you";
+  const t = useT();
   return (
     <li
       className={`border-b border-grid px-4 py-2.5 last:border-b-0 ${
@@ -1263,7 +1383,7 @@ function TurnRow({ turn }: { turn: Turn }) {
           you ? "text-text-muted" : "text-accent"
         }`}
       >
-        {you ? "You" : "Strategy desk"}
+        {t(you ? "sl_you" : "sl_desk")}
       </p>
       <p
         className={`font-ui text-[13px] leading-relaxed ${
@@ -1292,19 +1412,22 @@ function TurnRow({ turn }: { turn: Turn }) {
  */
 function Checklist({ reqs }: { reqs: Requirement[] }) {
   const open = reqs.filter((r) => r.state !== "met").length;
+  const t = useT();
 
   return (
     <div className="mt-4 border border-grid">
       <div className="flex items-center justify-between gap-4 border-b border-grid px-4 py-2.5">
         <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
-          Before it can trade
+          {t("sl_before_trade")}
         </h4>
         <span
           className={`font-mono text-[9.5px] tracking-[0.1em] uppercase ${
             open === 0 ? "text-accent" : "text-text-muted"
           }`}
         >
-          {open === 0 ? "All set" : `${open} still assumed`}
+          {open === 0
+            ? t("sl_all_set")
+            : t("sl_still_assumed", { count: open })}
         </span>
       </div>
       <ul>
@@ -1324,7 +1447,9 @@ function Checklist({ reqs }: { reqs: Requirement[] }) {
                       : "bg-negative"
                 }`}
               />
-              <span className="truncate font-ui text-[12.5px] text-text-primary">{r.label}</span>
+              <span className="truncate font-ui text-[12.5px] text-text-primary">
+                {r.label}
+              </span>
             </span>
             <span
               className={`shrink-0 text-right font-mono text-[11.5px] ${
@@ -1334,7 +1459,7 @@ function Checklist({ reqs }: { reqs: Requirement[] }) {
               {r.detail}
               {r.state === "assumed" ? (
                 <span className="pl-1.5 text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
-                  assumed
+                  {t("sl_assumed")}
                 </span>
               ) : null}
             </span>
@@ -1347,19 +1472,10 @@ function Checklist({ reqs }: { reqs: Requirement[] }) {
 
 /* -------------------------------------------------------------------- bits -- */
 
-const PRESETS = [
-  {
-    label: "Buy the dip",
-    prompt: "Buy when it is down 4% or more on the day, take profit at 3%, stop out at 2%.",
-  },
-  {
-    label: "Only when calm",
-    prompt: "Only trade when volatility is low and nothing abnormal happened this week.",
-  },
-  {
-    label: "Deep pools only",
-    prompt: "Only trade when the pool is deep. Take profit steadily and keep a tight stop.",
-  },
+const PRESETS: { labelKey: TranslationKey; promptKey: TranslationKey }[] = [
+  { labelKey: "preset_dip", promptKey: "preset_dip_prompt" },
+  { labelKey: "preset_calm", promptKey: "preset_calm_prompt" },
+  { labelKey: "preset_deep", promptKey: "preset_deep_prompt" },
 ];
 
 function RuleChip({
@@ -1372,10 +1488,11 @@ function RuleChip({
   onChange: (patch: Partial<RuleSpec>) => void;
 }) {
   const on = r.enabled !== false;
-  // Never r.label directly: at any non-daily timeframe the bare label omits the
-  // one thing that decides what the number means.
-  const label = ruleLabel(r, timeframe);
-  const basisNote = ruleBasisNote(r, timeframe);
+  const t = useT();
+  // Never `t(r.labelKey)` directly: at any non-daily timeframe the bare label
+  // omits the one thing that decides what the number means.
+  const label = ruleLabel(r, timeframe, t);
+  const basisNote = ruleBasisNote(r, timeframe, t);
   // Bounds as they apply at THIS bar size. The spec's own min/max/step are
   // written in daily terms and stay the base; a percent-of-price rule on
   // 15-minute bars gets a range a fifteen-minute move can actually reach.
@@ -1393,19 +1510,28 @@ function RuleChip({
   };
   // What the window is in wall-clock time. The label says "14 × 15m"; this says
   // what nobody should have to work out from it.
-  const span = ruleSpan(r, timeframe);
+  const span = ruleSpan(r, timeframe, t);
   return (
     <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
-        <p className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}>
-          {label} <span className="text-text-dim">{r.op === "gte" ? "at least" : "at most"}</span>
+        <p
+          className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
+        >
+          {label}{" "}
+          <span className="text-text-dim">
+            {t(r.op === "gte" ? "rule_at_least" : "rule_at_most")}
+          </span>
         </p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-          {r.help}
-          {span ? <span className="text-text-muted"> Window: {span}.</span> : null}
+          {t(r.helpKey)}
+          {span ? (
+            <span className="text-text-muted">{t("sl_window", { span })}</span>
+          ) : null}
         </p>
         {basisNote ? (
-          <p className="pt-0.5 font-ui text-[11px] leading-relaxed text-text-muted">{basisNote}</p>
+          <p className="pt-0.5 font-ui text-[11px] leading-relaxed text-text-muted">
+            {basisNote}
+          </p>
         ) : null}
       </div>
       <input
@@ -1434,10 +1560,12 @@ function RuleChip({
         onClick={() => onChange({ enabled: !on })}
         aria-pressed={on}
         className={`h-7 rounded-full border px-2.5 font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors ${
-          on ? "border-accent text-accent" : "border-grid text-text-muted hover:text-text-secondary"
+          on
+            ? "border-accent text-accent"
+            : "border-grid text-text-muted hover:text-text-secondary"
         }`}
       >
-        {on ? "On" : "Off"}
+        {t(on ? "sl_on" : "sl_off")}
       </button>
     </div>
   );
@@ -1471,7 +1599,7 @@ function RuleChip({
  * back on would land wherever the track happened to be.
  */
 function ExitChip({
-  label,
+  labelKey,
   value,
   min,
   max,
@@ -1479,7 +1607,9 @@ function ExitChip({
   resumeAt,
   onChange,
 }: {
-  label: string;
+  // The KEY rather than the label: EXIT_COPY is looked up on it, and a lookup
+  // keyed on translated words would miss in every language but English.
+  labelKey: TranslationKey;
   value: number;
   min: number;
   max: number;
@@ -1488,16 +1618,18 @@ function ExitChip({
   onChange: (n: number) => void;
 }) {
   const off = value <= 0;
+  const t = useT();
+  const label = t(labelKey);
 
   return (
     <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
       <div className="min-w-0">
         <p className="font-mono text-[12px] text-text-primary">{label}</p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-          {EXIT_COPY[label]?.[off ? "off" : "on"] ??
-            (off
-              ? "Off."
-              : "Closes the position once this is true.")}
+          {t(
+            EXIT_COPY[labelKey]?.[off ? "off" : "on"] ??
+              (off ? "exit_generic_off" : "exit_generic_on"),
+          )}
         </p>
       </div>
       <input
@@ -1508,11 +1640,13 @@ function ExitChip({
         value={off ? min : value}
         disabled={off}
         onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={`${label} slider`}
+        aria-label={t("sl_slider_aria", { label })}
         className="accent-accent disabled:opacity-30"
       />
       {off ? (
-        <span className="text-right font-mono text-[12px] text-text-dim">Off</span>
+        <span className="text-right font-mono text-[12px] text-text-dim">
+          {t("sl_off")}
+        </span>
       ) : (
         <NumberEntry
           value={value}
@@ -1523,7 +1657,7 @@ function ExitChip({
           // The sign belongs to the direction, not the figure: a stop is entered
           // as 12 and shown as −12%, because "−" is a fact about a stop rather
           // than something the author should have to type or be able to omit.
-          sign={label === "Stop loss" ? "−" : "+"}
+          sign={labelKey === "sl_stop_loss" ? "−" : "+"}
           label={label}
           onChange={onChange}
         />
@@ -1534,7 +1668,7 @@ function ExitChip({
         onClick={() => onChange(off ? resumeAt : 0)}
         className="text-right font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
       >
-        {off ? "On" : "Off"}
+        {t(off ? "sl_on" : "sl_off")}
       </button>
     </div>
   );
@@ -1583,6 +1717,7 @@ function NumberEntry({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [clamped, setClamped] = useState<number | null>(null);
+  const t = useT();
 
   function commit() {
     if (draft === null) return;
@@ -1603,7 +1738,9 @@ function NumberEntry({
   const isMoney = unit === "$";
 
   return (
-    <div className={`text-right ${disabled ? "text-text-muted" : "text-accent"}`}>
+    <div
+      className={`text-right ${disabled ? "text-text-muted" : "text-accent"}`}
+    >
       <div className="flex items-baseline justify-end gap-px font-mono text-[13px]">
         {sign ? <span aria-hidden>{sign}</span> : null}
         {isMoney ? <span aria-hidden>$</span> : null}
@@ -1629,7 +1766,7 @@ function NumberEntry({
               e.currentTarget.blur();
             }
           }}
-          aria-label={`${label}, value`}
+          aria-label={t("sl_value_aria", { label })}
           size={1}
           className="tnum w-[7ch] border-b border-transparent bg-transparent text-right outline-none transition-colors hover:border-grid-strong focus:border-accent disabled:cursor-not-allowed"
         />
@@ -1637,7 +1774,9 @@ function NumberEntry({
       </div>
       {clamped === null ? null : (
         <p className="pt-0.5 font-mono text-[9px] tracking-[0.06em] text-warning uppercase">
-          {clamped === max ? `Max ${fmt(max, unit)}` : `Min ${fmt(min, unit)}`}
+          {clamped === max
+            ? t("sl_max_clamp", { value: fmt(max, unit) })
+            : t("sl_min_clamp", { value: fmt(min, unit) })}
         </p>
       )}
     </div>
@@ -1665,7 +1804,9 @@ function Field({
 }) {
   return (
     <div className="border border-grid p-4">
-      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">{label}</p>
+      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+        {label}
+      </p>
       <div className="flex items-baseline gap-2 pt-2">
         <input
           type="number"
@@ -1685,7 +1826,9 @@ function Field({
           {unit}
         </span>
       </div>
-      <p className="pt-2.5 font-ui text-[11.5px] leading-relaxed text-text-dim">{help}</p>
+      <p className="pt-2.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+        {help}
+      </p>
     </div>
   );
 }

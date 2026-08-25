@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { NotificationsPage } from "@/components/notificationsPage";
+import { PageHeader } from "@/components/pageHeader";
+import { getServerT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Notifications · Canopy",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_notifications") };
+}
 
 /**
  * Notifications, with a route of their own.
@@ -16,15 +18,11 @@ export const metadata: Metadata = {
 export default function NotificationsRoute() {
   return (
     <main>
-      <section className="space-y-2 border-b border-grid px-5 pt-6 pb-5 sm:px-8">
-        <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">Account</p>
-        <h1 className="font-mono text-[24px] leading-none text-text-primary sm:text-[30px]">
-          Notifications
-        </h1>
-        <p className="font-ui text-[13.5px] text-text-secondary">
-          What your agents did, and what they need from you.
-        </p>
-      </section>
+      <PageHeader
+        eyebrowKey="page_eyebrow_account"
+        titleKey="notifications_page_title"
+        bodyKey="notifications_page_body"
+      />
       <NotificationsPage />
     </main>
   );

@@ -1,5 +1,14 @@
-import { SEAT_LABEL, SEAT_PURPOSE, SEAT_SHORT, type NarratedLine, type Seat } from "@/lib/narrate";
+"use client";
+
+import {
+  SEAT_LABEL_KEY,
+  SEAT_PURPOSE_KEY,
+  SEAT_SHORT_KEY,
+  type NarratedLine,
+  type Seat,
+} from "@/lib/narrate";
 import { AssetLogo, SourceMark } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 
 /**
  * The pieces both surfaces that read decision rows are built from.
@@ -21,9 +30,10 @@ import { AssetLogo, SourceMark } from "@/components/ui";
  * distinguishable to a reader who cannot separate the accent from the dim grey.
  */
 export function OutcomeMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
+  const t = useT();
   if (outcome === "pass") {
     return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="passed">
+      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label={t("outcome_passed")}>
         <path
           d="M3.5 8.5l3 3 6-7"
           fill="none"
@@ -37,7 +47,7 @@ export function OutcomeMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
   }
   if (outcome === "drop") {
     return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="stopped">
+      <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label={t("outcome_stopped")}>
         <path
           d="M4 4l8 8M12 4l-8 8"
           fill="none"
@@ -50,13 +60,13 @@ export function OutcomeMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
   }
   if (outcome === "work") {
     return (
-      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label="step">
+      <svg viewBox="0 0 16 16" className="size-3.5 text-accent" aria-label={t("outcome_step")}>
         <circle cx="8" cy="8" r="3" fill="currentColor" />
       </svg>
     );
   }
   return (
-    <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label="note">
+    <svg viewBox="0 0 16 16" className="size-3.5 text-text-dim" aria-label={t("outcome_note")}>
       <circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   );
@@ -87,13 +97,16 @@ export function NarratedLineBody({ line }: { line: NarratedLine }) {
  * section heading, where there is room to say what the seat is actually for.
  */
 export function SeatTag({ role, variant }: { role: Seat | null; variant: "rail" | "header" }) {
+  const t = useT();
   if (variant === "rail") {
     // A cycle-level line (a failure) belongs to no seat. Rendering the gutter
     // empty keeps the column aligned without inventing an author for it.
     if (role === null) return null;
     return (
       <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-        {SEAT_SHORT[role] ?? role}
+        {/* The raw role id is the fallback: a seat we have no name for is
+            better identified by its id than by a blank. */}
+        {SEAT_SHORT_KEY[role] ? t(SEAT_SHORT_KEY[role]) : role}
       </span>
     );
   }
@@ -101,10 +114,10 @@ export function SeatTag({ role, variant }: { role: Seat | null; variant: "rail" 
   return (
     <>
       <span className="font-mono text-[12.5px] tracking-[0.08em] text-text-primary uppercase">
-        {(role && SEAT_LABEL[role]) ?? role}
+        {role && SEAT_LABEL_KEY[role] ? t(SEAT_LABEL_KEY[role]) : role}
       </span>
       <span className="truncate font-ui text-[12px] text-text-dim">
-        {(role && SEAT_PURPOSE[role]) ?? ""}
+        {role && SEAT_PURPOSE_KEY[role] ? t(SEAT_PURPOSE_KEY[role]) : ""}
       </span>
     </>
   );

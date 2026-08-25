@@ -2,6 +2,7 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { InfoIcon, WarnIcon } from "./ui";
+import { useT } from "@/lib/i18n";
 
 /**
  * The states a live screen can be in, minus loading.
@@ -31,14 +32,16 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 export function SignedOutState({ note }: { note?: string }) {
   const { login, ready } = usePrivy();
+  const t = useT();
   return (
     <Frame>
       <p className="font-mono text-[13px] tracking-[0.06em] text-text-primary uppercase">
-        Sign in to continue
+        {t("state_signed_out_title")}
       </p>
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-        {note ??
-          "Your agents are tied to your Canopy account. Signing in here uses the same login as the exchange."}
+        {/* A caller-supplied note wins: it names the specific thing behind
+            the wall, and it arrives already translated by whoever passed it. */}
+        {note ?? t("state_signed_out_body")}
       </p>
       <button
         type="button"
@@ -46,7 +49,7 @@ export function SignedOutState({ note }: { note?: string }) {
         onClick={() => login()}
         className="mt-2 border border-accent px-5 py-2.5 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent-wash disabled:opacity-40"
       >
-        Sign in
+        {t("state_sign_in")}
       </button>
     </Frame>
   );
@@ -59,11 +62,12 @@ export function ErrorState({
   message: string;
   onRetry?: () => void;
 }) {
+  const t = useT();
   return (
     <Frame>
       <WarnIcon className="mx-auto text-warning" />
       <p className="font-mono text-[13px] tracking-[0.06em] text-text-primary uppercase">
-        Could not load
+        {t("state_error_title")}
       </p>
       {/* The real message, not a sanitised one — a user reporting a bug should
           be able to quote something specific. */}
@@ -76,7 +80,7 @@ export function ErrorState({
           onClick={onRetry}
           className="mt-2 border border-border px-5 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:text-text-primary"
         >
-          Try again
+          {t("state_try_again")}
         </button>
       ) : null}
     </Frame>

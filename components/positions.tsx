@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tokenPrice, tokenQty, usd } from "@/lib/format";
+import { shortDate, tokenPrice, tokenQty, usd } from "@/lib/format";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   getAgentFills,
@@ -15,6 +15,7 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo, Badge } from "@/components/ui";
 import { ClosePositionModal } from "@/components/closePosition";
+import { useLocale } from "@/lib/i18n";
 
 /**
  * What the agent owns, and what it has done.
@@ -54,15 +55,20 @@ export function Positions({
   onChanged?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("open");
+  const { t } = useLocale();
 
   return (
     <div>
       <div className="flex items-center gap-1 pt-4">
         <TabButton active={tab === "open"} onClick={() => setTab("open")}>
-          Open{positions.length > 0 ? ` · ${aggregate(positions, universe).length}` : ""}
+          {positions.length > 0
+            ? t("positions_tab_open_count", {
+                count: aggregate(positions, universe).length,
+              })
+            : t("positions_tab_open")}
         </TabButton>
         <TabButton active={tab === "history"} onClick={() => setTab("history")}>
-          History
+          {t("positions_tab_history")}
         </TabButton>
       </div>
 
@@ -202,12 +208,13 @@ function OpenTable({
   const [open, setOpen] = useState<string | null>(null);
   /** The holding awaiting confirmation, or null when no dialog is up. */
   const [closing, setClosing] = useState<Holding | null>(null);
+  const { t, locale } = useLocale();
   const holdings = aggregate(positions, universe);
 
   if (holdings.length === 0) {
     return (
       <p className="pt-5 font-ui text-[13px] text-text-secondary">
-        Nothing open. The agent is in cash until its entry rule is met.
+        {t("positions_empty")}
       </p>
     );
   }
@@ -218,11 +225,11 @@ function OpenTable({
           the data columns line up exactly whatever the × column costs. */}
       <div className="hidden items-center gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:flex">
         <div className="grid flex-1 grid-cols-[1.4fr_repeat(4,1fr)_auto] gap-3">
-          <span>Asset</span>
-          <span className="text-right">Qty</span>
-          <span className="text-right">Avg cost</span>
-          <span className="text-right">Value</span>
-          <span className="text-right">P&amp;L</span>
+          <span>{t("positions_col_asset")}</span>
+          <span className="text-right">{t("positions_col_qty")}</span>
+          <span className="text-right">{t("positions_col_avg_cost")}</span>
+          <span className="text-right">{t("positions_col_value")}</span>
+          <span className="text-right">{t("positions_col_pnl")}</span>
           <span className="w-8" />
         </div>
         <span className="w-9" />
@@ -257,8 +264,11 @@ function OpenTable({
                 </span>
                 <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
                   {h.lots.length === 1
-                    ? `since ${shortDate(h.openedAt)}`
-                    : `${h.lots.length} entries · since ${shortDate(h.openedAt)}`}
+                    ? t("positions_since", { date: shortDate(h.openedAt, locale) })
+                    : t("positions_entries_since", {
+                        count: h.lots.length,
+                        date: shortDate(h.openedAt, locale),
+                      })}
                 </span>
               </span>
               <Cell>{tokenQty(h.qty, h.markUsd)}</Cell>
@@ -268,7 +278,7 @@ function OpenTable({
               <Cell>
                 <span title={tokenPrice(h.avgUsd).label}>{tokenPrice(h.avgUsd).display}</span>
               </Cell>
-              <Cell>{h.valueUsd === null ? "not priced" : usd(h.valueUsd)}</Cell>
+              <Cell>{h.valueUsd === null ? t("positions_not_priced") : usd(h.valueUsd)}</Cell>
               {/* Dollars lead, percent underneath. A percentage alone cannot be
                   weighed: −6% is a rounding error on one holding and the worst
                   loss on the book on another, and the reader had to work it out
@@ -303,8 +313,8 @@ function OpenTable({
             <button
               type="button"
               onClick={() => setClosing(h)}
-              aria-label={`Close the ${h.symbol} position`}
-              title="Close this position"
+              aria-label={t("positions_close_aria", { symbol: h.symbol })}
+              title={t("positions_close_title")}
               // Dim until hovered or focused. It sells something, so it should
               // not compete for attention with the figures — but it must be
               // reachable by keyboard, which is why focus-visible lights it too.
@@ -325,7 +335,7 @@ function OpenTable({
             {expanded ? (
               <div className="pb-3 pl-3">
                 <p className="pb-1.5 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
-                  Entries
+                  {t("positions_entries")}
                 </p>
                 {h.lots.map((l, i) => (
                   <div
@@ -333,7 +343,7 @@ function OpenTable({
                     className="flex items-baseline justify-between gap-3 border-l border-grid py-1 pl-3"
                   >
                     <span className="font-ui text-[11.5px] text-text-secondary">
-                      {i + 1}. {shortDate(l.openedAt)}
+                      {i + 1}. {shortDate(l.openedAt, locale)}
                     </span>
                     <span className="tnum font-mono text-[11.5px] text-text-dim">
                       {tokenQty(l.qty, l.costUsd / (l.qty || 1))} @{" "}
@@ -372,8 +382,10 @@ function Cell({ children }: { children: React.ReactNode }) {
 /* --------------------------------------------------------------- history -- */
 
 function HistoryTable({ agentId }: { agentId: number }) {
-  const state = useApi((t) => getAgentFills(t, agentId), [agentId]);
+  // `token`, not `t` — the translator holds that name below.
+  const state = useApi((token) => getAgentFills(token, agentId), [agentId]);
   const { getAccessToken } = usePrivy();
+  const { t } = useLocale();
 
   // Pages AFTER the first. useApi replaces its data on each fetch, which is
   // right for a single view and wrong for an accumulating list — so the first
@@ -397,7 +409,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
   }, [firstId, agentId]);
 
   if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "loading") return <SkeletonRows label="Loading trades" cols="1.4fr 1fr 1fr 1fr 1fr auto" rows={5} />;
+  if (state.phase === "loading") return <SkeletonRows labelKey="loading_trades" cols="1.4fr 1fr 1fr 1fr 1fr auto" rows={5} />;
   if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
 
   const fills = [...state.data.fills, ...extra];
@@ -413,7 +425,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
     setPageError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to load more.");
+      if (!token) throw new Error(t("positions_sign_in_more"));
       const page = await getAgentFills(token, agentId, next);
       setExtra((prev) => [...prev, ...page.fills]);
       setCursor({ before: page.nextBefore, beforeId: page.nextBeforeId });
@@ -428,7 +440,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
   if (fills.length === 0) {
     return (
       <p className="pt-5 font-ui text-[13px] text-text-secondary">
-        Nothing filled yet. Every cycle is still recorded in the activity log below.
+        {t("positions_history_empty")}
       </p>
     );
   }
@@ -436,12 +448,12 @@ function HistoryTable({ agentId }: { agentId: number }) {
   return (
     <div className="pt-4">
       <div className="hidden grid-cols-[auto_1.2fr_repeat(4,1fr)] gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:grid">
-        <span>Side</span>
-        <span>Asset</span>
-        <span className="text-right">Qty</span>
-        <span className="text-right">Price</span>
-        <span className="text-right">Value</span>
-        <span className="text-right">Realised</span>
+        <span>{t("positions_col_side")}</span>
+        <span>{t("positions_col_asset")}</span>
+        <span className="text-right">{t("positions_col_qty")}</span>
+        <span className="text-right">{t("positions_col_price")}</span>
+        <span className="text-right">{t("positions_col_value")}</span>
+        <span className="text-right">{t("positions_col_realised")}</span>
       </div>
 
       {fills.map((f) => (
@@ -460,12 +472,20 @@ function HistoryTable({ agentId }: { agentId: number }) {
             disabled={loading}
             className="border border-grid px-3 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
           >
-            {loading ? "Loading…" : "Load more"}
+            {t(loading ? "positions_loading" : "positions_load_more")}
           </button>
         ) : null}
+        {/* One sentence per case: "so far" and "all of them" attach to the
+            count differently in the two languages, and the singular drops the
+            plural pronoun entirely. */}
         <p className="font-ui text-[11.5px] text-text-dim">
-          {fills.length} {fills.length === 1 ? "trade" : "trades"}
-          {hasMore ? " so far" : " — all of them"}
+          {hasMore
+            ? fills.length === 1
+              ? t("positions_count_one_partial")
+              : t("positions_count_many_partial", { count: fills.length })
+            : fills.length === 1
+              ? t("positions_count_one_all")
+              : t("positions_count_many_all", { count: fills.length })}
         </p>
       </div>
     </div>
@@ -473,6 +493,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
 }
 
 function FillRow({ fill: f }: { fill: AgentFill }) {
+  const { t, locale } = useLocale();
   const sell = f.side === "sell" || f.side === "remove_liquidity";
   const realised = f.realized_pnl_usd === null ? null : Number(f.realized_pnl_usd);
 
@@ -483,7 +504,7 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
           sell ? "text-negative" : "text-accent"
         }`}
       >
-        {sell ? "Sell" : "Buy"}
+        {t(sell ? "positions_side_sell" : "positions_side_buy")}
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -491,11 +512,15 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
           <span className="truncate font-mono text-[12.5px] text-text-primary">{f.symbol}</span>
           {/* Labelled, not hidden. Every agent is paper today, so a history
               that silently implied real fills would mislead every reader. */}
-          {f.is_paper ? <Badge tone="muted">Paper</Badge> : null}
+          {f.is_paper ? <Badge tone="muted">{t("positions_badge_paper")}</Badge> : null}
         </span>
         <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
-          {shortDate(f.executed_at)}
-          {f.tick_seq ? ` · cycle ${f.tick_seq}` : ""}
+          {f.tick_seq
+            ? t("positions_fill_cycle", {
+                date: shortDate(f.executed_at, locale),
+                cycle: f.tick_seq,
+              })
+            : shortDate(f.executed_at, locale)}
         </span>
       </span>
       <Cell>{tokenQty(Number(f.qty), Number(f.price_usd))}</Cell>
@@ -518,10 +543,4 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
   );
 }
 
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "2-digit",
-  });
-}
+// `shortDate` moved to lib/format, where it takes the locale.

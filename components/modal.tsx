@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/lib/i18n";
 
 /**
  * The dialog frame every modal sits in.
@@ -49,6 +50,9 @@ export function Modal({
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
+  // `title` arrives already translated from the caller — only the close
+  // button's own name is this component's to say.
+  const t = useT();
 
   useEffect(() => {
     returnTo.current = document.activeElement as HTMLElement;
@@ -106,14 +110,16 @@ export function Modal({
       >
         {headless ? null : (
           <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-5 pb-1">
-            <h2 className="font-mono text-[20px] leading-none text-text-primary">{title}</h2>
+            <h2 className="font-mono text-[20px] leading-none text-text-primary">
+              {title}
+            </h2>
             {/* A mark in a hit target, not a bare glyph. 16px of text is a hard
                 thing to aim at, and this is the control every dialog needs to
                 offer and none of them are opened for. */}
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t("common_close")}
               className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary"
             >
               <svg
@@ -137,4 +143,3 @@ export function Modal({
     document.body,
   );
 }
-

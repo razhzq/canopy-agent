@@ -13,6 +13,7 @@ import { useUsername } from "@/lib/useUsername";
 import { movedOverUsd } from "@/lib/perf";
 import { num } from "@/lib/api";
 import type { Holding, Totals } from "@/components/portfolioOverview";
+import { useT } from "@/lib/i18n";
 
 /**
  * The profile — wireframe M02.
@@ -46,6 +47,7 @@ export function ProfileMobile({
   totals: Totals;
 }) {
   const { logout } = usePrivy();
+  const t = useT();
   const { username, loaded: nameLoaded } = useUsername();
   const wallet = usePersonalWallet();
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("24H");
@@ -111,20 +113,23 @@ export function ProfileMobile({
             <button
               type="button"
               onClick={() => setModal("username")}
-              aria-label="Edit your profile"
+              aria-label={t("profile_edit_aria")}
               className="absolute top-12 left-12 flex size-[26px] items-center justify-center rounded-[13px] border-[3px] border-bg bg-surface-2"
             >
               <Pencil className="size-3 text-text-primary" aria-hidden />
             </button>
           </div>
+          {/* No language toggle here any more: the top bar carries one at
+              every width now, and a second copy two taps into the profile was
+              the harder of the two to find. */}
           <div className="flex items-center gap-[18px] pt-2.5">
-            <Link href="/notifications" aria-label="Notifications">
+            <Link href="/notifications" aria-label={t("profile_notifications_aria")}>
               <Gift className="size-5 text-text-secondary" aria-hidden />
             </Link>
-            <Link href="/activity" aria-label="Activity">
+            <Link href="/activity" aria-label={t("profile_activity_aria")}>
               <History className="size-5 text-text-secondary" aria-hidden />
             </Link>
-            <Link href="/settings" aria-label="Settings">
+            <Link href="/settings" aria-label={t("profile_settings_aria")}>
               <Settings className="size-5 text-text-secondary" aria-hidden />
             </Link>
           </div>
@@ -132,7 +137,7 @@ export function ProfileMobile({
 
         <div className="space-y-1">
           <p className="font-ui text-[26px] leading-none font-semibold tracking-[-0.6px] text-text-primary">
-            {username ?? "Your portfolio"}
+            {username ?? t("profile_your_portfolio")}
           </p>
           {handle ? <p className="font-mono text-[13.5px] text-text-muted">@{handle}</p> : null}
         </div>
@@ -147,21 +152,33 @@ export function ProfileMobile({
             onClick={() => setModal("username")}
             className="font-ui text-[14.5px] font-medium text-accent"
           >
-            + Set a username
+            {t("account_set_username")}
           </button>
         ) : null}
 
         {/* Following / Followers in the wireframe. There is no social graph, so
             the shape carries two figures that are real. */}
         <div className="flex items-center gap-[18px]">
-          <Stat value={String(totals.counted)} label={totals.counted === 1 ? "Agent" : "Agents"} />
-          <Stat value={cycles.toLocaleString("en-US")} label="Cycles" />
+          <Stat
+            value={String(totals.counted)}
+            label={t(totals.counted === 1 ? "profile_stat_agent" : "profile_stat_agents")}
+          />
+          <Stat value={cycles.toLocaleString("en-US")} label={t("profile_stat_cycles")} />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-          <Meta icon={<Timer className="size-[13px]" aria-hidden />} text={`${totals.marked ? "Marked live" : "Marked at last cycle"}`} />
-          <Meta icon={<Wallet className="size-[13px]" aria-hidden />} text={`${money(totals.openBookUsd)} open`} />
-          <Meta icon={<Trees className="size-[13px]" aria-hidden />} text={totals.allPaper ? "Paper" : "Live"} />
+          <Meta
+            icon={<Timer className="size-[13px]" aria-hidden />}
+            text={t(totals.marked ? "profile_marked_live" : "profile_marked_last_cycle")}
+          />
+          <Meta
+            icon={<Wallet className="size-[13px]" aria-hidden />}
+            text={t("profile_open_amount", { amount: money(totals.openBookUsd) })}
+          />
+          <Meta
+            icon={<Trees className="size-[13px]" aria-hidden />}
+            text={t(totals.allPaper ? "profile_paper" : "profile_live")}
+          />
         </div>
       </div>
 
@@ -170,7 +187,9 @@ export function ProfileMobile({
         <div className="flex items-start justify-between px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
             <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
-              Aggregate equity · {totals.counted} {totals.counted === 1 ? "agent" : "agents"}
+              {totals.counted === 1
+                ? t("profile_aggregate_equity_one")
+                : t("profile_aggregate_equity_many", { count: totals.counted })}
             </p>
             <p className="flex items-end font-mono text-[32px] leading-none font-semibold tracking-[-1.1px]">
               <span className="text-text-primary">{whole}</span>
@@ -216,13 +235,13 @@ export function ProfileMobile({
             />
           ) : (
             <p className="px-[18px] py-14 text-center font-ui text-[12.5px] text-text-dim">
-              No readings yet — the curve starts at the first settled cycle.
+              {t("profile_no_readings")}
             </p>
           )}
         </div>
 
         <p className="px-[18px] pt-1 pb-3.5 font-mono text-[9px] font-medium tracking-[0.5px] text-text-muted">
-          Capital held at today&apos;s total, so funding an agent does not read as a gain.
+          {t("profile_capital_note")}
         </p>
       </div>
 
@@ -232,16 +251,26 @@ export function ProfileMobile({
           <Wallet className="size-[19px] text-text-secondary" aria-hidden />
         </span>
         <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="font-ui text-[14px] font-medium text-text-secondary">Idle cash</p>
+          <p className="font-ui text-[14px] font-medium text-text-secondary">
+            {t("profile_idle_cash")}
+          </p>
           <p className="font-mono text-[17px] font-semibold text-text-primary">
             {money(totals.idleUsd)}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <IconButton label="Deposit" onClick={() => setModal("deposit")} disabled={!wallet}>
+          <IconButton
+            label={t("account_deposit")}
+            onClick={() => setModal("deposit")}
+            disabled={!wallet}
+          >
             <Plus className="size-[17px]" aria-hidden />
           </IconButton>
-          <IconButton label="Withdraw" onClick={() => setModal("withdraw")} disabled={!wallet}>
+          <IconButton
+            label={t("account_withdraw")}
+            onClick={() => setModal("withdraw")}
+            disabled={!wallet}
+          >
             <Ellipsis className="size-[17px]" aria-hidden />
           </IconButton>
         </div>
@@ -251,7 +280,7 @@ export function ProfileMobile({
       <div className="pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3.5">
           <p className="font-ui text-[19px] font-semibold tracking-[-0.3px] text-text-primary">
-            Your agents
+            {t("profile_your_agents")}
           </p>
           <div className="flex gap-0.5 rounded-[10px] border border-border bg-surface p-[3px]">
             {[true, false].map((v) => (
@@ -264,7 +293,7 @@ export function ProfileMobile({
                   live === v ? "bg-accent-wash text-accent" : "text-text-muted"
                 }`}
               >
-                {v ? "Live" : "Paused"}
+                {t(v ? "profile_filter_live" : "profile_filter_paused")}
                 {v && live ? <span className="size-1.5 rounded-full bg-accent" /> : null}
               </button>
             ))}
@@ -285,7 +314,7 @@ export function ProfileMobile({
                     : "font-medium text-text-secondary"
                 }`}
               >
-                {c === "all" ? "All" : c}
+                {c === "all" ? t("common_all") : c}
               </button>
             ))}
           </div>
@@ -293,7 +322,7 @@ export function ProfileMobile({
 
         {rows.length === 0 ? (
           <p className="px-[18px] py-10 text-center font-ui text-[13px] text-text-dim">
-            {live ? "No agents running right now." : "Nothing paused."}
+            {t(live ? "profile_none_running" : "profile_none_paused")}
           </p>
         ) : (
           <ul className="px-[18px]">
@@ -318,7 +347,7 @@ export function ProfileMobile({
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3.5 text-negative/90 transition-colors hover:bg-surface hover:text-negative"
         >
           <LogOut className="size-4" aria-hidden />
-          <span className="font-ui text-[14px] font-semibold">Sign out</span>
+          <span className="font-ui text-[14px] font-semibold">{t("account_sign_out")}</span>
         </button>
       </div>
 
@@ -334,6 +363,7 @@ export function ProfileMobile({
 }
 
 function OwnedRow({ holding, first }: { holding: Holding; first: boolean }) {
+  const t = useT();
   const { agent, mark } = holding;
   const moved = mark ? movedOverUsd(mark.points, Date.now() - 86_400_000) : null;
   const cycle = mark?.points.length ? mark.points[mark.points.length - 1].tickSeq : null;
@@ -350,12 +380,16 @@ function OwnedRow({ holding, first }: { holding: Holding; first: boolean }) {
               {agent.strategy_name}
             </span>
             <span className="shrink-0 rounded bg-surface-2 px-[5px] py-0.5 font-mono text-[8.5px] font-semibold tracking-[0.6px] text-text-secondary uppercase">
-              {agent.is_paper ? "paper" : agent.strategy_class}
+              {agent.is_paper ? t("profile_badge_paper") : agent.strategy_class}
             </span>
           </span>
           <span className="block font-mono text-[11.5px] text-text-dim">
-            {money(num(agent.capital_usd) ?? 0)} deployed
-            {cycle === null ? "" : ` · cycle ${cycle}`}
+            {cycle === null
+              ? t("profile_deployed", { amount: money(num(agent.capital_usd) ?? 0) })
+              : t("profile_deployed_cycle", {
+                  amount: money(num(agent.capital_usd) ?? 0),
+                  cycle,
+                })}
           </span>
         </span>
         <span className="shrink-0 space-y-1 text-right">

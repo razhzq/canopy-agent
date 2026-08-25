@@ -7,5 +7,5 @@
 import { SkeletonAgentDetail } from "@/components/skeleton";
 
 export default function Loading() {
-  return <SkeletonAgentDetail label="Loading strategy" />;
+  return <SkeletonAgentDetail labelKey="loading_strategy" />;
 }

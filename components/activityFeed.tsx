@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
-import { headline, STATUS_TONE } from "@/components/activity";
+import { headline, STATUS_LABEL_KEY, STATUS_TONE } from "@/components/activity";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { Badge } from "@/components/ui";
 import { getActivity, listAgents, type ActivityCycle, type AgentRow } from "@/lib/api";
 import { CONCURRENCY, pooled } from "@/lib/pool";
+import { compactAge } from "@/lib/format";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * Everything your agents have done lately, in one column.
@@ -38,6 +40,7 @@ type Filter = "all" | "traded" | "quiet";
 
 export function ActivityFeed() {
   const { ready, authenticated, getAccessToken } = usePrivy();
+  const t = useT();
 
   // Held still for the same reason MyAgents does it: `load` is a dependency of
   // the effect that runs it, and Privy hands back a new closure every render.
@@ -139,7 +142,7 @@ export function ActivityFeed() {
   );
 
   if (state.phase === "loading")
-    return <SkeletonRows label="Loading activity" cols="minmax(0,1fr) 90px" />;
+    return <SkeletonRows labelKey="loading_activity" cols="minmax(0,1fr) 90px" />;
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;
@@ -148,13 +151,13 @@ export function ActivityFeed() {
     return (
       <div className="px-6 py-10 sm:px-8">
         <EmptyState
-          title="Nothing yet"
-          body={
+          title={t("feed_empty_title")}
+          body={t(state.agents === 0 ? "feed_empty_no_agents" : "feed_empty_no_cycles")}
+          action={
             state.agents === 0
-              ? "Deploy an agent and every cycle it runs shows up here — including the ones where it decided to do nothing."
-              : "Your agents haven't completed a cycle yet. The first one appears here as soon as they wake up."
+              ? { label: t("feed_empty_action"), href: "/build/new" }
+              : undefined
           }
-          action={state.agents === 0 ? { label: "Create agent", href: "/build/new" } : undefined}
         />
       </div>
     );
@@ -165,11 +168,11 @@ export function ActivityFeed() {
       <div className="flex gap-2 border-b border-grid px-6 py-3 sm:px-8">
         {(
           [
-            ["all", "All"],
-            ["traded", "Traded"],
-            ["quiet", "Quiet"],
-          ] as const
-        ).map(([key, label]) => (
+            ["all", "feed_filter_all"],
+            ["traded", "feed_filter_traded"],
+            ["quiet", "feed_filter_quiet"],
+          ] as [Filter, TranslationKey][]
+        ).map(([key, labelKey]) => (
           <button
             key={key}
             type="button"
@@ -181,16 +184,14 @@ export function ActivityFeed() {
                 : "border-transparent text-text-dim hover:text-text-secondary"
             }`}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
 
       {shown.length === 0 ? (
         <p className="px-6 py-10 text-center font-ui text-[13px] text-text-dim sm:px-8">
-          {filter === "traded"
-            ? "No cycles traded in this window."
-            : "Every cycle in this window traded."}
+          {t(filter === "traded" ? "feed_none_traded" : "feed_all_traded")}
         </p>
       ) : (
         <ul>
@@ -200,11 +201,20 @@ export function ActivityFeed() {
         </ul>
       )}
 
+      {/* One sentence per case. The English pluralises with an apostrophe
+          ("agent's" / "agents'") that has no counterpart in Chinese, so the
+          clause is translated whole rather than built from a stem. */}
       <p className="px-6 py-5 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase sm:px-8">
-        {shown.length} of {entries.length} · last {PER_AGENT} cycles from {state.agents}{" "}
-        {state.agents === 1 ? "agent" : "agents"} you own
+        {t(state.agents === 1 ? "feed_footer_one" : "feed_footer_many", {
+          shown: shown.length,
+          total: entries.length,
+          per: PER_AGENT,
+          agents: state.agents,
+        })}
         {state.partial > 0
-          ? ` · ${state.partial} agent${state.partial === 1 ? "'s" : "s'"} log didn't load`
+          ? state.partial === 1
+            ? t("feed_footer_partial_one")
+            : t("feed_footer_partial_many", { count: state.partial })
           : ""}
       </p>
     </div>
@@ -213,6 +223,7 @@ export function ActivityFeed() {
 
 function Row({ entry }: { entry: Entry }) {
   const { agent, cycle } = entry;
+  const t = useT();
   return (
     <li>
       <Link
@@ -226,19 +237,19 @@ function Row({ entry }: { entry: Entry }) {
             </span>
             <span className="font-mono text-[10px] text-text-dim">#{cycle.tick_seq}</span>
             {agent.is_paper ? (
-              <Badge tone="simulated">Paper</Badge>
+              <Badge tone="simulated">{t("feed_badge_paper")}</Badge>
             ) : null}
             {cycle.status !== "ok" ? (
-              <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+              <Badge tone={STATUS_TONE[cycle.status]}>{t(STATUS_LABEL_KEY[cycle.status])}</Badge>
             ) : null}
           </div>
           {/* The same sentence the agent's own log uses for this tick. */}
           <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {headline(cycle)}
+            {headline(cycle, t)}
           </p>
         </div>
         <span className="shrink-0 pt-0.5 font-mono text-[10px] text-text-muted">
-          {ago(cycle.started_at)}
+          {compactAge(cycle.started_at, t)}
         </span>
       </Link>
     </li>
@@ -250,11 +261,4 @@ function traded(c: ActivityCycle): boolean {
   return c.decisions.some((d) => d.role === "trader" && d.output?.filledUsd !== undefined);
 }
 
-function ago(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
-}
+// `ago` moved to lib/format as `compactAge`.

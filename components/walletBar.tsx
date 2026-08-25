@@ -28,12 +28,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/lib/useApi";
 import { getAgentFunding, getAgentModel } from "@/lib/api";
-import { FundingPanel } from "@/components/funding";
 import { WithdrawModal } from "@/components/walletModals";
 import { AddFundsModal } from "@/components/addFunds";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { SolanaMark } from "@/components/chainMark";
 import { LABEL, PRIMARY, SECONDARY, SURFACE } from "@/components/kit";
+import { useT } from "@/lib/i18n";
 
 export function WalletBar({
   agentId,
@@ -45,6 +45,7 @@ export function WalletBar({
   isPaper: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const t = useT();
   const [moving, setMoving] = useState<"deposit" | "withdraw" | null>(null);
   // Where a withdrawal goes by default. The agent's wallet is an ADDITIONAL
   // wallet on the owner's own Privy account (grantDelegation calls
@@ -71,7 +72,7 @@ export function WalletBar({
     if (isPaper) return null;
     return (
       <span className="font-ui text-[12px] text-text-dim">
-        No wallet provisioned
+        {t("wallet_none_provisioned")}
       </span>
     );
   }
@@ -94,7 +95,7 @@ export function WalletBar({
           it is the address — the only thing here you can do something with.
           Rule 3. */}
       <span className="flex w-[236px] shrink-0 flex-col gap-2">
-        <Row label="USDC balance">
+        <Row label={t("wallet_usdc_balance")}>
           <Balance agentId={agentId} />
         </Row>
 
@@ -108,7 +109,7 @@ export function WalletBar({
           type="button"
           onClick={() => copy(address)}
           title={address}
-          aria-label={`Copy wallet address ${address}`}
+          aria-label={t("wallet_copy_aria", { address })}
           className={`group flex items-center gap-2 ${SURFACE} px-2 py-1.5 transition-colors hover:border-accent`}
         >
           <ChainDisc />
@@ -120,7 +121,7 @@ export function WalletBar({
               copied ? "text-accent" : "text-text-dim group-hover:text-accent"
             }`}
           >
-            {copied ? "Copied" : "Copy"}
+            {t(copied ? "common_copied" : "common_copy")}
           </span>
         </button>
 
@@ -133,7 +134,7 @@ export function WalletBar({
             onClick={() => setMoving("deposit")}
             className={`flex-1 ${PRIMARY}`}
           >
-            Deposit
+            {t("wallet_deposit")}
           </button>
           <button
             type="button"
@@ -143,7 +144,7 @@ export function WalletBar({
             // it can do next.
             className={`flex-1 ${SECONDARY}`}
           >
-            Withdraw
+            {t("wallet_withdraw")}
           </button>
         </span>
       </span>
@@ -230,9 +231,10 @@ function Row({
  * saying what a 16px mark says.
  */
 function ChainDisc() {
+  const t = useT();
   return (
     <span
-      title="Solana mainnet"
+      title={t("wallet_solana_mainnet")}
       className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-grid bg-bg"
     >
       <SolanaMark className="size-[9px]" />
@@ -254,14 +256,15 @@ function ChainDisc() {
  */
 function ModelCredit({ agentId }: { agentId: number }) {
   const state = useApi((token) => getAgentModel(token, agentId), [agentId]);
+  const t = useT();
   if (state.phase !== "ready") return null;
   const balance = state.data.balance;
   if (!balance) return null;
 
   const low = balance.lowBalance || balance.usdc <= 0;
   return (
-    <span title="Prepaid model credit — pays for this agent's reasoning, and cannot be withdrawn">
-      <Row label="Model credit">
+    <span title={t("wallet_model_credit_title")}>
+      <Row label={t("wallet_model_credit")}>
         <span
           className={`tnum font-mono text-[13px] ${low ? "text-warning" : "text-text-primary"}`}
         >
@@ -275,6 +278,7 @@ function ModelCredit({ agentId }: { agentId: number }) {
 
 function Balance({ agentId }: { agentId: number }) {
   const state = useApi((token) => getAgentFunding(token, agentId), [agentId]);
+  const t = useT();
 
   if (state.phase === "loading") {
     return (
@@ -288,7 +292,9 @@ function Balance({ agentId }: { agentId: number }) {
   // the message that tells someone to send money they have already sent.
   if (state.phase !== "ready") {
     return (
-      <span className="font-mono text-[12.5px] text-text-dim">balance —</span>
+      <span className="font-mono text-[12.5px] text-text-dim">
+        {t("wallet_balance_unknown")}
+      </span>
     );
   }
 

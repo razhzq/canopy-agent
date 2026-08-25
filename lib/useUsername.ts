@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { getUserProfile, setUsername as setUsernameApi } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 type State = {
   /** null = this identity has no username yet. */
@@ -41,6 +42,7 @@ function publish(next: State) {
  * worse first impression than a moment of nothing.
  */
 export function useUsername() {
+  const t = useT();
   const { authenticated, user, getAccessToken } = usePrivy();
   const privyId = user?.id ?? null;
   const [, bump] = useState(0);
@@ -83,13 +85,13 @@ export function useUsername() {
 
   const save = useCallback(
     async (name: string) => {
-      if (!privyId) throw new Error("your session expired — sign in and try again");
+      if (!privyId) throw new Error(t("error_session_expired"));
       const token = await getAccessToken();
-      if (!token) throw new Error("your session expired — sign in and try again");
+      if (!token) throw new Error(t("error_session_expired"));
       const { user: updated } = await setUsernameApi(token, privyId, name);
       publish({ username: updated.username ?? name, loaded: true });
     },
-    [privyId, getAccessToken],
+    [privyId, getAccessToken, t],
   );
 
   return { username: cache.username, loaded: cache.loaded, save };

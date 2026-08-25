@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { Marketplace } from "@/components/marketplace";
+import { getServerT } from "@/lib/i18n/server";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getServerT())("page_title_agents") };
+}
 
 /**
  * The agent list.

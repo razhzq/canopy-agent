@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { closePosition } from "@/lib/api";
 import { AssetLogo } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 
 export interface ClosableHolding {
   mint: string;
@@ -51,6 +52,7 @@ export function ClosePositionModal({
   onClosed: () => void;
 }) {
   const { getAccessToken } = usePrivy();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -98,7 +100,7 @@ export function ClosePositionModal({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to close this position.");
+      if (!token) throw new Error(t("close_sign_in"));
       await closePosition(token, agentId, holding.mint);
       onClosed();
       onClose();
@@ -135,29 +137,37 @@ export function ClosePositionModal({
               id="close-position-title"
               className="font-mono text-[13px] tracking-[0.06em] text-text-primary"
             >
-              Close {holding.symbol}?
+              {t("close_title", { symbol: holding.symbol })}
             </h2>
             <p className="pt-0.5 font-ui text-[12px] text-text-dim">
-              The whole position, sold at the market now.
+              {t("close_subtitle")}
             </p>
           </div>
         </div>
 
         <dl className="divide-y divide-grid px-6">
-          <Row label="Size" value={`${holding.qty.toFixed(4)} ${holding.symbol}`} />
-          <Row label="Average cost" value={`$${holding.avgUsd.toFixed(2)}`} />
+          <Row label={t("close_size")} value={`${holding.qty.toFixed(4)} ${holding.symbol}`} />
+          <Row label={t("close_avg_cost")} value={`$${holding.avgUsd.toFixed(2)}`} />
           <Row
-            label="Price now"
-            value={holding.markUsd === null ? "not priced" : `$${holding.markUsd.toFixed(2)}`}
+            label={t("close_price_now")}
+            value={
+              holding.markUsd === null
+                ? t("close_not_priced")
+                : `$${holding.markUsd.toFixed(2)}`
+            }
             dim={holding.markUsd === null}
           />
           <Row
-            label="Total value"
-            value={holding.valueUsd === null ? "not priced" : `$${holding.valueUsd.toFixed(2)}`}
+            label={t("close_total_value")}
+            value={
+              holding.valueUsd === null
+                ? t("close_not_priced")
+                : `$${holding.valueUsd.toFixed(2)}`
+            }
             dim={holding.valueUsd === null}
           />
           <Row
-            label="P&L"
+            label={t("close_pnl")}
             dim={holding.pnlUsd === null}
             tone={holding.pnlUsd === null ? "none" : holding.pnlUsd >= 0 ? "up" : "down"}
             value={
@@ -174,13 +184,11 @@ export function ClosePositionModal({
         <div className="space-y-4 px-6 py-5">
           {!priced ? (
             <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-              This asset has no readable price right now. The sale will be refused
-              rather than filled at a guess — try again in a few minutes.
+              {t("close_unpriced_note")}
             </p>
           ) : (
             <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              The agent keeps running and keeps its other positions. It may buy
-              this back later if its entry rule is met again.
+              {t("close_note")}
             </p>
           )}
 
@@ -198,7 +206,7 @@ export function ClosePositionModal({
               onClick={onClose}
               className="h-11 flex-1 border border-border font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:bg-surface disabled:opacity-40"
             >
-              No, keep it
+              {t("close_keep")}
             </button>
             <button
               type="button"
@@ -206,7 +214,7 @@ export function ClosePositionModal({
               onClick={() => void confirm()}
               className="h-11 flex-1 border border-negative font-mono text-[11px] tracking-[0.1em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
             >
-              {busy ? "Closing…" : "Yes, close it"}
+              {t(busy ? "close_closing" : "close_confirm")}
             </button>
           </div>
         </div>

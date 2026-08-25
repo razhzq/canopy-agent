@@ -7,6 +7,7 @@ import {
   getCapabilityNotices,
   type CapabilityNotice,
 } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 /**
  * "You asked for this. It exists now."
@@ -27,6 +28,7 @@ import {
  * to announce it has no news trains people to skip the space.
  */
 export function CapabilityNotices() {
+  const t = useT();
   const { authenticated, getAccessToken } = usePrivy();
   const [notices, setNotices] = useState<CapabilityNotice[]>([]);
 
@@ -70,22 +72,25 @@ export function CapabilityNotices() {
             key={n.phraseNorm}
             className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border border-accent/30 bg-accent-wash px-4 py-3"
           >
+            {/*
+              One sentence per status, each translated whole. The two are
+              genuinely different news and are worded that way — "it works now"
+              after someone was told it did not is an apology, and "we built
+              it" is not — so neither is assembled from a shared stem.
+
+              The phrase and the capability key are quoted verbatim inside the
+              sentence rather than set in their own <span>: the mono run has to
+              be able to land anywhere in the line, and in Chinese it does not
+              land where it does in English.
+            */}
             <span className="min-w-0 font-ui text-[13px] text-text-primary">
-              You asked for{" "}
-              <span className="font-mono text-[12.5px] text-accent">{n.example}</span>.{" "}
-              {/*
-                The two statuses are genuinely different news and are worded
-                that way. "It works now" after someone was told it did not is an
-                apology; "we built it" is not.
-              */}
-              {n.status === "shipped"
-                ? "It has been built and you can use it now."
-                : "It turns out the agent could already do this."}
+              {t(n.status === "shipped" ? "capability_asked_shipped" : "capability_asked_existing", {
+                example: n.example,
+              })}
               {n.capabilityKey ? (
                 <span className="text-text-secondary">
                   {" "}
-                  Set it up under{" "}
-                  <span className="font-mono text-[12.5px]">{n.capabilityKey}</span>.
+                  {t("capability_set_up_under", { key: n.capabilityKey })}
                 </span>
               ) : null}
             </span>
@@ -94,7 +99,7 @@ export function CapabilityNotices() {
               onClick={() => void dismiss(n.phraseNorm)}
               className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
             >
-              Dismiss
+              {t("capability_dismiss")}
             </button>
           </li>
         ))}

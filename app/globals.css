@@ -52,8 +52,20 @@
   --color-text-dim: #838f88;
   --color-text-muted: #77877d;
 
-  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Inter and Plex Mono are loaded with the `latin` subset only, so neither
+     carries a single CJK glyph. Without an explicit fallback the browser picks
+     one per platform — and on Windows that is often a serif Ming face, which
+     next to this app's mono labels reads like a different product. Naming the
+     UI faces (PingFang on Apple, Microsoft YaHei on Windows, Noto on Linux)
+     costs English nothing: Latin never reaches past Inter. */
+  --font-cjk:
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
+    "Source Han Sans SC", "Heiti SC", sans-serif;
+
+  --font-mono:
+    var(--font-plex-mono), ui-monospace, SFMono-Regular, var(--font-cjk),
+    monospace;
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, var(--font-cjk), sans-serif;
 }
 
 @layer base {
@@ -83,6 +95,15 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-dim);
+}
+
+/* Tracking is a Latin device. The 0.08em–0.12em the design puts on every
+   uppercase label spaces CAPITALS legibly; applied to Hanzi — which are
+   already full-width and evenly set — it pulls a four-character label apart
+   into four separate words. `text-transform: uppercase` is simply inert on
+   CJK, so it is left alone rather than unset per rule. */
+:lang(zh) {
+  letter-spacing: normal;
 }
 
 @utility tnum {

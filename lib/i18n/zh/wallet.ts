@@ -1,0 +1,119 @@
+import type { enWallet } from "../en/wallet";
+
+export const zhWallet: Record<keyof typeof enWallet, string> = {
+  wallet_none_provisioned: "尚未开通钱包",
+  wallet_copy_aria: "复制钱包地址 {address}",
+  wallet_balance_unknown: "余额 —",
+  wallet_deposit: "充值",
+  wallet_withdraw: "提现",
+  wallet_usdc_balance: "USDC 余额",
+  wallet_solana_mainnet: "Solana 主网",
+  wallet_model_credit: "模型额度",
+  wallet_model_credit_title:
+    "预付模型额度 — 用于支付该智能体的推理费用，不可提现",
+  wallet_agent_wallet: "智能体钱包",
+  wallet_esc: "Esc",
+
+  deposit_title: "充值",
+  deposit_your_wallet: "您的钱包 · Solana",
+  deposit_copy_aria: "复制您的地址 {address}",
+  deposit_click_to_copy: "点击复制",
+  deposit_network_warning:
+    "仅限 Solana 网络。向该地址转入其他链的资产会导致资产永久丢失。这是您的个人钱包 — 给智能体注资请在该智能体的页面进行。",
+
+  withdraw_title: "提现",
+  withdraw_sent: "已发送",
+  withdraw_sent_body: "转账已提交，数秒内即可确认。",
+  withdraw_done: "完成",
+  withdraw_not_sent: "未发送",
+  withdraw_not_sent_body:
+    "没有任何资金离开您的钱包。重试之前请先确认余额，以防它其实已经到账。",
+  withdraw_back: "返回",
+  withdraw_to_label: "收款方 · Solana 地址",
+  withdraw_to_placeholder: "粘贴目标地址",
+  withdraw_not_an_address: "这不是一个 Solana 地址。",
+  withdraw_is_this_wallet: "这就是当前这个钱包。",
+  withdraw_shape_only:
+    "只校验了地址格式 — 没有人能替您确认这是不是您真正想转入的地址。转账无法撤销。",
+  withdraw_amount_label: "金额 · {asset}",
+  withdraw_max: "最大 {amount}",
+  withdraw_review: "确认信息",
+  withdraw_your_wallet: "您的钱包",
+  withdraw_send_elsewhere: "转到其他地址",
+  withdraw_back_to_your_wallet: "转回您的钱包",
+  withdraw_view_transaction: "查看交易",
+  withdraw_available: "可用 {asset}",
+  withdraw_amount_aria: "{asset} 金额",
+  withdraw_above_zero: "请输入大于零的金额。",
+  withdraw_over_sendable_sol:
+    "超过可转出的额度。有 {reserve} SOL 被保留用于支付手续费。",
+  withdraw_over_balance: "超过该钱包的余额。",
+  withdraw_not_valid_amount: "不是有效的金额。",
+  withdraw_wallet_not_connected: "该钱包未在当前会话中连接",
+
+  withdraw_sending: "转出",
+  withdraw_to: "收款方",
+  withdraw_rent_warning:
+    "该地址还没有 USDC 账户，系统会为它开一个。这需要您额外支付约 0.002 SOL 的租金，另计网络手续费。",
+  withdraw_final:
+    "转账不可逆。一旦提交，就无法撤销；地址填错的话资金也无法找回。",
+  withdraw_send: "发送",
+  withdraw_sending_busy: "发送中…",
+
+  funding_no_wallet_title: "尚未创建钱包",
+  funding_fallback_reading: "Canopy 无法读取该余额，正在直接查询链上…",
+  funding_read_failed: "无法读取该钱包的余额。",
+  funding_both_failed: "{backend}。直接查询链上也失败了：{chain}",
+  funding_direct_title: "直接从链上读取",
+  funding_direct_body:
+    "Canopy 无法连接它的 RPC 节点，因此该数字来自您的浏览器。它是从链上读取的真实余额。",
+  funding_usdc_available: "可用于交易",
+  funding_usdc_none: "没有 — 请转入 USDC",
+  funding_sol_covers: "足够支付手续费",
+  funding_sol_needs: "手续费需要 {min}",
+  funding_not_ready_title: "尚不具备实盘交易条件",
+  funding_funded_title: "资金已到位",
+  funding_funded_body: "该钱包既有可交易的 USDC，也有支付手续费的 SOL。",
+  funding_deposit_address: "充值地址 · Solana",
+  funding_copy_aria: "复制充值地址 {address}",
+  funding_send_usdc:
+    "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
+  funding_send_sol:
+    "另外请至少转入 {min} SOL。没有它，即使持有 USDC，钱包也无法支付交易手续费。",
+  funding_fees_covered: "交易手续费由 Canopy 承担 — 该钱包不需要 SOL。",
+  funding_check_balance: "查询余额",
+  funding_wallet_balance: "钱包余额",
+  funding_ready: "可以开始交易",
+  funding_waiting: "等待入金",
+
+  audit_crumb_settings: "设置",
+  audit_crumb_audit: "钱包审计",
+  audit_title: "钱包审计",
+  audit_intro:
+    "只读页面。Privy 无法删除内嵌钱包，所以这个页面的作用是弄清哪一个才是关键的，而不是删掉任何一个。",
+  audit_none_title: "还没有智能体钱包",
+  audit_none_body:
+    "没有任何智能体持有授权。这 {count} 个钱包都未被占用 — 其中一个是您的个人登录钱包，其余是登录竞态产生的多余钱包。",
+  audit_verdict_one: "1 个智能体钱包 · {spares} 个未被占用",
+  audit_verdict_many: "{count} 个智能体钱包 · {spares} 个未被占用",
+  audit_verdict_body:
+    "每个智能体配一个钱包是设计如此 — 一个智能体、一个钱包，由您的个人钱包注资。只有未被占用的那些才可能是多余的，而其中一个正是您的个人钱包。",
+  audit_privy_heading: "该账户下的 Privy 钱包 · {count}",
+  audit_none_linked: "没有已关联的钱包。",
+  audit_row_meta: "序号 {index} · {chain} · {client}",
+  audit_client_embedded: "内嵌",
+  audit_badge_agent: "智能体 {id}",
+  audit_badge_yours: "您本人 · 永不分配",
+  audit_badge_delegated: "已授权 · 未登记",
+  audit_badge_next: "备用 · 下一个智能体将使用",
+  audit_badge_unclaimed: "未被占用",
+  audit_privy_note:
+    "带有智能体标记的钱包是该智能体的专属交易钱包 — 一个智能体、一个钱包，且永远不能更换。未被占用的钱包包括您的个人登录钱包（通常是序号 0），以及登录竞态产生的备用钱包。",
+  audit_registered_heading: "已登记给智能体 · {count}",
+  audit_none_registered: "还没有智能体登记过钱包。",
+  audit_agent_label: "智能体 {id}",
+
+  transfer_not_a_number: "不是数字",
+  transfer_max_decimals: "最多 {decimals} 位小数",
+  transfer_amount_above_zero: "请输入大于零的金额",
+};

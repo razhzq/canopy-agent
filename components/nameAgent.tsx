@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * The naming step, asked before the builder opens.
@@ -27,6 +28,7 @@ export function NameAgentModal({
 }) {
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
 
@@ -95,17 +97,16 @@ export function NameAgentModal({
         <form onSubmit={submit}>
           <div className="space-y-2 border-b border-grid px-7 pt-7 pb-6">
             <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              New agent
+              {t("name_eyebrow")}
             </p>
             <h2
               id="name-agent-title"
               className="font-mono text-[22px] leading-none text-text-primary"
             >
-              Name your agent
+              {t("name_title")}
             </h2>
             <p className="max-w-[46ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-              This travels with the record. Anyone comparing your strategy sees it, so make it
-              something you would put your name next to.
+              {t("name_body")}
             </p>
           </div>
 
@@ -115,10 +116,10 @@ export function NameAgentModal({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onBlur={() => setTouched(true)}
-              placeholder="e.g. steady gold accumulation"
+              placeholder={t("name_placeholder")}
               spellCheck={false}
               maxLength={MAX + 20}
-              aria-label="Agent name"
+              aria-label={t("name_aria")}
               aria-invalid={touched && !valid}
               className={`h-12 w-full border-b bg-transparent font-mono text-[16px] text-text-primary outline-none transition-colors placeholder:text-text-muted ${
                 touched && !valid ? "border-negative" : "border-grid-strong focus:border-accent"
@@ -127,10 +128,10 @@ export function NameAgentModal({
             <div className="flex items-baseline justify-between gap-4 pt-2.5">
               <p className="font-ui text-[12px] text-text-dim">
                 {touched && trimmed.length === 0
-                  ? "Give it a name to continue."
+                  ? t("name_required")
                   : tooLong
-                    ? `${trimmed.length} characters — the limit is ${MAX}.`
-                    : "You can rename it any time before publishing."}
+                    ? t("name_too_long", { length: trimmed.length, max: MAX })
+                    : t("name_rename_later")}
               </p>
               {trimmed.length > MAX - 30 ? (
                 <span
@@ -150,14 +151,14 @@ export function NameAgentModal({
               onClick={onCancel}
               className="font-mono text-[11px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-text-primary"
             >
-              Cancel
+              {t("common_cancel")}
             </button>
             <button
               type="submit"
               disabled={!valid}
               className="flex h-11 items-center justify-center border border-accent bg-accent-wash px-7 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
             >
-              Continue
+              {t("name_continue")}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { NoReadings } from "@/components/noReadings";
 
 /* ------------------------------------------------------------ equity ------ */
 
@@ -708,13 +709,7 @@ export function MiniCurve({
   width?: number;
   height?: number;
 }) {
-  if (values.length === 0) {
-    return (
-      <div style={{ width, height }} aria-hidden>
-        <span className="sr-only">No readings</span>
-      </div>
-    );
-  }
+  if (values.length === 0) return <NoReadings width={width} height={height} />;
 
   const color =
     tone === "negative"
@@ -764,3 +759,4 @@ export function MiniCurve({
     </svg>
   );
 }
+

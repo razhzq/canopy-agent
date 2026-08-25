@@ -87,15 +87,45 @@ export function isValidAddress(value: string): boolean {
  * An amount that silently differs from what was typed is the worst failure this
  * file can have.
  */
+export class AmountError extends Error {
+  /**
+   * What was wrong, as a code rather than a sentence.
+   *
+   * These messages reach the withdraw form and are rendered under the field,
+   * so they have to be translatable — and this module is a pure transfer
+   * builder with no business holding a dictionary. The UI maps the code to a
+   * string; `message` stays as the English fallback for a console or a log.
+   */
+  readonly code: "not_a_number" | "too_many_decimals" | "not_above_zero";
+  readonly decimals?: number;
+
+  constructor(
+    code: AmountError["code"],
+    message: string,
+    decimals?: number,
+  ) {
+    super(message);
+    this.name = "AmountError";
+    this.code = code;
+    this.decimals = decimals;
+  }
+}
+
 export function toBaseUnits(amount: string, decimals: number): bigint {
   const trimmed = amount.trim();
   const m = /^(\d*)(?:\.(\d*))?$/.exec(trimmed);
-  if (!m || trimmed === "" || trimmed === ".") throw new Error("not a number");
+  if (!m || trimmed === "" || trimmed === ".") {
+    throw new AmountError("not_a_number", "not a number");
+  }
   const whole = m[1];
   const fraction = m[2] ?? "";
   if (fraction.length > decimals) {
     // Silently truncating here would send less than was typed. Say so instead.
-    throw new Error(`at most ${decimals} decimal places`);
+    throw new AmountError(
+      "too_many_decimals",
+      `at most ${decimals} decimal places`,
+      decimals,
+    );
   }
   const padded = (fraction + "0".repeat(decimals)).slice(0, decimals);
   return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(padded || "0");
@@ -150,7 +180,9 @@ export async function planTransfer(args: {
   const to = address(args.to.trim());
   const from = address(args.from);
   const amount = toBaseUnits(args.amount, args.asset === "SOL" ? 9 : USDC_DECIMALS);
-  if (amount <= 0n) throw new Error("enter an amount above zero");
+  if (amount <= 0n) {
+    throw new AmountError("not_above_zero", "enter an amount above zero");
+  }
 
   let createsRecipientAccount = false;
   if (args.asset === "USDC") {

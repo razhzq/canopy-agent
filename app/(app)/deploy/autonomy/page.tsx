@@ -1,5 +1,7 @@
 import { HourHistogram, TickScale } from "@/components/charts";
-import { AUTONOMY, DEPLOY_STEPS, MANDATE } from "@/lib/data";
+import { DEPLOY_STEPS } from "@/lib/data";
+import { deployCopy, fill } from "@/lib/deployCopy";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   ArrowRight,
   Columns,
@@ -15,30 +17,38 @@ import {
   WizardHeader,
 } from "@/components/wizard";
 
-const RAIL_ROWS: [string, string, "neutral" | "accent"][] = [
-  ["Capital", "$2,000.00", "neutral"],
-  ["Posture", "MODERATE", "neutral"],
-  ["Max position", "15%", "neutral"],
-  ["Max drawdown", "20%", "neutral"],
-  ["Universe", "15 OF 18", "neutral"],
-  ["Compliance", "SHARIAH", "neutral"],
-  ["Autonomy", "ADVISORY", "accent"],
-  ["Term", "90 DAYS", "neutral"],
-];
+/**
+ * Proposals per UTC hour over the agent's last 30 days.
+ *
+ * Numbers, so they live here rather than in the copy bundle — there is nothing
+ * about a histogram to translate but the words beside it.
+ */
+const HOURS = [
+  0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0,
+].map((count, i) => ({ count, withinWindow: i >= 9 && i < 18 }));
 
-export default function AutonomyPage() {
+const TERM_DAYS = 90;
+const TERM_FRACTION = (90 - 7) / (365 - 7);
+const WITHIN = 3;
+const OUTSIDE = 4;
+
+export default async function AutonomyPage() {
+  const c = deployCopy(await getServerLocale());
+  const d = c.autonomy;
+  const data = c.autonomyData;
+
   return (
     <main>
       <StepBar steps={DEPLOY_STEPS} current={2} />
 
       <WizardHeader
-        eyebrow="New mandate · Step 03"
-        title="Should it ask you first?"
-        subtitle="The limits are identical either way. This only decides whether a human is in the loop before a fill."
+        eyebrow={d.eyebrow}
+        title={d.title}
+        subtitle={d.subtitle}
         meta={[
-          { label: "Agent", value: "alpha_hunter" },
-          { label: "Capital", value: MANDATE.capital },
-          { label: "Mode", value: "ADVISORY", tone: "accent" },
+          { label: c.agentLabel, value: "alpha_hunter" },
+          { label: c.capitalLabel, value: c.mandate.capital },
+          { label: c.modeLabel, value: d.modeValue, tone: "accent" },
         ]}
       />
 
@@ -47,14 +57,10 @@ export default function AutonomyPage() {
           <>
             {/* --------------------------------------------------- levels */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="01"
-                title="AUTONOMY LEVEL"
-                note="Changeable later · Takes effect next cycle"
-              />
+              <SectionHead index="01" title={d.secLevel} note={d.secLevelNote} />
 
               <ChoiceRow>
-                {AUTONOMY.modes.map((m) => (
+                {data.modes.map((m) => (
                   <ChoiceCard
                     key={m.name}
                     title={m.name}
@@ -69,9 +75,7 @@ export default function AutonomyPage() {
                           className="flex items-start gap-3 border-b border-grid py-3.5 last:border-b-0"
                         >
                           <span className="mt-2 h-px w-2.5 shrink-0 bg-text-dim" />
-                          <span className="font-ui text-[13px] text-text-secondary">
-                            {p}
-                          </span>
+                          <span className="font-ui text-[13px] text-text-secondary">{p}</span>
                         </div>
                       ))}
                     </div>
@@ -91,49 +95,39 @@ export default function AutonomyPage() {
 
             {/* -------------------------------------------------- what changes */}
             <section className="border-b border-grid px-5 sm:px-8 py-8">
-              <SectionHead
-                index="02"
-                title="WHAT ACTUALLY CHANGES"
-                note="Measured on this agent's last 30 days"
-              />
+              <SectionHead index="02" title={d.secChanges} note={d.secChangesNote} />
 
               <p className="pb-6 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase">
-                When it would have asked you · by hour, UTC
+                {d.byHour}
               </p>
 
-              <HourHistogram hours={AUTONOMY.hours} height={80} />
+              <HourHistogram hours={HOURS} height={80} />
 
               <div className="mt-6 flex items-center gap-8 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase">
                 <span className="flex items-center gap-2.5">
-                  <span className="size-2.5 bg-accent" /> Within 09:00–18:00{" "}
-                  <span className="text-accent">{AUTONOMY.within}</span>
+                  <span className="size-2.5 bg-accent" /> {d.within}{" "}
+                  <span className="text-accent">{WITHIN}</span>
                 </span>
                 <span className="flex items-center gap-2.5">
-                  <span className="size-2.5 bg-warning" /> Outside it{" "}
-                  <span className="text-warning">{AUTONOMY.outside}</span>
+                  <span className="size-2.5 bg-warning" /> {d.outside}{" "}
+                  <span className="text-warning">{OUTSIDE}</span>
                 </span>
               </div>
 
               <div className="mt-8 border border-grid">
                 <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-grid px-6 py-4 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
                   <span />
-                  <span>Advisory</span>
-                  <span>Delegated</span>
+                  <span>{d.colAdvisory}</span>
+                  <span>{d.colDelegated}</span>
                 </div>
-                {AUTONOMY.comparison.map(([label, advisory, delegated]) => (
+                {data.comparison.map(([label, advisory, delegated]) => (
                   <div
                     key={label}
                     className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] items-center border-b border-grid px-6 py-4 last:border-b-0"
                   >
-                    <span className="font-mono text-[12.5px] text-text-secondary">
-                      {label}
-                    </span>
-                    <span className="font-mono text-[12.5px] text-accent">
-                      {advisory}
-                    </span>
-                    <span className="font-mono text-[12.5px] text-text-primary">
-                      {delegated}
-                    </span>
+                    <span className="font-mono text-[12.5px] text-text-secondary">{label}</span>
+                    <span className="font-mono text-[12.5px] text-accent">{advisory}</span>
+                    <span className="font-mono text-[12.5px] text-text-primary">{delegated}</span>
                   </div>
                 ))}
               </div>
@@ -141,26 +135,22 @@ export default function AutonomyPage() {
 
             {/* ------------------------------------------------------ term */}
             <section className="px-5 sm:px-8 py-8">
-              <SectionHead
-                index="03"
-                title="MANDATE TERM"
-                note="The agent stops by itself"
-              />
+              <SectionHead index="03" title={d.secTerm} note={d.secTermNote} />
 
               <div className="flex items-end justify-between">
                 <span className="font-mono text-[46px] leading-none tracking-[0.02em] text-text-primary uppercase">
-                  {AUTONOMY.term.days} Days
+                  {fill(d.days, { count: TERM_DAYS })}
                 </span>
                 <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  Expires {AUTONOMY.term.expires}
+                  {fill(d.expires, { date: data.expires })}
                 </span>
               </div>
 
               <div className="mt-7">
-                <TickScale fraction={AUTONOMY.term.fraction} />
+                <TickScale fraction={TERM_FRACTION} />
                 <div className="flex justify-between pt-3 font-mono text-[10px] text-text-dim">
-                  <span>7 DAYS</span>
-                  <span>365 DAYS</span>
+                  <span>{d.scaleMin}</span>
+                  <span>{d.scaleMax}</span>
                 </div>
               </div>
 
@@ -169,24 +159,21 @@ export default function AutonomyPage() {
                   <RenewGlyph />
                   <div className="space-y-1.5">
                     <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                      Auto-renew is off
+                      {d.autoRenewTitle}
                     </p>
-                    <p className="font-ui text-[13px] text-text-secondary">
-                      We will not quietly extend your delegation. Renewing needs a
-                      new signature from you.
-                    </p>
+                    <p className="font-ui text-[13px] text-text-secondary">{d.autoRenewBody}</p>
                   </div>
                 </div>
                 <span className="shrink-0 border border-accent px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-accent uppercase">
-                  Off
+                  {d.off}
                 </span>
               </div>
 
               <div className="mt-8">
                 <p className="pb-4 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  At expiry
+                  {d.atExpiry}
                 </p>
-                {AUTONOMY.term.atExpiry.map((line, i) => (
+                {data.atExpiry.map((line, i) => (
                   <div
                     key={line}
                     className="grid grid-cols-[40px_minmax(0,1fr)] items-baseline gap-4 border-b border-grid py-4 last:border-b-0"
@@ -194,9 +181,7 @@ export default function AutonomyPage() {
                     <span className="tnum font-mono text-[11px] text-accent">
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <p className="font-ui text-[13.5px] text-text-secondary">
-                      {line}
-                    </p>
+                    <p className="font-ui text-[13.5px] text-text-secondary">{line}</p>
                   </div>
                 ))}
               </div>
@@ -206,18 +191,18 @@ export default function AutonomyPage() {
         rail={
           <>
             <MandateRail
-              rows={RAIL_ROWS}
-              readsAs={MANDATE.readsAsWithCompliance}
+              rows={c.mandate.autonomyRailRows}
+              readsAs={c.mandate.readsAsWithCompliance}
             />
             <Proceed
               step={3}
               total={5}
               primary={
                 <PrimaryButton href="/deploy/wallet">
-                  Continue to wallet <ArrowRight />
+                  {d.continue} <ArrowRight />
                 </PrimaryButton>
               }
-              note="You can switch to delegated later without redeploying"
+              note={d.proceedNote}
               noteIcon="info"
             />
           </>

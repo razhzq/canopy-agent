@@ -15,6 +15,7 @@ import {
   WarnIcon,
 } from "@/components/ui";
 import { StepBar } from "@/components/wizard";
+import { useT } from "@/lib/i18n";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonPanel } from "@/components/skeleton";
 import {
@@ -40,6 +41,7 @@ import { useApi } from "@/lib/useApi";
  */
 export function PublishScreen() {
   const params = useSearchParams();
+  const t = useT();
   const raw = params.get("strategy");
   const strategyId = raw && /^\d+$/.test(raw) ? Number(raw) : null;
 
@@ -51,13 +53,17 @@ export function PublishScreen() {
   if (strategyId === null) {
     return (
       <Frame>
-        <ErrorState message="This page needs a strategy — open it from one of your strategies rather than directly." />
+        <ErrorState message={t("pub_needs_strategy")} />
       </Frame>
     );
   }
-  if (state.phase === "loading") return <Frame><SkeletonPanel label="Loading record" /></Frame>;
+  if (state.phase === "loading") return <Frame><SkeletonPanel labelKey="loading_record" /></Frame>;
   if (state.phase === "signed-out")
-    return <Frame><SignedOutState note="Sign in to see this strategy's paper record." /></Frame>;
+    return (
+      <Frame>
+        <SignedOutState note={t("pub_signed_out")} />
+      </Frame>
+    );
   if (state.phase === "error")
     return <Frame><ErrorState message={state.message} onRetry={state.reload} /></Frame>;
 
@@ -90,6 +96,7 @@ function Body({
   verification: VerificationStatus;
   onPublished: () => void;
 }) {
+  const t = useT();
   const live = strategy.status === "published";
   const days = v.day;
   // Under a fortnight is little to judge a strategy on. Said out loud rather
@@ -102,27 +109,36 @@ function Body({
       <section className="flex flex-wrap items-end justify-between gap-6 border-b border-grid px-5 sm:px-8 pt-6 pb-6">
         <div className="space-y-3">
           <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {strategy.name} · {live ? "Listed" : "Unlisted"}
+            {t("pub_eyebrow", {
+              name: strategy.name,
+              state: t(live ? "pub_state_listed" : "pub_state_unlisted"),
+            })}
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <h1 className="font-mono text-[34px] leading-none text-text-primary">
-              {live ? "Listed" : "Publish"}
+              {t(live ? "pub_title_listed" : "pub_title_publish")}
             </h1>
             <Badge tone={live ? "accent" : "warning"}>
-              {live ? "Live" : `Paper run · ${days} ${days === 1 ? "day" : "days"}`}
+              {live
+                ? t("pub_badge_live")
+                : days === 1
+                  ? t("pub_badge_paper_one")
+                  : t("pub_badge_paper_many", { count: days })}
             </Badge>
           </div>
           <p className="max-w-[62ch] font-ui text-[14px] text-text-secondary">
-            {live
-              ? "This strategy is listed. Its paper record stays visible alongside it — the length is part of the listing."
-              : "The agent is paper-trading live data in public. List it whenever the record convinces you; how long it ran is shown to everyone who sees it."}
+            {t(live ? "pub_body_listed" : "pub_body_unlisted")}
           </p>
         </div>
 
         <div className="flex shrink-0">
-          <Headline label="Paper return" value={pct(v.stats.paperReturnPct)} tone={v.stats.paperReturnPct >= 0 ? "accent" : "negative"} />
-          <Headline label="Max drawdown" value={pct(-Math.abs(v.stats.maxDrawdownPct))} tone="negative" />
-          <Headline label="Record" value={`${days}D`} tone={thin ? "warning" : "accent"} />
+          <Headline label={t("pub_paper_return")} value={pct(v.stats.paperReturnPct)} tone={v.stats.paperReturnPct >= 0 ? "accent" : "negative"} />
+          <Headline label={t("pub_max_drawdown")} value={pct(-Math.abs(v.stats.maxDrawdownPct))} tone="negative" />
+          <Headline
+            label={t("pub_record")}
+            value={t("pub_record_days", { count: days })}
+            tone={thin ? "warning" : "accent"}
+          />
         </div>
       </section>
 
@@ -132,34 +148,32 @@ function Body({
             <section className="border-b border-grid px-5 sm:px-8 py-8">
               <SectionHead
                 index="01"
-                title="LIVE PAPER RECORD"
-                note={`Run by Canopy · ${days} ${days === 1 ? "day" : "days"} · Forward only`}
+                title={t("pub_sec_record")}
+                note={
+                  days === 1
+                    ? t("pub_sec_record_note_one")
+                    : t("pub_sec_record_note_many", { count: days })
+                }
               />
 
               <DayBlocks total={Math.max(days, 14)} done={days} />
 
               <div className="mt-7 flex flex-wrap border border-grid">
-                <Stat label="Paper return" value={pct(v.stats.paperReturnPct)} tone={v.stats.paperReturnPct >= 0 ? "accent" : "negative"} />
-                <Stat label="Max DD" value={pct(-Math.abs(v.stats.maxDrawdownPct))} tone="negative" />
-                <Stat label="Proposed" value={String(v.stats.proposed)} />
-                <Stat label="Blocked" value={String(v.stats.blocked)} tone="negative" />
-                <Stat label="Would fill" value={String(v.stats.wouldFill)} tone="accent" />
+                <Stat label={t("pub_paper_return")} value={pct(v.stats.paperReturnPct)} tone={v.stats.paperReturnPct >= 0 ? "accent" : "negative"} />
+                <Stat label={t("pub_max_dd")} value={pct(-Math.abs(v.stats.maxDrawdownPct))} tone="negative" />
+                <Stat label={t("pub_proposed")} value={String(v.stats.proposed)} />
+                <Stat label={t("pub_blocked")} value={String(v.stats.blocked)} tone="negative" />
+                <Stat label={t("pub_would_fill")} value={String(v.stats.wouldFill)} tone="accent" />
               </div>
 
-              <Note icon="info">
-                This record is a live forward run, not a backtest. The agent traded on
-                Canopy&apos;s data, in real time, with venue fees, network fees and realistic
-                fills at the liquidity available at the moment. Nothing here was selected
-                after the fact — a forward record cannot be fitted to a window that
-                flattered it.
-              </Note>
+              <Note icon="info">{t("pub_forward_note")}</Note>
             </section>
 
             <section className="px-5 sm:px-8 py-8">
               <SectionHead
                 index="02"
-                title="WHAT THE RECORD SHOWS"
-                note="Disclosure · Not a gate"
+                title={t("pub_sec_shows")}
+                note={t("pub_sec_shows_note")}
               />
 
               <div className="mt-1">
@@ -168,14 +182,7 @@ function Body({
                 ))}
               </div>
 
-              <Note icon="warn">
-                These are shown to anyone considering your strategy, met or not. Nothing
-                here blocks you from listing — a short record lists as a short record.
-                Listing takes a SNAPSHOT of your strategy as it stands, and that snapshot
-                is what builds the record: your own agent stays editable, and nothing you
-                change afterwards rewrites what you published. You can abandon a listing,
-                but you cannot quietly reset a bad run.
-              </Note>
+              <Note icon="warn">{t("pub_disclosure_note")}</Note>
             </section>
           </>
         }
@@ -190,21 +197,21 @@ function Body({
 
             <div className="px-5 sm:px-8 py-7">
               <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                Actions
+                {t("pub_actions")}
               </h3>
               <div className="space-y-3">
                 <Link
                   href="/workspace"
                   className="flex h-11 w-full items-center border border-border px-4 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                 >
-                  Your agents
+                  {t("pub_your_agents")}
                 </Link>
                 {live ? (
                   <Link
                     href={`/deploy/describe?strategy=${strategy.id}`}
                     className="flex h-11 w-full items-center border border-border px-4 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                   >
-                    View in marketplace
+                    {t("pub_view_marketplace")}
                   </Link>
                 ) : null}
               </div>
@@ -234,6 +241,7 @@ function PublishPanel({
 }) {
   const { getAccessToken } = usePrivy();
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,7 +252,7 @@ function PublishPanel({
     setError(null);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Your session expired — sign in again.");
+      if (!token) throw new Error(t("pub_session_expired"));
       await publishStrategy(token, strategy.id);
       onPublished();
       router.refresh();
@@ -265,16 +273,16 @@ function PublishPanel({
     <div className="border-b border-grid px-5 sm:px-8 py-7">
       <div className="flex items-center justify-between pb-4">
         <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-          Publication
+          {t("pub_publication")}
         </h3>
         <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-          {live ? "Listed" : v.publishable ? "Ready" : "Not started"}
+          {t(live ? "pub_state_listed" : v.publishable ? "pub_ready" : "pub_not_started")}
         </span>
       </div>
 
       {live ? (
         <div className="flex h-14 w-full items-center justify-center gap-3 border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase">
-          <CheckIcon /> Published
+          <CheckIcon /> {t("pub_published")}
         </div>
       ) : (
         <button
@@ -283,20 +291,19 @@ function PublishPanel({
           disabled={busy || !v.publishable}
           className="flex h-14 w-full items-center justify-center gap-3 border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
         >
-          {busy ? "Publishing…" : "Publish to marketplace"}
+          {t(busy ? "pub_publishing" : "pub_publish_cta")}
         </button>
       )}
 
       {!live && !v.publishable ? (
         <p className="pt-4 text-center font-mono text-[11px] tracking-[0.08em] text-warning uppercase">
-          Start a paper run first
+          {t("pub_start_paper_first")}
         </p>
       ) : null}
 
       {!live && v.publishable && thin ? (
         <p className="pt-4 font-ui text-[12.5px] leading-relaxed text-warning">
-          Your record is {v.day} {v.day === 1 ? "day" : "days"} long. You can list it
-          now — it will be shown as a short record wherever it appears.
+          {v.day === 1 ? t("pub_thin_one") : t("pub_thin_many", { count: v.day })}
         </p>
       ) : null}
 
@@ -307,7 +314,7 @@ function PublishPanel({
       {v.remaining.length > 0 && !live ? (
         <div className="mt-5 border-t border-grid">
           <p className="pt-4 pb-1 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-            Will be disclosed as unmet
+            {t("pub_unmet_heading")}
           </p>
           {v.remaining.map((r) => (
             <div
@@ -327,6 +334,8 @@ function PublishPanel({
 /* ------------------------------------------------------------- fragments -- */
 
 function CheckRow({ check }: { check: PublishCheck }) {
+  const t = useT();
+
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_110px_100px] items-center gap-5 border-b border-grid py-4">
       <span className="flex items-center gap-4">
@@ -338,7 +347,7 @@ function CheckRow({ check }: { check: PublishCheck }) {
       </span>
       <span className="justify-self-end">
         <Badge tone={check.passed ? "accent" : "warning"}>
-          {check.passed ? "Met" : "Not met"}
+          {t(check.passed ? "pub_met" : "pub_not_met")}
         </Badge>
       </span>
     </div>
