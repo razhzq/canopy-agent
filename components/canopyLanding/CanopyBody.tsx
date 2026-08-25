@@ -477,7 +477,13 @@ export function CanopyBody({ onLogin }: Props) {
           <div className="appshow-grid">
             <div className="phone-stage rv">
               <div className="phone">
+                {/* frame side buttons */}
+                <span className="btn-side btn-mute" />
+                <span className="btn-side btn-vup" />
+                <span className="btn-side btn-vdn" />
+                <span className="btn-side btn-pwr" />
                 <div className="phone-screen">
+                  <span className="glare" aria-hidden />
                   <span className="island" />
                   <div className="sbar">
                     <span>9:41</span>
@@ -563,8 +569,10 @@ export function CanopyBody({ onLogin }: Props) {
               </div>
               <div className="row">
                 <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M8.5 12.5l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 12a8 8 0 0 1 13.7-5.6L20 8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 4v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 12a8 8 0 0 1-13.7 5.6L4 16" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 20v-4h4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <div>
                   <h4>{t("ld_app_3_h")}</h4>

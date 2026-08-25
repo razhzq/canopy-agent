@@ -581,3 +581,43 @@
 .cnp .appfeat .fi{width:26px;height:26px;color:var(--accent);margin-top:2px}
 .cnp .appfeat h4{font-size:20px;font-weight:500;letter-spacing:-.01em}
 .cnp .appfeat p{font-size:15px;color:var(--text-2);margin-top:6px;line-height:1.55;max-width:30em}
+
+/* ---- iPhone refinement (overrides the base device styles above) ---- */
+.cnp .appshow-grid{grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.cnp .phone-stage{height:560px}
+@media(max-width:860px){.cnp .phone-stage{height:460px}}
+
+.cnp .phone{
+  width:326px;border-radius:56px;padding:13px;
+  background:linear-gradient(145deg,#454545 0%,#1c1c1c 16%,#0b0b0b 50%,#161616 82%,#333 100%);
+  border:0;
+  box-shadow:
+    0 70px 130px -46px rgba(0,0,0,.95),
+    0 0 0 1px rgba(255,255,255,.04),
+    inset 0 2px 4px rgba(255,255,255,.10),
+    inset 0 -3px 6px rgba(0,0,0,.7);
+}
+/* inner black rim between the titanium edge and the screen */
+.cnp .phone::before{content:"";position:absolute;inset:6px;border-radius:50px;background:#050505;z-index:0}
+.cnp .phone-screen{position:relative;z-index:1;border-radius:44px;height:660px;
+  background:radial-gradient(120% 80% at 50% 0%, #101512, #0A0A0A 55%)}
+/* soft diagonal screen glare */
+.cnp .phone .glare{position:absolute;inset:0;z-index:4;pointer-events:none;border-radius:44px;
+  background:linear-gradient(135deg, rgba(255,255,255,.06) 0%, transparent 22%, transparent 82%, rgba(255,255,255,.03) 100%)}
+/* accent bloom behind the balance/chart */
+.cnp .phone .scr::before{content:"";position:absolute;left:0;right:0;top:120px;height:260px;z-index:0;pointer-events:none;
+  background:radial-gradient(70% 60% at 30% 40%, rgba(94,211,179,.10), transparent 70%)}
+.cnp .phone .scr{position:relative}
+.cnp .phone .scr > *{position:relative;z-index:1}
+
+/* physical side buttons on the titanium frame */
+.cnp .phone .btn-side{position:absolute;z-index:0;border-radius:2px;background:linear-gradient(90deg,#2a2a2a,#050505)}
+.cnp .phone .btn-mute{left:-2px;top:118px;width:3px;height:26px}
+.cnp .phone .btn-vup{left:-2px;top:162px;width:3px;height:52px}
+.cnp .phone .btn-vdn{left:-2px;top:226px;width:3px;height:52px}
+.cnp .phone .btn-pwr{right:-2px;top:180px;width:3px;height:74px;background:linear-gradient(270deg,#2a2a2a,#050505)}
+
+@media(max-width:860px){
+  .cnp .appshow-grid{grid-template-columns:1fr;gap:8px}
+  .cnp .phone{width:300px}
+}

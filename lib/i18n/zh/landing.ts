@@ -160,16 +160,16 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_col_trades: "成交数",
 
   // iPhone 版块。刻意不用“移动端”一词 — 图中的设备已经表达了这层意思，“随时随地”道出其余。
-  ld_app_eyebrow: "iOS · TestFlight",
+  ld_app_eyebrow: "Canopy 应用",
   ld_app_title_a: "整个 Canopy，",
   ld_app_title_mint: "随时随地。",
-  ld_app_sub: "您的智能体、持仓与 7×24 小时市场 — 装进一款原生 iPhone 应用。",
+  ld_app_sub: "您的智能体、持仓与 7×24 小时市场 — 尽在一款原生应用。",
   ld_app_1_h: "即刻交易",
   ld_app_1_p: "在应用内直接买卖代币化市场。",
   ld_app_2_h: "每个智能体，实时可见",
   ld_app_2_p: "业绩记录与活动一有变化即刻更新。",
-  ld_app_3_h: "一键批准",
-  ld_app_3_p: "智能体一提出交易，即可确认或暂停。",
+  ld_app_3_h: "自动运行",
+  ld_app_3_p: "智能体在您设定的额度内 7×24 小时自动交易 — 您只管看，交易交给它。",
 
   ld_route_eyebrow: "路由与托管",
   ld_route_title_a: "每一笔委托都会比遍",
