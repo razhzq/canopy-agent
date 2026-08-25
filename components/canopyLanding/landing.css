@@ -675,44 +675,6 @@
 .cnp .nav-in{border:0}
 .cnp nav{padding-bottom:0}
 
-/* ============================================================
-   Agent cards — a fanned trio of portrait cards, each the painterly
-   art with a glassy identity badge. Plus the same art as a faint
-   backdrop on the final CTA.
-   ============================================================ */
-.cnp .agentcards .sec-head{max-width:640px;margin:0 auto;text-align:center}
-.cnp .cards-row{display:flex;justify-content:center;align-items:center;margin-top:60px;gap:0}
-.cnp .idcard{
-  position:relative;width:300px;flex:none;aspect-ratio:3/4;border-radius:22px;overflow:hidden;
-  border:1px solid var(--border-accent);background-size:cover;background-repeat:no-repeat;
-  box-shadow:0 40px 90px -40px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.06);
-  transition:transform .4s cubic-bezier(.16,1,.3,1), box-shadow .4s ease;
-}
-.cnp .idcard + .idcard{margin-left:-46px}
-.cnp .idcard:nth-child(1){transform:rotate(-6deg) translateY(20px)}
-.cnp .idcard:nth-child(2){z-index:2;transform:translateY(-6px)}
-.cnp .idcard:nth-child(3){transform:rotate(6deg) translateY(20px)}
-.cnp .idcard::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,8,7,.12),transparent 26%,transparent 58%,rgba(5,8,7,.6))}
-.cnp .idcard:hover{transform:translateY(-14px) rotate(0) scale(1.04);z-index:5;box-shadow:0 60px 120px -40px rgba(0,0,0,1)}
-.cnp .idcard .badge2{
-  position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:3;
-  width:120px;height:120px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
-  background:rgba(18,24,22,.32);border:1px solid rgba(255,255,255,.28);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff;
-  box-shadow:0 8px 30px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.2);
-}
-.cnp .idcard .badge2 svg{width:22px;height:22px}
-.cnp .idcard .badge2 .nm{font-size:15px;font-weight:500;letter-spacing:-.01em}
-.cnp .idcard .cap{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:15px 16px;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text-2)}
-.cnp .idcard .cap .up{color:var(--accent)}
-@media(max-width:820px){
-  .cnp .cards-row{flex-direction:column;gap:18px}
-  .cnp .idcard{width:min(300px,86vw)}
-  .cnp .idcard + .idcard{margin-left:0}
-  .cnp .idcard:nth-child(1),.cnp .idcard:nth-child(3){transform:none}
-  .cnp .idcard:nth-child(2){transform:none}
-}
-
 /* final CTA: the card art as a faint, edge-faded backdrop behind the wordmark */
 .cnp .final-photo{
   position:absolute;inset:0;z-index:0;pointer-events:none;

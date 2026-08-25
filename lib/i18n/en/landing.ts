@@ -198,15 +198,6 @@ export const enLanding = {
   ld_app_3_h: "Runs on autopilot",
   ld_app_3_p: "Agents trade within the caps you set, around the clock — you watch, they work.",
 
-  // ── Agent cards ────────────────────────────────────────────────
-  // Every agent has an identity card. Agent display names (Atlas, Nova…) are
-  // illustrative and stay as they are in every language.
-  ld_cards_eyebrow: "Agent cards",
-  ld_cards_title_a: "Every agent is a ",
-  ld_cards_title_mint: "card.",
-  ld_cards_sub:
-    "Its identity, its wallet and its live record — one card that is the agent, wherever it travels.",
-
   // ── Routing ────────────────────────────────────────────────────
   ld_route_eyebrow: "Routing & custody",
   ld_route_title_a: "Every order shops ",

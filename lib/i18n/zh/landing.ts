@@ -171,12 +171,6 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_app_3_h: "自动运行",
   ld_app_3_p: "智能体在您设定的额度内 7×24 小时自动交易 — 您只管看，交易交给它。",
 
-  // 智能体卡片。展示用的智能体名称（Atlas、Nova……）各语言下均保持原样。
-  ld_cards_eyebrow: "智能体卡片",
-  ld_cards_title_a: "每个智能体，都是一张",
-  ld_cards_title_mint: "卡片。",
-  ld_cards_sub: "身份、钱包与实时业绩 — 一张卡片就是这个智能体，走到哪儿带到哪儿。",
-
   ld_route_eyebrow: "路由与托管",
   ld_route_title_a: "每一笔委托都会比遍",
   ld_route_title_mint: "整个市场。",
