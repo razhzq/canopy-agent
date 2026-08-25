@@ -2,6 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tokenPrice } from "@/lib/format";
+import {
+  LABEL,
+  BODY,
+  PRIMARY,
+  SECONDARY,
+  SURFACE,
+  FieldNote,
+  SEGMENT_ITEM,
+  SEGMENT_ON,
+  SEGMENT_OFF,
+} from "@/components/kit";
 import { useRouter } from "next/navigation";
 import { MARKET_CLASSES, VENUE_LABEL } from "@/components/pickMarket";
 import { usePrivy } from "@privy-io/react-auth";
@@ -27,7 +38,9 @@ import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 function sameAsset(a: UniverseAsset | null, b: UniverseAsset | null): boolean {
   if (!a || !b) return false;
   if (a.mint || b.mint) return Boolean(a.mint) && a.mint === b.mint;
-  return a.underlying === b.underlying && (a.issuer ?? null) === (b.issuer ?? null);
+  return (
+    a.underlying === b.underlying && (a.issuer ?? null) === (b.issuer ?? null)
+  );
 }
 
 /**
@@ -48,7 +61,6 @@ function sameAsset(a: UniverseAsset | null, b: UniverseAsset | null): boolean {
  * strategy holds are shown and disabled rather than filtered out — a picker
  * that silently omits what you are looking for reads as a missing asset.
  */
-
 
 export function AddMarketModal({
   agentId,
@@ -118,7 +130,10 @@ export function AddMarketModal({
   /** Removes one already-added market. Does not sell — the backend says so too. */
   const remove = useCallback(
     async (a: UniverseAsset) => {
-      const key = a.kind === "crypto" ? `mint:${a.mint}` : `${a.underlying}/${a.issuer ?? ""}`;
+      const key =
+        a.kind === "crypto"
+          ? `mint:${a.mint}`
+          : `${a.underlying}/${a.issuer ?? ""}`;
       setRemovingKey(key);
       setError(null);
       try {
@@ -164,7 +179,10 @@ export function AddMarketModal({
    * drift. A chip is offered iff something in this universe satisfies it.
    */
   const classes = useMemo(
-    () => MARKET_CLASSES.filter((c) => c.key === "all" || assets.some((a) => c.admits(a))),
+    () =>
+      MARKET_CLASSES.filter(
+        (c) => c.key === "all" || assets.some((a) => c.admits(a)),
+      ),
     [assets],
   );
 
@@ -352,14 +370,12 @@ export function AddMarketModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-market-title"
-        className="flex max-h-[calc(100vh-80px)] w-full max-w-[760px] flex-col border border-grid-strong bg-panel"
+        className="flex max-h-[calc(100vh-80px)] w-full max-w-[760px] flex-col overflow-hidden rounded-xl border border-grid bg-panel"
       >
         {/* ------------------------------------------------------------ head */}
-        <div className="flex items-start justify-between gap-6 border-b border-grid px-7 py-5">
+        <div className="flex shrink-0 items-start justify-between gap-6 px-7 pt-5 pb-1">
           <div className="min-w-0 space-y-1.5">
-            <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-              {agentName}
-            </p>
+            <p className={LABEL}>{agentName}</p>
             <h2
               id="add-market-title"
               className="font-mono text-[20px] leading-none text-text-primary"
@@ -371,9 +387,23 @@ export function AddMarketModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent"
+            // A mark in a hit target, matching every other dialog. The
+            // bordered "Esc" chip was the heaviest element in this header and
+            // the one nobody opens the dialog for.
+            className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary"
           >
-            Esc
+            <svg
+              viewBox="0 0 24 24"
+              className="size-[15px]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+              focusable="false"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -388,11 +418,11 @@ export function AddMarketModal({
                   setKlass(c.key);
                   setCursor(0);
                 }}
-                className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
-                  klass === c.key
-                    ? "border-accent bg-accent-wash text-accent"
-                    : "border-border text-text-secondary hover:border-grid-strong"
-                }`}
+                // The kit's segment vocabulary: a filled pill for the chosen
+                // one, nothing but colour for the rest. These were bordered in
+                // both states, so the class filter read as four outlined
+                // controls competing with the search field beside them.
+                className={`${SEGMENT_ITEM} ${klass === c.key ? SEGMENT_ON : SEGMENT_OFF}`}
               >
                 {c.label}
               </button>
@@ -403,7 +433,7 @@ export function AddMarketModal({
                 where a second row of pills would crowd a dialog that already
                 carries a header, a search box and a count. */}
             {showVenues ? (
-              <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+              <label className={`flex items-center gap-2 ${LABEL}`}>
                 Venue
                 <select
                   ref={venueSelect}
@@ -412,7 +442,7 @@ export function AddMarketModal({
                     setVenue(e.target.value as Router | "all");
                     setCursor(0);
                   }}
-                  className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
+                  className={`${SURFACE} px-2 py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent`}
                 >
                   <option value="all" className="bg-bg">
                     All
@@ -437,9 +467,9 @@ export function AddMarketModal({
               placeholder="Search markets…"
               spellCheck={false}
               aria-label="Search markets"
-              className="h-9 w-[200px] border-b border-grid-strong bg-transparent font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+              className={`h-9 w-[220px] ${SURFACE} px-3 font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent`}
             />
-            <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+            <span className={LABEL}>
               {rows.length} {rows.length === 1 ? "market" : "markets"}
             </span>
           </div>
@@ -447,7 +477,9 @@ export function AddMarketModal({
 
         {/* ------------------------------------------------------------ list */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid bg-panel px-7 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+          <div
+            className={`sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_100px_80px_110px_70px] items-center gap-x-4 border-b border-grid bg-panel px-7 py-2.5 ${LABEL}`}
+          >
             <span>Market</span>
             <span className="text-right">Price</span>
             <span className="text-right">24h</span>
@@ -525,7 +557,12 @@ export function AddMarketModal({
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <AssetLogo symbol={a.underlying ?? a.symbol} issuer={a.issuer} src={a.iconUrl} size={18} />
+                    <AssetLogo
+                      symbol={a.underlying ?? a.symbol}
+                      issuer={a.issuer}
+                      src={a.iconUrl}
+                      size={18}
+                    />
                     <span
                       className={`truncate font-mono text-[13px] ${
                         chosen ? "text-accent" : "text-text-primary"
@@ -565,7 +602,9 @@ export function AddMarketModal({
                         ).toFixed(1)}%`}
                   </span>
                   <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
-                    {num(a.liquidityUsd) === null ? "—" : money(num(a.liquidityUsd)!)}
+                    {num(a.liquidityUsd) === null
+                      ? "—"
+                      : money(num(a.liquidityUsd)!)}
                   </span>
                   <span className="text-right font-mono text-[9px] tracking-[0.12em] uppercase">
                     {taken ? (
@@ -582,7 +621,9 @@ export function AddMarketModal({
                         // "Added" until pointed at, "Remove" once it is
                         // actionable — the label names what the click does.
                         <>
-                          <span className="text-text-muted group-hover:hidden">Added</span>
+                          <span className="text-text-muted group-hover:hidden">
+                            Added
+                          </span>
                           <span className="hidden text-negative group-hover:inline">
                             Remove
                           </span>
@@ -601,12 +642,12 @@ export function AddMarketModal({
         {/* ---------------------------------------------------------- footer */}
         <div className="border-t border-grid px-7 py-4">
           {error ? (
-            <p className="pb-3 font-mono text-[11px] tracking-[0.06em] text-negative uppercase">
-              {error}
-            </p>
+            <div className="pb-3">
+              <FieldNote tone="bad">{error}</FieldNote>
+            </div>
           ) : null}
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="min-w-0 font-ui text-[12.5px] text-text-secondary">
+            <p className={`min-w-0 ${BODY}`}>
               {picked ? (
                 <>
                   <span className="font-mono text-[12.5px] text-accent">
@@ -615,24 +656,18 @@ export function AddMarketModal({
                   — same rules and limits as {agentName}.
                 </>
               ) : (
-                <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-                  ↑↓ navigate · ⏎ pick · esc close
-                </span>
+                <span className={LABEL}>↑↓ navigate · ⏎ pick · esc close</span>
               )}
             </p>
             <div className="flex shrink-0 items-center gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-11 border border-border px-5 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
-              >
+              <button type="button" onClick={onClose} className={SECONDARY}>
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submit}
                 disabled={!picked || busy}
-                className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                className={PRIMARY}
               >
                 {busy ? "Sending…" : "Request add"}
               </button>
@@ -664,8 +699,6 @@ function Note({
   );
 }
 
-
-
 /**
  * Why the list is empty, in the reader's terms.
  *
@@ -687,10 +720,16 @@ function emptyReason(
 ): string {
   if (total === 0) return "No market currently resolves as tradable.";
   const q = query.trim();
-  const label = classes.find((c) => c.key === klass && c.key !== "all")?.label.toLowerCase();
-  const scope = [label, venueLabel ? `on ${venueLabel}` : null].filter(Boolean).join(" ");
+  const label = classes
+    .find((c) => c.key === klass && c.key !== "all")
+    ?.label.toLowerCase();
+  const scope = [label, venueLabel ? `on ${venueLabel}` : null]
+    .filter(Boolean)
+    .join(" ");
   if (q) {
-    return scope ? `Nothing in ${scope} matches “${q}”.` : `Nothing matches “${q}”.`;
+    return scope
+      ? `Nothing in ${scope} matches “${q}”.`
+      : `Nothing matches “${q}”.`;
   }
   if (label) return `This agent trades no ${scope}.`;
   if (venueLabel) return `Nothing here fills on ${venueLabel}.`;

@@ -146,6 +146,26 @@
   }
 }
 
+/* The chat rail arriving.
+ *
+ * Slides from the edge it is docked to, which is the one direction that reads
+ * as "this was always there, off-screen" rather than as a thing appearing on
+ * top of the page. 16px is enough to see the direction and short enough not to
+ * delay a panel opened to be typed into immediately.
+ *
+ * The blanket reduced-motion rule above already reduces this to nothing.
+ */
+@keyframes rail-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ------------------------------------------------- equity curve hover ---- */
 
 /*

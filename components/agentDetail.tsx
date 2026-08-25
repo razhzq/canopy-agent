@@ -10,6 +10,7 @@ import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
+import { ChatButton } from "@/components/agentChatSheet";
 import {
   StatusLine,
   FieldNote,
@@ -105,7 +106,17 @@ import {
  *   the candles.
  */
 
-export function AgentDetailView({ agentId }: { agentId: number }) {
+export function AgentDetailView({
+  agentId,
+  onOpenChat,
+  chatOpen = false,
+}: {
+  agentId: number;
+  /** Toggles the thread, which the workspace owns — see workspace.tsx. */
+  onOpenChat?: () => void;
+  /** Whether that thread is open, so the control can say so. */
+  chatOpen?: boolean;
+}) {
   const { ready, authenticated, getAccessToken } = usePrivy();
   /**
    * The token getter, held still. Same hazard as MyAgents, same fix.
@@ -507,6 +518,7 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
   if (mobile) {
     return (
       <AgentDetailMobile
+        onOpenChat={onOpenChat}
         // The `?fund=model` hand-off, forwarded. This branch returns before the
         // desktop tree that owns the panel, so without passing it down the flag
         // is read, cleared, and dropped.
@@ -555,14 +567,33 @@ export function AgentDetailView({ agentId }: { agentId: number }) {
             genuinely share. Nothing here moves when the wallet gains or loses a
             line. */}
         <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5 pt-4">
-          <div className="min-w-0 flex-1 space-y-3.5">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-              <h1 className="font-mono text-[28px] leading-none text-text-primary">
+          {/* THREE ROWS: the name, what it is, what you are looking at.
+          
+              The name had the badge and the status chip beside it, which put a
+              28px headline, a 10px pill and a status on one line and made the
+              title share its row with two things that describe it. Now the name
+              leads alone with the one control attached to the agent itself, and
+              the two descriptors sit under it as a metadata line. */}
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="flex items-center gap-3">
+              <h1 className="min-w-0 truncate font-mono text-[28px] leading-none text-text-primary">
                 {agent.strategy_name}
               </h1>
+              {/* Chat lives with the agent, not with the page furniture — and
+                  on this tab the workspace bar deliberately carries neither the
+                  name nor a chat button, so this is the only one. */}
+              <ChatButton
+                agent={agent}
+                onOpen={() => onOpenChat?.()}
+                active={chatOpen}
+                compact
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {/* The badge is the affordance. It is already the thing on this
-                  page that names the model, so making it the way IN to the model
-                  is one control rather than two. */}
+                  page that names the model, so making it the way IN to the
+                  model is one control rather than two. */}
               <button
                 type="button"
                 onClick={() => setModelOpen(true)}

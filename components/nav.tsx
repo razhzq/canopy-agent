@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { FOCUS } from "@/components/kit";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { UsernameModal } from "@/components/usernameModal";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
@@ -49,9 +50,6 @@ function isActive(pathname: string, match: string[]): boolean {
  * it stays visible on the filled accent button and the bordered ones alike
  * without either having to reserve space for it.
  */
-const FOCUS =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-
 /* ------------------------------------------------------------- accounts -- */
 
 interface LinkedWallet {

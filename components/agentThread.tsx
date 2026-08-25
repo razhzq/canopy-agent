@@ -121,7 +121,10 @@ export function AgentThread({
   // failure this whole surface exists to prevent.
   const pending = messages.some((m) => m.requires_action && !m.acted_at);
   useEffect(() => {
-    const id = setInterval(() => setNonce((n) => n + 1), pending ? 15_000 : 60_000);
+    const id = setInterval(
+      () => setNonce((n) => n + 1),
+      pending ? 15_000 : 60_000,
+    );
     return () => clearInterval(id);
   }, [pending]);
 
@@ -144,10 +147,16 @@ export function AgentThread({
       const token = await getAccessToken();
       if (!token) throw new Error("Sign in again.");
       let streamed = false;
-      const fresh = await sendMessageStreaming(token, agentId, body, setStage, (text) => {
-        streamed = true;
-        setLive((prev) => (prev ?? "") + text);
-      });
+      const fresh = await sendMessageStreaming(
+        token,
+        agentId,
+        body,
+        setStage,
+        (text) => {
+          streamed = true;
+          setLive((prev) => (prev ?? "") + text);
+        },
+      );
       // A question streams its answer, so by now the user has read most of it —
       // replaying it as an animation would make them watch it a second time.
       // A proposal has no prose to stream (it is a structured diff), so that
@@ -182,7 +191,8 @@ export function AgentThread({
 
   // The skeleton is for the FIRST load only. Every later fetch is a background
   // refresh of a thread already on screen.
-  if (state.phase === "loading" && seen.current.length === 0) return <SkeletonThread />;
+  if (state.phase === "loading" && seen.current.length === 0)
+    return <SkeletonThread />;
   if (state.phase === "signed-out") return <SignedOutState />;
   // A failed poll must not destroy the conversation either. With nothing to
   // fall back on this is still the right screen; with a thread in hand, the
@@ -207,31 +217,32 @@ export function AgentThread({
         {({ isAtBottom, scrollToBottom }) => (
           <>
             <StickToBottom.Content className="flex flex-col gap-8 py-7">
-        <Opening agent={agent} />
-        {messages.map((m, i) => (
-          <Turn
-            key={m.id}
-            // ONLY THE NEWEST TURN ANIMATES. Applying the entrance to every
-            // message would replay the whole conversation on each poll — the
-            // thread would twitch once a minute, which is the exact mistake
-            // log-enter's comment in globals.css warns about.
-            fresh={i === messages.length - 1}
-            message={m}
-            onAck={(approved) => void ack(m.id, approved)}
-            // Stays put: the agent that just changed is the one on screen.
-            // This used to navigate to the fork's replacement agent.
-            onApplied={() => setNonce((n) => n + 1)}
-            agentId={agentId}
-            typing={typing === m.id}
-            onTyped={() => setTyping(null)}
-          />
-        ))}
+              <Opening agent={agent} />
+              {messages.map((m, i) => (
+                <Turn
+                  key={m.id}
+                  // ONLY THE NEWEST TURN ANIMATES. Applying the entrance to every
+                  // message would replay the whole conversation on each poll — the
+                  // thread would twitch once a minute, which is the exact mistake
+                  // log-enter's comment in globals.css warns about.
+                  fresh={i === messages.length - 1}
+                  message={m}
+                  onAck={(approved) => void ack(m.id, approved)}
+                  // Stays put: the agent that just changed is the one on screen.
+                  // This used to navigate to the fork's replacement agent.
+                  onApplied={() => setNonce((n) => n + 1)}
+                  agentId={agentId}
+                  typing={typing === m.id}
+                  onTyped={() => setTyping(null)}
+                />
+              ))}
 
-        {/* The user's own words, before the server has echoed them. Suppressed
+              {/* The user's own words, before the server has echoed them. Suppressed
             once the refetch lands so the message does not appear twice. */}
-        {echo && !messages.some((m) => m.role === "user" && m.body === echo) ? (
-          <div className="flex w-full max-w-[95%] justify-end self-end">
-            {/* Identical to a settled message except for the text colour, and
+              {echo &&
+              !messages.some((m) => m.role === "user" && m.body === echo) ? (
+                <div className="flex w-full max-w-[95%] justify-end self-end">
+                  {/* Identical to a settled message except for the text colour, and
                 it has to STAY identical — these two render the same words a
                 few hundred milliseconds apart, so any difference between them
                 is a flinch the eye catches on every send. It used to be 60%
@@ -239,54 +250,54 @@ export function AgentThread({
                 The shape below is therefore a copy of the settled bubble, not
                 a variation on it: same rounded-lg, same px-4 py-3, same 95%.
                 It drifted once already when the settled one moved. */}
-            <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
-              <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-secondary">
-                {echo}
-              </p>
-            </div>
-          </div>
-        ) : null}
+                  <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
+                    <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-secondary">
+                      {echo}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
-        {/* The answer as it is written. Replaced by the persisted message once
+              {/* The answer as it is written. Replaced by the persisted message once
             the turn completes — same text, so the swap is invisible. */}
-        {live ? (
-          <Row role="agent">
-            <p className="font-ui text-[14px] leading-[1.7] whitespace-pre-wrap text-text-primary">
-              {live}
-              <span className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse bg-accent motion-reduce:animate-none" />
-            </p>
-          </Row>
-        ) : null}
+              {live ? (
+                <Row role="agent">
+                  <p className="font-ui text-[14px] leading-[1.7] whitespace-pre-wrap text-text-primary">
+                    {live}
+                    <span className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse bg-accent motion-reduce:animate-none" />
+                  </p>
+                </Row>
+              ) : null}
 
-        {/* Stages stop once prose starts: the answer arriving IS the progress. */}
-            {stage && !live ? <Thinking stage={stage} /> : null}
+              {/* Stages stop once prose starts: the answer arriving IS the progress. */}
+              {stage && !live ? <Thinking stage={stage} /> : null}
             </StickToBottom.Content>
 
-      {/* The way back. Only while away from the bottom, and only when there is
+            {/* The way back. Only while away from the bottom, and only when there is
           something to go back TO — offering it on an already-complete thread
           would be a button that does nothing visible. */}
-      {!isAtBottom && messages.length > 0 ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4">
-          <button
-            type="button"
-            onClick={() => void scrollToBottom()}
-            style={{ animation: "pill-enter 180ms ease-out" }}
-            className="pointer-events-auto absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
-          >
-            <svg viewBox="0 0 16 16" className="size-3" aria-hidden>
-              <path
-                d="M8 3v10m0 0 4-4m-4 4-4-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            {live || stage ? "Answering" : "Latest"}
-          </button>
-        </div>
-      ) : null}
+            {!isAtBottom && messages.length > 0 ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-4">
+                <button
+                  type="button"
+                  onClick={() => void scrollToBottom()}
+                  style={{ animation: "pill-enter 180ms ease-out" }}
+                  className="pointer-events-auto absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
+                >
+                  <svg viewBox="0 0 16 16" className="size-3" aria-hidden>
+                    <path
+                      d="M8 3v10m0 0 4-4m-4 4-4-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {live || stage ? "Answering" : "Latest"}
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </StickToBottom>
@@ -331,7 +342,11 @@ export function AgentThread({
             ) : draft.length > 1800 ? (
               // Only near the ceiling. A counter shown from the first keystroke
               // is a limit announcing itself to people who will never reach it.
-              <span className={draft.length >= 2000 ? "text-negative" : "text-warning"}>
+              <span
+                className={
+                  draft.length >= 2000 ? "text-negative" : "text-warning"
+                }
+              >
                 {2000 - draft.length} characters left
               </span>
             ) : (
@@ -346,7 +361,10 @@ export function AgentThread({
             className="flex size-9 items-center justify-center rounded-lg bg-accent text-bg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim"
           >
             {sending ? (
-              <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />
+              <Loader2
+                className="size-4 motion-safe:animate-spin"
+                aria-hidden
+              />
             ) : (
               // shadcn's PromptInputSubmit glyph. Not the word "Send": the hint
               // beside it already says Enter sends, and a second instruction in
@@ -391,7 +409,10 @@ function Thinking({ stage }: { stage: TurnStage }) {
   // The stages are strictly ordered, so earlier ones are shown as settled
   // rather than replaced. Watching items tick off is the difference between
   // "it is working" and "it is still working".
-  const order: TurnStage[] = ["reading", stage === "searching" ? "searching" : "drafting"];
+  const order: TurnStage[] = [
+    "reading",
+    stage === "searching" ? "searching" : "drafting",
+  ];
   const reached = order.indexOf(stage);
 
   return (
@@ -405,7 +426,9 @@ function Thinking({ stage }: { stage: TurnStage }) {
             <li key={s} className="flex items-center gap-2.5">
               <span
                 className={`size-1.5 rounded-full ${
-                  done ? "bg-accent" : "animate-pulse bg-text-dim motion-reduce:animate-none"
+                  done
+                    ? "bg-accent"
+                    : "animate-pulse bg-text-dim motion-reduce:animate-none"
                 }`}
               />
               <span
@@ -476,28 +499,127 @@ function Typed({ text, onDone }: { text: string; onDone?: () => void }) {
 
 /* -------------------------------------------------------------------- turns -- */
 
-/** The standing brief. Always first, so an empty thread is not a blank page. */
+/**
+ * The agent introducing itself.
+ *
+ * IT SAYS ITS OWN NAME. Every agent used to open with the same sentence about
+ * its class and its capital, so four agents on one account greeted you
+ * identically and the thread read like a form letter from the platform rather
+ * than a line from the thing you built and named.
+ *
+ * IT SAYS WHAT IT IS ACTUALLY DOING. The second line comes from the agent's
+ * real state — running and between ticks, waiting on its first cycle, or
+ * stopped and why. An opening that claims "I will tell you here when something
+ * happens" to an agent that has been paused for two days since its model
+ * balance ran out is the product lying in the agent's voice.
+ *
+ * IT DOES NOT REPORT PERFORMANCE. There is no PnL on this payload, and a
+ * greeting is the wrong place to invent one. What it can say truthfully is
+ * cadence and state; the equity curve is six inches away and is the honest
+ * answer to "how am I doing".
+ */
 function Opening({ agent }: { agent: AgentRow | null }) {
   if (!agent) return null;
+
+  const capital = `$${Number(agent.capital_usd).toLocaleString("en-US", {
+    maximumFractionDigits: 0,
+  })}`;
+
   return (
     <Row role="agent">
       <p className="font-ui text-[13.5px] leading-[1.7] text-text-secondary">
-        I run{" "}
+        Hi, I&apos;m{" "}
+        <span className="font-mono text-[12.5px] text-text-primary">
+          {agent.strategy_name}
+        </span>
+        . I trade{" "}
         <span className="font-mono text-[12.5px] text-text-primary">
           {agent.strategy_class}
         </span>{" "}
         on{" "}
         <span className="font-mono text-[12.5px] text-text-primary">
-          ${Number(agent.capital_usd).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+          {capital}
         </span>{" "}
         of {agent.is_paper ? "paper" : "live"} capital.{" "}
         {agent.autonomy === "propose_only"
           ? "I ask before every trade."
-          : "I trade within your caps, and close on your exit rules without asking."}{" "}
-        I will tell you here when something happens.
+          : "I trade within your caps and close on your exit rules without asking."}
+      </p>
+      <p className="pt-2 font-ui text-[13.5px] leading-[1.7] text-text-secondary">
+        {standing(agent)}
       </p>
     </Row>
   );
+}
+
+/**
+ * The second line: what this agent is doing right now, in its own voice.
+ *
+ * Ordered by what the reader most needs to know. A stopped agent leads with
+ * being stopped — its cadence is irrelevant while it is not running, and
+ * mentioning it first would bury the one fact that needs acting on.
+ */
+function standing(agent: AgentRow): string {
+  const waiting = Number(agent.needs_you ?? 0);
+
+  if (agent.status === "paused" || agent.status === "stopped") {
+    const why = agent.paused_reason ?? null;
+    if (why === "model_unfunded" || why === "model_balance_exhausted") {
+      // The one pause the owner can clear in a minute, so it says how rather
+      // than only what — and promises the restart, because the agent does
+      // resume on its own and people assume otherwise.
+      return "I'm stopped right now: my model balance ran out, so I can't reason about anything. Top it up and I'll pick up on my own — no restart needed.";
+    }
+    if (why === "drawdown_breach") {
+      return "I stopped myself: I breached the drawdown limit you set. Nothing more will be opened until you decide what to do.";
+    }
+    if (why === "insufficient_funds") {
+      return "I'm stopped: I ran out of funds to trade with. Top up my wallet and I'll start again.";
+    }
+    if (why) {
+      return `I'm stopped: ${why.replace(/_/g, " ")}. Ask me about it and I'll tell you what I know.`;
+    }
+    return "I'm not running at the moment, so nothing is being opened or closed.";
+  }
+
+  if (agent.status === "liquidating") {
+    return "I'm closing out my positions. I'll stop once the book is flat.";
+  }
+
+  if (agent.status === "draft") {
+    return "I'm not deployed yet — nothing I say here has been acted on.";
+  }
+
+  // Running.
+  const parts: string[] = [];
+  if (!agent.last_tick_at) {
+    parts.push("My first cycle is starting now");
+  } else {
+    parts.push(`I last checked the market ${when(agent.last_tick_at)}`);
+  }
+  if (agent.next_tick_at)
+    parts.push(`and I'll look again ${ahead(agent.next_tick_at)}`);
+
+  const head = `${parts.join(" ")}.`;
+  // The count of things already waiting goes FIRST in the reader's attention
+  // even though it comes second in the sentence — it is the only part of this
+  // line that asks them to do something.
+  return waiting > 0
+    ? `${head} There ${waiting === 1 ? "is" : "are"} ${waiting} thing${
+        waiting === 1 ? "" : "s"
+      } waiting on you below.`
+    : `${head} I'll tell you here when something happens.`;
+}
+
+// `when` already exists further down this file — reused rather than duplicated,
+// which is what the first pass at this did.
+
+/** How long until, in the agent's voice. */
+function ahead(iso: string): string {
+  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+  if (mins <= 0) return "any moment";
+  if (mins < 60) return `in ${mins} min`;
+  return `in ${Math.floor(mins / 60)}h`;
 }
 
 function Turn({
@@ -526,7 +648,10 @@ function Turn({
 
   if (m.role === "user") {
     return (
-      <div className="group flex w-full max-w-[95%] justify-end self-end" style={enter}>
+      <div
+        className="group flex w-full max-w-[95%] justify-end self-end"
+        style={enter}
+      >
         {/* Filled rather than outlined: an outlined box on a dark ground reads
             as an input waiting to be filled; a filled one reads as something
             already said.
@@ -589,7 +714,9 @@ function Turn({
               // enough to read as data rather than as a proposal.
               className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-grid/55 px-4 py-3 last:border-b-0"
             >
-              <span className="truncate font-mono text-[11.5px] text-text-primary">{c.label}</span>
+              <span className="truncate font-mono text-[11.5px] text-text-primary">
+                {c.label}
+              </span>
               <span className="flex shrink-0 items-baseline gap-2 font-mono text-[11.5px]">
                 <span className="text-text-dim line-through">{c.from}</span>
                 <span className="text-text-muted">→</span>
@@ -628,7 +755,11 @@ function Turn({
               ) : m.approved === false ? (
                 <X className="size-3" aria-hidden />
               ) : null}
-              {m.approved === true ? "Applied" : m.approved === false ? "Declined" : "Settled"}
+              {m.approved === true
+                ? "Applied"
+                : m.approved === false
+                  ? "Declined"
+                  : "Settled"}
             </p>
           )}
         </div>
@@ -757,7 +888,9 @@ function ApplyBar({
     // final table row with buttons in it.
     <div className="border-t border-grid/55 bg-surface/30 px-4 py-3">
       {error ? (
-        <p className="pb-2 font-ui text-[12px] leading-relaxed text-negative">{error}</p>
+        <p className="pb-2 font-ui text-[12px] leading-relaxed text-negative">
+          {error}
+        </p>
       ) : null}
       {/* shadcn's ConfirmationActions: `justify-end`, the decision at the end
           of what it is a decision about. The note keeps its place at the start
@@ -814,7 +947,9 @@ function compact(ns: number[]): string {
   const sorted = [...new Set(ns)].sort((a, b) => a - b);
   if (sorted.length === 0) return "";
   if (sorted.length === 1) return `#${sorted[0]}`;
-  const consecutive = sorted.every((n, i) => i === 0 || n === sorted[i - 1] + 1);
+  const consecutive = sorted.every(
+    (n, i) => i === 0 || n === sorted[i - 1] + 1,
+  );
   return consecutive
     ? `#${sorted[0]}–${sorted[sorted.length - 1]}`
     : sorted.map((n) => `#${n}`).join(", ");

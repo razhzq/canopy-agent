@@ -30,6 +30,7 @@
 // nobody read it.
 
 import Link from "next/link";
+import { FOCUS } from "@/components/kit";
 import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -44,9 +45,6 @@ import {
   type NotificationItem,
   type NotificationKind,
 } from "@/lib/api";
-
-const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 /** How often the badge re-checks while the panel is closed. */
 const POLL_MS = 60_000;

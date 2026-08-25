@@ -19,7 +19,6 @@ import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve } from "@/components/charts";
-import { AgentChatSheet } from "@/components/agentChatSheet";
 import { headline } from "@/components/activity";
 import {
   getActivity,
@@ -66,6 +65,7 @@ export function AgentDetailMobile({
   universe,
   onChanged,
   fundOnMount,
+  onOpenChat,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
@@ -87,10 +87,17 @@ export function AgentDetailMobile({
    * its own trigger: the param was gone, so a reload could not retry either.
    */
   fundOnMount?: boolean;
+  /**
+   * Opens the thread.
+   *
+   * The panel is owned by `workspace.tsx` at both widths, so this reports the
+   * intent upward rather than mounting a second sheet. It used to mount its own,
+   * which meant two components could each believe they owned the conversation.
+   */
+  onOpenChat?: () => void;
 }) {
   const { getAccessToken } = usePrivy();
   const [range, setRange] = useState<"7D" | "30D" | "ALL">("ALL");
-  const [chatOpen, setChatOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cycle, setCycle] = useState<ActivityCycle | null>(null);
   const [adding, setAdding] = useState(false);
@@ -211,7 +218,7 @@ export function AgentDetailMobile({
         </div>
         <button
           type="button"
-          onClick={() => setChatOpen(true)}
+          onClick={() => onOpenChat?.()}
           aria-label="Chat with this agent"
           className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface"
         >
@@ -535,14 +542,6 @@ export function AgentDetailMobile({
           </span>
         </Link>
       </div>
-
-      {chatOpen ? (
-        <AgentChatSheet
-          agentId={agent.id}
-          agent={agent}
-          onClose={() => setChatOpen(false)}
-        />
-      ) : null}
 
       {modelOpen ? (
         <ModelPanel

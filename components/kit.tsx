@@ -79,6 +79,34 @@ export const SECONDARY =
 export const QUIET =
   "font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent disabled:opacity-40";
 
+/**
+ * The focus ring. One definition, because a keyboard user learns it once.
+ *
+ * Was copied into nav.tsx and notificationCentre.tsx independently; anything
+ * that ships a third copy will drift from the other two.
+ */
+export const FOCUS =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+/**
+ * A quiet icon control — a close, a toggle, a thing you press often and think
+ * about rarely.
+ *
+ * NO BORDER AT REST. Rule 6: a control used constantly and costing nothing
+ * should not draw a box around itself all day. The hit target appears on hover
+ * as a filled square, which is a stronger affordance than an outline anyway —
+ * an outline says "here is an edge", a fill says "this is the area that
+ * responds".
+ *
+ * Bigger than the glyph inside it on purpose: 36px of target around a 16px mark.
+ * A control that is exactly its icon is a control people miss.
+ */
+export const ICON_BUTTON = `flex size-9 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary ${FOCUS}`;
+
+/** An icon control whose thing is currently open. Same accent as a selection. */
+export const ICON_BUTTON_ON =
+  "bg-accent-wash text-accent hover:bg-accent-wash hover:text-accent";
+
 /** The smallest control there is — inline inside a field, like Max. */
 export const MICRO =
   "font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent";
