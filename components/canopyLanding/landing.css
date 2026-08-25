@@ -383,3 +383,105 @@
   .cnp .fold .hero > .wrap{padding-top:0;padding-bottom:0}
   .cnp .sec{padding:70px 0}
 }
+
+/* ============================================================
+   canopyfinance-composition restyle layer.
+   Appended so it overrides the rules above by cascade order without
+   editing them. Adopts canopyfinance.io's composition — cinematic
+   rings hero, film grain, glassy pill buttons, light-weight display
+   headings, an S-curve build stepper, and the model-choice section —
+   on Canopy's existing mint-on-near-black palette.
+   ============================================================ */
+@keyframes cnp-float{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-14px);opacity:1}}
+
+/* film grain — repurpose the grid texture the page already mounts */
+.cnp .grid-tex{
+  opacity:.05;background-size:auto;
+  -webkit-mask-image:none;mask-image:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* glowing ring motif + fireflies (rendered by the hero and final CTA) */
+.cnp .rings{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.cnp .ring{position:absolute;border-radius:50%;background:radial-gradient(closest-side,transparent 78%,rgba(94,211,179,.30) 92%,transparent 100%);filter:blur(.4px)}
+.cnp .particles{position:absolute;inset:0;pointer-events:none;z-index:1}
+.cnp .particles i{position:absolute;width:3px;height:3px;border-radius:50%;background:rgba(205,245,232,.9);box-shadow:0 0 8px 2px rgba(94,211,179,.45);animation:cnp-float 7s ease-in-out infinite}
+
+/* glassy pill buttons — Canopy keeps a solid-mint primary, ghost turns glassy */
+.cnp .btn{border-radius:100px;font-weight:500;font-size:14px;padding:12px 22px}
+.cnp .btn-ghost{background:rgba(255,255,255,.05);border:1px solid var(--border-accent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.cnp .btn-ghost:hover{background:rgba(255,255,255,.09);border-color:var(--accent-2)}
+.cnp .nav-cta{border-radius:100px}
+
+/* light-weight display + section headings (canopyfinance's calm register) */
+.cnp .h1{font-weight:300;letter-spacing:-.03em}
+.cnp .sec-title{font-weight:300;letter-spacing:-.025em}
+.cnp .thesis .quote{font-weight:300}
+.cnp .final h3{font-weight:300}
+
+/* eyebrow: drop the leading rule for the plain-mono canopyfinance look */
+.cnp .eyebrow::before{display:none}
+.cnp .eyebrow.center::after{display:none}
+.cnp .eyebrow{letter-spacing:.2em}
+
+/* ---- cinematic centered hero ---- */
+.cnp .hero{padding:0}
+.cnp .fold .hero>.wrap{padding-top:48px;padding-bottom:48px}
+.cnp .hero-inner{max-width:900px;margin:0 auto;text-align:center;position:relative;z-index:3}
+.cnp .hero-inner .eyebrow{justify-content:center}
+.cnp .hero-inner .h1{font-size:clamp(40px,6vw,78px);line-height:1.05;margin:24px 0 0}
+.cnp .hero-inner .lede{margin:26px auto 0;max-width:52ch;color:var(--text-2)}
+.cnp .hero-inner .hero-cta{justify-content:center}
+.cnp .hero-inner .trust{justify-content:center;margin-top:36px}
+/* the warm horizon glow at the base of the hero, in mint */
+.cnp .hero .meadow{position:absolute;left:0;right:0;bottom:0;height:44%;z-index:0;pointer-events:none;
+  background:radial-gradient(80% 120% at 50% 130%, rgba(94,211,179,.16), rgba(58,174,146,.04) 46%, transparent 68%)}
+
+/* ---- S-curve build stepper ---- */
+.cnp .journey{position:relative;margin-top:12px}
+.cnp .journey .curve{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.cnp .steps-track{grid-template-columns:repeat(4,1fr);align-items:start;position:relative;z-index:1;gap:18px}
+.cnp .steps-track::before{display:none}
+.cnp .fstep{padding:0 8px 0 16px;border-left:1px solid var(--border-accent)}
+.cnp .fstep:nth-child(2){margin-top:74px}
+.cnp .fstep:nth-child(3){margin-top:148px}
+.cnp .fstep:nth-child(4){margin-top:222px}
+.cnp .fstep .num{font-family:var(--mono);font-size:13px;color:var(--text-2);letter-spacing:.02em}
+.cnp .fstep .num b{color:var(--accent);font-weight:400}
+.cnp .fstep h4{font-size:16px;font-weight:500;margin-top:12px}
+.cnp .fstep p{font-size:13px;max-width:22em;margin-top:8px}
+.cnp .fstep .tag{margin-top:14px}
+@media(max-width:820px){
+  .cnp .steps-track{grid-template-columns:1fr;gap:0}
+  .cnp .journey .curve{display:none}
+  .cnp .fstep{margin-top:0!important;padding:0 0 30px 16px}
+}
+
+/* ---- models section ---- */
+.cnp .models{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:52px}
+.cnp .mcard{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px;display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden;transition:border-color .25s}
+.cnp .mcard:hover{border-color:var(--border-accent)}
+.cnp .mcard.feat{border-color:var(--border-accent);background:linear-gradient(168deg,#0B0B0B,#0C1613 58%,#0A0A0A)}
+.cnp .mcard.feat::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 100% 0%, rgba(94,211,179,.08), transparent 55%)}
+.cnp .mhead{display:flex;align-items:center;gap:14px;position:relative}
+.cnp .mlogo{width:46px;height:46px;flex:none;border-radius:13px;display:grid;place-items:center;border:1px solid var(--border-accent);background:rgba(255,255,255,.03)}
+.cnp .mlogo svg{width:24px;height:24px}
+.cnp .mcard h4{margin:0;font-size:19px;font-weight:500;letter-spacing:-.01em;line-height:1.15}
+.cnp .msub{font-family:var(--mono);font-size:11px;color:var(--text-3);margin-top:4px}
+.cnp .mtag{margin-left:auto;align-self:flex-start;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:100px;white-space:nowrap}
+.cnp .mtag.inc{color:var(--accent);background:var(--accent-dim);border:1px solid var(--border-accent)}
+.cnp .mtag.byo{color:var(--text-2);border:1px solid var(--border)}
+.cnp .mcard p{margin:0;color:var(--text-2);font-size:14.5px;line-height:1.55}
+.cnp .mfeat{display:flex;flex-direction:column;gap:11px}
+.cnp .mfeat div{display:flex;gap:11px;align-items:flex-start;font-size:13.5px;color:var(--text-2)}
+.cnp .mfeat svg{width:15px;height:15px;flex:none;color:var(--accent);margin-top:3px}
+.cnp .mchips{display:flex;flex-wrap:wrap;gap:8px}
+.cnp .mchip{font-family:var(--mono);font-size:11px;color:var(--text-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+.cnp .mprice{font-family:var(--mono);font-size:12px;color:var(--text-3);margin-top:auto;padding-top:6px}
+.cnp .mprice b{color:var(--text-2);font-weight:400}
+@media(max-width:820px){.cnp .models{grid-template-columns:1fr}}
+
+/* fade-in gains a slight blur, matching the reference's reveal */
+.cnp .rv{filter:blur(6px)}
+.cnp .rv.in{filter:none}
+@media(prefers-reduced-motion:reduce){.cnp .rv{filter:none}}

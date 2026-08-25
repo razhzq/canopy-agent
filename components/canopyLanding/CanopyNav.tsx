@@ -19,6 +19,7 @@ export function CanopyNav({ onLogin }: Props) {
         <div className="nav-links">
           <a href="#market">{t("ld_nav_marketplace")}</a>
           <a href="#build">{t("ld_nav_build")}</a>
+          <a href="#models">{t("ld_nav_models")}</a>
           <a href="#record">{t("ld_nav_record")}</a>
           <a href="#pricing">{t("ld_nav_pricing")}</a>
           {/* The switcher is on the landing page too, and it has to be: this

@@ -13,6 +13,15 @@ function fmt(n: number, dec: number) {
   return dec ? n.toFixed(dec) : Math.round(n).toLocaleString("en-US");
 }
 
+/** The mint tick beside each model-card feature. Decorative, so aria-hidden. */
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Each sample agent's badge, by the flag it carries. */
 const FLAG_KEY: Record<NonNullable<import("./data").Agent["flag"]>, TranslationKey> = {
   hot: "ld_flag_hot",
@@ -176,6 +185,97 @@ export function CanopyBody({ onLogin }: Props) {
         </div>
       </section>
 
+      {/* models — the LLM an agent reasons with */}
+      <section className="sec" id="models" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="wrap">
+          <div className="sec-head rv" style={{ maxWidth: 720, marginInline: "auto", textAlign: "center" }}>
+            <span className="eyebrow center">{t("ld_models_eyebrow")}</span>
+            <h2 className="sec-title">
+              {t("ld_models_title_a")}
+              <span className="mint">{t("ld_models_title_mint")}</span>
+            </h2>
+            <p className="sec-sub" style={{ marginInline: "auto", maxWidth: "60ch" }}>
+              {t("ld_models_sub")}
+            </p>
+          </div>
+          <div className="models">
+            {/* Canopy-hosted default */}
+            <div className="mcard feat rv">
+              <div className="mhead">
+                <span className="mlogo" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <defs>
+                      <linearGradient id="cnpQwen" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#b98cff" />
+                        <stop offset="1" stopColor="#6f6bff" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"
+                      fill="url(#cnpQwen)"
+                      opacity=".9"
+                    />
+                  </svg>
+                </span>
+                <div style={{ flex: 1 }}>
+                  <h4>cQWEN3</h4>
+                  <div className="msub">{t("ld_models_canopy_sub")}</div>
+                </div>
+                <span className="mtag inc">{t("ld_models_canopy_tag")}</span>
+              </div>
+              <p>{t("ld_models_canopy_body")}</p>
+              <div className="mfeat">
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_1")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_2")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_canopy_3")}
+                </div>
+              </div>
+              <div className="mprice">{t("ld_models_canopy_price")}</div>
+            </div>
+
+            {/* Bring-your-own via the Pod marketplace */}
+            <div className="mcard rv">
+              <div className="mhead">
+                <span className="mlogo" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.6">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+                  </svg>
+                </span>
+                <div style={{ flex: 1 }}>
+                  <h4>{t("ld_models_byo_h")}</h4>
+                  <div className="msub">{t("ld_models_byo_sub")}</div>
+                </div>
+                <span className="mtag byo">{t("ld_models_byo_tag")}</span>
+              </div>
+              <p>{t("ld_models_byo_body")}</p>
+              <div className="mchips">
+                {/* Model names are product identifiers — not translated. */}
+                <span className="mchip">DeepSeek-V3</span>
+                <span className="mchip">Llama 3.3 70B</span>
+                <span className="mchip">GLM-4.6</span>
+                <span className="mchip">Kimi K2</span>
+                <span className="mchip">{t("ld_models_byo_more")}</span>
+              </div>
+              <div className="mfeat">
+                <div>
+                  <CheckIcon /> {t("ld_models_byo_1")}
+                </div>
+                <div>
+                  <CheckIcon /> {t("ld_models_byo_2")}
+                </div>
+              </div>
+              <div className="mprice">{t("ld_models_byo_price")}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* build stepper */}
       <section className="sec" id="build" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="wrap">
@@ -191,34 +291,53 @@ export function CanopyBody({ onLogin }: Props) {
             <div className="draft">
               <i /> {t("ld_draft")}
             </div>
-            <div className="steps-track">
-              <div className="fstep">
-                <div className="node">01</div>
-                <h4>{t("ld_step1_h")}</h4>
-                <p>{t("ld_step1_p")}</p>
-                <span className="tag">AAPLx/USDC</span>
-              </div>
-              <div className="fstep">
-                <div className="node">02</div>
-                <h4>{t("ld_step2_h")}</h4>
-                <p>{t("ld_step2_p")}</p>
-                <span className="tag">
-                  {t("ld_step2_tag")} <b>·</b> Canopy + Jupiter
-                </span>
-              </div>
-              <div className="fstep">
-                <div className="node">03</div>
-                <h4>{t("ld_step3_h")}</h4>
-                <p>{t("ld_step3_p")}</p>
-                <span className="tag">
-                  {t("ld_step3_tag_a")} <b>·</b> {t("ld_step3_tag_b")}
-                </span>
-              </div>
-              <div className="fstep pending">
-                <div className="node">04</div>
-                <h4>{t("ld_step4_h")}</h4>
-                <p>{t("ld_step4_p")}</p>
-                <span className="tag">{t("ld_step4_tag")}</span>
+            {/* The steps sit along a flowing S-curve rather than a straight
+                rail — the organic connecting line is the reference site's
+                signature motif. The curve is decorative and hidden on the
+                stacked mobile layout. */}
+            <div className="journey">
+              <svg className="curve" viewBox="0 0 1140 300" preserveAspectRatio="none" aria-hidden>
+                <path
+                  d="M30 22 C 330 22 250 150 540 150 S 840 268 1110 268"
+                  fill="none"
+                  stroke="rgba(94,211,179,.35)"
+                  strokeWidth="1.4"
+                  strokeDasharray="3 6"
+                />
+              </svg>
+              <div className="steps-track">
+                <div className="fstep">
+                  <div className="num">
+                    <b>01</b> · {t("ld_step1_h")}
+                  </div>
+                  <p>{t("ld_step1_p")}</p>
+                  <span className="tag">AAPLx/USDC</span>
+                </div>
+                <div className="fstep">
+                  <div className="num">
+                    <b>02</b> · {t("ld_step2_h")}
+                  </div>
+                  <p>{t("ld_step2_p")}</p>
+                  <span className="tag">
+                    {t("ld_step2_tag")} <b>·</b> Canopy + Jupiter
+                  </span>
+                </div>
+                <div className="fstep">
+                  <div className="num">
+                    <b>03</b> · {t("ld_step3_h")}
+                  </div>
+                  <p>{t("ld_step3_p")}</p>
+                  <span className="tag">
+                    {t("ld_step3_tag_a")} <b>·</b> {t("ld_step3_tag_b")}
+                  </span>
+                </div>
+                <div className="fstep pending">
+                  <div className="num">
+                    <b>04</b> · {t("ld_step4_h")}
+                  </div>
+                  <p>{t("ld_step4_p")}</p>
+                  <span className="tag">{t("ld_step4_tag")}</span>
+                </div>
               </div>
             </div>
           </div>

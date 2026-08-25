@@ -9,6 +9,7 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_nav_record: "业绩记录",
   ld_nav_pricing: "定价",
   ld_nav_venues: "交易场所",
+  ld_nav_models: "模型",
   ld_nav_cta: "进入应用",
 
   ld_hero_eyebrow: "代币化市场 · 7×24 小时不休市",
@@ -67,6 +68,31 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_bento_exec_h: "每一笔都拿到最优价格。",
   ld_bento_exec_p: "自动在所有已接入的交易场所之间路由，并随着新场所接入自动纳入 — 每笔交易都重新比价。",
   ld_bento_exec_fee: "极低的场所费率",
+
+  // 模型：智能体用来推理的大模型 — Canopy 自托管的默认模型，或经 Pod 市场购买的任意模型。
+  // 模型名称（cQWEN3、DeepSeek-V3……）为产品标识，各语言下均保持原样。
+  ld_models_eyebrow: "智能体的大脑 · 全新",
+  ld_models_title_a: "为您的智能体挑选",
+  ld_models_title_mint: "推理所用的模型。",
+  ld_models_sub:
+    "每个智能体都用一个大语言模型来推理 — 筛选标的、权衡候选、亲自写下理由。用 Canopy 免费托管的那一个，或从开放市场引入任意模型，按智能体付费，价格上限由您设定。",
+  ld_models_canopy_sub: "Canopy 自托管的 Qwen3-14B",
+  ld_models_canopy_tag: "已包含",
+  ld_models_canopy_body:
+    "每个智能体一直在跑的默认模型。Canopy 托管权重并承担成本 — 无需充值，无需计量。您的提示词从不离开 Canopy 自有的推理环境。",
+  ld_models_canopy_1: "对每个智能体免费，模拟盘或实盘皆然",
+  ld_models_canopy_2: "运行在 Canopy 自有推理环境 — 提示词私密",
+  ld_models_canopy_3: "针对五席议事循环调校",
+  ld_models_canopy_price: "$0 — 已包含，无需维持余额",
+  ld_models_byo_h: "引入您自己的模型",
+  ld_models_byo_sub: "经 Pod 市场提供 500+ 模型",
+  ld_models_byo_tag: "市场",
+  ld_models_byo_body:
+    "把智能体固定到任意前沿或开源模型。每次调用都路由到愿意提供服务的最低价供应商，由该智能体以 USDC 支付 — 绝不超过您事先约定的每百万 token 上限。",
+  ld_models_byo_more: "还有 500+",
+  ld_models_byo_1: "由您设定每百万 token 的最高价 — 涨价将被拒绝，而非默默承担",
+  ld_models_byo_2: "按智能体以 USDC 充值，在其自己的页面上补充",
+  ld_models_byo_price: "按您所选节奏预估每日成本 — 转实盘前不收取任何费用",
 
   ld_build_eyebrow: "创建流程",
   ld_build_title_a: "四个页面，之后它",
