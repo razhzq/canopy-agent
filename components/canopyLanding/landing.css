@@ -485,3 +485,53 @@
 .cnp .rv{filter:blur(6px)}
 .cnp .rv.in{filter:none}
 @media(prefers-reduced-motion:reduce){.cnp .rv{filter:none}}
+
+/* ============================================================
+   Motion & chrome pass — floating glassy nav, hero parallax hooks,
+   and a slower, staggered scroll-reveal. Appended last so it wins.
+   ============================================================ */
+
+/* floating translucent nav box (detached from the top edge) */
+.cnp nav{background:transparent;border-bottom:0;backdrop-filter:none;-webkit-backdrop-filter:none;padding-top:14px;pointer-events:none}
+.cnp .nav-in{
+  height:auto;pointer-events:auto;
+  padding:10px 14px 10px 20px;
+  border-radius:16px;
+  background:rgba(12,16,14,.5);
+  border:1px solid rgba(255,255,255,.09);
+  backdrop-filter:blur(18px) saturate(120%);-webkit-backdrop-filter:blur(18px) saturate(120%);
+  box-shadow:0 10px 34px -14px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* ---- hero entrance (choreographed, plays once on load) ---- */
+@keyframes cnp-rise{from{opacity:0;transform:translateY(26px);filter:blur(7px)}to{opacity:1;transform:none;filter:none}}
+.cnp .hero-inner > *{animation:cnp-rise .95s cubic-bezier(.16,1,.3,1) both}
+.cnp .hero-inner > .eyebrow{animation-delay:.05s}
+.cnp .hero-inner > .h1{animation-delay:.16s}
+.cnp .hero-inner > .lede{animation-delay:.3s}
+.cnp .hero-inner > .hero-cta{animation-delay:.44s}
+.cnp .hero-inner > .trust{animation-delay:.56s}
+
+/* parallax layers get their transform from JS; keep them promoted for smoothness */
+.cnp .hero .rings,.cnp .hero .particles,.cnp .hero-inner{will-change:transform}
+
+/* ---- slower, more elegant scroll reveal (+ subtle stagger) ---- */
+.cnp .rv{
+  opacity:0;transform:translateY(30px);filter:blur(8px);
+  transition:opacity 1s cubic-bezier(.16,1,.3,1), transform 1s cubic-bezier(.16,1,.3,1), filter 1s ease;
+}
+.cnp .rv.in{opacity:1;transform:none;filter:none}
+/* stagger items that arrive together in a row/grid */
+.cnp .bento .cell:nth-child(2),.cnp .models .mcard:nth-child(2),
+.cnp .classbar .cls:nth-child(2),.cnp .mkt .acard:nth-child(3n+2),
+.cnp .price .plan:nth-child(2){transition-delay:.09s}
+.cnp .bento .cell:nth-child(3),.cnp .classbar .cls:nth-child(3),
+.cnp .mkt .acard:nth-child(3n+3){transition-delay:.18s}
+.cnp .bento .cell:nth-child(4),.cnp .classbar .cls:nth-child(4){transition-delay:.27s}
+.cnp .bento .cell:nth-child(5),.cnp .classbar .cls:nth-child(5){transition-delay:.36s}
+
+@media(prefers-reduced-motion:reduce){
+  .cnp .hero-inner > *{animation:none}
+  .cnp .hero .rings,.cnp .hero .particles,.cnp .hero-inner{transform:none!important}
+  .cnp .rv{opacity:1;transform:none;filter:none;transition:none}
+}
