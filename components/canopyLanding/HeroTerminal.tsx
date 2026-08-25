@@ -30,6 +30,7 @@ export function HeroTerminal({ onLogin }: Props) {
   const flies = useRef<HTMLDivElement>(null);
   const rings = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
+  const photo = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const host = flies.current;
@@ -61,6 +62,8 @@ export function HeroTerminal({ onLogin }: Props) {
       const y = window.scrollY;
       // Only pay for the work while the hero is still on screen.
       if (y > window.innerHeight) return;
+      // The painting drifts slowest, so it reads as the far background.
+      if (photo.current) photo.current.style.transform = `translate3d(0, ${y * 0.22}px, 0) scale(1.05)`;
       if (rings.current) rings.current.style.transform = `translate3d(0, ${y * 0.34}px, 0)`;
       if (flies.current) flies.current.style.transform = `translate3d(0, ${y * 0.5}px, 0)`;
       if (inner.current) {
@@ -90,6 +93,9 @@ export function HeroTerminal({ onLogin }: Props) {
           />
         ))}
       </div>
+      {/* The painting at /public/canopy-hero.png — if it is ever removed this
+          layer is simply transparent and the glowing rings show through. */}
+      <div className="hero-photo" ref={photo} aria-hidden />
       <div className="particles" ref={flies} aria-hidden />
       <div className="meadow" aria-hidden />
       <div className="wrap">

@@ -621,3 +621,36 @@
   .cnp .appshow-grid{grid-template-columns:1fr;gap:8px}
   .cnp .phone{width:300px}
 }
+
+/* ============================================================
+   Hero painting. Drop a file at /public/hero-moon.jpg and it becomes
+   the hero backdrop; if it is absent the layer is simply transparent
+   and the glowing rings show through, so nothing breaks either way.
+   A scrim keeps the white headline legible over a bright painting,
+   and the base fades to --bg so the section blends into the page.
+   ============================================================ */
+.cnp .hero-photo{
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:url("/canopy-hero.png");
+  background-size:cover;background-position:50% 42%;
+  will-change:transform;
+}
+.cnp .hero-photo::after{
+  content:"";position:absolute;inset:0;
+  background:
+    radial-gradient(62% 46% at 50% 74%, rgba(5,5,5,.55), transparent 72%),
+    linear-gradient(180deg, rgba(5,5,5,.35) 0%, transparent 26%, transparent 52%, rgba(5,5,5,.6) 86%, var(--bg) 100%);
+}
+/* fireflies keep floating ON TOP of the painting for a bit of life */
+.cnp .hero .particles{z-index:2}
+
+/* hero-over-photo legibility: soft shadows so text pops without dimming the art */
+.cnp .hero-photo::after{
+  background:
+    radial-gradient(72% 56% at 50% 56%, rgba(5,5,5,.5), transparent 72%),
+    linear-gradient(180deg, rgba(5,5,5,.4) 0%, transparent 22%, transparent 50%, rgba(5,5,5,.62) 86%, var(--bg) 100%);
+}
+.cnp .hero-inner .h1{text-shadow:0 2px 34px rgba(0,0,0,.55),0 1px 6px rgba(0,0,0,.5)}
+.cnp .hero-inner .lede{text-shadow:0 1px 18px rgba(0,0,0,.75)}
+.cnp .hero-inner .eyebrow{text-shadow:0 1px 12px rgba(0,0,0,.7)}
+.cnp .hero-inner .trust span{text-shadow:0 1px 12px rgba(0,0,0,.85)}
