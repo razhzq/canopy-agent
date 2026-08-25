@@ -93,8 +93,8 @@ export function HeroTerminal({ onLogin }: Props) {
           />
         ))}
       </div>
-      {/* The painting at /public/canopy-hero.png — if it is ever removed this
-          layer is simply transparent and the glowing rings show through. */}
+      {/* The painting at /public/canopy-hero2.webp — if it is ever removed
+          this layer is transparent and the glowing rings show through. */}
       <div className="hero-photo" ref={photo} aria-hidden />
       <div className="particles" ref={flies} aria-hidden />
       <div className="meadow" aria-hidden />

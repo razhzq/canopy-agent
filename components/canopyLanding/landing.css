@@ -631,7 +631,7 @@
    ============================================================ */
 .cnp .hero-photo{
   position:absolute;inset:0;z-index:0;pointer-events:none;
-  background-image:url("/canopy-hero.png");
+  background-image:url("/canopy-hero2.webp");
   background-size:cover;background-position:50% 42%;
   will-change:transform;
 }
@@ -654,3 +654,18 @@
 .cnp .hero-inner .lede{text-shadow:0 1px 18px rgba(0,0,0,.75)}
 .cnp .hero-inner .eyebrow{text-shadow:0 1px 12px rgba(0,0,0,.7)}
 .cnp .hero-inner .trust span{text-shadow:0 1px 12px rgba(0,0,0,.85)}
+
+/* ---- hero legibility + nav spacing pass ---- */
+/* stronger scrim so the lede and trust row read over the bright ground */
+.cnp .hero-photo::after{
+  background:
+    radial-gradient(78% 62% at 50% 54%, rgba(5,5,5,.6), transparent 74%),
+    linear-gradient(180deg, rgba(5,5,5,.45) 0%, transparent 20%, rgba(5,5,5,.25) 44%, rgba(5,5,5,.72) 84%, var(--bg) 100%);
+}
+/* the trust row was --text-3 (#555) and vanished over the art — brighten it */
+.cnp .hero-inner .trust{color:var(--text)}
+.cnp .hero-inner .trust span{color:var(--text);text-shadow:0 1px 14px rgba(0,0,0,.9)}
+.cnp .hero-inner .lede{color:#CBD3CF;text-shadow:0 1px 20px rgba(0,0,0,.85)}
+
+/* breathing room between the floating nav and the ticker below it */
+.cnp nav{padding-bottom:14px}

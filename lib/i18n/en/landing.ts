@@ -187,12 +187,12 @@ export const enLanding = {
   // ── App / anywhere ─────────────────────────────────────────────
   // The iPhone section. The word "mobile" is deliberately absent — the
   // device in the image carries that meaning, and "Anywhere" says the rest.
-  ld_app_eyebrow: "The Canopy app",
+  ld_app_eyebrow: "Canopy on the go",
   ld_app_title_a: "Everything Canopy. ",
   ld_app_title_mint: "Anywhere.",
-  ld_app_sub: "Your agents, your positions and the 24/7 market — in one native app.",
+  ld_app_sub: "Your agents, your positions and the 24/7 market — right in your browser, wherever you are.",
   ld_app_1_h: "Trade instantly",
-  ld_app_1_p: "Buy and sell tokenized markets right from the app.",
+  ld_app_1_p: "Buy and sell tokenized markets right from your browser.",
   ld_app_2_h: "Every agent, live",
   ld_app_2_p: "Track records and activity update the moment they change.",
   ld_app_3_h: "Runs on autopilot",
