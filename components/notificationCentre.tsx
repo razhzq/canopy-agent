@@ -88,8 +88,24 @@ export function useSeenRows(onSeen: (ids: string[]) => void) {
   const pending = useRef(new Set<string>());
   const dwell = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const flush = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ids = useRef(new WeakMap<Element, string>());
   const observer = useRef<IntersectionObserver | null>(null);
+
+  /**
+   * Every row currently on the page, both ways round.
+   *
+   * REGISTERED BEFORE THE OBSERVER EXISTS. React runs ref callbacks during
+   * commit and effects afterwards, so on the first render every row registers
+   * while `observer.current` is still null. An earlier version returned early
+   * in that case and therefore watched nothing at all, ever: the panel opened,
+   * the reader scrolled, and not one row was marked. So rows go in the
+   * registry unconditionally and the observer picks up whatever is already
+   * there when it is built.
+   *
+   * Keyed both ways because a ref callback tears down with `null` and no id —
+   * the id→element half is what makes an unmounting row identifiable.
+   */
+  const byId = useRef(new Map<string, Element>());
+  const byEl = useRef(new Map<Element, string>());
 
   // In a ref so the observer, which is built once, always calls the CURRENT
   // callback rather than the one that existed when the panel opened.
@@ -112,7 +128,7 @@ export function useSeenRows(onSeen: (ids: string[]) => void) {
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          const id = ids.current.get(e.target);
+          const id = byEl.current.get(e.target);
           if (!id) continue;
           if (e.isIntersecting) {
             if (dwell.current.has(id)) continue;
@@ -138,6 +154,8 @@ export function useSeenRows(onSeen: (ids: string[]) => void) {
       { threshold: SEEN_RATIO },
     );
     observer.current = io;
+    // Everything that registered during the commit that preceded this effect.
+    for (const el of byEl.current.keys()) io.observe(el);
 
     const dwelling = dwell.current;
     return () => {
@@ -150,12 +168,51 @@ export function useSeenRows(onSeen: (ids: string[]) => void) {
     };
   }, [send]);
 
-  return useCallback((el: HTMLElement | null, id: string) => {
-    const io = observer.current;
-    if (!io || !el) return;
-    ids.current.set(el, id);
-    io.observe(el);
+  /**
+   * The ref callback for one row, MEMOISED PER ID.
+   *
+   * A fresh arrow per render would make React detach and re-attach every row
+   * on every render — and each detach clears that row's dwell timer, so a
+   * reader who stops on a row while anything upstream re-renders never
+   * accumulates the time that marks it read. One stable callback per id, and
+   * a render is invisible to the observer.
+   */
+  const refs = useRef(new Map<string, (el: HTMLElement | null) => void>());
+
+  const attach = useCallback((el: HTMLElement | null, id: string) => {
+    if (el === null) {
+      // The row went away — a filter changed, or it is now read.
+      const prev = byId.current.get(id);
+      if (prev) {
+        observer.current?.unobserve(prev);
+        byEl.current.delete(prev);
+        byId.current.delete(id);
+      }
+      const timer = dwell.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        dwell.current.delete(id);
+      }
+      return;
+    }
+    if (byId.current.get(id) === el) return;
+    byId.current.set(id, el);
+    byEl.current.set(el, id);
+    // Null until the effect above runs, which is exactly why the registry
+    // exists — the observer will sweep it up when it is built.
+    observer.current?.observe(el);
   }, []);
+
+  return useCallback(
+    (id: string) => {
+      const held = refs.current.get(id);
+      if (held) return held;
+      const made = (el: HTMLElement | null) => attach(el, id);
+      refs.current.set(id, made);
+      return made;
+    },
+    [attach],
+  );
 }
 
 export function NotificationCentre() {
@@ -299,7 +356,7 @@ function Panel({
   onClose: () => void;
 }) {
   const t = useT();
-  const seen = useSeenRows(onSeen);
+  const rowRef = useSeenRows(onSeen);
 
   return (
     <div
@@ -336,7 +393,7 @@ function Panel({
                 key={n.id}
                 n={read === n.read ? n : { ...n, read }}
                 // Only what is still unread is worth watching.
-                seenRef={read ? undefined : (el) => seen(el, n.id)}
+                seenRef={read ? undefined : rowRef(n.id)}
                 onNavigate={onClose}
                 onActed={onActed}
               />

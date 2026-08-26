@@ -88,7 +88,7 @@ export function NotificationsPage() {
     },
     [getAccessToken],
   );
-  const seen = useSeenRows(onSeen);
+  const rowRef = useSeenRows(onSeen);
 
   const items: NotificationItem[] =
     feed.phase === "ready" ? feed.data.items : [];
@@ -161,7 +161,7 @@ export function NotificationsPage() {
               <NotificationRow
                 key={n.id}
                 n={read === n.read ? n : { ...n, read }}
-                seenRef={read ? undefined : (el) => seen(el, n.id)}
+                seenRef={read ? undefined : rowRef(n.id)}
                 onNavigate={() => undefined}
                 onActed={() => feed.reload()}
               />
