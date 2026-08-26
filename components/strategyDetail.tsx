@@ -662,19 +662,6 @@ function PositionRow({
           <span className="truncate font-mono text-[12.5px] text-text-primary">
             {p.symbol}
           </span>
-          {/* The underlying is the thing a reader recognises: TSLAx means
-              nothing to someone who knows TSLA. */}
-          {p.underlying ? (
-            <span className="shrink-0 font-mono text-[10px] text-text-dim">
-              {p.underlying}
-            </span>
-          ) : null}
-        </span>
-        {/* Venue and age move under the name, the way the owner's own book
-            puts its entry count there — they identify the row, they are not
-            figures to be compared down a column. */}
-        <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
-          {t("sd_held_on", { venue: p.venue, age: span(p.openedAt, null, t) })}
         </span>
       </span>
       <Money value={qty === 0 ? "—" : tokenQty(qty, mark)} />

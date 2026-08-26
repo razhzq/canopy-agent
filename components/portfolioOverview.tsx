@@ -8,7 +8,13 @@ import { EquityCurve, MiniCurve } from "@/components/charts";
 import { ProfileMobile } from "@/components/profileMobile";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
-import { Badge, Breadcrumb, Columns, RailSection } from "@/components/ui";
+import {
+  AssetLogo,
+  Badge,
+  Breadcrumb,
+  Columns,
+  RailSection,
+} from "@/components/ui";
 import {
   getAgent,
   getAllMarkets,
@@ -30,7 +36,13 @@ import {
   type AgentMark,
 } from "@/lib/perf";
 import { relativeTime } from "@/lib/format";
-import { useLocale, useT, type Locale, type Translate, type TranslationKey } from "@/lib/i18n";
+import {
+  useLocale,
+  useT,
+  type Locale,
+  type Translate,
+  type TranslationKey,
+} from "@/lib/i18n";
 
 /**
  * The portfolio overview — everything you own, as one position.
@@ -48,8 +60,6 @@ import { useLocale, useT, type Locale, type Translate, type TranslationKey } fro
  * an agent differently from the agent's own page would be a bug that took a
  * spreadsheet to find.
  */
-
-
 
 export interface Holding {
   agent: AgentRow;
@@ -123,19 +133,32 @@ export function PortfolioOverview() {
         getAllMarkets(token).catch(() => [] as UniverseAsset[]),
       ]);
 
-      const holdings = await pooled(agents, CONCURRENCY, async (agent): Promise<Holding> => {
-        const [detail, equity] = await Promise.allSettled([
-          getAgent(token, agent.id),
-          getEquity(token, agent.id),
-        ]);
-        const positions = detail.status === "fulfilled" ? detail.value.positions : [];
-        const series = equity.status === "fulfilled" ? equity.value : null;
-        return { agent, positions, series, mark: markAgent(series, positions, universe) };
-      });
+      const holdings = await pooled(
+        agents,
+        CONCURRENCY,
+        async (agent): Promise<Holding> => {
+          const [detail, equity] = await Promise.allSettled([
+            getAgent(token, agent.id),
+            getEquity(token, agent.id),
+          ]);
+          const positions =
+            detail.status === "fulfilled" ? detail.value.positions : [];
+          const series = equity.status === "fulfilled" ? equity.value : null;
+          return {
+            agent,
+            positions,
+            series,
+            mark: markAgent(series, positions, universe),
+          };
+        },
+      );
 
       setState({ phase: "ready", holdings, universe });
     } catch (err) {
-      setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
+      setState({
+        phase: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }, [ready, authenticated]);
 
@@ -195,7 +218,8 @@ export function PortfolioOverview() {
 
   const cutoff = RANGES.find((r) => r.key === range)!.ms;
   const path = totals.path.filter(
-    (p) => cutoff === Infinity || Date.now() - new Date(p.at).getTime() <= cutoff,
+    (p) =>
+      cutoff === Infinity || Date.now() - new Date(p.at).getTime() <= cutoff,
   );
   // A window that captured one reading or none cannot be drawn; fall back to
   // the whole path rather than to an empty frame that looks like a failure.
@@ -223,133 +247,150 @@ export function PortfolioOverview() {
       <ProfileMobile holdings={holdings} totals={totals} />
 
       <div className="hidden lg:block">
-      <PortfolioHeader
-        user={user}
-        username={username}
-        totals={totals}
-        onExport={() => exportCsv(holdings)}
-      />
+        <PortfolioHeader
+          user={user}
+          username={username}
+          totals={totals}
+          onExport={() => exportCsv(holdings)}
+        />
 
-      <Columns
-        main={
-          <>
-            {/* ------------------------------------------------- curve -- */}
-            <section className="border-b border-grid px-5 py-6 sm:px-8 sm:py-7">
-              <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-                <div className="space-y-2">
-                  <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
-                    {totals.counted === 1
-                      ? t("po_curve_label_one")
-                      : t("po_curve_label_many", { count: totals.counted })}
-                  </p>
-                  <p className="tnum font-mono text-[27px] leading-none text-text-primary sm:text-[32px]">
-                    {money(totals.equityUsd)}
-                  </p>
-                  <p
-                    className={`tnum font-mono text-[12.5px] ${
-                      totals.pnlUsd >= 0 ? "text-accent" : "text-negative"
-                    }`}
-                  >
-                    {t("po_curve_against", {
-                      pnl: signed(totals.pnlUsd),
-                      pct: signedPct(totals.returnPct),
-                      capital: money(totals.capitalUsd),
-                    })}
-                  </p>
-                </div>
-
-                <div className="flex border border-grid-strong">
-                  {RANGES.map((r) => (
-                    <button
-                      key={r.key}
-                      type="button"
-                      onClick={() => setRange(r.key)}
-                      aria-pressed={range === r.key}
-                      className={`px-3 py-2 font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors ${
-                        range === r.key
-                          ? "bg-surface-2 text-text-primary"
-                          : "text-text-dim hover:text-text-secondary"
+        <Columns
+          main={
+            <>
+              {/* ------------------------------------------------- curve -- */}
+              <section className="border-b border-grid px-5 py-6 sm:px-8 sm:py-7">
+                <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+                  <div className="space-y-2">
+                    <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
+                      {totals.counted === 1
+                        ? t("po_curve_label_one")
+                        : t("po_curve_label_many", { count: totals.counted })}
+                    </p>
+                    <p className="tnum font-mono text-[27px] leading-none text-text-primary sm:text-[32px]">
+                      {money(totals.equityUsd)}
+                    </p>
+                    <p
+                      className={`tnum font-mono text-[12.5px] ${
+                        totals.pnlUsd >= 0 ? "text-accent" : "text-negative"
                       }`}
                     >
-                      {r.key}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      {t("po_curve_against", {
+                        pnl: signed(totals.pnlUsd),
+                        pct: signedPct(totals.returnPct),
+                        capital: money(totals.capitalUsd),
+                      })}
+                    </p>
+                  </div>
 
-              <div className="pt-6">
-                <EquityCurve
-                  values={drawn.map((p) => p.equityUsd)}
-                  baseline={totals.capitalUsd}
-                  height={200}
-                />
-                <div className="flex items-center justify-between pt-3 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase">
-                  <span>{drawn.length > 0 ? day(drawn[0].at, locale) : "—"}</span>
-                  <span>
-                    {t(drawn.length === 1 ? "po_readings_one" : "po_readings_many", {
-                      marked: t(totals.marked ? "po_marked_live" : "po_marked_last"),
-                      count: drawn.length,
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              {/* The one thing a reader could get wrong about this chart, said
-                  plainly rather than left to be inferred from a jump. */}
-              <p className="pt-4 font-ui text-[11.5px] leading-relaxed text-text-dim">
-                {t("po_curve_note")}
-                {windowed ? t("po_curve_windowed") : ""}
-              </p>
-            </section>
-
-            {/* ------------------------------------------------ agents -- */}
-            <section>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 sm:px-8">
-                <div className="flex">
-                  {/* `key`, not `t` — the translator owns that name here. */}
-                  {(Object.keys(TAB_STATUS) as Tab[]).map((key) => {
-                    const n = holdings.filter((h) =>
-                      TAB_STATUS[key].includes(h.agent.status),
-                    ).length;
-                    const on = tab === key;
-                    return (
+                  <div className="flex border border-grid-strong">
+                    {RANGES.map((r) => (
                       <button
-                        key={key}
+                        key={r.key}
                         type="button"
-                        onClick={() => setTab(key)}
-                        aria-pressed={on}
-                        className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[10.5px] tracking-[0.1em] uppercase transition-colors ${
-                          on
-                            ? "border-accent text-text-primary"
-                            : "border-transparent text-text-dim hover:text-text-secondary"
+                        onClick={() => setRange(r.key)}
+                        aria-pressed={range === r.key}
+                        className={`px-3 py-2 font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors ${
+                          range === r.key
+                            ? "bg-surface-2 text-text-primary"
+                            : "text-text-dim hover:text-text-secondary"
                         }`}
                       >
-                        {t(TAB_LABEL_KEY[key])}
-                        <span className={on ? "text-accent" : "text-text-dim"}>{n}</span>
+                        {r.key}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-                <Link
-                  href="/workspace"
-                  className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
-                >
-                  {t("po_manage")}
-                </Link>
-              </div>
 
-              <AgentTable rows={rows} tab={tab} />
-            </section>
-          </>
-        }
-        rail={
-          <>
-            <Allocation holdings={holdings} totals={totals} />
-            <Exposure holdings={holdings} universe={state.universe} totals={totals} />
-            <Settlements settlements={settlements} />
-          </>
-        }
-      />
+                <div className="pt-6">
+                  <EquityCurve
+                    values={drawn.map((p) => p.equityUsd)}
+                    baseline={totals.capitalUsd}
+                    height={200}
+                  />
+                  <div className="flex items-center justify-between pt-3 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase">
+                    <span>
+                      {drawn.length > 0 ? day(drawn[0].at, locale) : "—"}
+                    </span>
+                    <span>
+                      {t(
+                        drawn.length === 1
+                          ? "po_readings_one"
+                          : "po_readings_many",
+                        {
+                          marked: t(
+                            totals.marked ? "po_marked_live" : "po_marked_last",
+                          ),
+                          count: drawn.length,
+                        },
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* The one thing a reader could get wrong about this chart, said
+                  plainly rather than left to be inferred from a jump. */}
+                <p className="pt-4 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                  {t("po_curve_note")}
+                  {windowed ? t("po_curve_windowed") : ""}
+                </p>
+              </section>
+
+              {/* ------------------------------------------------ agents -- */}
+              <section>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 sm:px-8">
+                  <div className="flex">
+                    {/* `key`, not `t` — the translator owns that name here. */}
+                    {(Object.keys(TAB_STATUS) as Tab[]).map((key) => {
+                      const n = holdings.filter((h) =>
+                        TAB_STATUS[key].includes(h.agent.status),
+                      ).length;
+                      const on = tab === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setTab(key)}
+                          aria-pressed={on}
+                          className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[10.5px] tracking-[0.1em] uppercase transition-colors ${
+                            on
+                              ? "border-accent text-text-primary"
+                              : "border-transparent text-text-dim hover:text-text-secondary"
+                          }`}
+                        >
+                          {t(TAB_LABEL_KEY[key])}
+                          <span
+                            className={on ? "text-accent" : "text-text-dim"}
+                          >
+                            {n}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Link
+                    href="/workspace"
+                    className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+                  >
+                    {t("po_manage")}
+                  </Link>
+                </div>
+
+                <AgentTable rows={rows} tab={tab} />
+              </section>
+            </>
+          }
+          rail={
+            <>
+              <Allocation holdings={holdings} totals={totals} />
+              <Exposure
+                holdings={holdings}
+                universe={state.universe}
+                totals={totals}
+              />
+              <Settlements settlements={settlements} />
+            </>
+          }
+        />
       </div>
     </div>
   );
@@ -472,7 +513,10 @@ function PortfolioHeader({
             label={t("po_meta_cycles")}
             value={totals.cycles.toLocaleString("en-US")}
           />
-          <Meta label={t("po_meta_open_book")} value={money(totals.openBookUsd)} />
+          <Meta
+            label={t("po_meta_open_book")}
+            value={money(totals.openBookUsd)}
+          />
           <Meta label={t("po_meta_idle")} value={money(totals.idleUsd)} />
           {identity.wallet ? (
             <Meta label={t("po_meta_wallet")} value={identity.wallet} />
@@ -513,7 +557,8 @@ function Meta({ label, value }: { label: string; value: string }) {
 /* The table grid, from lg up only. Below that the row is not a grid at all —
    see AgentRowLine. Written as a class rather than an inline style so the
    breakpoint can win; an inline `gridTemplateColumns` beats every variant. */
-const COLS = "lg:grid lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px]";
+const COLS =
+  "lg:grid lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px]";
 
 function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
   const t = useT();
@@ -570,7 +615,9 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
 function AgentRowLine({ holding }: { holding: Holding }) {
   const { agent, mark } = holding;
   const t = useT();
-  const moved = mark ? movedOverUsd(mark.points, Date.now() - 86_400_000) : null;
+  const moved = mark
+    ? movedOverUsd(mark.points, Date.now() - 86_400_000)
+    : null;
   const up = (mark?.pnlUsd ?? 0) >= 0;
 
   const book = t(agent.is_paper ? "po_book_paper" : "po_book_live");
@@ -585,7 +632,11 @@ function AgentRowLine({ holding }: { holding: Holding }) {
   const deployed = money(num(agent.capital_usd) ?? 0);
   const movedText = moved === null ? "—" : signed(moved);
   const movedTone =
-    moved === null ? "text-text-dim" : moved >= 0 ? "text-accent" : "text-negative";
+    moved === null
+      ? "text-text-dim"
+      : moved >= 0
+        ? "text-accent"
+        : "text-negative";
   const returnText = mark ? signedPct(mark.returnPct) : "—";
   const returnTone = mark
     ? mark.returnPct >= 0
@@ -602,7 +653,9 @@ function AgentRowLine({ holding }: { holding: Holding }) {
         height={28}
       />
     ) : (
-      <span className="font-mono text-[10px] text-text-dim">{t("po_no_readings")}</span>
+      <span className="font-mono text-[10px] text-text-dim">
+        {t("po_no_readings")}
+      </span>
     );
 
   return (
@@ -621,14 +674,18 @@ function AgentRowLine({ holding }: { holding: Holding }) {
               {sub}
             </p>
           </div>
-          <Badge tone={STATUS_TONE[agent.status]}>{t(AGENT_STATUS_KEY[agent.status])}</Badge>
+          <Badge tone={STATUS_TONE[agent.status]}>
+            {t(AGENT_STATUS_KEY[agent.status])}
+          </Badge>
         </div>
 
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             {/* Equity leads, because on a phone you get one number before the
                 fold and this is the one people open the page for. */}
-            <p className="tnum font-mono text-[19px] leading-none text-text-primary">{equity}</p>
+            <p className="tnum font-mono text-[19px] leading-none text-text-primary">
+              {equity}
+            </p>
             <p className="pt-1.5 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
               {t("po_deployed_suffix", { amount: deployed })}
             </p>
@@ -663,15 +720,21 @@ function AgentRowLine({ holding }: { holding: Holding }) {
       <span className="tnum hidden text-right font-mono text-[13px] text-text-primary lg:block">
         {equity}
       </span>
-      <span className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${movedTone}`}>
+      <span
+        className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${movedTone}`}
+      >
         {movedText}
       </span>
-      <span className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${returnTone}`}>
+      <span
+        className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${returnTone}`}
+      >
         {returnText}
       </span>
       <span className="hidden items-center lg:flex">{curve}</span>
       <span className="hidden justify-end lg:flex">
-        <Badge tone={STATUS_TONE[agent.status]}>{t(AGENT_STATUS_KEY[agent.status])}</Badge>
+        <Badge tone={STATUS_TONE[agent.status]}>
+          {t(AGENT_STATUS_KEY[agent.status])}
+        </Badge>
       </span>
     </Link>
   );
@@ -693,7 +756,10 @@ const AGENT_STATUS_KEY: Record<AgentRow["status"], TranslationKey> = {
   deleted: "ws_status_stopped",
 };
 
-const STATUS_TONE: Record<AgentRow["status"], "accent" | "warning" | "negative" | "muted"> = {
+const STATUS_TONE: Record<
+  AgentRow["status"],
+  "accent" | "warning" | "negative" | "muted"
+> = {
   active: "accent",
   paused: "warning",
   liquidating: "negative",
@@ -704,7 +770,13 @@ const STATUS_TONE: Record<AgentRow["status"], "accent" | "warning" | "negative" 
 
 /* ---------------------------------------------------------------- rail --- */
 
-function Allocation({ holdings, totals }: { holdings: Holding[]; totals: Totals }) {
+function Allocation({
+  holdings,
+  totals,
+}: {
+  holdings: Holding[];
+  totals: Totals;
+}) {
   const t = useT();
   const base = totals.capitalUsd + totals.idleUsd;
   const rows = holdings
@@ -766,14 +838,20 @@ function Bar({
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate font-mono text-[11.5px] text-text-primary">{label}</span>
+          <span className="truncate font-mono text-[11.5px] text-text-primary">
+            {label}
+          </span>
           <span className="shrink-0 font-mono text-[8.5px] tracking-[0.1em] text-text-dim uppercase">
             {tag}
           </span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2">
-          <span className="tnum font-mono text-[11.5px] text-text-secondary">{value}</span>
-          <span className="tnum font-mono text-[10px] text-text-dim">{pct.toFixed(0)}%</span>
+          <span className="tnum font-mono text-[11.5px] text-text-secondary">
+            {value}
+          </span>
+          <span className="tnum font-mono text-[10px] text-text-dim">
+            {pct.toFixed(0)}%
+          </span>
         </span>
       </div>
       <div className="h-1 w-full bg-grid">
@@ -799,7 +877,13 @@ function Exposure({
   // One line per symbol, not per lot: the same asset held by three agents is
   // one exposure, and that is the number that matters for concentration.
   const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
-  const bySymbol = new Map<string, { usd: number; pnl: number; agents: number }>();
+  // The same index, kept whole: the mark comes off it and so does the icon,
+  // which for most Solana tokens is a remote URL rather than a bundled file.
+  const asset = new Map(universe.map((a) => [a.symbol, a]));
+  const bySymbol = new Map<
+    string,
+    { usd: number; pnl: number; agents: number }
+  >();
 
   for (const h of holdings) {
     for (const p of h.positions) {
@@ -815,7 +899,9 @@ function Exposure({
     }
   }
 
-  const rows = [...bySymbol.entries()].sort((a, b) => b[1].usd - a[1].usd).slice(0, 6);
+  const rows = [...bySymbol.entries()]
+    .sort((a, b) => b[1].usd - a[1].usd)
+    .slice(0, 6);
   const positions = [...bySymbol.values()].reduce((s, r) => s + r.agents, 0);
 
   return (
@@ -828,19 +914,26 @@ function Exposure({
       }
     >
       {rows.length === 0 ? (
-        <p className="pt-2 font-ui text-[12.5px] text-text-dim">{t("po_exposure_empty")}</p>
+        <p className="pt-2 font-ui text-[12.5px] text-text-dim">
+          {t("po_exposure_empty")}
+        </p>
       ) : (
         <>
           <div className="flex gap-6 pt-2 pb-4">
-            <Figure label={t("po_fig_open_book")} value={money(totals.openBookUsd)} />
+            <Figure
+              label={t("po_fig_open_book")}
+              value={money(totals.openBookUsd)}
+            />
             <Figure
               label={t("po_fig_unrealised")}
               value={signed(totals.unrealizedUsd)}
               tone={totals.unrealizedUsd >= 0 ? "accent" : "negative"}
             />
-            <Figure label={t("po_fig_realised")} value={signed(totals.realizedUsd)} tone={
-              totals.realizedUsd >= 0 ? "accent" : "negative"
-            } />
+            <Figure
+              label={t("po_fig_realised")}
+              value={signed(totals.realizedUsd)}
+              tone={totals.realizedUsd >= 0 ? "accent" : "negative"}
+            />
           </div>
           <div className="border-t border-grid">
             {rows.map(([symbol, r]) => (
@@ -848,8 +941,16 @@ function Exposure({
                 key={symbol}
                 className="flex items-center gap-3 border-b border-grid py-2.5 last:border-b-0"
               >
-                <span className="w-[84px] shrink-0 truncate font-mono text-[11.5px] text-text-primary">
-                  {symbol}
+                <span className="flex w-[84px] shrink-0 items-center gap-2">
+                  <AssetLogo
+                    symbol={symbol}
+                    issuer={asset.get(symbol)?.issuer}
+                    src={asset.get(symbol)?.iconUrl}
+                    size={14}
+                  />
+                  <span className="truncate font-mono text-[11.5px] text-text-primary">
+                    {symbol}
+                  </span>
                 </span>
                 <span className="min-w-0 flex-1 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
                   {r.agents === 1
@@ -886,7 +987,9 @@ function Figure({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="font-mono text-[8.5px] tracking-[0.12em] text-text-dim uppercase">{label}</p>
+      <p className="font-mono text-[8.5px] tracking-[0.12em] text-text-dim uppercase">
+        {label}
+      </p>
       <p
         className={`tnum font-mono text-[14px] ${
           tone === "accent"
@@ -912,7 +1015,9 @@ function Settlements({
   return (
     <RailSection title={t("po_settlements")} note={t("po_settlements_note")}>
       {settlements.length === 0 ? (
-        <p className="pt-2 font-ui text-[12.5px] text-text-dim">{t("po_settlements_empty")}</p>
+        <p className="pt-2 font-ui text-[12.5px] text-text-dim">
+          {t("po_settlements_empty")}
+        </p>
       ) : (
         <div className="pt-1">
           {settlements.map((s) => (
@@ -941,7 +1046,9 @@ function Settlements({
                       : "text-negative"
                 }`}
               >
-                {s.movedUsd === null ? t("po_settlement_first") : signed(s.movedUsd)}
+                {s.movedUsd === null
+                  ? t("po_settlement_first")
+                  : signed(s.movedUsd)}
               </span>
             </Link>
           ))}
@@ -954,18 +1061,23 @@ function Settlements({
 /* ------------------------------------------------------------- helpers --- */
 
 function identityOf(user: ReturnType<typeof usePrivy>["user"], t: Translate) {
-  const accounts: unknown[] = Array.isArray(user?.linkedAccounts) ? user.linkedAccounts : [];
+  const accounts: unknown[] = Array.isArray(user?.linkedAccounts)
+    ? user.linkedAccounts
+    : [];
   let email: string | null = null;
   let wallet: string | null = null;
   for (const entry of accounts) {
     if (!entry || typeof entry !== "object") continue;
     const a = entry as Record<string, unknown>;
-    if (a.type === "email" && typeof a.address === "string") email ??= a.address;
-    if (a.type === "wallet" && typeof a.address === "string") wallet ??= a.address;
+    if (a.type === "email" && typeof a.address === "string")
+      email ??= a.address;
+    if (a.type === "wallet" && typeof a.address === "string")
+      wallet ??= a.address;
   }
-  const short = wallet && wallet.length > 12
-    ? `${wallet.slice(0, 4)}…${wallet.slice(-4)}`
-    : wallet;
+  const short =
+    wallet && wallet.length > 12
+      ? `${wallet.slice(0, 4)}…${wallet.slice(-4)}`
+      : wallet;
   return { name: email ?? short ?? t("po_fallback_title"), wallet: short };
 }
 
@@ -1007,7 +1119,11 @@ function exportCsv(holdings: Holding[]) {
       h.mark ? String(h.mark.marked) : "",
     ]
       // Quote everything that could carry a comma; a strategy name is free text.
-      .map((v) => (typeof v === "string" && /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v))
+      .map((v) =>
+        typeof v === "string" && /[",\n]/.test(v)
+          ? `"${v.replace(/"/g, '""')}"`
+          : v,
+      )
       .join(","),
   );
 

@@ -120,7 +120,6 @@ export const enPublish = {
   sd_col_proceeds: "Proceeds",
   sd_at_price: "@ {price}",
   sd_not_priced: "not priced",
-  sd_held_on: "{venue} · held {age}",
   sd_closed_after: "held {held} · closed {ago} ago",
   sd_col_result: "Result",
   sd_no_trades:

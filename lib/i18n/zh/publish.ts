@@ -115,7 +115,6 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   sd_col_proceeds: "回收",
   sd_at_price: "@ {price}",
   sd_not_priced: "暂无报价",
-  sd_held_on: "{venue} · 持有 {age}",
   sd_closed_after: "持有 {held} · {ago}前平仓",
   sd_col_result: "结果",
   sd_no_trades: "还没有已平仓的交易 — 这个智能体平掉第一笔后，就会出现在这里。",

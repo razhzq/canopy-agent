@@ -80,7 +80,7 @@ export function Positions({
           onChanged={onChanged}
         />
       ) : (
-        <HistoryTable agentId={agentId} />
+        <HistoryTable agentId={agentId} universe={universe} />
       )}
     </div>
   );
@@ -131,6 +131,17 @@ interface Holding {
   avgUsd: number;
   /** Null when the asset could not be priced. Never substituted with cost. */
   markUsd: number | null;
+  /**
+   * The universe's remote icon, and who wrapped it.
+   *
+   * Both come off the same lookup as the mark. Without the URL `AssetLogo`
+   * falls back to a two-letter monogram for everything that has no bundled
+   * ticker file — which is every Solana token but a dozen tokenized RWAs, so
+   * the book looked iconless in practice. `issuer` is what separates two gold
+   * wrappers, whose underlying is XAU either way.
+   */
+  logoSrc: string | null;
+  issuer: string | null;
   valueUsd: number | null;
   pnlUsd: number | null;
   pnlPct: number | null;
@@ -157,6 +168,8 @@ export function aggregate(
   }
 
   const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
+  // Kept whole, not just its price: the row needs the icon and the issuer too.
+  const bySymbolAsset = new Map(universe.map((a) => [a.symbol, a]));
 
   return [...bySymbol.entries()]
     .map(([symbol, group]) => {
@@ -172,6 +185,7 @@ export function aggregate(
       const qty = lots.reduce((s, l) => s + l.qty, 0);
       const costUsd = lots.reduce((s, l) => s + l.costUsd, 0);
       const markUsd = priced.get(symbol) ?? null;
+      const asset = bySymbolAsset.get(symbol);
       const valueUsd = markUsd === null ? null : markUsd * qty;
 
       return {
@@ -183,6 +197,8 @@ export function aggregate(
         costUsd,
         avgUsd: qty > 0 ? costUsd / qty : 0,
         markUsd,
+        logoSrc: asset?.iconUrl ?? null,
+        issuer: asset?.issuer ?? null,
         valueUsd,
         pnlUsd: valueUsd === null ? null : valueUsd - costUsd,
         pnlPct:
@@ -260,7 +276,11 @@ function OpenTable({
                       just as well for equities ("TSLAx" → TSLA) and is the only
                       one of the two that identifies a gold position, where the
                       underlying is XAU for both issuers. */}
-                    <AssetLogo symbol={h.symbol} />
+                    <AssetLogo
+                      symbol={h.symbol}
+                      issuer={h.issuer}
+                      src={h.logoSrc}
+                    />
                     <span className="truncate font-mono text-[12.5px] text-text-primary">
                       {h.symbol}
                     </span>
@@ -462,7 +482,14 @@ function Cell({ children }: { children: React.ReactNode }) {
 
 /* --------------------------------------------------------------- history -- */
 
-function HistoryTable({ agentId }: { agentId: number }) {
+function HistoryTable({
+  agentId,
+  universe,
+}: {
+  agentId: number;
+  /** For the row icons. A fill carries no icon of its own. */
+  universe: UniverseAsset[];
+}) {
   // `token`, not `t` — the translator holds that name below.
   const state = useApi((token) => getAgentFills(token, agentId), [agentId]);
   const { getAccessToken } = usePrivy();
@@ -504,6 +531,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
     return <ErrorState message={state.message} onRetry={state.reload} />;
 
   const fills = [...state.data.fills, ...extra];
+  const assetOf = (symbol: string) => universe.find((a) => a.symbol === symbol);
   const next = cursor ?? {
     before: state.data.nextBefore,
     beforeId: state.data.nextBeforeId,
@@ -550,7 +578,7 @@ function HistoryTable({ agentId }: { agentId: number }) {
       </div>
 
       {fills.map((f) => (
-        <FillRow key={f.id} fill={f} />
+        <FillRow key={f.id} fill={f} asset={assetOf(f.symbol)} />
       ))}
 
       {pageError ? (
@@ -585,7 +613,13 @@ function HistoryTable({ agentId }: { agentId: number }) {
   );
 }
 
-function FillRow({ fill: f }: { fill: AgentFill }) {
+function FillRow({
+  fill: f,
+  asset,
+}: {
+  fill: AgentFill;
+  asset?: UniverseAsset;
+}) {
   const { t, locale } = useLocale();
   const sell = f.side === "sell" || f.side === "remove_liquidity";
   const realised =
@@ -618,7 +652,11 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
-          <AssetLogo symbol={f.symbol} />
+          <AssetLogo
+            symbol={f.symbol}
+            issuer={asset?.issuer}
+            src={asset?.iconUrl}
+          />
           <span className="truncate font-mono text-[12.5px] text-text-primary">
             {f.symbol}
           </span>
