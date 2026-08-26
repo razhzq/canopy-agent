@@ -44,11 +44,9 @@ const NAV = [
     href: "/agents",
     match: ["/agents", "/deploy"],
   },
-  {
-    key: "nav_activity" as TranslationKey,
-    href: "/activity",
-    match: ["/activity"],
-  },
+  // Activity is NOT in the desktop bar. The route still exists and still
+  // resolves — the mobile tab bar links to it, and so does anything else
+  // holding the URL — it simply no longer takes a slot in the top bar.
 ];
 
 /**

@@ -3,7 +3,6 @@ import type { enNav } from "../en/nav";
 export const zhNav: Record<keyof typeof enNav, string> = {
   nav_my_agents: "我的智能体",
   nav_explore: "探索",
-  nav_activity: "动态",
   nav_create_agent: "创建智能体",
   nav_home_aria: "Canopy — 首页",
   nav_primary_aria: "主导航",
@@ -28,7 +27,8 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   account_your_wallets: "您的钱包",
   account_copy_wallet_aria: "复制 {label} 地址 {address}",
   account_agent_wallets_one: "另有 1 个智能体钱包 — 在该智能体自己的页面上。",
-  account_agent_wallets_many: "另有 {count} 个智能体钱包 — 各自在对应智能体的页面上。",
+  account_agent_wallets_many:
+    "另有 {count} 个智能体钱包 — 各自在对应智能体的页面上。",
   account_balance: "余额",
   account_balance_failed: "无法加载",
   account_deposit: "充值",
