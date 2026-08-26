@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
-import { Badge, Breadcrumb } from "@/components/ui";
+import { AssetLogo, Badge, Breadcrumb } from "@/components/ui";
 import {
   FOCUS,
   SEGMENT_ITEM,
@@ -575,7 +575,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                   a visitor who never opens History never asks the API for it,
                   and the page it was left on is not state the whole page has
                   to carry. */}
-              <TradeHistory strategyId={strategyId} />
+              <TradeHistory strategyId={strategyId} marks={marks} />
             </div>
           ) : null}
 
@@ -634,7 +634,9 @@ function PositionRow({
   const { t } = useLocale();
   const qty = Number(p.qty);
   const cost = p.costUsd === undefined ? null : Number(p.costUsd);
-  const mark = marks.find((a) => a.symbol === p.symbol)?.priceUsd ?? null;
+  // One lookup, two uses: the mark, and the icon the same row should wear.
+  const asset = marks.find((a) => a.symbol === p.symbol);
+  const mark = asset?.priceUsd ?? null;
   const value = mark === null ? null : mark * qty;
   const pnl = value === null || cost === null ? null : value - cost;
   const pnlPct =
@@ -649,6 +651,14 @@ function PositionRow({
     >
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
+          {/* The mark's own icon when the universe has one — there are five
+              hundred-odd tokens and only a dozen ship a bundled ticker file.
+              AssetLogo falls back to a monogram, so a row is never iconless. */}
+          <AssetLogo
+            symbol={p.symbol}
+            issuer={asset?.issuer}
+            src={asset?.iconUrl}
+          />
           <span className="truncate font-mono text-[12.5px] text-text-primary">
             {p.symbol}
           </span>
@@ -697,8 +707,9 @@ function PositionRow({
  * trade realised, which is the same arithmetic the owner's history does from
  * a fill. Derived rather than sent, so the two cannot drift apart.
  */
-function TradeRow({ tr }: { tr: RecordTrade }) {
+function TradeRow({ tr, marks }: { tr: RecordTrade; marks: UniverseAsset[] }) {
   const { t } = useLocale();
+  const asset = marks.find((a) => a.symbol === tr.symbol);
   const qty = Number(tr.qty);
   const cost = tr.costUsd === undefined ? null : Number(tr.costUsd);
   const realised = tr.realizedUsd === undefined ? null : Number(tr.realizedUsd);
@@ -712,6 +723,11 @@ function TradeRow({ tr }: { tr: RecordTrade }) {
     >
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
+          <AssetLogo
+            symbol={tr.symbol}
+            issuer={asset?.issuer}
+            src={asset?.iconUrl}
+          />
           <span className="truncate font-mono text-[12.5px] text-text-primary">
             {tr.symbol}
           </span>
@@ -945,7 +961,13 @@ const DAY_COLS =
  * basis, so this cannot print the author's sizing even by accident. A reader
  * gets the result of the trade; a deployer's own dollars will be their own.
  */
-function TradeHistory({ strategyId }: { strategyId: number }) {
+function TradeHistory({
+  strategyId,
+  marks,
+}: {
+  strategyId: number;
+  marks: UniverseAsset[];
+}) {
   const { t } = useLocale();
   const [page, setPage] = useState(0);
   const trades = useApi(
@@ -1000,7 +1022,11 @@ function TradeHistory({ strategyId }: { strategyId: number }) {
             <span className="text-right">{t("sd_col_result")}</span>
           </div>
           {data.trades.map((tr) => (
-            <TradeRow key={`${tr.symbol}-${tr.closedAt}`} tr={tr} />
+            <TradeRow
+              key={`${tr.symbol}-${tr.closedAt}`}
+              tr={tr}
+              marks={marks}
+            />
           ))}
         </div>
       </div>
