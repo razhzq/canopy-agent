@@ -23,11 +23,15 @@
 // the agent header was a link to that page rather than anything you could act
 // on where you stood.
 //
-// UNREAD IS BOUNDED BY WHAT WAS RENDERED.
+// UNREAD IS BOUNDED BY WHAT WAS SEEN.
 //
-// Opening the panel marks read only up to the newest row actually on screen. A
-// notification that lands while the panel is open is not marked read, because
-// nobody read it.
+// Opening the panel used to mark everything down to the oldest row read, which
+// is a claim about rows nobody reached: open the bell, read the top line, close
+// it, and a month of history was "read". Now a row is marked when it has been
+// ON SCREEN, mostly visible, for long enough to have been read — so the badge
+// counts down by what the reader actually got through, and what they scrolled
+// past in a hurry stays lit. A notification that lands while the panel is open
+// is never in the set, because nobody has seen it yet.
 
 import Link from "next/link";
 import { FOCUS } from "@/components/kit";
@@ -51,8 +55,111 @@ import {
 /** How often the badge re-checks while the panel is closed. */
 const POLL_MS = 60_000;
 
+/** How much of a row must be showing before it counts as on screen. */
+const SEEN_RATIO = 0.75;
+
+/**
+ * How long it must stay there.
+ *
+ * A row that flashes past under a fast scroll was not read, and marking it
+ * would quietly eat the notification. Long enough to rule that out, short
+ * enough that a reader who stops on a row does not have to wait for it.
+ */
+const SEEN_MS = 800;
+
+/** Quiet time before the seen rows are sent, so a scroll makes one request. */
+const FLUSH_MS = 700;
+
+/**
+ * Marks rows read once they have actually been looked at.
+ *
+ * Returns a ref callback to hang on each UNREAD row. The row is watched, and
+ * after {@link SEEN_MS} of being {@link SEEN_RATIO} visible it joins a batch
+ * that is flushed on a short debounce — one request per scroll, not one per
+ * row. Anything still pending when the panel closes is flushed on unmount:
+ * the reader saw it, and the fact that they closed the panel afterwards does
+ * not unsee it.
+ *
+ * No IntersectionObserver (an old browser, a test environment) means no way to
+ * tell what was on screen, so nothing is marked. A badge that stays lit is a
+ * far better failure than one that clears rows the reader never saw.
+ */
+export function useSeenRows(onSeen: (ids: string[]) => void) {
+  const pending = useRef(new Set<string>());
+  const dwell = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const flush = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ids = useRef(new WeakMap<Element, string>());
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  // In a ref so the observer, which is built once, always calls the CURRENT
+  // callback rather than the one that existed when the panel opened.
+  const sink = useRef(onSeen);
+  sink.current = onSeen;
+
+  const send = useCallback(() => {
+    if (flush.current) {
+      clearTimeout(flush.current);
+      flush.current = null;
+    }
+    if (pending.current.size === 0) return;
+    const batch = [...pending.current];
+    pending.current.clear();
+    sink.current(batch);
+  }, []);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const id = ids.current.get(e.target);
+          if (!id) continue;
+          if (e.isIntersecting) {
+            if (dwell.current.has(id)) continue;
+            dwell.current.set(
+              id,
+              setTimeout(() => {
+                dwell.current.delete(id);
+                pending.current.add(id);
+                if (flush.current) clearTimeout(flush.current);
+                flush.current = setTimeout(send, FLUSH_MS);
+              }, SEEN_MS),
+            );
+          } else {
+            // Left before it was read. Not seen, and not marked.
+            const timer = dwell.current.get(id);
+            if (timer) {
+              clearTimeout(timer);
+              dwell.current.delete(id);
+            }
+          }
+        }
+      },
+      { threshold: SEEN_RATIO },
+    );
+    observer.current = io;
+
+    const dwelling = dwell.current;
+    return () => {
+      io.disconnect();
+      observer.current = null;
+      for (const timer of dwelling.values()) clearTimeout(timer);
+      dwelling.clear();
+      // Whatever was seen but not yet sent still counts.
+      send();
+    };
+  }, [send]);
+
+  return useCallback((el: HTMLElement | null, id: string) => {
+    const io = observer.current;
+    if (!io || !el) return;
+    ids.current.set(el, id);
+    io.observe(el);
+  }, []);
+}
+
 export function NotificationCentre() {
-  const { authenticated } = usePrivy();
+  const { authenticated, getAccessToken } = usePrivy();
   const t = useT();
   const [open, setOpen] = useState(false);
   const [tick, setTick] = useState(0);
@@ -88,8 +195,46 @@ export function NotificationCentre() {
     };
   }, [open]);
 
-  const unread = feed.phase === "ready" ? feed.data.unread : 0;
   const items = feed.phase === "ready" ? feed.data.items : [];
+
+  /**
+   * Rows marked read in this session, counted off the badge locally.
+   *
+   * NOT a refetch. Reloading the feed to learn a number the client already
+   * knows would blank the list under the cursor while someone is reading it —
+   * the poll reconciles with the server soon enough, and until then the badge
+   * and the rows agree with what was just seen.
+   */
+  const [readHere, setReadHere] = useState<ReadonlySet<string>>(new Set());
+
+  const onSeen = useCallback(
+    (ids: string[]) => {
+      setReadHere((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
+      void (async () => {
+        try {
+          const token = await getAccessToken();
+          if (!token) return;
+          await markNotificationsRead(token, { ids });
+        } catch {
+          // A badge that stays lit is a far smaller problem than an error
+          // toast over a panel the user opened to read something else.
+        }
+      })();
+    },
+    [getAccessToken],
+  );
+
+  // Counted against what the SERVER still calls unread, so a row cannot be
+  // subtracted twice once the poll brings back its read state.
+  const pending = items.filter((i) => !i.read && readHere.has(i.id)).length;
+  const unread = Math.max(
+    0,
+    (feed.phase === "ready" ? feed.data.unread : 0) - pending,
+  );
 
   if (!authenticated) return null;
 
@@ -122,11 +267,12 @@ export function NotificationCentre() {
       {open ? (
         <Panel
           items={items}
+          readHere={readHere}
+          onSeen={onSeen}
           loading={feed.phase === "loading"}
           failed={feed.phase === "error" ? feed.message : null}
-          onRead={() => feed.reload()}
-          // Same refetch, named for the other reason to do it: an applied
-          // proposal changes the agent, so the row it came from is stale.
+          // An applied proposal changes the agent, so the row it came from is
+          // stale — that one IS worth a refetch.
           onActed={() => feed.reload()}
           onClose={() => setOpen(false)}
         />
@@ -137,42 +283,23 @@ export function NotificationCentre() {
 
 function Panel({
   items,
+  readHere,
+  onSeen,
   loading,
   failed,
-  onRead,
   onActed,
   onClose,
 }: {
   items: NotificationItem[];
+  readHere: ReadonlySet<string>;
+  onSeen: (ids: string[]) => void;
   loading: boolean;
   failed: string | null;
-  onRead: () => void;
   onActed: () => void;
   onClose: () => void;
 }) {
-  const { getAccessToken } = usePrivy();
   const t = useT();
-  const marked = useRef(false);
-
-  // Marked once, on open, bounded by the newest row RENDERED. Anything that
-  // arrives after this stays unread, because nobody has seen it.
-  useEffect(() => {
-    if (marked.current || items.length === 0) return;
-    const newest = items[0];
-    if (items.every((i) => i.read)) return;
-    marked.current = true;
-    void (async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) return;
-        await markNotificationsRead(token, newest.id);
-        onRead();
-      } catch {
-        // A badge that stays lit is a far smaller problem than an error toast
-        // over a panel the user opened to read something else.
-      }
-    })();
-  }, [items, getAccessToken, onRead]);
+  const seen = useSeenRows(onSeen);
 
   return (
     <div
@@ -202,14 +329,19 @@ function Panel({
             {t("nc_empty")}
           </p>
         ) : (
-          items.map((n) => (
-            <NotificationRow
-              key={n.id}
-              n={n}
-              onNavigate={onClose}
-              onActed={onActed}
-            />
-          ))
+          items.map((n) => {
+            const read = n.read || readHere.has(n.id);
+            return (
+              <NotificationRow
+                key={n.id}
+                n={read === n.read ? n : { ...n, read }}
+                // Only what is still unread is worth watching.
+                seenRef={read ? undefined : (el) => seen(el, n.id)}
+                onNavigate={onClose}
+                onActed={onActed}
+              />
+            );
+          })
         )}
       </div>
 
@@ -232,10 +364,16 @@ function Panel({
  */
 export function NotificationRow({
   n,
+  seenRef,
   onNavigate,
   onActed,
 }: {
   n: NotificationItem;
+  /**
+   * Hung on the row so the centre can tell when it was actually on screen.
+   * Absent on a row that is already read — there is nothing left to watch for.
+   */
+  seenRef?: (el: HTMLElement | null) => void;
   onNavigate: () => void;
   onActed: () => void;
 }) {
@@ -297,11 +435,16 @@ export function NotificationRow({
   // navigate as well as act, and nesting interactive elements inside an anchor
   // is invalid anyway. The approval row carries its own "Why?" link instead.
   if (n.agentId === null || approvable) {
-    return <article className={shell}>{inner}</article>;
+    return (
+      <article ref={seenRef} className={shell}>
+        {inner}
+      </article>
+    );
   }
 
   return (
     <Link
+      ref={seenRef}
       href={`/workspace/${n.agentId}`}
       // Closed on navigate: the panel is absolutely positioned and would
       // otherwise hang over the page it just sent you to.

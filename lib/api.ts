@@ -2482,16 +2482,23 @@ export const getNotificationFeed = (token: string, limit = 30) =>
   request<NotificationFeed>(`/agents/notifications/feed?limit=${limit}`, token);
 
 /**
- * Marks everything up to and including `upToId` read.
+ * Marks notifications read.
  *
- * Bounded rather than "mark all": the panel can be open when a new row lands,
- * and clearing everything would mark that arrival read before it was ever on
- * screen. Pass the newest id actually rendered.
+ * `ids` marks EXACTLY those rows — what the reader actually had on screen.
+ * That is what the badge counts down, so someone who reads two rows and closes
+ * the panel is left with the rest still lit.
+ *
+ * `upToId` marks that row and everything older. It is a much bigger claim —
+ * every row below it, read or not — so reach for it only where the user asked
+ * for one ("mark all read"), never as the side effect of opening something.
  */
-export const markNotificationsRead = (token: string, upToId: string) =>
+export const markNotificationsRead = (
+  token: string,
+  what: { ids: string[] } | { upToId: string },
+) =>
   request<{ marked: number }>("/agents/notifications/read", token, {
     method: "POST",
-    body: JSON.stringify({ upToId }),
+    body: JSON.stringify(what),
   });
 
 export const getTelegramStatus = (token: string) =>

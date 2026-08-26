@@ -1,11 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 
-import { NotificationRow, TelegramSection } from "@/components/notificationCentre";
+import {
+  NotificationRow,
+  TelegramSection,
+  useSeenRows,
+} from "@/components/notificationCentre";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
-import { getNotificationFeed, type NotificationItem, type NotificationKind } from "@/lib/api";
+import {
+  getNotificationFeed,
+  markNotificationsRead,
+  type NotificationItem,
+  type NotificationKind,
+} from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -24,29 +34,88 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 
 const FILTERS = [
   { key: "all", labelKey: "nc_filter_all" as TranslationKey, kinds: null },
-  { key: "needs", labelKey: "nc_filter_needs" as TranslationKey, kinds: ["proposal"] },
-  { key: "trades", labelKey: "nc_filter_trades" as TranslationKey, kinds: ["fill"] },
-  { key: "risk", labelKey: "nc_filter_risk" as TranslationKey, kinds: ["breach", "risk_hold"] },
+  {
+    key: "needs",
+    labelKey: "nc_filter_needs" as TranslationKey,
+    kinds: ["proposal"],
+  },
+  {
+    key: "trades",
+    labelKey: "nc_filter_trades" as TranslationKey,
+    kinds: ["fill"],
+  },
+  {
+    key: "risk",
+    labelKey: "nc_filter_risk" as TranslationKey,
+    kinds: ["breach", "risk_hold"],
+  },
 ] as const;
 
 export function NotificationsPage() {
   const t = useT();
+  const { getAccessToken } = usePrivy();
   const feed = useApi((token) => getNotificationFeed(token, 60));
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
-  const items: NotificationItem[] = feed.phase === "ready" ? feed.data.items : [];
-  const unread = feed.phase === "ready" ? feed.data.unread : 0;
+  /**
+   * READING IS WHAT MARKS THEM READ.
+   *
+   * This page marked nothing at all: a visitor could scroll the whole history
+   * and the bell would still claim every row was new, because the only thing
+   * that ever cleared the count was opening the dropdown. Same rule as the
+   * dropdown now — a row is read once it has been on screen long enough to
+   * have been read, and rows further down the page stay unread until the
+   * reader actually gets to them.
+   */
+  const [readHere, setReadHere] = useState<ReadonlySet<string>>(new Set());
+
+  const onSeen = useCallback(
+    (ids: string[]) => {
+      setReadHere((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
+      void (async () => {
+        try {
+          const token = await getAccessToken();
+          if (!token) return;
+          await markNotificationsRead(token, { ids });
+        } catch {
+          // A count that stays lit beats an error over what they came to read.
+        }
+      })();
+    },
+    [getAccessToken],
+  );
+  const seen = useSeenRows(onSeen);
+
+  const items: NotificationItem[] =
+    feed.phase === "ready" ? feed.data.items : [];
+  // Against the server's own count, so nothing is subtracted twice.
+  const pending = items.filter((i) => !i.read && readHere.has(i.id)).length;
+  const unread = Math.max(
+    0,
+    (feed.phase === "ready" ? feed.data.unread : 0) - pending,
+  );
   const needs = items.filter((n) => n.kind === "proposal").length;
 
   const shown = useMemo(() => {
     const spec = FILTERS.find((f) => f.key === filter);
     if (!spec?.kinds) return items;
-    const kinds = new Set<NotificationKind>(spec.kinds as readonly NotificationKind[]);
+    const kinds = new Set<NotificationKind>(
+      spec.kinds as readonly NotificationKind[],
+    );
     return items.filter((n) => kinds.has(n.kind));
   }, [items, filter]);
 
   if (feed.phase === "loading")
-    return <SkeletonRows labelKey="loading_notifications" cols="minmax(0,1fr) 60px" />;
+    return (
+      <SkeletonRows
+        labelKey="loading_notifications"
+        cols="minmax(0,1fr) 60px"
+      />
+    );
   if (feed.phase === "signed-out") return <SignedOutState />;
   if (feed.phase === "error")
     return <ErrorState message={feed.message} onRetry={feed.reload} />;
@@ -71,7 +140,9 @@ export function NotificationsPage() {
             >
               {t(f.labelKey)}
               {count > 0 ? (
-                <span className="font-mono text-[10px] font-bold text-warning">{count}</span>
+                <span className="font-mono text-[10px] font-bold text-warning">
+                  {count}
+                </span>
               ) : null}
             </button>
           );
@@ -84,14 +155,18 @@ export function NotificationsPage() {
         </p>
       ) : (
         <div>
-          {shown.map((n) => (
-            <NotificationRow
-              key={n.id}
-              n={n}
-              onNavigate={() => undefined}
-              onActed={() => feed.reload()}
-            />
-          ))}
+          {shown.map((n) => {
+            const read = n.read || readHere.has(n.id);
+            return (
+              <NotificationRow
+                key={n.id}
+                n={read === n.read ? n : { ...n, read }}
+                seenRef={read ? undefined : (el) => seen(el, n.id)}
+                onNavigate={() => undefined}
+                onActed={() => feed.reload()}
+              />
+            );
+          })}
         </div>
       )}
 
