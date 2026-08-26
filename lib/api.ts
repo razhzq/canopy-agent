@@ -288,7 +288,11 @@ export interface StrategyRow {
   is_mine: boolean;
   /** Live exposure right now. */
   open_positions?: string;
-  /** Positions opened in the trailing 30 days. */
+  /**
+   * Trades in the trailing 30 days, counting BOTH legs — an open is a trade
+   * and so is the close that ends it. A round trip inside the window counts
+   * twice, which is what makes this agree with a history of fills.
+   */
   trades_30d?: string;
   /** Realised in the trailing 30 days only — old wins stop advertising themselves. */
   realized_30d_usd?: string;
@@ -2171,6 +2175,7 @@ export interface RecordDay {
   realizedUsd: number;
   /** Equity change across the day — realised and unrealised together. */
   returnPct: number;
+  /** Opens plus closes that day. A same-day round trip counts twice. */
   trades: number;
   /** Null on days with too few equity readings to measure one. */
   maxDrawdownPct: number | null;
