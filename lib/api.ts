@@ -293,6 +293,14 @@ export interface StrategyRow {
   /** Realised in the trailing 30 days only — old wins stop advertising themselves. */
   realized_30d_usd?: string;
   /**
+   * Notional traded in the trailing 30 days, both sides.
+   *
+   * A buy and the sell that closes it are two fills and count twice — this
+   * measures ACTIVITY, where `aum_usd` measures exposure. Absent on an older
+   * backend, so treat `undefined` as "not reported" and show "—".
+   */
+  volume_30d_usd?: string;
+  /**
    * The record agent's equity readings, oldest last. Real: taken from the desk
    * decision rows, not generated from the row id.
    */
@@ -2184,6 +2192,14 @@ export interface RecordPosition {
   venue: string;
   /** Decimal string — a quantity, not a dollar value. */
   qty: string;
+  /**
+   * What the position cost, blended across its lots.
+   *
+   * With `qty` this gives the entry price, and with a live mark it gives value
+   * and unrealised P&L — the same figures the owner sees. Absent on an older
+   * backend, so treat `undefined` as "not reported" rather than as zero.
+   */
+  costUsd?: string;
   openedAt: string;
 }
 
@@ -2220,10 +2236,9 @@ export const getStrategyRecord = (token: string, strategyId: number) =>
 /**
  * One closed trade on a public record — a round trip, not a fill.
  *
- * NO DOLLARS. `returnPct` is measured against the trade's own cost basis, and
- * neither the basis nor the realised amount is sent: a percentage is the
- * STRATEGY, a dollar figure is the author's sizing. Same line the open book
- * draws when it publishes quantity and withholds entry price.
+ * Carries both the ratio and the money. A reader judging a record needs to
+ * know whether a +40% was made on $50 or on $50,000, because only one of those
+ * survived a real spread.
  */
 export interface RecordTrade {
   symbol: string;
@@ -2233,6 +2248,10 @@ export interface RecordTrade {
   venue: string;
   /** Decimal string — a quantity, not a dollar value. */
   qty: string;
+  /** What the round trip cost. Absent on an older backend. */
+  costUsd?: string;
+  /** What it realised, in dollars. Absent on an older backend. */
+  realizedUsd?: string;
   openedAt: string;
   closedAt: string;
   /** Null where the cost basis was zero or missing — NOT the same as 0%. */

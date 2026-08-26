@@ -20,11 +20,16 @@ import {
   getStrategy,
   getStrategyRecord,
   getStrategyTrades,
+  getUniverse,
   num,
   type RecordDay,
+  type RecordPosition,
+  type RecordTrade,
   type StrategyRecord,
   type TradePage,
+  type UniverseAsset,
 } from "@/lib/api";
+import { tokenPrice, tokenQty, usd } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
 /**
@@ -74,6 +79,9 @@ const TAB_LABEL: Record<
  */
 const NO_POINTS: StrategyRecord["points"] = [];
 
+/** Stable empty universe, for the same reason as {@link NO_POINTS}. */
+const NO_ASSETS: UniverseAsset[] = [];
+
 export function StrategyDetail({ strategyId }: { strategyId: number }) {
   const { t, locale } = useLocale();
   // `token`, not `t` — the translator holds that name in this file.
@@ -83,6 +91,25 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     [strategyId],
   );
   const [range, setRange] = useState<Range>("30d");
+  /**
+   * Live marks for the open book.
+   *
+   * The record does not price anything — it reports what the agent holds and
+   * what it paid. The universe is where a price comes from, the same source
+   * the owner's own page marks its book against, so the two cannot disagree
+   * about what a position is worth. Failure is silent and yields no marks: a
+   * row then shows cost without a value, which is honest, where a value
+   * carried at cost would read as flat and claim the position had not moved.
+   */
+  const universe = useApi(
+    (token) =>
+      getUniverse(
+        token,
+        meta.phase === "ready" ? meta.data.strategy.strategy_class : "rwa",
+      ),
+    [meta.phase === "ready" ? meta.data.strategy.strategy_class : null],
+  );
+  const marks = universe.phase === "ready" ? universe.data.assets : NO_ASSETS;
   const [view, setView] = useState<View>("positions");
   // One tab stop for the whole strip (roving tabindex, below), so the arrow
   // keys need to move focus themselves — the browser no longer will.
@@ -497,47 +524,33 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                 </p>
               ) : (
                 <>
-                  {/* Said once, plainly. Quantities without cost basis look
-                      like an omission unless the reason is on the page. */}
+                  {/* Said once, plainly. The entry price is the author's own
+                      execution — a deployer starting today gets their own. */}
                   <p className="max-w-[78ch] pb-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
                     {t("sd_holdings_note")}
                   </p>
 
-                  <div className="border border-grid">
-                    <div className="hidden border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase sm:grid sm:grid-cols-[minmax(0,1fr)_110px_120px_120px] sm:items-center sm:gap-x-4">
-                      <span>{t("sd_col_asset")}</span>
-                      <span>{t("sd_col_chain")}</span>
-                      <span className="text-right">{t("sd_col_quantity")}</span>
-                      <span className="text-right">{t("sd_col_held_for")}</span>
-                    </div>
-                    {ready.positions.map((p) => (
+                  <div className="overflow-x-auto border border-grid">
+                    <div className="min-w-[600px]">
                       <div
-                        key={`${p.symbol}-${p.openedAt}`}
-                        className="grid grid-cols-2 items-center gap-x-4 gap-y-1.5 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px_120px]"
+                        className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
                       >
-                        <span className="col-span-2 flex min-w-0 items-center gap-2 sm:col-span-1">
-                          <span className="truncate font-mono text-[13px] text-text-primary">
-                            {p.symbol}
-                          </span>
-                          {/* The underlying is the thing a reader recognises:
-                              TSLAx means nothing to someone who knows TSLA. */}
-                          {p.underlying ? (
-                            <span className="shrink-0 font-mono text-[10px] text-text-dim">
-                              {p.underlying}
-                            </span>
-                          ) : null}
+                        <span>{t("sd_col_asset")}</span>
+                        <span className="text-right">
+                          {t("sd_col_quantity")}
                         </span>
-                        <span className="font-mono text-[11.5px] text-text-dim">
-                          {p.venue}
-                        </span>
-                        <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
-                          {qty(p.qty)}
-                        </span>
-                        <span className="text-right font-mono text-[11.5px] text-text-dim">
-                          {span(p.openedAt, null, t)}
-                        </span>
+                        <span className="text-right">{t("sd_col_cost")}</span>
+                        <span className="text-right">{t("sd_col_value")}</span>
+                        <span className="text-right">{t("sd_col_pnl")}</span>
                       </div>
-                    ))}
+                      {ready.positions.map((p) => (
+                        <PositionRow
+                          key={`${p.symbol}-${p.openedAt}`}
+                          p={p}
+                          marks={marks}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </>
               )}
@@ -596,6 +609,210 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
 }
 
 /* -------------------------------------------------------------------- bits -- */
+
+/**
+ * One open holding: what it cost, what it is worth, and the gap.
+ *
+ * The public book used to be quantity and a holding period, which does not
+ * say the one thing a reader opens a record to learn — whether the position
+ * is up or down. Cost comes from the record; the mark comes from the
+ * universe. A position the universe cannot price shows its cost and says so
+ * rather than carrying cost forward as value, which would render as flat.
+ */
+function PositionRow({
+  p,
+  marks,
+}: {
+  p: RecordPosition;
+  marks: UniverseAsset[];
+}) {
+  const { t } = useLocale();
+  const qty = Number(p.qty);
+  const cost = p.costUsd === undefined ? null : Number(p.costUsd);
+  const mark = marks.find((a) => a.symbol === p.symbol)?.priceUsd ?? null;
+  const value = mark === null ? null : mark * qty;
+  const pnl = value === null || cost === null ? null : value - cost;
+  const pnlPct =
+    value === null || cost === null || cost <= 0
+      ? null
+      : ((value - cost) / cost) * 100;
+  const entry = cost !== null && qty > 0 ? cost / qty : null;
+
+  return (
+    <div
+      className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 last:border-b-0`}
+    >
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-[12.5px] text-text-primary">
+            {p.symbol}
+          </span>
+          {/* The underlying is the thing a reader recognises: TSLAx means
+              nothing to someone who knows TSLA. */}
+          {p.underlying ? (
+            <span className="shrink-0 font-mono text-[10px] text-text-dim">
+              {p.underlying}
+            </span>
+          ) : null}
+        </span>
+        {/* Venue and age move under the name, the way the owner's own book
+            puts its entry count there — they identify the row, they are not
+            figures to be compared down a column. */}
+        <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
+          {t("sd_held_on", { venue: p.venue, age: span(p.openedAt, null, t) })}
+        </span>
+      </span>
+      <Money value={qty === 0 ? "—" : tokenQty(qty, mark)} />
+      <Money
+        value={cost === null ? "—" : usd(cost)}
+        note={
+          entry === null
+            ? null
+            : t("sd_at_price", { price: tokenPrice(entry).display })
+        }
+      />
+      <Money
+        value={value === null ? t("sd_not_priced") : usd(value)}
+        note={
+          mark === null
+            ? null
+            : t("sd_at_price", { price: tokenPrice(mark).display })
+        }
+        muted={value === null}
+      />
+      <Delta usd={pnl} pct={pnlPct} />
+    </div>
+  );
+}
+
+/**
+ * One closed trade: what it cost, what it returned, and the result.
+ *
+ * Proceeds are not a column on the record — they are the cost plus what the
+ * trade realised, which is the same arithmetic the owner's history does from
+ * a fill. Derived rather than sent, so the two cannot drift apart.
+ */
+function TradeRow({ tr }: { tr: RecordTrade }) {
+  const { t } = useLocale();
+  const qty = Number(tr.qty);
+  const cost = tr.costUsd === undefined ? null : Number(tr.costUsd);
+  const realised = tr.realizedUsd === undefined ? null : Number(tr.realizedUsd);
+  const proceeds = cost === null || realised === null ? null : cost + realised;
+  const entry = cost !== null && qty > 0 ? cost / qty : null;
+  const exit = proceeds !== null && qty > 0 ? proceeds / qty : null;
+
+  return (
+    <div
+      className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 last:border-b-0`}
+    >
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-[12.5px] text-text-primary">
+            {tr.symbol}
+          </span>
+          {tr.underlying ? (
+            <span className="shrink-0 font-mono text-[10px] text-text-dim">
+              {tr.underlying}
+            </span>
+          ) : null}
+        </span>
+        <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
+          {t("sd_closed_after", {
+            held: span(tr.openedAt, tr.closedAt, t),
+            ago: span(tr.closedAt, null, t),
+          })}
+        </span>
+      </span>
+      <Money value={qty === 0 ? "—" : tokenQty(qty, exit)} />
+      <Money
+        value={cost === null ? "—" : usd(cost)}
+        note={
+          entry === null
+            ? null
+            : t("sd_at_price", { price: tokenPrice(entry).display })
+        }
+      />
+      <Money
+        value={proceeds === null ? "—" : usd(proceeds)}
+        note={
+          exit === null
+            ? null
+            : t("sd_at_price", { price: tokenPrice(exit).display })
+        }
+      />
+      <Delta usd={realised} pct={tr.returnPct} />
+    </div>
+  );
+}
+
+/** A figure with the price behind it underneath. Dollars lead. */
+function Money({
+  value,
+  note,
+  muted = false,
+}: {
+  value: string;
+  note?: string | null;
+  muted?: boolean;
+}) {
+  return (
+    <span className="text-right">
+      <span
+        className={`tnum block font-mono text-[12.5px] ${
+          muted ? "text-text-muted" : "text-text-secondary"
+        }`}
+      >
+        {value}
+      </span>
+      {note ? (
+        <span className="tnum block pt-0.5 font-mono text-[11px] text-text-dim">
+          {note}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * A result in dollars with its percentage under it.
+ *
+ * Dollars lead for the reason the owner's book gives: −6% is a rounding error
+ * on one position and the worst loss on the book on another, and a percentage
+ * alone cannot be weighed against the rest.
+ */
+function Delta({
+  usd: amount,
+  pct,
+}: {
+  usd: number | null;
+  pct: number | null;
+}) {
+  return (
+    <span
+      className={`text-right ${
+        amount === null
+          ? "text-text-muted"
+          : amount > 0
+            ? "text-accent"
+            : amount < 0
+              ? "text-negative"
+              : "text-text-secondary"
+      }`}
+    >
+      <span className="tnum block font-mono text-[12.5px]">
+        {amount === null ? "—" : usd(amount, { sign: true })}
+      </span>
+      {pct === null ? null : (
+        <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
+          {signedPct(pct)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+const BOOK_COLS =
+  "grid grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] items-center gap-x-4";
 
 /**
  * The days behind the curve, paged.
@@ -767,58 +984,18 @@ function TradeHistory({ strategyId }: { strategyId: number }) {
       {/* Its own scroller: five columns of figures must not make the page
           scroll sideways on a narrow screen (§9). */}
       <div className="overflow-x-auto">
-        <div className="min-w-[560px]">
+        <div className="min-w-[600px]">
           <div
-            className={`${TRADE_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+            className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
           >
             <span>{t("sd_col_asset")}</span>
             <span className="text-right">{t("sd_col_quantity")}</span>
-            <span className="text-right">{t("sd_col_held_for")}</span>
-            <span className="text-right">{t("sd_col_closed")}</span>
+            <span className="text-right">{t("sd_col_cost")}</span>
+            <span className="text-right">{t("sd_col_proceeds")}</span>
             <span className="text-right">{t("sd_col_result")}</span>
           </div>
           {data.trades.map((tr) => (
-            <div
-              key={`${tr.symbol}-${tr.closedAt}`}
-              className={`${TRADE_COLS} border-b border-grid px-4 py-2.5 last:border-b-0`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-[12.5px] text-text-primary">
-                  {tr.symbol}
-                </span>
-                {/* The underlying is the thing a reader recognises: TSLAx
-                    means nothing to someone who knows TSLA. */}
-                {tr.underlying ? (
-                  <span className="shrink-0 font-mono text-[10px] text-text-dim">
-                    {tr.underlying}
-                  </span>
-                ) : null}
-              </span>
-              <span className="tnum text-right font-mono text-[12px] text-text-secondary">
-                {qty(tr.qty)}
-              </span>
-              <span className="text-right font-mono text-[11.5px] text-text-dim">
-                {span(tr.openedAt, tr.closedAt, t)}
-              </span>
-              <span className="text-right font-mono text-[11.5px] text-text-dim">
-                {span(tr.closedAt, null, t)}
-              </span>
-              {/* Null is not zero: a trade whose basis never landed has no
-                  result to report, and "+0.00%" would invent one. */}
-              <span
-                className={`tnum text-right font-mono text-[12.5px] ${
-                  tr.returnPct === null
-                    ? "text-text-dim"
-                    : tr.returnPct > 0
-                      ? "text-accent"
-                      : tr.returnPct < 0
-                        ? "text-negative"
-                        : "text-text-secondary"
-                }`}
-              >
-                {tr.returnPct === null ? "—" : signedPct(tr.returnPct)}
-              </span>
-            </div>
+            <TradeRow key={`${tr.symbol}-${tr.closedAt}`} tr={tr} />
           ))}
         </div>
       </div>
@@ -836,9 +1013,6 @@ function TradeHistory({ strategyId }: { strategyId: number }) {
     </div>
   );
 }
-
-const TRADE_COLS =
-  "grid grid-cols-[minmax(0,1fr)_100px_90px_90px_90px] items-center gap-x-4";
 
 /**
  * A numbered pager for a table inside a frame.
@@ -1075,13 +1249,6 @@ function signedPct(n: number): string {
  * Token quantities arrive as decimal strings with twelve places; printing them
  * whole turns a table of holdings into a table of noise.
  */
-function qty(v: string): string {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return v;
-  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  if (n >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 3 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
-}
 
 /** How long a position has been open. Its age is the part that is public. */
 /**

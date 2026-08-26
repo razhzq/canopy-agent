@@ -1,10 +1,6 @@
 import type { enMarketplace } from "../en/marketplace";
 
 export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
-  market_title: "智能体",
-  market_intro:
-    "所有拥有实盘记录的策略 — 已上架的，以及仍在模拟盘的。把已上架的策略部署为您自己的智能体：资产始终由您托管，每项限额由您设定。",
-
   market_tab_all: "全部",
   market_tab_listed: "已上架",
   market_tab_paper: "模拟盘",
@@ -46,6 +42,8 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_metric_capital: "资金规模",
   market_metric_trades_30d: "30 日成交",
   market_metric_open_now: "当前持仓",
+  market_metric_volume_30d: "成交额 · 30 日",
+  market_rail_volume_30d: "成交额 · 30 日",
   market_non_custodial: "非托管",
 
   market_showing: "显示第 {from}–{to} 个，共 {total} 个",

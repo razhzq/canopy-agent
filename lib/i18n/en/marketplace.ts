@@ -1,10 +1,6 @@
 // The agent shelf (wireframe 1a) — tabs, the stat rail, and the cards.
 
 export const enMarketplace = {
-  market_title: "Agents",
-  market_intro:
-    "Every strategy with a live record — published, and still on paper. Deploy a listed one as your own agent: you keep custody, you set every limit.",
-
   // ── Tabs and sorting ───────────────────────────────────────────
   market_tab_all: "All",
   market_tab_listed: "Listed",
@@ -52,6 +48,8 @@ export const enMarketplace = {
   market_metric_capital: "Capital",
   market_metric_trades_30d: "Trades 30d",
   market_metric_open_now: "Open now",
+  market_metric_volume_30d: "Volume · 30d",
+  market_rail_volume_30d: "Volume · 30d",
   market_non_custodial: "non-custodial",
 
   // ── Pagination ─────────────────────────────────────────────────

@@ -182,13 +182,14 @@ export function Marketplace() {
           renders nothing at all when there is nothing to say. */}
         <CapabilityNotices />
 
-        <section className="border-b border-grid px-5 sm:px-8 pt-7 pb-6">
-          <h1 className="font-mono text-[34px] leading-none text-text-primary">
-            {t("market_title")}
-          </h1>
-          <p className="max-w-[70ch] pt-2.5 font-ui text-[14px] text-text-secondary">
-            {t("market_intro")}
-          </p>
+        {/* The rail alone. The heading and its paragraph were removed: the
+            nav already says where you are, and the copy explained the shelf to
+            a reader who is looking straight at it. The numbers say the same
+            thing and can be acted on. */}
+        {/* The rail carries its own pt-6; this is the air ABOVE it, which the
+            heading used to provide. Without it the first figure sits directly
+            under the nav and the page opens cramped. */}
+        <section className="border-b border-grid px-5 pt-6 pb-6 sm:px-8">
           <StatRail rows={rows} />
         </section>
 
@@ -404,7 +405,13 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
           column about 63px — narrow enough that "Return 30d" and "Trades 30d"
           both truncate to an ellipsis. A 2x2 block holds the same four figures
           without abbreviating any of their labels. */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-4 border-t border-grid pt-3.5 lg:grid-cols-4">
+      {/* THREE-UP, NOT FIVE. Volume makes five figures, and five columns in a
+          card that goes three-across leaves ~50px each — narrower than the
+          four-column layout that already truncated "Return 30d". Two rows of
+          three holds all five at full label width, and puts Volume next to
+          Open now, which is the pair a reader compares: what it is holding
+          against how much it has been moving. */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-4 border-t border-grid pt-3.5 lg:grid-cols-3">
         <Metric
           label={t("market_metric_return_30d")}
           value={ret === null ? "—" : signedPct(ret)}
@@ -424,6 +431,17 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
         <Metric
           label={t("market_metric_open_now")}
           value={r.open_positions ?? "—"}
+        />
+        {/* Traded value, not exposure — Capital above is the exposure figure.
+            `?? "—"` for the same reason as its neighbours: absent on an older
+            backend, and "$0" would be a claim about the agent. */}
+        <Metric
+          label={t("market_metric_volume_30d")}
+          value={
+            r.volume_30d_usd === undefined
+              ? "—"
+              : money(Number(r.volume_30d_usd))
+          }
         />
       </div>
 
@@ -472,6 +490,7 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   const capital = sum((r) => r.aum_usd);
   const trades = sum((r) => r.trades_30d);
   const open = sum((r) => r.open_positions);
+  const volume = sum((r) => r.volume_30d_usd);
 
   // Nothing on this shelf is funded until a strategy goes live, and "Capital
   // deployed" claims real money is at work. Same correction the My Agents band
@@ -511,6 +530,12 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
       <Metric
         label={t("market_rail_positions_open")}
         value={String(open)}
+        note={over}
+        big
+      />
+      <Metric
+        label={t("market_rail_volume_30d")}
+        value={money(volume)}
         note={over}
         big
       />

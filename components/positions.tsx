@@ -185,7 +185,10 @@ export function aggregate(
         markUsd,
         valueUsd,
         pnlUsd: valueUsd === null ? null : valueUsd - costUsd,
-        pnlPct: valueUsd === null || costUsd <= 0 ? null : ((valueUsd - costUsd) / costUsd) * 100,
+        pnlPct:
+          valueUsd === null || costUsd <= 0
+            ? null
+            : ((valueUsd - costUsd) / costUsd) * 100,
         // Oldest lot: when this position started, not when it was last added to.
         openedAt: lots[0].openedAt,
         lots,
@@ -227,7 +230,7 @@ function OpenTable({
         <div className="grid flex-1 grid-cols-[1.4fr_repeat(4,1fr)_auto] gap-3">
           <span>{t("positions_col_asset")}</span>
           <span className="text-right">{t("positions_col_qty")}</span>
-          <span className="text-right">{t("positions_col_avg_cost")}</span>
+          <span className="text-right">{t("positions_col_cost")}</span>
           <span className="text-right">{t("positions_col_value")}</span>
           <span className="text-right">{t("positions_col_pnl")}</span>
           <span className="w-8" />
@@ -245,91 +248,126 @@ function OpenTable({
                 button inside a button — invalid, and every click on it would
                 also toggle the row underneath the dialog it opened. */}
             <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={!canExpand}
-              onClick={() => setOpen(expanded ? null : h.symbol)}
-              className="grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
-            >
-              <span className="min-w-0">
-                <span className="flex items-center gap-2">
-                  {/* The wrapper's own symbol, not the underlying: it resolves
+              <button
+                type="button"
+                disabled={!canExpand}
+                onClick={() => setOpen(expanded ? null : h.symbol)}
+                className="grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
+              >
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    {/* The wrapper's own symbol, not the underlying: it resolves
                       just as well for equities ("TSLAx" → TSLA) and is the only
                       one of the two that identifies a gold position, where the
                       underlying is XAU for both issuers. */}
-                  <AssetLogo symbol={h.symbol} />
-                  <span className="truncate font-mono text-[12.5px] text-text-primary">
-                    {h.symbol}
+                    <AssetLogo symbol={h.symbol} />
+                    <span className="truncate font-mono text-[12.5px] text-text-primary">
+                      {h.symbol}
+                    </span>
+                  </span>
+                  <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
+                    {h.lots.length === 1
+                      ? t("positions_since", {
+                          date: shortDate(h.openedAt, locale),
+                        })
+                      : t("positions_entries_since", {
+                          count: h.lots.length,
+                          date: shortDate(h.openedAt, locale),
+                        })}
                   </span>
                 </span>
-                <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
-                  {h.lots.length === 1
-                    ? t("positions_since", { date: shortDate(h.openedAt, locale) })
-                    : t("positions_entries_since", {
-                        count: h.lots.length,
-                        date: shortDate(h.openedAt, locale),
-                      })}
-                </span>
-              </span>
-              <Cell>{tokenQty(h.qty, h.markUsd)}</Cell>
-              {/* A PRICE, not a dollar amount. Two fixed decimals rendered a
-                  memecoin at $0.00005835 as "$0.00" — a wrong number, not a
-                  rounded one, and the owner reads it as worthless. */}
-              <Cell>
-                <span title={tokenPrice(h.avgUsd).label}>{tokenPrice(h.avgUsd).display}</span>
-              </Cell>
-              <Cell>{h.valueUsd === null ? t("positions_not_priced") : usd(h.valueUsd)}</Cell>
-              {/* Dollars lead, percent underneath. A percentage alone cannot be
+                <Cell>{tokenQty(h.qty, h.markUsd)}</Cell>
+                {/* WHAT IT COST, AND WHAT THAT BOUGHT — one cell.
+              
+                  This column used to be the average price alone, which left the
+                  owner to multiply it by the quantity to learn what they had
+                  put in. The dollar figure is what P&L is measured against, so
+                  it leads; the price it was bought at sits under it, which is
+                  the same shape the P&L cell next door already uses and the
+                  same "qty @ price · total" idiom the lot rows use.
+
+                  The price stays a PRICE, never rounded to two decimals: that
+                  rendered a memecoin at $0.00005835 as "$0.00" — a wrong
+                  number, not a rounded one, and the owner reads it as
+                  worthless. */}
+                <Amount
+                  main={usd(h.costUsd)}
+                  sub={t("positions_at_price", {
+                    price: tokenPrice(h.avgUsd).display,
+                  })}
+                  subTitle={tokenPrice(h.avgUsd).label}
+                />
+                {/* The same pair, marked to now. Both lines come off the mark, so
+                  a row cannot show a value its price disagrees with — and an
+                  unpriceable asset says so on both rather than carrying cost
+                  forward, which would render as "flat" and claim something. */}
+                <Amount
+                  main={
+                    h.valueUsd === null
+                      ? t("positions_not_priced")
+                      : usd(h.valueUsd)
+                  }
+                  sub={
+                    h.markUsd === null
+                      ? null
+                      : t("positions_at_price", {
+                          price: tokenPrice(h.markUsd).display,
+                        })
+                  }
+                  subTitle={
+                    h.markUsd === null ? undefined : tokenPrice(h.markUsd).label
+                  }
+                  muted={h.valueUsd === null}
+                />
+                {/* Dollars lead, percent underneath. A percentage alone cannot be
                   weighed: −6% is a rounding error on one holding and the worst
                   loss on the book on another, and the reader had to work it out
                   from Value against Avg cost. Both figures come off the same
                   mark, so they cannot disagree. */}
-              <span
-                className={`text-right ${
-                  h.pnlUsd === null
-                    ? "text-text-muted"
-                    : h.pnlUsd >= 0
-                      ? "text-accent"
-                      : "text-negative"
-                }`}
-              >
-                <span className="tnum block font-mono text-[12.5px]">
-                  {h.pnlUsd === null
-                    ? "—"
-                    : usd(h.pnlUsd, { sign: true })}
-                </span>
-                {h.pnlPct === null ? null : (
-                  <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
-                    {h.pnlPct >= 0 ? "+" : "−"}
-                    {Math.abs(h.pnlPct).toFixed(1)}%
+                <span
+                  className={`text-right ${
+                    h.pnlUsd === null
+                      ? "text-text-muted"
+                      : h.pnlUsd >= 0
+                        ? "text-accent"
+                        : "text-negative"
+                  }`}
+                >
+                  <span className="tnum block font-mono text-[12.5px]">
+                    {h.pnlUsd === null ? "—" : usd(h.pnlUsd, { sign: true })}
                   </span>
-                )}
-              </span>
-              <span className="w-8 text-right font-mono text-[11px] text-text-dim">
-                {canExpand ? (expanded ? "−" : "+") : ""}
-              </span>
-            </button>
+                  {h.pnlPct === null ? null : (
+                    <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
+                      {h.pnlPct >= 0 ? "+" : "−"}
+                      {Math.abs(h.pnlPct).toFixed(1)}%
+                    </span>
+                  )}
+                </span>
+                <span className="w-8 text-right font-mono text-[11px] text-text-dim">
+                  {canExpand ? (expanded ? "−" : "+") : ""}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setClosing(h)}
-              aria-label={t("positions_close_aria", { symbol: h.symbol })}
-              title={t("positions_close_title")}
-              // Dim until hovered or focused. It sells something, so it should
-              // not compete for attention with the figures — but it must be
-              // reachable by keyboard, which is why focus-visible lights it too.
-              className="flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative focus-visible:outline-1 focus-visible:outline-accent"
-            >
-              <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden>
-                <path
-                  d="m4.5 4.5 7 7m0-7-7 7"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
+              <button
+                type="button"
+                onClick={() => setClosing(h)}
+                aria-label={t("positions_close_aria", { symbol: h.symbol })}
+                title={t("positions_close_title")}
+                // Dim until hovered or focused. It sells something, so it should
+                // not compete for attention with the figures — but it must be
+                // reachable by keyboard, which is why focus-visible lights it too.
+                className="flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative focus-visible:outline-1 focus-visible:outline-accent"
+              >
+                <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden>
+                  <path
+                    d="m4.5 4.5 7 7m0-7-7 7"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
             </div>
 
             {expanded ? (
@@ -347,8 +385,8 @@ function OpenTable({
                     </span>
                     <span className="tnum font-mono text-[11.5px] text-text-dim">
                       {tokenQty(l.qty, l.costUsd / (l.qty || 1))} @{" "}
-                      {tokenPrice(l.qty > 0 ? l.costUsd / l.qty : null).display} ·{" "}
-                      {usd(l.costUsd)}
+                      {tokenPrice(l.qty > 0 ? l.costUsd / l.qty : null).display}{" "}
+                      · {usd(l.costUsd)}
                     </span>
                   </div>
                 ))}
@@ -373,9 +411,52 @@ function OpenTable({
   );
 }
 
+/**
+ * A dollar figure with the price behind it underneath.
+ *
+ * DOLLARS LEAD. A price alone cannot be weighed against the rest of the book —
+ * the owner had to multiply it by the quantity to learn what the position was
+ * worth — and the same argument the P&L cell makes for dollars over percent
+ * applies here. The price stays, one line down, because it is what tells them
+ * whether the mark has moved.
+ */
+function Amount({
+  main,
+  sub,
+  subTitle,
+  muted = false,
+}: {
+  main: string;
+  sub?: string | null;
+  subTitle?: string;
+  muted?: boolean;
+}) {
+  return (
+    <span className="text-right">
+      <span
+        className={`tnum block font-mono text-[12.5px] ${
+          muted ? "text-text-muted" : "text-text-secondary"
+        }`}
+      >
+        {main}
+      </span>
+      {sub ? (
+        <span
+          title={subTitle}
+          className="tnum block pt-0.5 font-mono text-[11px] text-text-dim"
+        >
+          {sub}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function Cell({ children }: { children: React.ReactNode }) {
   return (
-    <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">{children}</span>
+    <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+      {children}
+    </span>
   );
 }
 
@@ -392,13 +473,15 @@ function HistoryTable({ agentId }: { agentId: number }) {
   // page stays under useApi (it owns the loading, signed-out and error phases)
   // and everything fetched by "load more" is held here.
   const [extra, setExtra] = useState<AgentFill[]>([]);
-  const [cursor, setCursor] = useState<{ before: string | null; beforeId: string | null } | null>(
-    null,
-  );
+  const [cursor, setCursor] = useState<{
+    before: string | null;
+    beforeId: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
-  const firstId = state.phase === "ready" ? (state.data.fills[0]?.id ?? "none") : "";
+  const firstId =
+    state.phase === "ready" ? (state.data.fills[0]?.id ?? "none") : "";
 
   // A reload — retry, or a different agent — invalidates everything appended to
   // it. Without this the old pages stay stitched under a new first page.
@@ -409,8 +492,16 @@ function HistoryTable({ agentId }: { agentId: number }) {
   }, [firstId, agentId]);
 
   if (state.phase === "signed-out") return <SignedOutState />;
-  if (state.phase === "loading") return <SkeletonRows labelKey="loading_trades" cols="1.4fr 1fr 1fr 1fr 1fr auto" rows={5} />;
-  if (state.phase === "error") return <ErrorState message={state.message} onRetry={state.reload} />;
+  if (state.phase === "loading")
+    return (
+      <SkeletonRows
+        labelKey="loading_trades"
+        cols="1.4fr 1fr 1fr 1fr auto"
+        rows={5}
+      />
+    );
+  if (state.phase === "error")
+    return <ErrorState message={state.message} onRetry={state.reload} />;
 
   const fills = [...state.data.fills, ...extra];
   const next = cursor ?? {
@@ -447,11 +538,13 @@ function HistoryTable({ agentId }: { agentId: number }) {
 
   return (
     <div className="pt-4">
-      <div className="hidden grid-cols-[auto_1.2fr_repeat(4,1fr)] gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:grid">
+      {/* Same shape as the open book above: the dollar figure leads and the
+          price it was struck at sits under it, so the two tabs do not describe
+          a trade two different ways. */}
+      <div className="hidden grid-cols-[auto_1.2fr_repeat(3,1fr)] gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:grid">
         <span>{t("positions_col_side")}</span>
         <span>{t("positions_col_asset")}</span>
         <span className="text-right">{t("positions_col_qty")}</span>
-        <span className="text-right">{t("positions_col_price")}</span>
         <span className="text-right">{t("positions_col_value")}</span>
         <span className="text-right">{t("positions_col_realised")}</span>
       </div>
@@ -495,10 +588,27 @@ function HistoryTable({ agentId }: { agentId: number }) {
 function FillRow({ fill: f }: { fill: AgentFill }) {
   const { t, locale } = useLocale();
   const sell = f.side === "sell" || f.side === "remove_liquidity";
-  const realised = f.realized_pnl_usd === null ? null : Number(f.realized_pnl_usd);
+  const realised =
+    f.realized_pnl_usd === null ? null : Number(f.realized_pnl_usd);
+
+  /**
+   * What that result was, as a percentage of what the closed lots cost.
+   *
+   * The cost is not on a fill row, but it is exactly the proceeds minus the
+   * result — a sell that returned $1,100 and realised $100 closed $1,000 of
+   * cost. Same reasoning the open book uses for showing dollars beside
+   * percent: −$40 is a rounding error on one trade and the worst of the month
+   * on another, and a reader cannot tell which from the dollars alone.
+   *
+   * Null on a buy (no result yet) and on a zero basis, where the percentage
+   * would be a division by nothing rather than a break-even.
+   */
+  const basis = realised === null ? 0 : Number(f.filled_usd) - realised;
+  const realisedPct =
+    realised === null || basis <= 0 ? null : (realised / basis) * 100;
 
   return (
-    <div className="grid grid-cols-2 items-center gap-3 border-b border-grid py-3 last:border-b-0 sm:grid-cols-[auto_1.2fr_repeat(4,1fr)]">
+    <div className="grid grid-cols-2 items-center gap-3 border-b border-grid py-3 last:border-b-0 sm:grid-cols-[auto_1.2fr_repeat(3,1fr)]">
       <span
         className={`font-mono text-[10px] tracking-[0.08em] uppercase ${
           sell ? "text-negative" : "text-accent"
@@ -509,10 +619,14 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
           <AssetLogo symbol={f.symbol} />
-          <span className="truncate font-mono text-[12.5px] text-text-primary">{f.symbol}</span>
+          <span className="truncate font-mono text-[12.5px] text-text-primary">
+            {f.symbol}
+          </span>
           {/* Labelled, not hidden. Every agent is paper today, so a history
               that silently implied real fills would mislead every reader. */}
-          {f.is_paper ? <Badge tone="muted">{t("positions_badge_paper")}</Badge> : null}
+          {f.is_paper ? (
+            <Badge tone="muted">{t("positions_badge_paper")}</Badge>
+          ) : null}
         </span>
         <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
           {f.tick_seq
@@ -524,20 +638,32 @@ function FillRow({ fill: f }: { fill: AgentFill }) {
         </span>
       </span>
       <Cell>{tokenQty(Number(f.qty), Number(f.price_usd))}</Cell>
-      <Cell>
-        <span title={tokenPrice(Number(f.price_usd)).label}>
-          {tokenPrice(Number(f.price_usd)).display}
-        </span>
-      </Cell>
-      <Cell>{usd(Number(f.filled_usd))}</Cell>
+      {/* What it moved, and the price it moved at. */}
+      <Amount
+        main={usd(Number(f.filled_usd))}
+        sub={t("positions_at_price", {
+          price: tokenPrice(Number(f.price_usd)).display,
+        })}
+        subTitle={tokenPrice(Number(f.price_usd)).label}
+      />
       <span
-        className={`tnum text-right font-mono text-[12.5px] ${
-          realised === null ? "text-text-muted" : realised >= 0 ? "text-accent" : "text-negative"
+        className={`text-right ${
+          realised === null
+            ? "text-text-muted"
+            : realised >= 0
+              ? "text-accent"
+              : "text-negative"
         }`}
       >
-        {realised === null
-          ? "—"
-          : usd(realised, { sign: true })}
+        <span className="tnum block font-mono text-[12.5px]">
+          {realised === null ? "—" : usd(realised, { sign: true })}
+        </span>
+        {realisedPct === null ? null : (
+          <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
+            {realisedPct >= 0 ? "+" : "−"}
+            {Math.abs(realisedPct).toFixed(1)}%
+          </span>
+        )}
       </span>
     </div>
   );

@@ -9,7 +9,8 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
 
   positions_col_asset: "标的",
   positions_col_qty: "数量",
-  positions_col_avg_cost: "平均成本",
+  positions_col_cost: "成本",
+  positions_at_price: "@ {price}",
   positions_col_value: "市值",
   positions_col_pnl: "盈亏",
   positions_since: "自 {date} 起",
@@ -19,9 +20,9 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   positions_close_title: "平掉这笔持仓",
   positions_entries: "建仓明细",
 
-  positions_history_empty: "还没有任何成交。每个周期仍然记录在下方的动态日志中。",
+  positions_history_empty:
+    "还没有任何成交。每个周期仍然记录在下方的动态日志中。",
   positions_col_side: "方向",
-  positions_col_price: "价格",
   positions_col_realised: "已实现",
   positions_side_buy: "买入",
   positions_side_sell: "卖出",

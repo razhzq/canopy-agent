@@ -5,12 +5,14 @@ export const enPositions = {
   positions_tab_open_count: "Open · {count}",
   positions_tab_history: "History",
 
-  positions_empty: "Nothing open. The agent is in cash until its entry rule is met.",
+  positions_empty:
+    "Nothing open. The agent is in cash until its entry rule is met.",
 
   // ── Open table ─────────────────────────────────────────────────
   positions_col_asset: "Asset",
   positions_col_qty: "Qty",
-  positions_col_avg_cost: "Avg cost",
+  positions_col_cost: "Cost",
+  positions_at_price: "@ {price}",
   positions_col_value: "Value",
   positions_col_pnl: "P&L",
   positions_since: "since {date}",
@@ -25,7 +27,6 @@ export const enPositions = {
   positions_history_empty:
     "Nothing filled yet. Every cycle is still recorded in the activity log below.",
   positions_col_side: "Side",
-  positions_col_price: "Price",
   positions_col_realised: "Realised",
   positions_side_buy: "Buy",
   positions_side_sell: "Sell",
