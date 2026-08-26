@@ -1206,13 +1206,37 @@ function maxDrawdownPct(values: number[]): number {
   return worst;
 }
 
+/**
+ * Is this day inside the trailing `n`-day window?
+ *
+ * Counted in calendar days off {@link daysAgo}, so a 30-day window is today
+ * plus the 29 before it — the same 30 rows a reader would count off the table.
+ */
 function withinDays(day: string, n: number): boolean {
-  return (Date.now() - new Date(day).getTime()) / 86_400_000 <= n;
+  const ago = daysAgo(day);
+  return Number.isFinite(ago) && ago >= 0 && ago < n;
 }
 
 /** Whole days between a date and now. Negative is impossible here; 0 is today. */
+/**
+ * Whole days between a record day and the reader's today.
+ *
+ * CALENDAR DAYS, NOT ELAPSED MILLISECONDS. `new Date("2026-08-27")` is UTC
+ * midnight, and subtracting it from `Date.now()` measures a gap in time rather
+ * than a distance in days — east of Greenwich that gap is negative for the
+ * first eight hours of every day, so today came back as −1 and yesterday as 0,
+ * and `dayLabel` printed "Today" on both of them.
+ *
+ * Splitting the parts and building a LOCAL date compares the two calendars the
+ * reader actually thinks in: today is 0, yesterday is 1, always.
+ */
 function daysAgo(day: string): number {
-  return Math.floor((Date.now() - new Date(day).getTime()) / 86_400_000);
+  const [y, m, d] = day.split("-").map(Number);
+  if (!y || !m || !d) return Number.NaN;
+  const then = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((today.getTime() - then.getTime()) / 86_400_000);
 }
 
 function dayLabel(day: string, t: Translate, locale: Locale): string {
