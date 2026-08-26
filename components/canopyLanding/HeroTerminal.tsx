@@ -100,7 +100,6 @@ export function HeroTerminal({ onLogin }: Props) {
       <div className="meadow" aria-hidden />
       <div className="wrap">
         <div className="hero-inner" ref={inner}>
-          <span className="eyebrow center">{t("ld_hero_eyebrow")}</span>
           <h1 className="h1">
             {t("ld_hero_h1_a")}
             <span className="mint">{t("ld_hero_h1_mint")}</span>

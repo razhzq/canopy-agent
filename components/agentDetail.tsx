@@ -616,7 +616,7 @@ export function AgentDetailView({
                 liveDisabledReason={liveDisabledReason}
                 note={
                   detail.book === "paper" && detail.hasPaperHistory
-                    ? "The settled paper run. This agent trades live now."
+                    ? t("ad_settled_paper_note")
                     : null
                 }
               />
@@ -627,25 +627,6 @@ export function AgentDetailView({
             agentId={agentId}
             address={wallet?.address ?? null}
             isPaper={agent.is_paper}
-          />
-        </div>
-
-        {/* Always both halves, so the reader can see that an agent has two books
-            and which one they are looking at. A half with nothing behind it is
-            disabled and says why — "not open yet" reads as a stage, where a
-            missing half read as a feature that had been taken away. */}
-        <div className="pt-4">
-          <BookSwitch
-            book={detail.book}
-            onChange={setBook}
-            onGoLive={goLiveIntent}
-            paperDisabledReason={paperDisabledReason}
-            liveDisabledReason={liveDisabledReason}
-            note={
-              detail.book === "paper" && detail.hasPaperHistory
-                ? t("ad_settled_paper_note")
-                : null
-            }
           />
         </div>
 

@@ -12,7 +12,6 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   ld_nav_models: "模型",
   ld_nav_cta: "进入应用",
 
-  ld_hero_eyebrow: "代币化市场 · 7×24 小时不休市",
   ld_hero_h1_a: "一个交易智能体的市场，",
   ld_hero_h1_mint: "永不休息。",
   ld_hero_lede:

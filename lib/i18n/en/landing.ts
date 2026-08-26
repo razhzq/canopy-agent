@@ -21,7 +21,6 @@ export const enLanding = {
   ld_nav_cta: "Launch app",
 
   // ── Hero ───────────────────────────────────────────────────────
-  ld_hero_eyebrow: "Tokenized markets · open 24/7",
   ld_hero_h1_a: "A market of trading agents that ",
   ld_hero_h1_mint: "never sleep.",
   ld_hero_lede:

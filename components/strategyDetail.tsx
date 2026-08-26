@@ -1,19 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { Badge, Breadcrumb } from "@/components/ui";
+import {
+  FOCUS,
+  SEGMENT_ITEM,
+  SEGMENT_OFF,
+  SEGMENT_ON,
+  SEGMENT_TRACK,
+} from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { useLocale, type Locale, type Translate } from "@/lib/i18n";
 import {
   getStrategy,
   getStrategyRecord,
+  getStrategyTrades,
   num,
   type RecordDay,
   type StrategyRecord,
+  type TradePage,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 
@@ -36,6 +46,27 @@ import { useApi } from "@/lib/useApi";
 type Range = "30d" | "90d" | "all";
 
 /**
+ * The record, read three ways: what is open now, what closed, and what the
+ * days themselves looked like. The curve is not among them — it is the
+ * section above, because a line is the one thing here that wants the width.
+ */
+type View = (typeof TABS)[number];
+
+const TABS = ["positions", "history", "days"] as const;
+
+/** Rows per page — the same in both tables, so the pager never moves. */
+const ROWS_PER_PAGE = 10;
+
+const TAB_LABEL: Record<
+  View,
+  "sd_tab_positions" | "sd_tab_history" | "sd_tab_days"
+> = {
+  positions: "sd_tab_positions",
+  history: "sd_tab_history",
+  days: "sd_tab_days",
+};
+
+/**
  * Stable empty series.
  *
  * `?? []` mints a new array every render, which would make the memo below
@@ -52,6 +83,40 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     [strategyId],
   );
   const [range, setRange] = useState<Range>("30d");
+  const [view, setView] = useState<View>("positions");
+  // One tab stop for the whole strip (roving tabindex, below), so the arrow
+  // keys need to move focus themselves — the browser no longer will.
+  const tabRefs = useRef<Record<View, HTMLButtonElement | null>>({
+    positions: null,
+    history: null,
+    days: null,
+  });
+
+  /**
+   * APG tabs: ←/→ step and wrap, Home/End jump to the ends.
+   *
+   * Selection FOLLOWS focus (automatic activation), which the pattern allows
+   * when showing a panel is cheap — all three views are already in memory, so
+   * arrowing across them costs nothing and saves a press. `preventDefault`
+   * because ←/→ would otherwise scroll the page sideways.
+   */
+  const onTabKey = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const i = TABS.indexOf(view);
+    const next =
+      e.key === "ArrowRight"
+        ? TABS[(i + 1) % TABS.length]
+        : e.key === "ArrowLeft"
+          ? TABS[(i - 1 + TABS.length) % TABS.length]
+          : e.key === "Home"
+            ? TABS[0]
+            : e.key === "End"
+              ? TABS[TABS.length - 1]
+              : null;
+    if (!next) return;
+    e.preventDefault();
+    setView(next);
+    tabRefs.current[next]?.focus();
+  };
 
   // Every hook runs before the first early return below. Placing this after
   // them meant the memo existed only once `meta` had loaded, so the hook order
@@ -127,6 +192,9 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     .filter((d) => withinDays(d.day, 30))
     .reduce((s, d) => s + d.trades, 0);
   const perDay = days > 0 ? trades30 / Math.min(days, 30) : 0;
+  // The array when we have it, the count when the record only reports one —
+  // the tab badge must not claim zero holdings for a page still loading them.
+  const openCount = ready?.positions?.length ?? ready?.openPositions ?? 0;
 
   return (
     <>
@@ -225,90 +293,30 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           />
           <Stat label={t("sd_trades_30d")} value={String(trades30)} />
         </div>
-        {ready ? (
-          <p className="pt-4 font-ui text-[12.5px] text-text-dim">
-            {ready.openPositions === 1
-              ? t("sd_positions_open_one")
-              : t("sd_positions_open_many", { count: ready.openPositions })}
-          </p>
-        ) : null}
       </section>
 
-      {/* ------------------------------------------------------- open book */}
-      {ready?.positions && ready.positions.length > 0 ? (
-        <section className="border-t border-grid px-5 py-7 sm:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
-            <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-              {t("sd_open_positions")}
-            </h2>
-            <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-              {ready.positions.length === 1
-                ? t("sd_holdings_one")
-                : t("sd_holdings_many", { count: ready.positions.length })}
-            </span>
-          </div>
-          {/* Said once, plainly. Quantities without cost basis look like an
-              omission unless the reason is on the page. */}
-          <p className="pb-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
-            {t("sd_holdings_note")}
-          </p>
-
-          <div className="border border-grid">
-            <div className="hidden grid-cols-[minmax(0,1fr)_110px_120px_120px] gap-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase sm:grid">
-              <span>{t("sd_col_asset")}</span>
-              <span>{t("sd_col_chain")}</span>
-              <span className="text-right">{t("sd_col_quantity")}</span>
-              <span className="text-right">{t("sd_col_held_for")}</span>
-            </div>
-            {ready.positions.map((p) => (
-              <div
-                key={`${p.symbol}-${p.openedAt}`}
-                className="grid grid-cols-2 items-center gap-x-4 gap-y-1.5 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px_120px]"
-              >
-                <span className="col-span-2 flex min-w-0 items-center gap-2 sm:col-span-1">
-                  <span className="truncate font-mono text-[13px] text-text-primary">
-                    {p.symbol}
-                  </span>
-                  {/* The underlying is the thing a reader recognises: TSLAx
-                      means nothing to someone who knows TSLA. */}
-                  {p.underlying ? (
-                    <span className="shrink-0 font-mono text-[10px] text-text-dim">
-                      {p.underlying}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="font-mono text-[11.5px] text-text-dim">
-                  {p.venue}
-                </span>
-                <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
-                  {qty(p.qty)}
-                </span>
-                <span className="text-right font-mono text-[11.5px] text-text-dim">
-                  {held(p.openedAt)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {/* ----------------------------------------------------------- curve */}
-      <section className="px-5 sm:px-8 py-7">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
+      {/* ----------------------------------------------------- performance */}
+      {/* THE CURVE GETS THE FULL WIDTH, ALONE.
+      
+          It is the question a visitor arrives with and the only reading that
+          exists before the agent has opened anything, so it is not one tab
+          among three — it is the section, and the two tables below are the
+          working behind it. A line is also the one thing on this page that
+          gets better with width; a table does not. */}
+      <section className="border-b border-grid px-5 sm:px-8 py-7">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
           <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-            {t("sd_equity")}
+            {t("sd_tab_performance")}
           </h2>
-          <div className="flex items-center gap-0.5 rounded-full border border-grid p-1">
+          <div className={SEGMENT_TRACK}>
             {(["30d", "90d", "all"] as Range[]).map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
-                className={`h-7 rounded-full px-3.5 font-mono text-[11px] transition-colors ${
-                  range === r
-                    ? "bg-accent-wash text-accent"
-                    : "text-text-dim hover:text-text-primary"
+                className={`${SEGMENT_ITEM} ${FOCUS} ${
+                  range === r ? SEGMENT_ON : SEGMENT_OFF
                 }`}
               >
                 {r}
@@ -335,7 +343,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             <EquityCurve
               values={windowed.map((p) => p.equityUsd)}
               baseline={capital}
-              height={200}
+              height={220}
             />
             <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
               <span>{t("sd_cycle_n", { seq: windowed[0].tickSeq })}</span>
@@ -350,11 +358,17 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
         )}
       </section>
 
-      {/* ------------------------------ public information | performance by day */}
-      {/* 1fr / 1.6fr, per the wireframe: the facts are a short list and the
-          record is a table, so equal columns would leave one half empty and
-          crush the other. */}
-      <section className="grid gap-8 px-5 sm:px-8 pb-10 lg:grid-cols-[1fr_1.6fr]">
+      {/* --------------------------------- what is on offer | the two tables */}
+      {/* The terms of the listing on the left, the record's two tables on the
+          right. The facts are six short lines and a table is a table, so the
+          columns are sized to what they hold rather than split evenly.
+
+          Positions and days share one frame because they are the same book
+          read two ways — what is open now, and what the days behind the curve
+          were. Stacked, the second one was a scroll past the first for a
+          reader who only wanted one of them. */}
+      <section className="grid gap-8 px-5 sm:px-8 py-8 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        {/* ------------------------------------------- public information -- */}
         <div className="min-w-0">
           <h2 className="pb-3.5 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             {t("sd_public_info")}
@@ -412,43 +426,169 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           </p>
         </div>
 
+        {/* ------------------------------------------------- the two books -- */}
         <div className="min-w-0">
-          <h2 className="pb-3.5 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sd_by_day")}
-          </h2>
-
-          {record.phase === "loading" ? (
-            <SkeletonPanel labelKey="loading_record" />
-          ) : record.phase === "error" ? (
-            <ErrorState message={record.message} onRetry={record.reload} />
-          ) : daily === null ? (
-            // The API answered without a daily breakdown. Saying so beats
-            // claiming the agent has never traded.
-            <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] leading-relaxed text-text-secondary">
-              {t("sd_no_daily")}
-            </p>
-          ) : daily.length === 0 ? (
-            <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
-              {t("sd_no_cycles")}
-            </p>
-          ) : (
-            <div>
-              <div
-                className={`${DAY_COLS} border-b border-grid pb-2.5 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase`}
-              >
-                <span>{t("sd_col_day")}</span>
-                <span className="text-right">{t("sd_col_return")}</span>
-                <span className="text-right">{t("sd_col_trades")}</span>
-                <span className="text-right">{t("sd_col_max_dd")}</span>
-              </div>
-              {daily!.slice(0, 30).map((d) => (
-                <DayRow key={d.day} day={d} />
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+            <div
+              role="tablist"
+              aria-label={t("sd_record_tabs")}
+              className={SEGMENT_TRACK}
+            >
+              {TABS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  id={`sd-tab-${v}`}
+                  ref={(el) => {
+                    tabRefs.current[v] = el;
+                  }}
+                  aria-selected={view === v}
+                  aria-controls={`sd-view-${v}`}
+                  // Roving tabindex: Tab reaches the strip once and lands on
+                  // the selected tab, then Tab leaves it for the panel. A tab
+                  // strip that costs a press per tab to walk past is a tab
+                  // strip nobody tabs past.
+                  tabIndex={view === v ? 0 : -1}
+                  onClick={() => setView(v)}
+                  onKeyDown={onTabKey}
+                  className={`${SEGMENT_ITEM} ${FOCUS} ${
+                    view === v ? SEGMENT_ON : SEGMENT_OFF
+                  }`}
+                >
+                  {t(TAB_LABEL[v])}
+                  {/* The count rides on the tab, so a visitor knows whether it
+                      is worth opening before they open it. */}
+                  {v === "positions" && openCount > 0 ? (
+                    <span className="tnum text-[9.5px] text-text-muted">
+                      {openCount}
+                    </span>
+                  ) : null}
+                </button>
               ))}
             </div>
-          )}
-          <p className="pt-3 font-ui text-[12px] text-text-dim">
-            {t("sd_by_day_note")}
-          </p>
+
+            {/* One line of provenance for whichever table is showing. */}
+            <span className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
+              {view === "positions"
+                ? openCount === 1
+                  ? t("sd_holdings_one")
+                  : t("sd_holdings_many", { count: openCount })
+                : view === "history"
+                  ? t("sd_trades_note")
+                  : t("sd_by_day_note")}
+            </span>
+          </div>
+
+          {/* ------------------------------------------------- positions -- */}
+          {view === "positions" ? (
+            <div
+              role="tabpanel"
+              id="sd-view-positions"
+              aria-labelledby="sd-tab-positions"
+              tabIndex={0}
+              className={FOCUS}
+            >
+              {ready === null ? (
+                <SkeletonPanel labelKey="loading_record" />
+              ) : !ready.positions || ready.positions.length === 0 ? (
+                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+                  {t("sd_no_positions")}
+                </p>
+              ) : (
+                <>
+                  {/* Said once, plainly. Quantities without cost basis look
+                      like an omission unless the reason is on the page. */}
+                  <p className="max-w-[78ch] pb-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
+                    {t("sd_holdings_note")}
+                  </p>
+
+                  <div className="border border-grid">
+                    <div className="hidden border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase sm:grid sm:grid-cols-[minmax(0,1fr)_110px_120px_120px] sm:items-center sm:gap-x-4">
+                      <span>{t("sd_col_asset")}</span>
+                      <span>{t("sd_col_chain")}</span>
+                      <span className="text-right">{t("sd_col_quantity")}</span>
+                      <span className="text-right">{t("sd_col_held_for")}</span>
+                    </div>
+                    {ready.positions.map((p) => (
+                      <div
+                        key={`${p.symbol}-${p.openedAt}`}
+                        className="grid grid-cols-2 items-center gap-x-4 gap-y-1.5 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px_120px]"
+                      >
+                        <span className="col-span-2 flex min-w-0 items-center gap-2 sm:col-span-1">
+                          <span className="truncate font-mono text-[13px] text-text-primary">
+                            {p.symbol}
+                          </span>
+                          {/* The underlying is the thing a reader recognises:
+                              TSLAx means nothing to someone who knows TSLA. */}
+                          {p.underlying ? (
+                            <span className="shrink-0 font-mono text-[10px] text-text-dim">
+                              {p.underlying}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="font-mono text-[11.5px] text-text-dim">
+                          {p.venue}
+                        </span>
+                        <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+                          {qty(p.qty)}
+                        </span>
+                        <span className="text-right font-mono text-[11.5px] text-text-dim">
+                          {span(p.openedAt, null, t)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
+          {/* --------------------------------------------------- history -- */}
+          {view === "history" ? (
+            <div
+              role="tabpanel"
+              id="sd-view-history"
+              aria-labelledby="sd-tab-history"
+              tabIndex={0}
+              className={FOCUS}
+            >
+              {/* Its own component so its request lives and dies with the tab:
+                  a visitor who never opens History never asks the API for it,
+                  and the page it was left on is not state the whole page has
+                  to carry. */}
+              <TradeHistory strategyId={strategyId} />
+            </div>
+          ) : null}
+
+          {/* ------------------------------------------------------ days -- */}
+          {view === "days" ? (
+            <div
+              role="tabpanel"
+              id="sd-view-days"
+              aria-labelledby="sd-tab-days"
+              tabIndex={0}
+              className={FOCUS}
+            >
+              {record.phase === "loading" ? (
+                <SkeletonPanel labelKey="loading_record" />
+              ) : record.phase === "error" ? (
+                <ErrorState message={record.message} onRetry={record.reload} />
+              ) : daily === null ? (
+                // The API answered without a daily breakdown. Saying so beats
+                // claiming the agent has never traded.
+                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] leading-relaxed text-text-secondary">
+                  {t("sd_no_daily")}
+                </p>
+              ) : daily.length === 0 ? (
+                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+                  {t("sd_no_cycles")}
+                </p>
+              ) : (
+                <DayTable daily={daily} />
+              )}
+            </div>
+          ) : null}
         </div>
       </section>
     </>
@@ -457,13 +597,66 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
 
 /* -------------------------------------------------------------------- bits -- */
 
-const DAY_COLS = "grid grid-cols-[1.1fr_.9fr_.9fr_.9fr] items-center gap-x-4";
+/**
+ * The days behind the curve, paged.
+ *
+ * The curve above says the same thing as a shape; this says it as figures,
+ * with the two things a line cannot show — how many trades a day took, and
+ * how far it fell inside the day before it recovered.
+ *
+ * Its page lives here rather than on the page, so switching tabs and coming
+ * back starts at the top, which is where a reader of a record wants to be.
+ */
+function DayTable({ daily }: { daily: RecordDay[] }) {
+  const [page, setPage] = useState(0);
+  const { t } = useLocale();
+
+  const pages = Math.max(1, Math.ceil(daily.length / ROWS_PER_PAGE));
+  // Clamped, not reset: a poll returning fewer days must not strand the
+  // reader on a page that no longer exists.
+  const at = Math.min(page, pages - 1);
+  const from = at * ROWS_PER_PAGE;
+  const rows = daily.slice(from, from + ROWS_PER_PAGE);
+
+  return (
+    <div className="border border-grid">
+      {/* Its own scroller: four columns of figures must not make the page
+          scroll sideways on a narrow screen (§9). */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[520px]">
+          <div
+            className={`${DAY_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+          >
+            <span>{t("sd_col_day")}</span>
+            <span className="text-right">{t("sd_col_return")}</span>
+            <span className="text-right">{t("sd_col_trades")}</span>
+            <span className="text-right">{t("sd_col_max_dd")}</span>
+          </div>
+          {rows.map((d) => (
+            <DayRow key={d.day} day={d} />
+          ))}
+        </div>
+      </div>
+
+      {pages > 1 ? (
+        <Pager
+          page={at}
+          pages={pages}
+          from={from + 1}
+          to={from + rows.length}
+          total={daily.length}
+          onPage={setPage}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 function DayRow({ day: d }: { day: RecordDay }) {
   const { t, locale } = useLocale();
-  // Compared on the DATE, not on the rendered word: `dayLabel` is translated
-  // now, and matching its output against the English "Today" would light the
-  // row only in one language.
+  // Compared on the DATE, not on the rendered word: `dayLabel` is translated,
+  // and matching its output against the English "Today" would light the row
+  // in one language only.
   const today = daysAgo(d.day) <= 0;
   // A day with a single reading has no change to measure — distinct from a day
   // that moved and came back to zero.
@@ -471,7 +664,7 @@ function DayRow({ day: d }: { day: RecordDay }) {
 
   return (
     <div
-      className={`${DAY_COLS} border-b border-grid py-2.5 last:border-b-0 ${
+      className={`${DAY_COLS} border-b border-grid px-4 py-2.5 last:border-b-0 ${
         today ? "bg-accent-wash" : ""
       }`}
     >
@@ -514,6 +707,257 @@ function DayRow({ day: d }: { day: RecordDay }) {
       </span>
     </div>
   );
+}
+
+const DAY_COLS =
+  "grid grid-cols-[minmax(0,1fr)_110px_120px_120px] items-center gap-x-4";
+
+/**
+ * The closed book, paged.
+ *
+ * A ROUND TRIP IS A TRADE. The endpoint publishes closed positions rather than
+ * fills, so a row here is one complete idea — what it bought, how long it held
+ * it, and how it ended — instead of a leg of one.
+ *
+ * PERCENTAGES, NO DOLLARS. The API does not send realised amounts or cost
+ * basis, so this cannot print the author's sizing even by accident. A reader
+ * gets the result of the trade; a deployer's own dollars will be their own.
+ */
+function TradeHistory({ strategyId }: { strategyId: number }) {
+  const { t } = useLocale();
+  const [page, setPage] = useState(0);
+  const trades = useApi(
+    (token) => getStrategyTrades(token, strategyId, page, ROWS_PER_PAGE),
+    [strategyId, page],
+  );
+
+  /**
+   * The last page that actually landed, held across the next one's request.
+   *
+   * `useApi` blanks to `loading` on every dep change, which for a pager means
+   * the table and the control under it vanish on each press — the reader loses
+   * the row of numbers they are aiming at, mid-aim. Keeping the previous page
+   * up (dimmed) means only the rows change.
+   */
+  const shown = useRef<TradePage | null>(null);
+  if (trades.phase === "ready") shown.current = trades.data;
+  const data = trades.phase === "ready" ? trades.data : shown.current;
+
+  if (trades.phase === "error" && data === null)
+    return <ErrorState message={trades.message} onRetry={trades.reload} />;
+  if (data === null) return <SkeletonPanel labelKey="loading_record" />;
+
+  if (data.total === 0)
+    return (
+      <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+        {t("sd_no_trades")}
+      </p>
+    );
+
+  const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
+  const from = data.page * data.pageSize;
+
+  return (
+    <div
+      className={`border border-grid transition-opacity ${
+        trades.phase === "loading" ? "opacity-50" : ""
+      }`}
+      aria-busy={trades.phase === "loading"}
+    >
+      {/* Its own scroller: five columns of figures must not make the page
+          scroll sideways on a narrow screen (§9). */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div
+            className={`${TRADE_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+          >
+            <span>{t("sd_col_asset")}</span>
+            <span className="text-right">{t("sd_col_quantity")}</span>
+            <span className="text-right">{t("sd_col_held_for")}</span>
+            <span className="text-right">{t("sd_col_closed")}</span>
+            <span className="text-right">{t("sd_col_result")}</span>
+          </div>
+          {data.trades.map((tr) => (
+            <div
+              key={`${tr.symbol}-${tr.closedAt}`}
+              className={`${TRADE_COLS} border-b border-grid px-4 py-2.5 last:border-b-0`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-mono text-[12.5px] text-text-primary">
+                  {tr.symbol}
+                </span>
+                {/* The underlying is the thing a reader recognises: TSLAx
+                    means nothing to someone who knows TSLA. */}
+                {tr.underlying ? (
+                  <span className="shrink-0 font-mono text-[10px] text-text-dim">
+                    {tr.underlying}
+                  </span>
+                ) : null}
+              </span>
+              <span className="tnum text-right font-mono text-[12px] text-text-secondary">
+                {qty(tr.qty)}
+              </span>
+              <span className="text-right font-mono text-[11.5px] text-text-dim">
+                {span(tr.openedAt, tr.closedAt, t)}
+              </span>
+              <span className="text-right font-mono text-[11.5px] text-text-dim">
+                {span(tr.closedAt, null, t)}
+              </span>
+              {/* Null is not zero: a trade whose basis never landed has no
+                  result to report, and "+0.00%" would invent one. */}
+              <span
+                className={`tnum text-right font-mono text-[12.5px] ${
+                  tr.returnPct === null
+                    ? "text-text-dim"
+                    : tr.returnPct > 0
+                      ? "text-accent"
+                      : tr.returnPct < 0
+                        ? "text-negative"
+                        : "text-text-secondary"
+                }`}
+              >
+                {tr.returnPct === null ? "—" : signedPct(tr.returnPct)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {pages > 1 ? (
+        <Pager
+          page={data.page}
+          pages={pages}
+          from={from + 1}
+          to={from + data.trades.length}
+          total={data.total}
+          onPage={setPage}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+const TRADE_COLS =
+  "grid grid-cols-[minmax(0,1fr)_100px_90px_90px_90px] items-center gap-x-4";
+
+/**
+ * A numbered pager for a table inside a frame.
+ *
+ * NUMBERS, NOT NEWER/OLDER. A relative pair tells you which way you are about
+ * to move and nothing else — not how much there is, not where you are in it,
+ * and it cannot take you back to where you started in one press. A reader
+ * checking a record wants both facts at once ("30 of 90, I am on page 3"),
+ * and page 1 has to be one click away from page 9.
+ *
+ * The window is fixed at five numbers with an ellipsis on whichever side is
+ * elided, so the control never changes width as the reader walks it — a pager
+ * that reflows under the cursor makes people miss the page they aimed at.
+ */
+function Pager({
+  page,
+  pages,
+  from,
+  to,
+  total,
+  onPage,
+}: {
+  /** Zero-based. */
+  page: number;
+  pages: number;
+  from: number;
+  to: number;
+  total: number;
+  onPage: (next: number) => void;
+}) {
+  const { t } = useLocale();
+  const window = pageWindow(page, pages);
+
+  return (
+    <nav
+      aria-label={t("sd_pager_label")}
+      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-grid px-4 py-2.5"
+    >
+      <span
+        className="tnum font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase"
+        aria-live="polite"
+      >
+        {t("sd_page_range", { from, to, total })}
+      </span>
+
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => onPage(page - 1)}
+          disabled={page === 0}
+          aria-label={t("sd_page_prev")}
+          className={PAGE_STEP}
+        >
+          ‹
+        </button>
+
+        {window.map((n, i) =>
+          n === null ? (
+            // Not a button and not focusable — an ellipsis is a statement that
+            // pages were left out, not a place you can go.
+            <span
+              key={`gap-${i}`}
+              aria-hidden
+              className="px-1 font-mono text-[10px] text-text-muted"
+            >
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onPage(n)}
+              aria-label={t("sd_page_n", { n: n + 1 })}
+              aria-current={n === page ? "page" : undefined}
+              className={`${PAGE_STEP} ${
+                n === page ? "bg-accent-wash text-accent" : ""
+              }`}
+            >
+              {n + 1}
+            </button>
+          ),
+        )}
+
+        <button
+          type="button"
+          onClick={() => onPage(page + 1)}
+          disabled={page >= pages - 1}
+          aria-label={t("sd_page_next")}
+          className={PAGE_STEP}
+        >
+          ›
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+/** One page control. Square, so a row of them reads as one ruler. */
+const PAGE_STEP = `tnum flex size-6 items-center justify-center rounded-md font-mono text-[10px] text-text-dim transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-30 ${FOCUS}`;
+
+/**
+ * Which page numbers to show: at most five, with `null` where a run was
+ * elided. Always includes the first and last page — those are the two a
+ * reader reaches for by name.
+ */
+function pageWindow(page: number, pages: number): (number | null)[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i);
+  // Clamped so the run keeps its length at both ends — the control must not
+  // narrow to two numbers just because the reader walked to the last page.
+  const start = Math.min(Math.max(page - 1, 1), pages - 4);
+  const run = [start, start + 1, start + 2];
+  const out: (number | null)[] = [0];
+  // An ellipsis only where a run was actually elided; next to the number it
+  // would have hidden, it is a lie about one missing page.
+  if (start > 1) out.push(null);
+  out.push(...run);
+  if (start + 2 < pages - 2) out.push(null);
+  out.push(pages - 1);
+  return out;
 }
 
 function Fact({
@@ -640,9 +1084,15 @@ function qty(v: string): string {
 }
 
 /** How long a position has been open. Its age is the part that is public. */
-function held(iso: string): string {
-  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
-  if (h < 1) return "under an hour";
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+/**
+ * A span in the coarsest unit that still says something: hours under a day,
+ * days above it. `to` null measures to now — "how long ago", same shape as
+ * "how long for", which is why one function serves both columns.
+ */
+function span(from: string, to: string | null, t: Translate): string {
+  const end = to === null ? Date.now() : new Date(to).getTime();
+  const h = Math.floor((end - new Date(from).getTime()) / 3_600_000);
+  if (h < 1) return t("sd_span_hour");
+  if (h < 24) return t("sd_span_hours", { n: h });
+  return t("sd_span_days", { n: Math.floor(h / 24) });
 }

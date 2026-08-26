@@ -2218,6 +2218,55 @@ export const getStrategyRecord = (token: string, strategyId: number) =>
   request<StrategyRecord>(`/agents/strategies/${strategyId}/record`, token);
 
 /**
+ * One closed trade on a public record — a round trip, not a fill.
+ *
+ * NO DOLLARS. `returnPct` is measured against the trade's own cost basis, and
+ * neither the basis nor the realised amount is sent: a percentage is the
+ * STRATEGY, a dollar figure is the author's sizing. Same line the open book
+ * draws when it publishes quantity and withholds entry price.
+ */
+export interface RecordTrade {
+  symbol: string;
+  /** For tokenized RWA: the ticker the mint tracks. Null for crypto. */
+  underlying: string | null;
+  chain: string;
+  venue: string;
+  /** Decimal string — a quantity, not a dollar value. */
+  qty: string;
+  openedAt: string;
+  closedAt: string;
+  /** Null where the cost basis was zero or missing — NOT the same as 0%. */
+  returnPct: number | null;
+}
+
+/**
+ * A page of closed trades.
+ *
+ * OFFSET-PAGED, unlike `getAgentFills`. A closed position is finished and does
+ * not move again, so an offset cannot repeat or drop a row the way it can on
+ * the append-only fills log — and a visitor pages this with a numbered
+ * control, which is what an offset is for.
+ */
+export interface TradePage {
+  agentId: number | null;
+  page: number;
+  pageSize: number;
+  total: number;
+  trades: RecordTrade[];
+}
+
+export const getStrategyTrades = (
+  token: string,
+  strategyId: number,
+  page: number,
+  pageSize: number,
+) =>
+  request<TradePage>(
+    `/agents/strategies/${strategyId}/trades?page=${page}&pageSize=${pageSize}`,
+    token,
+  );
+
+/**
  * The equity curve, for ONE book.
  *
  * `book` matters now that an agent can move between paper and live: its cycles
