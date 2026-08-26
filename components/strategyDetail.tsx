@@ -215,9 +215,14 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       ? null
       : ((equity - capital) / capital) * 100;
   const drawdown = maxDrawdownPct(points.map((p) => p.equityUsd));
-  const trades30 = (daily ?? [])
-    .filter((d) => withinDays(d.day, 30))
-    .reduce((s, d) => s + d.trades, 0);
+  // The server's count when it sends one. The fallback sums the day table the
+  // old way, and stays only for a backend that predates the field — it is the
+  // derivation that kept getting this wrong, not a second opinion worth having.
+  const trades30 =
+    ready?.trades30 ??
+    (daily ?? [])
+      .filter((d) => withinDays(d.day, 30))
+      .reduce((s, d) => s + d.trades, 0);
   const perDay = days > 0 ? trades30 / Math.min(days, 30) : 0;
   // The array when we have it, the count when the record only reports one —
   // the tab badge must not claim zero holdings for a page still loading them.

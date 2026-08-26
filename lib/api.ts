@@ -2215,6 +2215,15 @@ export interface StrategyRecord {
   points: EquityPoint[];
   openPositions: number;
   closedPositions: number;
+  /**
+   * Trades in the trailing 30 days, both legs, counted by the server.
+   *
+   * Sent rather than derived: the client used to filter the day table with its
+   * own date maths, which is a string-parsing problem masquerading as a count
+   * and got it wrong twice. Absent on an older backend, where the caller may
+   * fall back to summing `daily`.
+   */
+  trades30?: number;
   winRatePct: number | null;
   daily: RecordDay[];
   /**
