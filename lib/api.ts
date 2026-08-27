@@ -334,11 +334,7 @@ export interface StrategyRow {
    * this. When present, `rules` and `anyOf` are the ENTRY leg rather than the
    * whole test — they only apply once the setup has appeared.
    */
-  setup?: {
-    arm: DetectionRule[];
-    expiresAfterBars: number;
-    invalidateIf?: DetectionRule[];
-  };
+  setup?: SetupSpec;
   /** What the strategy may trade. Empty means the whole class. */
   universe?: UniverseSelection[];
   exits?: ExitRules | null;
@@ -437,6 +433,21 @@ export interface VerificationStatus {
 }
 
 /** A rule the SME evaluates. `key` must match a fact the SME actually gathers. */
+/**
+ * A two-stage entry: watch for `arm`, then buy when the entry rules hold on a
+ * LATER bar, within `expiresAfterBars`.
+ *
+ * Named rather than written inline at each site, because it now travels through
+ * four of them — the stored strategy, a composed draft, the builder's own
+ * state, and the create call — and four copies of a shape is how one of them
+ * quietly grows a field the others do not have.
+ */
+export interface SetupSpec {
+  arm: DetectionRule[];
+  expiresAfterBars: number;
+  invalidateIf?: DetectionRule[];
+}
+
 export interface DetectionRule {
   key: string;
   op: "gte" | "lte" | "eq";
@@ -846,6 +857,20 @@ export interface ComposedDraft {
   strategyClass: string;
   universe: UniverseSelection[];
   rules: DetectionRule[];
+  /**
+   * Either/or groups, ANDed with `rules`. Empty for a plain conjunction.
+   *
+   * THE COMPOSER HAS ALWAYS RETURNED THESE. This type did not carry them, so
+   * "buy when RSI is under 30 or price is below the lower band" composed into a
+   * group server-side, arrived here, and was dropped on the floor — leaving
+   * whichever leg happened to land in `rules` and no sign the other existed.
+   * The same omission covers {@link setup} and {@link ranking}.
+   */
+  anyOf?: DetectionRule[][];
+  /** Two-stage entry. Absent means `rules` are the whole test. */
+  setup?: SetupSpec;
+  /** Keep only the best N of what passed. Absent means keep all. */
+  ranking?: RankingSpec;
   exits: ExitRules;
   /** Bar size the rules are measured on. Always concrete. */
   timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
@@ -855,15 +880,73 @@ export interface ComposedDraft {
   reading: string;
 }
 
+/**
+ * What became of the author's own words, as opposed to what the draft says.
+ *
+ * The composer has always known this and, until now, told only itself: the
+ * signals below were computed on every compose and written to the trace tables
+ * for our own reading. The builder, needing the same answers, re-derived them
+ * by searching the raw sentence for words like "stop" — which scores "stop loss
+ * when it halves" as a stop the author chose, and cannot tell a figure someone
+ * typed from one that defaulted itself.
+ */
+export interface ComposeProvenance {
+  /**
+   * Exit fields the author named themselves. Everything else in `exits` is a
+   * fallback — still live, still going to trade, just chosen by nobody.
+   *
+   * Field names as the engine spells them: `takeProfitPct`, `stopLossPct`,
+   * `maxHoldDays`, `trailingStopPct`, `breakevenAfterPct`.
+   */
+  stated: string[];
+  /** Exits whose stated number did not fit, and the nearest one that does. */
+  adjusted: { field: string; asked: number; became: number }[];
+  /**
+   * Rules in the draft with nothing in the sentence to account for them.
+   *
+   * TOPICAL, not semantic — it asks whether the author raised the subject, not
+   * whether the rule means what they meant. A request for volatility RISING
+   * answered with a rule about volatility being above a level passes this
+   * check, because the word appears either way.
+   */
+  unattributed: string[];
+  /** The sentence, clause by clause. @see Clause */
+  clauses?: Clause[];
+}
+
+/**
+ * What became of one thing the author said, in their own words.
+ *
+ * `reinterpreted` is the one that earns the ledger. The other four states were
+ * all reachable before — a refusal arrived as prose, a clamp could be inferred,
+ * an honoured clause showed up as a chip. But a clause that produced something
+ * ANSWERING A DIFFERENT QUESTION looks identical to a satisfied one from every
+ * angle except its own words, and that is the state nobody could see.
+ */
+export interface Clause {
+  /** The author's words, verbatim. */
+  phrase: string;
+  status: "honoured" | "adjusted" | "reinterpreted" | "unsupported" | "unclear";
+  /** What it became, one line. Empty when there is nothing to point at. */
+  detail: string;
+}
+
 export const composeAgent = (token: string, prompt: string) =>
-  request<{ draft: ComposedDraft | null; notes: string[] }>(
-    "/agents/compose",
-    token,
-    {
-      method: "POST",
-      body: JSON.stringify({ prompt }),
-    },
-  );
+  request<{
+    draft: ComposedDraft | null;
+    notes: string[];
+    /**
+     * The composer's refusals, machine-readable. The PROSE for these already
+     * arrives in `notes` — every refusal pushes both — so this is for deciding
+     * what to do about them, not for showing.
+     */
+    unsupported?: string[];
+    /** Absent from an older backend, which is why nothing here may assume it. */
+    provenance?: ComposeProvenance;
+  }>("/agents/compose", token, {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
 
 /**
  * How a strategy accumulates. Mirrors the backend contract — the same shape is
@@ -940,6 +1023,10 @@ export const createStrategy = (
     name: string;
     strategyClass: string;
     rules: DetectionRule[];
+    /** Either/or groups, ANDed with `rules`. Omitted means none. */
+    anyOf?: DetectionRule[][];
+    /** Two-stage entry. Omitted means `rules` are the whole test. */
+    setup?: SetupSpec;
     safetyFloor?: Record<string, unknown>;
     feePct?: number;
     /** Empty or omitted means every asset in the class. */

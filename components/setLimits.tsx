@@ -5,6 +5,9 @@ import { usePrivy } from "@privy-io/react-auth";
 import {
   classFor,
   composeAgent,
+  type Clause,
+  type DetectionRule,
+  type SetupSpec,
   type AddPlan,
   type RankingSpec,
   type ComplianceProfile,
@@ -92,6 +95,18 @@ export interface Limits {
    * there is nothing to rank against.
    */
   ranking?: RankingSpec;
+  /**
+   * Either/or groups, ANDed with {@link rules}. Absent means a plain
+   * conjunction, which is what every strategy built before this is.
+   *
+   * Composer-only, like {@link setup}: there is no control for these, so what
+   * arrives from a sentence is the only way one exists. That is exactly why
+   * they are rendered read-only below rather than left invisible — a condition
+   * that trades and cannot be seen is the thing this step exists to prevent.
+   */
+  anyOf?: DetectionRule[][];
+  /** Two-stage entry. Absent means the rules are the whole test. */
+  setup?: SetupSpec;
 }
 
 /** Verification capital. The budget is expressed against it. */
@@ -175,6 +190,26 @@ export function SetLimits({
    * replacing it with a strategy that is only a stop.
    */
   const [spec, setSpec] = useState<string[]>([]);
+  /**
+   * What the author has settled, per the composer that read their sentence.
+   *
+   * Not accumulated. Every compose call re-sends the WHOLE spec, so each answer
+   * describes everything said so far and replaces its predecessor — merging
+   * them would keep a stop "settled" after a later sentence had reworded it
+   * away.
+   *
+   * An older backend sends no provenance at all, and then this stays empty: the
+   * checklist reports everything as assumed, asks one more question than it
+   * needs to, and never claims something was agreed that was not.
+   */
+  const [settled, setSettled] = useState<Settled>(NOTHING_SETTLED);
+  /**
+   * The sentence, clause by clause, as the composer accounted for it.
+   *
+   * Replaced per turn for the same reason {@link settled} is: the whole spec is
+   * re-sent every time, so the newest ledger describes all of it.
+   */
+  const [clauses, setClauses] = useState<Clause[]>([]);
 
   const active = value.rules.filter((r) => r.enabled !== false);
   /**
@@ -197,8 +232,8 @@ export function SetLimits({
   // Recomputed on every render rather than stored: the author can edit a rule
   // or a budget field by hand at any time, and a checklist that only refreshed
   // on a chat turn would go on reporting a gap the sliders had already closed.
-  const reqs = requirements(value, spec.join(" "), t);
-  const gap = reqs.find((r) => r.state !== "met");
+  const reqs = requirements(value, settled, t);
+  const question = nextQuestion(clauses, reqs, t);
 
   /**
    * One turn of the exchange: say something, get the strategy back as it now
@@ -232,7 +267,7 @@ export function SetLimits({
     try {
       const token = await getAccessToken();
       if (!token) throw new Error(t("sl_sign_in"));
-      const { draft, notes: refused } = await composeAgent(
+      const { draft, notes: refused, provenance } = await composeAgent(
         token,
         // The market is named for it, so the sentence does not have to be. The
         // underlying is only named when there is one — a token has none, and
@@ -256,24 +291,69 @@ export function SetLimits({
         draft?.timeframe && !servedTimeframes.includes(draft.timeframe)
           ? draft.timeframe
           : null;
-      const notesOut = unserved
-        ? [
-            // `refused` is the composer's own list of what it could not use,
-            // authored server-side and quoted as it arrives.
-            ...refused,
-            t(
-              classFor(market) === "spot"
-                ? "sl_unserved_bars_spot"
-                : "sl_unserved_bars_rwa",
-              {
-                tf: unserved,
-                kept: value.timeframe ?? DEFAULT_TIMEFRAME,
-                available: servedTimeframes.join(", "),
-              },
-            ),
-          ]
-        : refused;
+      /**
+       * What the author asked for that the engine could not take as written.
+       *
+       * Two kinds, and they read differently on purpose. A CLAMP is a number
+       * the author chose being moved to the nearest one that exists — the
+       * clearest case is a 1% target against a 2% floor, which used to be
+       * applied in silence and left someone believing they had set 1%. An
+       * UNATTRIBUTED rule is the reverse: a rule in the strategy that nothing
+       * in the sentence asked for, which is not an error and is the only
+       * warning anyone gets that a phrase may have been read as something else.
+       *
+       * Both are stated, neither blocks. Whether a 1% target was worth having
+       * is the author's call; whether they know it became 2% is ours.
+       */
+      const misfits = [
+        ...(provenance?.adjusted ?? []).map((a) =>
+          t("sl_exit_adjusted", {
+            label: t(EXIT_FIELD_LABEL[a.field] ?? "sl_exit_generic"),
+            asked: a.asked,
+            became: a.became,
+          }),
+        ),
+        ...(provenance?.unattributed ?? [])
+          .map((key) => value.rules.find((r) => r.key === key))
+          .filter((r): r is RuleSpec => !!r)
+          .map((r) =>
+            t("sl_rule_unattributed", {
+              rule: ruleLabel(r, draft?.timeframe ?? DEFAULT_TIMEFRAME, t),
+            }),
+          ),
+      ];
+
+      const notesOut = [
+        // `refused` is the composer's own list of what it could not use,
+        // authored server-side and quoted as it arrives.
+        ...refused,
+        ...misfits,
+        ...(unserved
+          ? [
+              t(
+                classFor(market) === "spot"
+                  ? "sl_unserved_bars_spot"
+                  : "sl_unserved_bars_rwa",
+                {
+                  tf: unserved,
+                  kept: value.timeframe ?? DEFAULT_TIMEFRAME,
+                  available: servedTimeframes.join(", "),
+                },
+              ),
+            ]
+          : []),
+      ];
       setNotes(notesOut);
+
+      const nextSettled: Settled = {
+        stated: provenance?.stated ?? [],
+        // Sticky, unlike the exits. A size the author gave is applied to the
+        // limits and stays there, so it stays settled — the exits are re-read
+        // from the whole spec on every turn and can genuinely change back.
+        sizeStated: settled.sizeStated || sized !== null,
+      };
+      setSettled(nextSettled);
+      setClauses(provenance?.clauses ?? []);
 
       if (!draft) {
         const why = refused[0] ?? t("sl_not_rules");
@@ -312,6 +392,19 @@ export function SetLimits({
         // previous plan rather than leave a stale one attached to rules that no
         // longer mention it.
         addPlan: draft.addPlan,
+        // The three the composer produces and this step used to discard.
+        //
+        // anyOf and setup take the draft's value outright, absent included:
+        // nothing but a sentence can set them, so clearing on absence loses
+        // nothing a person chose — it is the same rule addPlan follows above.
+        //
+        // ranking does NOT clear, and the difference is deliberate. It has a
+        // control on this very screen, so treating absence as "remove it" would
+        // delete a choice made by hand two fields away the moment another
+        // sentence was sent.
+        anyOf: draft.anyOf,
+        setup: draft.setup,
+        ranking: draft.ranking ?? next.ranking,
         // Only rules the compiler actually set are switched on. The rest stay
         // available but off, rather than silently applying a default nobody
         // asked for.
@@ -338,8 +431,8 @@ export function SetLimits({
       // Read the gaps off what we just built, not off `value` — the parent's
       // state has not come back down yet, and asking about the previous draft
       // is how a chat ends up requesting something you just gave it.
-      const reqs = requirements(next, nextSpec.join(" "), t);
-      const gap = reqs.find((r) => r.state !== "met");
+      const reqs = requirements(next, nextSettled, t);
+      const q = nextQuestion(provenance?.clauses ?? [], reqs, t);
 
       setTurns((prev) => [
         ...prev,
@@ -351,8 +444,8 @@ export function SetLimits({
           text: n,
           tone: "note" as const,
         })),
-        gap?.ask
-          ? { role: "agent" as const, text: gap.ask, tone: "ask" as const }
+        q
+          ? { role: "agent" as const, text: q.text, tone: "ask" as const }
           : {
               role: "agent" as const,
               text: t("sl_ready"),
@@ -499,9 +592,9 @@ export function SetLimits({
                 compiled the same way anything typed here would be — a chip
                 that set a field directly would be a different mechanism
                 wearing the same clothes. */}
-            {gap?.chips && !busy ? (
+            {question && question.chips.length > 0 && !busy ? (
               <div className="flex flex-wrap gap-2 pt-3">
-                {gap.chips.map((c) => (
+                {question.chips.map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -582,6 +675,17 @@ export function SetLimits({
               {reading}
             </p>
           ) : null}
+
+          <ClauseLedger clauses={clauses} />
+
+          <ComposedOnly
+            anyOf={value.anyOf}
+            setup={value.setup}
+            catalogue={value.rules}
+            timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+            onClearAnyOf={() => onChange({ ...value, anyOf: undefined })}
+            onClearSetup={() => onChange({ ...value, setup: undefined })}
+          />
 
           <div className="border border-grid">
             {value.rules.map((r) => (
@@ -1227,18 +1331,52 @@ interface Requirement {
 }
 
 /**
- * Whether the author actually said something about a topic.
+ * What the author actually settled, as the composer reports it.
  *
- * Every exit comes back from the compiler populated — it clamps and defaults —
- * so the draft alone cannot distinguish "take profit at 25% because I said so"
- * from "take profit at 25% because nobody said otherwise". The difference
- * matters enough to keep asking about, and the only evidence of it is what was
- * typed. Crude on purpose: it decides whether to ASK a question, never what the
- * strategy is, so a false positive costs one unasked question and nothing else.
+ * This used to be read out of the raw sentence with a regex, because every exit
+ * comes back from the compiler populated — it clamps and defaults — so the
+ * draft alone cannot distinguish "take profit at 25% because I said so" from
+ * "take profit at 25% because nobody said otherwise". The regex was crude on
+ * purpose and the cost was capped at one unasked question.
+ *
+ * The cost turned out not to be capped. A sentence reading "stop loss when it
+ * reaches 50% drawdown" contains the word "stop", so the checklist marked the
+ * stop settled and asked nothing — while the stop that compiled measured from
+ * a different reference point than the one described. The word was present; the
+ * agreement was not, and searching text cannot tell those apart.
+ *
+ * The model reading the sentence knew all along. It is asked now, and this
+ * reads its answer.
+ *
+ * `sizeStated` is not in the server's list because sizing never reaches the
+ * compiler at all — {@link readSizing} parses it here. The flag is the fact of
+ * that parse having succeeded, which is the same claim, evidenced instead of
+ * guessed at a second time.
  */
-function mentions(said: string, re: RegExp): boolean {
-  return re.test(said.toLowerCase());
+export interface Settled {
+  /** Exit field names the author named. @see ComposeProvenance.stated */
+  stated: string[];
+  /** Whether a per-trade size was read out of something the author wrote. */
+  sizeStated: boolean;
 }
+
+/** Nothing settled yet — what an author who has not spoken has agreed to. */
+export const NOTHING_SETTLED: Settled = { stated: [], sizeStated: false };
+
+/**
+ * Engine field names, in the words the author sees them under.
+ *
+ * The server reports which exit it adjusted by its own field name, and telling
+ * someone "takeProfitPct was adjusted" names a variable rather than the control
+ * sitting on their screen.
+ */
+const EXIT_FIELD_LABEL: Record<string, TranslationKey> = {
+  takeProfitPct: "sl_take_profit",
+  stopLossPct: "sl_stop_loss",
+  trailingStopPct: "sl_trailing_stop",
+  breakevenAfterPct: "sl_breakeven",
+  maxHoldDays: "sl_time_limit",
+};
 
 /**
  * The minimum a trade executor needs before it can act, in the order it needs
@@ -1251,7 +1389,7 @@ function mentions(said: string, re: RegExp): boolean {
  */
 function requirements(
   limits: Limits,
-  said: string,
+  settled: Settled,
   t: Translate,
 ): Requirement[] {
   const active = limits.rules.filter((r) => r.enabled !== false);
@@ -1285,8 +1423,7 @@ function requirements(
       // removed. "+0%" would also read as a target of zero, which is the one
       // thing it does not mean.
       state:
-        takeProfitPct <= 0 ||
-        mentions(said, /take profit|profit at|target|upside|\btp\b/)
+        takeProfitPct <= 0 || settled.stated.includes("takeProfitPct")
           ? "met"
           : "assumed",
       detail: takeProfitPct > 0 ? `+${takeProfitPct}%` : t("req_off"),
@@ -1301,7 +1438,7 @@ function requirements(
       key: "stop",
       label: t("req_stop"),
       state:
-        stopLossPct <= 0 || mentions(said, /stop|cut it|\bsl\b|downside|lose/)
+        stopLossPct <= 0 || settled.stated.includes("stopLossPct")
           ? "met"
           : "assumed",
       detail: stopLossPct > 0 ? `−${stopLossPct}%` : t("req_off"),
@@ -1311,9 +1448,7 @@ function requirements(
     {
       key: "size",
       label: t("req_size"),
-      state: mentions(said, /\$|per trade|position size|stake|put in/)
-        ? "met"
-        : "assumed",
+      state: settled.sizeStated ? "met" : "assumed",
       detail: t("req_size_detail", {
         amount: money(limits.positionUsd),
         count: limits.tradesPerCycle,
@@ -1401,6 +1536,244 @@ function TurnRow({ turn }: { turn: Turn }) {
     </li>
   );
 }
+
+/**
+ * The two entry shapes only a sentence can build.
+ *
+ * READ-ONLY, AND THAT IS THE COMPROMISE. Either/or groups and two-stage entries
+ * have no editor — building one would be a screen of its own — so for a while
+ * the builder simply dropped them, which made the composer's best work
+ * unreachable from the flow that produces it. Carrying them without showing
+ * them would have been worse: a condition that decides trades and cannot be
+ * seen is the exact failure the rest of this step exists to prevent.
+ *
+ * So they are shown, and they can be REMOVED. Remove is the one edit that
+ * needs no editor and cannot produce something incoherent, and it means nobody
+ * is stuck with a group they did not want. Changing one is a sentence away.
+ */
+function ComposedOnly({
+  anyOf,
+  setup,
+  catalogue,
+  timeframe,
+  onClearAnyOf,
+  onClearSetup,
+}: {
+  anyOf?: DetectionRule[][];
+  setup?: SetupSpec;
+  /** The rule specs, for labels — a DetectionRule carries a key, not a name. */
+  catalogue: RuleSpec[];
+  timeframe: Timeframe;
+  onClearAnyOf: () => void;
+  onClearSetup: () => void;
+}) {
+  const t = useT();
+  const groups = (anyOf ?? []).filter((g) => g.length > 0);
+  if (groups.length === 0 && !setup) return null;
+
+  // A rule the catalogue does not carry still has to render. It cannot be
+  // labelled, so it prints its key — ugly, and better than a row that silently
+  // disappears from a condition that will still be evaluated.
+  const label = (r: DetectionRule) => {
+    const spec = catalogue.find((c) => c.key === r.key);
+    return spec
+      ? `${ruleLabel(spec, timeframe, t)} ${r.op === "lte" ? "≤" : "≥"} ${r.value}${spec.unit}`
+      : `${r.key} ${r.op === "lte" ? "≤" : "≥"} ${r.value}`;
+  };
+
+  return (
+    <div className="mb-3 border border-grid">
+      {groups.length > 0 ? (
+        <div className="border-b border-grid px-4 py-3 last:border-b-0">
+          <div className="flex items-baseline justify-between gap-4">
+            <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
+              {t("sl_anyof_title")}
+            </h4>
+            <button
+              type="button"
+              onClick={onClearAnyOf}
+              className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+            >
+              {t("sl_composed_remove")}
+            </button>
+          </div>
+          {groups.map((g, i) => (
+            <p
+              key={i}
+              className="pt-1.5 font-ui text-[12.5px] leading-relaxed text-text-primary"
+            >
+              {g.map(label).join(t("sl_anyof_or"))}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      {setup ? (
+        <div className="px-4 py-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
+              {t("sl_setup_title")}
+            </h4>
+            <button
+              type="button"
+              onClick={onClearSetup}
+              className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+            >
+              {t("sl_composed_remove")}
+            </button>
+          </div>
+          <p className="pt-1.5 font-ui text-[12.5px] leading-relaxed text-text-primary">
+            {setup.arm.map(label).join(", ")}
+          </p>
+          <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+            {t("sl_setup_expires", { bars: setup.expiresAfterBars })}
+            {setup.invalidateIf?.length
+              ? ` ${t("sl_setup_invalidate", { rules: setup.invalidateIf.map(label).join(", ") })}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A question worth one turn, with answers worth one tap. */
+interface Ask {
+  text: string;
+  chips: string[];
+}
+
+/**
+ * What to ask next, if anything.
+ *
+ * THE LEDGER OUTRANKS THE CHECKLIST, and the order is the whole point. The
+ * checklist asks about fields nobody filled in — a size, a target — and those
+ * questions were the only ones this step could ask. A misread clause is a
+ * different kind of gap: the author DID say something, it was heard, and it
+ * produced a rule answering a different question. Asking about a default while
+ * a stated instruction sits misread is answering the easier question first.
+ *
+ * The gate is the checklist's own: a question earns its turn only if two
+ * different answers compile to two different strategies. `unsupported` is the
+ * one that had to be argued about. No reply makes the engine able to measure an
+ * Ichimoku cloud, so asking looks like theatre — but the author can put
+ * SOMETHING ELSE in its place, and that substitution is a different strategy,
+ * which clears the gate. The wording carries the weight: it offers a
+ * replacement rather than inviting a reword, because rewording will not work
+ * and implying otherwise sends someone in circles.
+ *
+ * The frequency argues for it too. Asked for a change against a vocabulary of
+ * levels, the model does not quietly reach for the nearest rule — it says it
+ * cannot, every time it was probed. So `unsupported` is where a dropped
+ * instruction actually lands, and a state that never asks is a state where the
+ * author's own words go quiet.
+ *
+ * Still one question per turn, still derived rather than generated, and it
+ * never blocks: the draft is on screen either way.
+ */
+function nextQuestion(clauses: Clause[], reqs: Requirement[], t: Translate): Ask | null {
+  const misread = clauses.find((c) => c.status === "reinterpreted");
+  if (misread) {
+    return {
+      text: t("sl_ask_reinterpreted", { phrase: misread.phrase }),
+      // Sent verbatim as the author's own words, like every other chip here.
+      chips: [
+        t("sl_ask_reint_chip_1"),
+        t("sl_ask_reint_chip_2"),
+        t("sl_ask_reint_chip_3"),
+      ],
+    };
+  }
+
+  const dropped = clauses.find((c) => c.status === "unsupported");
+  if (dropped) {
+    return {
+      text: t("sl_ask_unsupported", { phrase: dropped.phrase }),
+      chips: [t("sl_ask_unsup_chip_1"), t("sl_ask_unsup_chip_2")],
+    };
+  }
+
+  const lost = clauses.find((c) => c.status === "unclear");
+  // No chips: the answer is whatever that phrase was supposed to mean, and
+  // three guesses at it would be putting words in someone's mouth.
+  if (lost) return { text: t("sl_ask_unclear", { phrase: lost.phrase }), chips: [] };
+
+  const gap = reqs.find((r) => r.state !== "met");
+  return gap?.ask ? { text: gap.ask, chips: gap.chips ?? [] } : null;
+}
+
+/**
+ * The sentence back, clause by clause.
+ *
+ * WHY EVERY CLAUSE AND NOT JUST THE PROBLEMS. A list of only the trouble reads
+ * as a list of errors, and most of these are not errors — a clamped target and
+ * a reinterpreted phrase are things the author may well want, once they know.
+ * Showing the honoured clauses beside them is what makes the flagged ones
+ * legible as "here is what happened to each thing you said" instead of "here is
+ * what you got wrong", and it is the only way to see an omission: a clause you
+ * wrote that produced nothing is visible only against the ones that did.
+ *
+ * Nothing here blocks. The strategy on screen is the strategy either way.
+ */
+function ClauseLedger({ clauses }: { clauses: Clause[] }) {
+  const t = useT();
+  if (clauses.length === 0) return null;
+
+  // Order follows the SENTENCE, not severity. Someone reads this against what
+  // they typed, and resorting it by badness breaks that correspondence for the
+  // sake of a ranking they did not ask for.
+  return (
+    <ul className="mb-3 border border-grid">
+      {clauses.map((c, i) => (
+        <li
+          key={`${i}-${c.phrase}`}
+          className="flex items-baseline gap-2.5 border-b border-grid px-4 py-2 last:border-b-0"
+        >
+          <span
+            aria-hidden
+            className={`mt-1.5 inline-block size-1.5 shrink-0 rounded-full ${CLAUSE_DOT[c.status]}`}
+          />
+          <span className="min-w-0">
+            <span className="font-ui text-[12.5px] text-text-primary">{c.phrase}</span>
+            <span className="pl-2 font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
+              {t(CLAUSE_LABEL[c.status])}
+            </span>
+            {c.detail ? (
+              <span className="block pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                {c.detail}
+              </span>
+            ) : null}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Colour carries the same meaning it does in the checklist above: accent for
+ * settled, warning for live-but-unchosen, negative for cannot.
+ *
+ * `reinterpreted` takes the warning colour rather than the negative one on
+ * purpose. Nothing failed — a rule was set and it will trade. What is wrong is
+ * only that it may not be the one described, and painting that as an error
+ * would train people to dismiss it.
+ */
+const CLAUSE_DOT: Record<Clause["status"], string> = {
+  honoured: "bg-accent",
+  adjusted: "bg-warning",
+  reinterpreted: "bg-warning",
+  unsupported: "bg-negative",
+  unclear: "bg-text-muted",
+};
+
+const CLAUSE_LABEL: Record<Clause["status"], TranslationKey> = {
+  honoured: "sl_clause_honoured",
+  adjusted: "sl_clause_adjusted",
+  reinterpreted: "sl_clause_reinterpreted",
+  unsupported: "sl_clause_unsupported",
+  unclear: "sl_clause_unclear",
+};
 
 /**
  * The executor's own requirements, and where each stands.

@@ -135,6 +135,41 @@ export const enLimits = {
     "A screen narrows what the agent may hold. It is applied before the analyst sees anything, so a filtered asset never appears in a cycle.",
 
   // ── Checklist ──────────────────────────────────────────────────
+  sl_ask_reinterpreted:
+    "\u201c{phrase}\u201d asks how much something MOVED, and every reading I have measures where it IS. I set the closest one — tell me which you meant and I will set that instead.",
+  sl_ask_reint_chip_1: "measure the change over the last 20 bars",
+  sl_ask_reint_chip_2: "the level is what I meant, leave it",
+  sl_ask_reint_chip_3: "drop that condition",
+  sl_ask_unsupported:
+    "I could not turn \u201c{phrase}\u201d into anything I measure, so it is not in the strategy. Is there a reading I do have that should stand in its place?",
+  sl_ask_unsup_chip_1: "leave it out, the rest is right",
+  sl_ask_unsup_chip_2: "what readings do you have that are close?",
+  sl_ask_unclear:
+    "I could not trace \u201c{phrase}\u201d to anything the agent does. What should it change?",
+  sl_clause_honoured: "done",
+  sl_clause_adjusted: "adjusted",
+  sl_clause_reinterpreted: "read differently",
+  sl_clause_unsupported: "not measured",
+  sl_clause_unclear: "no effect",
+  sl_anyof_title: "Either of these",
+  sl_anyof_or: "  ·  or  ·  ",
+  sl_setup_title: "First watch for",
+  sl_setup_expires:
+    "Then the rules above must hold within {bars} bars, or the setup lapses.",
+  sl_setup_invalidate: "Cancelled early if: {rules}.",
+  sl_composed_remove: "Remove",
+  sl_time_limit: "Time limit",
+  sl_exit_generic: "That exit",
+  // Says what was asked for FIRST. The author is looking for their own number,
+  // and a sentence opening with ours reads as the setting they wanted.
+  sl_exit_adjusted:
+    "{label}: you asked for {asked}%, and {became}% is the closest I can set — so that is what it is now.",
+  // Deliberately not worded as a mistake. A rule with no basis in the sentence
+  // is usually the engine reaching for the nearest thing it has, which is often
+  // right and is always worth seeing.
+  sl_rule_unattributed:
+    "I set {rule}, and nothing you wrote asks for it directly — check it says what you meant.",
+
   sl_before_trade: "Before it can trade",
   sl_all_set: "All set",
   sl_still_assumed: "{count} still assumed",

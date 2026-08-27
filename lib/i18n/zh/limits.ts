@@ -112,6 +112,32 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_compliance_note:
     "筛查会缩小智能体可持有的范围。它在分析师看到任何标的之前就已应用，因此被过滤掉的标的永远不会出现在某个周期里。",
 
+  sl_ask_reinterpreted:
+    "\u201c{phrase}\u201d 问的是变动了多少，而我能读取的都是当前所处的水平。我已设置了最接近的一项——告诉我您的本意，我就改成那个。",
+  sl_ask_reint_chip_1: "按最近 20 根 K 线的变动来衡量",
+  sl_ask_reint_chip_2: "我指的就是水平值，保持不变",
+  sl_ask_reint_chip_3: "去掉这个条件",
+  sl_ask_unsupported:
+    "我无法把\u201c{phrase}\u201d转成可衡量的指标，因此它没有进入策略。有没有我支持的读数可以替代它？",
+  sl_ask_unsup_chip_1: "去掉它，其余的没问题",
+  sl_ask_unsup_chip_2: "你有哪些相近的读数？",
+  sl_ask_unclear: "我无法把\u201c{phrase}\u201d对应到智能体的任何行为上。它应该改变什么？",
+  sl_clause_honoured: "已执行",
+  sl_clause_adjusted: "已调整",
+  sl_clause_reinterpreted: "理解有出入",
+  sl_clause_unsupported: "无法衡量",
+  sl_clause_unclear: "未产生影响",
+  sl_anyof_title: "满足其一即可",
+  sl_anyof_or: "  ·  或  ·  ",
+  sl_setup_title: "先等待",
+  sl_setup_expires: "随后上述规则须在 {bars} 根 K 线内成立，否则该设置失效。",
+  sl_setup_invalidate: "若出现以下情况则提前取消：{rules}。",
+  sl_composed_remove: "移除",
+  sl_time_limit: "持仓时限",
+  sl_exit_generic: "该退出条件",
+  sl_exit_adjusted: "{label}：您要求 {asked}%，而我能设置的最接近值是 {became}%，因此现已设为该值。",
+  sl_rule_unattributed: "我设置了{rule}，但您的描述中并没有直接要求它——请确认它符合您的本意。",
+
   sl_before_trade: "开始交易前还需要",
   sl_all_set: "全部就绪",
   sl_still_assumed: "还有 {count} 项是默认值",

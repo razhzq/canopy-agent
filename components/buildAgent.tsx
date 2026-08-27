@@ -293,6 +293,14 @@ export function BuildAgent() {
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
         // threshold still applies and still excludes things.
         rules: toPayload(activeRules),
+        // The third and fourth things collected and then dropped here, after
+        // timeframe and addPlan. These two are worse than those were: a
+        // sentence is the ONLY way to build either, so an either/or group or a
+        // two-stage entry that does not survive this call cannot be created at
+        // all — the composer builds it, the route stores it, and nothing in
+        // between carried it.
+        anyOf: limits.anyOf,
+        setup: limits.setup,
         safetyFloor: {
           minLiquidityUsd: 25_000,
           maxSlippagePct: 1.5,
