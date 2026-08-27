@@ -26,6 +26,7 @@ import {
   num,
   addAgentMarket,
   removeAgentMarket,
+  searchUniverse,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
@@ -236,9 +237,57 @@ export function AddMarketModal({
     if (venue !== "all" && !venues.includes(venue)) setVenue("all");
   }, [venue, venues]);
 
+  /**
+   * Tokens Jupiter knows and the sweep does not, for the current query.
+   *
+   * Additive, always. The local filter below still runs over the swept
+   * universe, and these are appended to whatever it found — so a slow or dead
+   * search provider costs the reader nothing they had before. That is also why
+   * the fetch never sets an error: there is no failure here worth a message,
+   * only a shorter list.
+   */
+  const [found, setFound] = useState<UniverseAsset[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setFound([]);
+      setSearching(false);
+      return;
+    }
+
+    // Debounced, and cancelled on the way out. Someone typing "bonk" would
+    // otherwise send four requests whose replies can land out of order, and the
+    // list would settle on whichever was slowest rather than whichever is
+    // current. `live` is what makes a stale reply harmless.
+    let live = true;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const token = await getAccessToken();
+          if (!token || !live) return;
+          const { assets: hits } = await searchUniverse(token, q);
+          if (live) setFound(hits);
+        } catch {
+          // Deliberately silent. See the note above the state.
+          if (live) setFound([]);
+        } finally {
+          if (live) setSearching(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query, getAccessToken]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return assets.filter(
+    const local = assets.filter(
       (a) =>
         // The same predicate the creation picker uses, from the same list —
         // two copies of "what counts as a commodity" drift the moment either
@@ -253,7 +302,24 @@ export function AddMarketModal({
           (a.underlying ?? "").toLowerCase().includes(q) ||
           (a.issuer ?? "").toLowerCase().includes(q)),
     );
-  }, [assets, query, klass, venue]);
+
+    // The swept row wins on a collision. It carries a pool, a price history and
+    // a refresh time; the live row carries a name and a mint. Same token, more
+    // known about it — and showing both would be two rows a reader cannot tell
+    // apart for one thing they can only pick once.
+    //
+    // `sameAsset` rather than a key set, because it is the identity this file
+    // already trusts: by mint where there is one, which is exactly the case
+    // every live result falls into.
+    const extra = found.filter(
+      (a) =>
+        !local.some((l) => sameAsset(l, a)) &&
+        (MARKET_CLASSES.find((c) => c.key === klass)?.admits(a) ?? true) &&
+        (venue === "all" || routeOf(a).router === venue),
+    );
+
+    return [...local, ...extra];
+  }, [assets, found, query, klass, venue]);
 
   // The dialog owns the keyboard while it is open. Escape closes, arrows drive
   // the list wherever focus sits, and Tab is wrapped inside the panel so focus
@@ -587,6 +653,21 @@ export function AddMarketModal({
                     {a.issuer ? (
                       <span className="truncate font-ui text-[11px] text-text-dim">
                         {a.issuer}
+                      </span>
+                    ) : null}
+                    {/* A token the sweep has not reached. Fillable — Jupiter
+                        prices it and will route it — but no pool has been
+                        resolved for it, so there are no candles and every
+                        indicator rule sits unevaluated until the next sweep
+                        finds one. Stated on the row rather than used to hide
+                        it: the choice is the owner's, the fact is ours to
+                        tell. */}
+                    {a.kind === "crypto" && a.refreshedAt === null ? (
+                      <span
+                        title={t("am_new_help")}
+                        className="shrink-0 border border-warning/40 px-1.5 py-px font-mono text-[8.5px] tracking-[0.12em] text-warning uppercase"
+                      >
+                        {t("am_new")}
                       </span>
                     ) : null}
                   </span>

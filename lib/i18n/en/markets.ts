@@ -4,6 +4,9 @@
 
 export const enMarkets = {
   // ── Filters ────────────────────────────────────────────────────
+  am_new: "no history",
+  am_new_help:
+    "Jupiter prices this token and can fill it, but no pool has been resolved for it yet — so the indicator rules cannot be evaluated until the next sweep finds one. It can still be added.",
   mk_class_all: "All",
   mk_class_stocks: "Tokenized stocks",
   mk_class_commodity: "Commodities",

@@ -1,6 +1,9 @@
 import type { enMarkets } from "../en/markets";
 
 export const zhMarkets: Record<keyof typeof enMarkets, string> = {
+  am_new: "无历史数据",
+  am_new_help:
+    "Jupiter 能为该代币定价并成交，但尚未解析到对应的流动性池——因此在下次扫描找到之前，指标规则无法计算。仍然可以添加。",
   mk_class_all: "全部",
   mk_class_stocks: "代币化股票",
   mk_class_commodity: "大宗商品",

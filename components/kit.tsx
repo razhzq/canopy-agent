@@ -55,7 +55,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // THE TOKENS. Use the constants; do not retype the class strings.
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /** Group label. 9.5px mono, wide tracking, muted. The only label treatment. */
 export const LABEL =
@@ -376,5 +376,74 @@ export function FieldNote({
     >
       {children}
     </p>
+  );
+}
+
+/* ------------------------------------------------------------------ ticks -- */
+
+/**
+ * Which way a number just moved, for one beat after it moves.
+ *
+ * NOTHING FLASHES ON FIRST PAINT. There is no previous value to have moved
+ * from, and a table that lights up entirely on load teaches the reader to
+ * ignore the very signal it exists to give. Same for an unchanged value: the
+ * poll returning the identical price is not an event.
+ *
+ * Returns to null on its own, so the caller renders a plain figure the rest of
+ * the time and does not have to manage the timer.
+ */
+export function useTickDirection(value: number | null | undefined): "up" | "down" | null {
+  const previous = useRef<number | null | undefined>(undefined);
+  const [direction, setDirection] = useState<"up" | "down" | null>(null);
+
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = value;
+
+    // `undefined` is "first time we have seen this cell". `null` is "not
+    // priced", and moving in or out of unpriced is not a tick — it is the
+    // figure appearing or going away, which the row already shows by changing
+    // from a dash to a number.
+    if (before === undefined || before === null || value === null || value === undefined) return;
+    if (value === before) return;
+
+    setDirection(value > before ? "up" : "down");
+    // Matches the animation in globals.css. Clearing early would cut the wash
+    // off mid-fade; clearing late would leave a class on an element that is no
+    // longer animating and swallow the next tick's restart.
+    const id = setTimeout(() => setDirection(null), 700);
+    return () => clearTimeout(id);
+  }, [value]);
+
+  return direction;
+}
+
+/**
+ * A figure that washes green or red for a moment when it changes.
+ *
+ * The wash says WHICH WAY IT MOVED. Whatever colour the caller gives the text
+ * says what the number IS, and the two are independent — see the note on
+ * `@keyframes tick-up`. So this deliberately does not colour its children: it
+ * wraps them, and a losing position that ticks up flashes green while its
+ * digits stay red.
+ *
+ * `value` is what to watch, which is not always what is displayed: a P&L cell
+ * shows dollars over percent, both from one mark, and watching the dollars
+ * means the pair flashes together instead of twice.
+ */
+export function Tick({
+  value,
+  className = "",
+  children,
+}: {
+  value: number | null | undefined;
+  className?: string;
+  children: ReactNode;
+}) {
+  const direction = useTickDirection(value);
+  return (
+    <span className={`${direction ? `tick-${direction}` : ""} ${className}`.trim()}>
+      {children}
+    </span>
   );
 }

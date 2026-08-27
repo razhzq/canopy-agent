@@ -14,6 +14,7 @@ import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo, Badge } from "@/components/ui";
+import { Tick } from "@/components/kit";
 import { ClosePositionModal } from "@/components/closePosition";
 import { useLocale } from "@/lib/i18n";
 
@@ -321,24 +322,30 @@ function OpenTable({
                   a row cannot show a value its price disagrees with — and an
                   unpriceable asset says so on both rather than carrying cost
                   forward, which would render as "flat" and claim something. */}
-                <Amount
-                  main={
-                    h.valueUsd === null
-                      ? t("positions_not_priced")
-                      : usd(h.valueUsd)
-                  }
-                  sub={
-                    h.markUsd === null
-                      ? null
-                      : t("positions_at_price", {
-                          price: tokenPrice(h.markUsd).display,
-                        })
-                  }
-                  subTitle={
-                    h.markUsd === null ? undefined : tokenPrice(h.markUsd).label
-                  }
-                  muted={h.valueUsd === null}
-                />
+                {/* Watching the MARK, not the value. They move together, but
+                    the mark is the thing that actually arrived from the poll —
+                    and a value can sit unchanged through a price tick when the
+                    position is small enough to round. */}
+                <Tick value={h.markUsd}>
+                  <Amount
+                    main={
+                      h.valueUsd === null
+                        ? t("positions_not_priced")
+                        : usd(h.valueUsd)
+                    }
+                    sub={
+                      h.markUsd === null
+                        ? null
+                        : t("positions_at_price", {
+                            price: tokenPrice(h.markUsd).display,
+                          })
+                    }
+                    subTitle={
+                      h.markUsd === null ? undefined : tokenPrice(h.markUsd).label
+                    }
+                    muted={h.valueUsd === null}
+                  />
+                </Tick>
                 {/* Dollars lead, percent underneath. A percentage alone cannot be
                   weighed: −6% is a rounding error on one holding and the worst
                   loss on the book on another, and the reader had to work it out
@@ -353,15 +360,21 @@ function OpenTable({
                         : "text-negative"
                   }`}
                 >
-                  <span className="tnum block font-mono text-[12.5px]">
-                    {h.pnlUsd === null ? "—" : usd(h.pnlUsd, { sign: true })}
-                  </span>
-                  {h.pnlPct === null ? null : (
-                    <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
-                      {h.pnlPct >= 0 ? "+" : "−"}
-                      {Math.abs(h.pnlPct).toFixed(1)}%
+                  {/* Watching the dollars, wrapping both. They come off one
+                      mark, so flashing them separately would be two washes for
+                      one event — and the percent alone can round to unchanged
+                      while the dollars moved. */}
+                  <Tick value={h.pnlUsd}>
+                    <span className="tnum block font-mono text-[12.5px]">
+                      {h.pnlUsd === null ? "—" : usd(h.pnlUsd, { sign: true })}
                     </span>
-                  )}
+                    {h.pnlPct === null ? null : (
+                      <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
+                        {h.pnlPct >= 0 ? "+" : "−"}
+                        {Math.abs(h.pnlPct).toFixed(1)}%
+                      </span>
+                    )}
+                  </Tick>
                 </span>
                 <span className="w-8 text-right font-mono text-[11px] text-text-dim">
                   {canExpand ? (expanded ? "−" : "+") : ""}

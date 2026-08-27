@@ -494,6 +494,16 @@ export interface UniverseAsset {
   venue?: "jupiter" | "kalqix";
   /** How much is known about a crypto token. Absent for RWA. */
   tier?: "verified" | "listed" | "pool";
+  /**
+   * When the sweep last saw this token.
+   *
+   * Three states, and they are not the same. A STRING is a swept row. NULL is a
+   * row that came from a live search — real and fillable, but with no pool
+   * resolved, so no candles and no indicators until a sweep reaches it.
+   * UNDEFINED is everything else, an RWA row above all: the sweep is not a
+   * thing that happens to those, and absence must not read as "never seen".
+   */
+  refreshedAt?: string | null;
   /** A remote logo, for tokens with no bundled ticker file. */
   iconUrl?: string | null;
   symbol: string;
@@ -709,8 +719,36 @@ interface CryptoPickerMarket {
   changePct: number | null;
   sources: string[];
   aliases: string[];
-  refreshedAt: string;
+  /**
+   * When the sweep last saw it, or NULL when it has never seen it.
+   *
+   * Null is what a live search result carries. It is not a lesser row — the
+   * token is real and fillable — but nothing has resolved a pool for it, so
+   * there are no candles behind it and the indicator rules cannot be evaluated
+   * until the next sweep reaches it. {@link UniverseAsset.poolAddress} says the
+   * same thing from the other side, and the picker warns on it.
+   */
+  refreshedAt: string | null;
 }
+
+/**
+ * Any Solana token, found live, whether or not the sweep has reached it.
+ *
+ * The picker's own search filters the list it already holds, which is the swept
+ * universe — so a token the sweep never saw could not be found by typing its
+ * name, its symbol or its address. This asks Jupiter directly and applies no
+ * trust filter: gated search returned exactly one row for every query tried,
+ * out of twenty matches.
+ *
+ * Returns [] on a miss AND on an outage, indistinguishable on purpose — the
+ * caller does the same thing either way, and the browsable universe is still
+ * there. Never let this failing empty the picker.
+ */
+export const searchUniverse = (token: string, q: string) =>
+  request<{ assets: UniverseAsset[] }>(
+    `/agents/universe/search?q=${encodeURIComponent(q)}`,
+    token,
+  );
 
 /**
  * Every market a new strategy could be built on, across all classes.
@@ -2003,6 +2041,30 @@ export interface AgentDetail {
  *
  * `book` chooses which one to show. Omitted means the agent's current mode.
  */
+/**
+ * What the open book is worth right now, priced live rather than swept.
+ *
+ * The universe's crypto prices come from an hourly sweep, so marking positions
+ * against it left unrealised P&L up to an hour behind before the page had even
+ * loaded — and nothing re-fetched, so it then aged with the tab. This prices
+ * only the mints the agent holds, which is small enough to poll.
+ *
+ * A mint Jupiter could not price is ABSENT from `marks`, never zero. Fall back
+ * to the universe for anything missing: a zero would mark the position at
+ * nothing and read as a total loss. RWA positions are never here at all —
+ * they have no mint and Jupiter is not their venue.
+ */
+export const getAgentMarks = (
+  token: string,
+  agentId: number,
+  book?: "paper" | "live",
+) =>
+  request<{
+    marks: { mint: string; priceUsd: number; changePct: number | null }[];
+    /** When the server priced them, ISO. The client can age the figure. */
+    at: string;
+  }>(`/agents/${agentId}/marks${book ? `?book=${book}` : ""}`, token);
+
 export const getAgent = (
   token: string,
   agentId: number,

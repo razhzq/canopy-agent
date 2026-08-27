@@ -252,6 +252,59 @@
 }
 
 /*
+ * A figure that just changed, and which way.
+ *
+ * TWO DIFFERENT QUESTIONS WEAR THE SAME TWO COLOURS, and keeping them apart is
+ * the whole design. The resting colour of a P&L says whether the position is UP
+ * OR DOWN — green for a gain, red for a loss, and it stays that way. This says
+ * whether the number just MOVED UP OR DOWN, which is a fact about the last ten
+ * seconds and has nothing to do with the first. A position down 40% that ticks
+ * up flashes green and stays red, because both are true.
+ *
+ * A WASH BEHIND, NEVER THE TEXT ITSELF. Recolouring the digits would fight the
+ * resting colour for the one thing a reader most needs to keep straight, and a
+ * losing position would spend a moment looking like a winning one. The wash
+ * sits behind the figure, so the number never lies about its own sign.
+ *
+ * 700ms, and deliberately far under the ten-second poll: every flash finishes
+ * long before the next can arrive, so ticks never overlap or stack. It fades
+ * out rather than cutting, because a hard end reads as a glitch.
+ */
+@keyframes tick-up {
+  0% {
+    background-color: color-mix(in oklab, var(--color-accent) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes tick-down {
+  0% {
+    background-color: color-mix(in oklab, var(--color-negative) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.tick-up,
+.tick-down {
+  /* The wash needs room to read as a wash rather than a stripe behind digits. */
+  border-radius: 3px;
+  margin: 0 -3px;
+  padding: 0 3px;
+}
+
+.tick-up {
+  animation: tick-up 700ms ease-out;
+}
+
+.tick-down {
+  animation: tick-down 700ms ease-out;
+}
+
+/*
  * Honour the OS setting. Someone who has asked for less motion is often asking
  * because motion makes the interface unusable for them, so this removes it
  * rather than merely shortening it — the log is fully legible without it.
