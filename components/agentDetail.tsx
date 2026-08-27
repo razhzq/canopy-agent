@@ -487,15 +487,6 @@ export function AgentDetailView({
     [agentId, getAccessToken, load, t],
   );
 
-  if (state.phase === "loading") return <SkeletonAgentDetail />;
-  if (state.phase === "signed-out")
-    return <SignedOutState note={t("ad_signed_out_note")} />;
-  if (state.phase === "error")
-    return <ErrorState message={state.message} onRetry={() => void load()} />;
-
-  const { detail, strategy, equity, assets, assetsPending } = state;
-  const { agent, positions, wallet, lastRun } = detail;
-
   /**
    * The universe, with the open book's prices replaced by live ones.
    *
@@ -509,16 +500,32 @@ export function AgentDetailView({
    * A mint with no mark keeps the swept price. That is the honest fallback: the
    * marks endpoint omits anything Jupiter could not price, and an RWA row is
    * never in there at all.
+   *
+   * ABOVE THE EARLY RETURNS, and it has to be. `state.assets` only exists once
+   * the page is ready, so the obvious home for this is next to the destructure
+   * below — which is after three guards that return, making the hook
+   * conditional and changing the hook order between a loading render and a
+   * ready one. It reads `state` directly instead, and answers with an empty
+   * list until there is something to answer with.
    */
-  const marked = useMemo(
-    () =>
-      marks.size === 0
-        ? assets
-        : assets.map((a) =>
-            a.mint && marks.has(a.mint) ? { ...a, priceUsd: marks.get(a.mint)! } : a,
-          ),
-    [assets, marks],
-  );
+  const marked = useMemo(() => {
+    if (state.phase !== "ready") return [] as UniverseAsset[];
+    const list = state.assets;
+    if (marks.size === 0) return list;
+    return list.map((a) =>
+      a.mint && marks.has(a.mint) ? { ...a, priceUsd: marks.get(a.mint)! } : a,
+    );
+  }, [state, marks]);
+
+  if (state.phase === "loading") return <SkeletonAgentDetail />;
+  if (state.phase === "signed-out")
+    return <SignedOutState note={t("ad_signed_out_note")} />;
+  if (state.phase === "error")
+    return <ErrorState message={state.message} onRetry={() => void load()} />;
+
+  const { detail, strategy, equity, assets, assetsPending } = state;
+  const { agent, positions, wallet, lastRun } = detail;
+
 
   // The strategy's universe, resolved against live marks. A selection whose
   // asset is missing from the resolved universe still renders — it is a market
