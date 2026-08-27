@@ -85,7 +85,6 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   sd_meta: "{class} · {fee}% 分成 · 自 {date} 起运行",
   sd_open_workspace: "在工作区中打开",
   sd_deploy_this: "部署这个策略",
-  sd_create_own: "+ 创建我自己的智能体",
   sd_open_positions: "当前持仓",
   sd_record_tabs: "记录",
   sd_tab_performance: "表现",

@@ -89,7 +89,6 @@ export const enPublish = {
   sd_meta: "{class} · {fee}% fee · running since {date}",
   sd_open_workspace: "Open in workspace",
   sd_deploy_this: "Deploy this",
-  sd_create_own: "+ Create your own agent",
   sd_open_positions: "Open positions",
   // The record's three readings, as tab labels.
   sd_record_tabs: "Record",

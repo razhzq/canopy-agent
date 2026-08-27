@@ -280,6 +280,12 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
               {t("sd_open_workspace")}
             </Link>
           ) : null}
+          {/* Deploy only, and only when there is something to deploy. A
+              strategy still on paper used to offer "Create your own agent"
+              here, which is a different product on a different page — the one
+              action on this header should be the one about the record being
+              read. Nothing takes its place: an unlisted strategy simply has no
+              call to action yet. */}
           {live ? (
             <Link
               href={`/deploy/describe?strategy=${strategy.id}`}
@@ -287,14 +293,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             >
               {t("sd_deploy_this")}
             </Link>
-          ) : (
-            <Link
-              href="/build/new"
-              className="flex h-11 items-center border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
-            >
-              {t("sd_create_own")}
-            </Link>
-          )}
+          ) : null}
         </div>
       </section>
 
