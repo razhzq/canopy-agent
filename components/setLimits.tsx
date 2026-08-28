@@ -1885,7 +1885,7 @@ function RuleChip({
   // what nobody should have to work out from it.
   const span = ruleSpan(r, timeframe, t);
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
       <div className="min-w-0">
         <p
           className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
@@ -1932,7 +1932,7 @@ function RuleChip({
         type="button"
         onClick={() => onChange({ enabled: !on })}
         aria-pressed={on}
-        className={`h-7 rounded-full border px-2.5 font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors ${
+        className={`h-7 w-[52px] justify-self-start rounded-full border text-center font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors sm:justify-self-end ${
           on
             ? "border-accent text-accent"
             : "border-grid text-text-muted hover:text-text-secondary"
@@ -1995,7 +1995,7 @@ function ExitChip({
   const label = t(labelKey);
 
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
       <div className="min-w-0">
         <p className="font-mono text-[12px] text-text-primary">{label}</p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
@@ -2039,7 +2039,11 @@ function ExitChip({
         type="button"
         aria-pressed={!off}
         onClick={() => onChange(off ? resumeAt : 0)}
-        className="text-right font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+        className={`h-7 w-[52px] justify-self-start rounded-full border text-center font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors sm:justify-self-end ${
+          off
+            ? "border-grid text-text-muted hover:text-text-secondary"
+            : "border-accent text-accent"
+        }`}
       >
         {t(off ? "sl_on" : "sl_off")}
       </button>
