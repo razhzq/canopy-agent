@@ -318,9 +318,14 @@ export function NotificationCentre() {
           const token = await getAccessToken();
           if (!token) return;
           await markNotificationsRead(token, { ids });
-        } catch {
-          // A badge that stays lit is a far smaller problem than an error
-          // toast over a panel the user opened to read something else.
+        } catch (err) {
+          // Still no toast — a badge that stays lit is a far smaller problem
+          // than an error over a panel opened to read something else. But it is
+          // no longer INVISIBLE: this had been failing on every scroll since
+          // August and left no trace anywhere to say so.
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[notifications] could not mark rows read", err);
+          }
         }
       })();
     },
@@ -340,20 +345,35 @@ export function NotificationCentre() {
    * the visible list and leaves the badge at 12 has not done what it says.
    */
   const [clearing, setClearing] = useState(false);
+  /**
+   * Why the last clear did not happen.
+   *
+   * IT USED TO BE SWALLOWED, and swallowing it was the bug behind the bug: a
+   * button that fails silently is indistinguishable from one that is not wired
+   * up, so a broken request looked like a broken button and there was nothing
+   * on screen or in the console to say which. "Nothing was lost" was true and
+   * beside the point — the reader pressed a thing and it did not do what it
+   * says, and that is worth a sentence.
+   */
+  const [clearFailed, setClearFailed] = useState<string | null>(null);
+
   const markAll = useCallback(async () => {
     if (clearing) return;
     setClearing(true);
+    setClearFailed(null);
     try {
       const token = await getAccessToken();
-      if (!token) return;
+      if (!token) throw new Error("not signed in");
       await markNotificationsRead(token, { all: true });
       // The server is the count now, so re-read rather than book-keeping it
       // locally — this is the one interaction where the list changing under
       // the cursor is exactly what was asked for.
       feed.reload();
-    } catch {
-      // Left lit. Nothing was lost, and a failed clear that pretends to have
-      // worked is worse than a badge that stays.
+    } catch (err) {
+      setClearFailed(err instanceof Error ? err.message : String(err));
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[notifications] mark all read failed", err);
+      }
     } finally {
       setClearing(false);
     }
@@ -408,6 +428,7 @@ export function NotificationCentre() {
           onClose={() => setOpen(false)}
           onMarkAll={unread > 0 ? markAll : undefined}
           clearing={clearing}
+          clearFailed={clearFailed}
           waiting={feed.phase === "ready" ? (feed.data.waiting ?? 0) : 0}
         />
       ) : null}
@@ -425,6 +446,7 @@ function Panel({
   onClose,
   onMarkAll,
   clearing,
+  clearFailed,
   waiting,
 }: {
   items: NotificationItem[];
@@ -437,6 +459,8 @@ function Panel({
   /** Absent when there is nothing unread — the control has nothing to do. */
   onMarkAll?: () => void;
   clearing: boolean;
+  /** The last clear's failure, shown beside the control that caused it. */
+  clearFailed?: string | null;
   /** Outstanding decisions, for the tab's own count. */
   waiting: number;
 }) {
@@ -476,9 +500,18 @@ function Panel({
             type="button"
             onClick={onMarkAll}
             disabled={clearing}
-            className={`shrink-0 rounded font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent disabled:opacity-50 ${FOCUS}`}
+            title={clearFailed ?? undefined}
+            className={`shrink-0 rounded font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors disabled:opacity-50 ${FOCUS} ${
+              clearFailed
+                ? "text-negative hover:text-negative"
+                : "text-text-dim hover:text-accent"
+            }`}
           >
-            {t(clearing ? "nc_marking_all" : "nc_mark_all")}
+            {clearing
+              ? t("nc_marking_all")
+              : clearFailed
+                ? t("nc_mark_all_failed")
+                : t("nc_mark_all")}
           </button>
         ) : null}
       </div>

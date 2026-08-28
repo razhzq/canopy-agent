@@ -14,6 +14,7 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   nc_tab_trades: "成交",
   nc_empty_waiting: "没有需要您处理的事项。",
   nc_empty_trades: "暂无成交。",
+  nc_mark_all_failed: "未能清除 — 重试",
   nc_mark_all: "全部标为已读",
   nc_marking_all: "正在清除…",
   nc_title: "通知",

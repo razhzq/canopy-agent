@@ -15,6 +15,7 @@ export const enNotifs = {
   nc_tab_trades: "Trades",
   nc_empty_waiting: "Nothing is waiting on you.",
   nc_empty_trades: "No fills yet.",
+  nc_mark_all_failed: "Didn't clear — retry",
   nc_mark_all: "Mark all read",
   nc_marking_all: "Clearing…",
   nc_title: "Notifications",
