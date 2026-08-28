@@ -1508,11 +1508,18 @@ function RuleChip({
     min: Math.min(scaled.min, r.value),
     max: Math.max(scaled.max, r.value),
   };
+  // Fraction of the track left of the thumb, for the accent fill. WebKit has no
+  // native "progress" element on a range, so the filled portion is painted as a
+  // hard-stop gradient behind the thumb.
+  const fillPct =
+    bounds.max > bounds.min
+      ? Math.min(100, Math.max(0, ((r.value - bounds.min) / (bounds.max - bounds.min)) * 100))
+      : 0;
   // What the window is in wall-clock time. The label says "14 × 15m"; this says
   // what nobody should have to work out from it.
   const span = ruleSpan(r, timeframe, t);
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_220px_96px_58px] sm:items-center sm:gap-5">
       <div className="min-w-0">
         <p
           className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
@@ -1543,7 +1550,14 @@ function RuleChip({
         disabled={!on}
         onChange={(e) => onChange({ value: Number(e.target.value) })}
         aria-label={label}
-        className="accent-accent disabled:opacity-40"
+        className="rule-slider w-full accent-accent disabled:opacity-40"
+        style={
+          on
+            ? {
+                background: `linear-gradient(to right, var(--color-accent) ${fillPct}%, var(--color-grid-strong) ${fillPct}%)`,
+              }
+            : undefined
+        }
       />
       <NumberEntry
         value={r.value}
@@ -1620,9 +1634,13 @@ function ExitChip({
   const off = value <= 0;
   const t = useT();
   const label = t(labelKey);
+  const fillPct =
+    max > min
+      ? Math.min(100, Math.max(0, (((off ? min : value) - min) / (max - min)) * 100))
+      : 0;
 
   return (
-    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 lg:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px_92px_58px] lg:items-center lg:gap-5">
+    <div className="grid gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_220px_96px_58px] sm:items-center sm:gap-5">
       <div className="min-w-0">
         <p className="font-mono text-[12px] text-text-primary">{label}</p>
         <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
@@ -1641,7 +1659,14 @@ function ExitChip({
         disabled={off}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={t("sl_slider_aria", { label })}
-        className="accent-accent disabled:opacity-30"
+        className="rule-slider w-full accent-accent disabled:opacity-30"
+        style={
+          off
+            ? undefined
+            : {
+                background: `linear-gradient(to right, var(--color-accent) ${fillPct}%, var(--color-grid-strong) ${fillPct}%)`,
+              }
+        }
       />
       {off ? (
         <span className="text-right font-mono text-[12px] text-text-dim">

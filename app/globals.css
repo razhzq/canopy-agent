@@ -299,3 +299,66 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* --------------------------------------------------------------- sliders -- */
+
+/*
+ * Rule and exit sliders. The native control stretched full-width and read as a
+ * giant empty bar; the layout now pins it to a fixed column, and this gives it
+ * a slim rounded track with an accent fill so the set point is legible at a
+ * glance. WebKit paints the fill from the element's own gradient background
+ * (set inline from the value); Firefox uses ::-moz-range-progress.
+ */
+input[type="range"].rule-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-grid-strong);
+  cursor: pointer;
+  outline-offset: 4px;
+}
+input[type="range"].rule-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-accent);
+  transition: transform 0.12s ease;
+}
+input[type="range"].rule-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+}
+input[type="range"].rule-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-grid-strong);
+}
+input[type="range"].rule-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+}
+input[type="range"].rule-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-bg);
+  border-radius: 9999px;
+  background: var(--color-accent);
+}
+input[type="range"].rule-slider:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="range"].rule-slider::-webkit-slider-thumb {
+    transition: none;
+  }
+  input[type="range"].rule-slider::-webkit-slider-thumb:hover {
+    transform: none;
+  }
+}
