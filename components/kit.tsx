@@ -67,6 +67,42 @@ export const BODY = "font-ui text-[12px] leading-relaxed text-text-dim";
 /** A bordered, interactive-feeling container. */
 export const SURFACE = "rounded-lg border border-grid bg-surface";
 
+/* ------------------------------------------------------------- elevation -- */
+
+/**
+ * How far a thing floats above the page.
+ *
+ * TWO STEPS, AND THE APP HAD SEVEN. Every overlay in the product had grown its
+ * own arbitrary shadow — `0 20px 44px -16px`, `0 36px 90px -28px`,
+ * `0 30px 80px -24px`, `0 24px 64px -20px` and three more — each written where
+ * it was needed and none of them agreeing. Nothing looked wrong on its own,
+ * which is exactly how it happened; the cost is that a dropdown and a dialog
+ * sat at unrelated heights for no reason a reader could name.
+ *
+ * The two steps are the two questions the product actually asks. Anchored to a
+ * control, or covering the page. There is no third.
+ *
+ * Long, soft and very dark, because the ground is near-black: a shadow here
+ * reads as depth only if it is darker than the surface it falls on, and a
+ * conventional light-UI shadow is invisible against #080b0a.
+ */
+
+/** Anchored to the control that opened it — menus, dropdowns, popovers. */
+export const POPOVER_SHADOW = "shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]";
+
+/** Covering the page — dialogs, sheets, anything with a scrim behind it. */
+export const OVERLAY_SHADOW = "shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]";
+
+/**
+ * The surface a menu is drawn on.
+ *
+ * Composed rather than left to each caller, because a popover is four
+ * decisions that have to agree — panel fill, a stronger border than a resting
+ * card, the anchored elevation, and clipping so a hover fill on the first or
+ * last row cannot square off the corner it sits in.
+ */
+export const POPOVER = `overflow-hidden rounded-md border border-grid-strong bg-panel ${POPOVER_SHADOW}`;
+
 /** The one action that commits. Filled on hover, never filled at rest. */
 export const PRIMARY =
   "rounded-lg border border-accent bg-accent-wash px-4 py-2.5 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:opacity-40";

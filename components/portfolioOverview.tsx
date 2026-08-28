@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 
 import { EquityCurve, MiniCurve } from "@/components/charts";
 import { ProfileMobile } from "@/components/profileMobile";
+import { FOCUS } from "@/components/kit";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import {
@@ -20,6 +21,8 @@ import {
   getAllMarkets,
   getEquity,
   listAgents,
+  pauseAgent,
+  resumeAgent,
   num,
   type AgentDetail,
   type AgentRow,
@@ -368,14 +371,14 @@ export function PortfolioOverview() {
                     })}
                   </div>
                   <Link
-                    href="/workspace"
+                    href="/portfolio"
                     className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
                   >
                     {t("po_manage")}
                   </Link>
                 </div>
 
-                <AgentTable rows={rows} tab={tab} />
+                <AgentTable rows={rows} tab={tab} onChanged={() => void load()} />
               </section>
             </>
           }
@@ -560,7 +563,16 @@ function Meta({ label, value }: { label: string; value: string }) {
 const COLS =
   "lg:grid lg:grid-cols-[minmax(0,1.6fr)_110px_110px_110px_90px_130px_90px]";
 
-function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
+function AgentTable({
+  rows,
+  tab,
+  onChanged,
+}: {
+  rows: Holding[];
+  tab: Tab;
+  /** Re-read the page after a row changes an agent's state. */
+  onChanged: () => void;
+}) {
   const t = useT();
 
   if (rows.length === 0) {
@@ -592,7 +604,7 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
       </div>
 
       {rows.map((h) => (
-        <AgentRowLine key={h.agent.id} holding={h} />
+        <AgentRowLine key={h.agent.id} holding={h} onChanged={onChanged} />
       ))}
     </div>
   );
@@ -612,9 +624,92 @@ function AgentTable({ rows, tab }: { rows: Holding[]; tab: Tab }) {
  * The values are computed once and rendered by both, so the two can never
  * disagree.
  */
-function AgentRowLine({ holding }: { holding: Holding }) {
+function AgentRowLine({
+  holding,
+  onChanged,
+}: {
+  holding: Holding;
+  onChanged: () => void;
+}) {
   const { agent, mark } = holding;
   const t = useT();
+  const { getAccessToken } = usePrivy();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  /**
+   * Pause and resume, read off the status rather than parked in a column.
+   *
+   * The status was already on the row, and it is the only thing on it anyone
+   * wants to CHANGE from here — so the badge that reports it is the control
+   * that sets it, rather than a second control repeating the same word beside
+   * it. Everything else in the row is a figure, and figures are read.
+   *
+   * ONLY WHERE THERE ARE TWO STATES TO BE IN. An agent liquidating or stopped
+   * is not paused-or-running, and offering a toggle would promise something
+   * the route would refuse. Those keep the plain badge they always had.
+   */
+  const paused = agent.status === "paused";
+  const canToggle = paused || agent.status === "active";
+
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("not signed in");
+      await (paused ? resumeAgent(token, agent.id) : pauseAgent(token, agent.id));
+      onChanged();
+    } catch {
+      // Marked on the control itself rather than raised as a page-level error:
+      // the row is where the click was, and a banner at the top of a long table
+      // is a message about something the reader has already scrolled past.
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * The badge, and the button it becomes.
+   *
+   * `paused_reason` is only ever written by the breaker — a human pause leaves
+   * it null — so it goes on the title. Resuming an agent that stopped ITSELF is
+   * a different act from resuming one you paused, and the reason is the only
+   * thing on screen that can say which this is.
+   */
+  const badge = (
+    <Badge tone={failed ? "negative" : STATUS_TONE[agent.status]}>
+      {busy
+        ? t("po_status_busy")
+        : failed
+          ? t("po_status_failed")
+          : t(AGENT_STATUS_KEY[agent.status])}
+    </Badge>
+  );
+
+  const status = canToggle ? (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={busy}
+      title={
+        agent.paused_reason
+          ? t("po_status_stopped_itself", { reason: agent.paused_reason })
+          : t(paused ? "po_status_resume" : "po_status_pause")
+      }
+      aria-label={t(paused ? "po_status_resume" : "po_status_pause")}
+      // `relative` so it sits above the stretched link below — a button inside
+      // an anchor is not legal, and one merely painted over it would still be
+      // the anchor's click.
+      className={`relative z-10 rounded-sm transition-opacity hover:opacity-80 disabled:opacity-50 ${FOCUS}`}
+    >
+      {badge}
+    </button>
+  ) : (
+    badge
+  );
   const moved = mark
     ? movedOverUsd(mark.points, Date.now() - 86_400_000)
     : null;
@@ -659,10 +754,22 @@ function AgentRowLine({ holding }: { holding: Holding }) {
     );
 
   return (
-    <Link
-      href={`/workspace/${agent.id}`}
-      className={`block border-b border-grid px-5 py-4 transition-colors hover:bg-surface sm:px-8 lg:items-center lg:gap-x-4 ${COLS}`}
+    // A STRETCHED LINK, not a link around the row.
+    //
+    // The whole row opens the agent, and one cell of it now pauses the agent —
+    // and a button inside an anchor is invalid markup that also navigates when
+    // pressed. So the anchor covers the row from behind, absolutely positioned
+    // and empty, and the status control sits above it. The row still opens on a
+    // click anywhere it is not, keyboard order is link-then-button, and neither
+    // is nested in the other.
+    <div
+      className={`relative border-b border-grid px-5 py-4 transition-colors hover:bg-surface sm:px-8 lg:items-center lg:gap-x-4 ${COLS}`}
     >
+      <Link
+        href={`/workspace/${agent.id}`}
+        aria-label={agent.strategy_name}
+        className={`absolute inset-0 ${FOCUS}`}
+      />
       {/* ---------------------------------------------------------- card -- */}
       <div className="space-y-3 lg:hidden">
         <div className="flex items-start justify-between gap-3">
@@ -674,9 +781,7 @@ function AgentRowLine({ holding }: { holding: Holding }) {
               {sub}
             </p>
           </div>
-          <Badge tone={STATUS_TONE[agent.status]}>
-            {t(AGENT_STATUS_KEY[agent.status])}
-          </Badge>
+          {status}
         </div>
 
         <div className="flex items-end justify-between gap-3">
@@ -731,12 +836,8 @@ function AgentRowLine({ holding }: { holding: Holding }) {
         {returnText}
       </span>
       <span className="hidden items-center lg:flex">{curve}</span>
-      <span className="hidden justify-end lg:flex">
-        <Badge tone={STATUS_TONE[agent.status]}>
-          {t(AGENT_STATUS_KEY[agent.status])}
-        </Badge>
-      </span>
-    </Link>
+      <span className="hidden justify-end lg:flex">{status}</span>
+    </div>
   );
 }
 

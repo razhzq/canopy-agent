@@ -48,6 +48,14 @@ export const enPortfolio = {
   po_col_return: "Return",
   po_col_curve: "Equity curve",
   po_col_status: "Status",
+  // The status badge doubles as the pause/resume control — see AgentRowLine.
+  po_status_pause: "Pause this agent",
+  po_status_resume: "Resume this agent",
+  po_status_busy: "…",
+  po_status_failed: "Retry",
+  // Only the breaker writes a reason; a human pause leaves it null. Resuming an
+  // agent that stopped itself is a different act from resuming one you paused.
+  po_status_stopped_itself: "Stopped itself: {reason}. Click to resume.",
   po_book_paper: "paper",
   po_book_live: "live",
   po_row_sub: "{class} · {book}",

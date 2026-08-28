@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { FOCUS } from "@/components/kit";
+import { FOCUS, POPOVER } from "@/components/kit";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { UsernameModal } from "@/components/usernameModal";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
 import { useUsername } from "@/lib/useUsername";
-import { isAgentWallet, personalWallet } from "@/lib/wallets";
+import { personalWallet } from "@/lib/wallets";
 import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,19 +25,36 @@ import { LanguageSwitcher } from "@/components/languageSwitcher";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 const NAV = [
-  // "My agents" is the workspace — the rail plus one agent open beside it.
-  // /portfolio is NOT matched here any more: it used to redirect straight back
-  // to /workspace, and now it is the portfolio overview in its own right,
-  // reached from the account menu. Leaving it in this match would light up
-  // "My agents" while you were reading a different page.
+  // PORTFOLIO IS THE OWNER'S HOME, and it took this slot from "My agents".
+  //
+  // The two pages had drifted into answering one question. `MyAgents` said in
+  // its own docblock that it existed to answer "what is all of my capital doing
+  // right now" — which is the portfolio question, and /portfolio answers it
+  // with an aggregate curve, where the capital sits, the open book and what
+  // settled. Both then listed every agent underneath.
+  //
+  // What only /workspace had was operational: the count of agents wanting you,
+  // and pause/resume. Neither needed a page. The first belongs in the
+  // notification centre, which already carries `proposal`, `breach`,
+  // `risk_hold` and `state_change` and has an unread badge on both platforms;
+  // the second is now the status badge on each portfolio row.
+  //
+  // It also settles a disagreement between the two platforms: the mobile tab
+  // bar's Profile tab has pointed at /portfolio all along, so a desktop bar
+  // pointing at /workspace sent the same person to a different home depending
+  // on what they opened it with.
+  //
+  // /workspace still matches, because /workspace/:id is the agent page and
+  // reading one should light up the section it belongs to.
+  //
   // The labels are dictionary keys, not text: this table is module-level and
   // therefore evaluated once, outside any component, where no hook can reach.
   // Resolving the key at render is what lets the bar re-label itself when the
   // language changes instead of freezing whatever locale loaded first.
   {
-    key: "nav_my_agents" as TranslationKey,
-    href: "/workspace",
-    match: ["/workspace"],
+    key: "nav_portfolio" as TranslationKey,
+    href: "/portfolio",
+    match: ["/portfolio", "/workspace"],
   },
   {
     key: "nav_explore" as TranslationKey,
@@ -255,37 +272,6 @@ function PortfolioIcon({ className = "" }: { className?: string }) {
   );
 }
 
-function AgentsIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={className} aria-hidden>
-      <rect
-        x="2.8"
-        y="5.2"
-        width="10.4"
-        height="8"
-        rx="1.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M8 2.4v2.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6 8.6v1.4M10 8.6v1.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function SettingsIcon({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} aria-hidden>
@@ -329,7 +315,7 @@ function SignOutIcon({ className = "" }: { className?: string }) {
  */
 function MenuGroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3.5 pt-2.5 pb-1 font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
+    <p className="px-4 pt-2.5 pb-1 font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
       {children}
     </p>
   );
@@ -366,7 +352,12 @@ function MenuRow({
       role="menuitem"
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
-      className={`mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors -outline-offset-2 ${FOCUS} ${
+      // `mx-1.5` + `px-2.5` = 16px, which is where every full-bleed row in this
+      // panel starts its text. The two row shapes are deliberate — a pill that
+      // lights up for a destination, an edge-to-edge band for a wallet — but
+      // they have to begin on the same line or the panel reads as two lists
+      // pasted together.
+      className={`mx-1.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors -outline-offset-2 ${FOCUS} ${
         active
           ? "bg-accent-wash text-accent"
           : "text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary"
@@ -652,10 +643,6 @@ function AccountMenu() {
   // One embedded wallet — the person's own. Agent wallets are deliberately not
   // here; see `personalWallet`. External wallets the user linked themselves are
   // theirs by definition and always shown.
-  const shown = [...external, ...(mine ? [mine] : [])];
-  const agentWalletCount = wallets.filter((w) =>
-    isAgentWallet(w, agentAddrs),
-  ).length;
 
   // What the button shows. An external wallet is the more identifying thing
   // for someone who signed in that way; email is the identity for everyone
@@ -680,7 +667,6 @@ function AccountMenu() {
       : t("account_method_wallet");
 
   // A row claims a number only once the request carrying it has landed.
-  const agentCount = agents ? agents.length : null;
   // What is under mandate right now. `draft` was never deployed and
   // `stopped`/`deleted` no longer hold anything, so counting either would
   // overstate what is actually at work.
@@ -772,7 +758,11 @@ function AccountMenu() {
         <div
           role="menu"
           aria-label={t("account_menu_aria")}
-          className="absolute right-0 z-40 mt-2 w-[288px] origin-top-right animate-[menu-enter_120ms_ease-out] overflow-hidden rounded-md border border-grid-strong bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)] sm:w-[320px]"
+          // Chrome from the kit, geometry from here: what a popover LOOKS like
+          // is a system decision, where this one hangs and how wide it is are
+          // this menu's own. Splitting them is what stops the next overlay
+          // inventing an eighth shadow.
+          className={`absolute right-0 z-40 mt-2 w-[288px] origin-top-right animate-[menu-enter_120ms_ease-out] sm:w-[320px] ${POPOVER}`}
         >
           {/* Identity, stated once at the top. The rows below are things to DO
               with the account; this is the answer to "whose account is this",
@@ -818,20 +808,29 @@ function AccountMenu() {
             </div>
           </div>
 
-          {/* The address is the row; what kind of wallet it is sits under it.
+          {/* WALLETS THE PERSON BROUGHT, and only those. The Canopy-created one
+              used to lead this list and then have its balance stated again in
+              the block below — two sections, one wallet, and the address
+              printed twice within a 320px panel.
+              It now sits with its own balance, which is where someone looking
+              for either of them expects to find the other. A linked external
+              wallet has no balance here and nothing to do from this menu, so it
+              stays a plain address to copy.
+
+              The address is the row; what kind of wallet it is sits under it.
               The other way round — label first, address as a subtitle — is how
               this read before, and it buried the one string anyone opens this
               menu to copy. */}
-          {shown.length > 0 ? (
+          {external.length > 0 ? (
             <div className="border-b border-grid pb-1.5">
               <MenuGroupLabel>
                 {t(
-                  shown.length === 1
+                  external.length === 1
                     ? "account_your_wallet"
                     : "account_your_wallets",
                 )}
               </MenuGroupLabel>
-              {shown.map((w) => (
+              {external.map((w) => (
                 <button
                   key={w.address}
                   type="button"
@@ -845,7 +844,7 @@ function AccountMenu() {
                   // pointed at: a permanent "COPY" on every row competed with
                   // the addresses themselves. It shows on focus too, or the
                   // keyboard path has no affordance at all.
-                  className={`group mx-1.5 block w-[calc(100%-0.75rem)] rounded-md px-2 py-1.5 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                  className={`group mx-1.5 block w-[calc(100%-0.75rem)] rounded-md px-2.5 py-1.5 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-mono text-[12.5px] text-text-primary">
@@ -872,20 +871,6 @@ function AccountMenu() {
                   </p>
                 </button>
               ))}
-
-              {/* Said once, quietly, so the count here never reads as "where
-                  did my other wallets go". An agent's wallet is on that agent's
-                  page, where its balance is the agent's capital rather than a
-                  number with no context. */}
-              {agentWalletCount > 0 ? (
-                <p className="px-3.5 pt-1.5 font-ui text-[11px] leading-relaxed text-text-dim">
-                  {agentWalletCount === 1
-                    ? t("account_agent_wallets_one")
-                    : t("account_agent_wallets_many", {
-                        count: agentWalletCount,
-                      })}
-                </p>
-              ) : null}
             </div>
           ) : null}
 
@@ -894,7 +879,7 @@ function AccountMenu() {
               question about the chain, and answering it from a database is how
               a UI tells someone their money has not landed when it has. */}
           {mine ? (
-            <div className="border-b border-grid px-3.5 pt-3 pb-3.5">
+            <div className="border-b border-grid px-4 pt-3 pb-3.5">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
                   {t("account_balance")}
@@ -945,6 +930,42 @@ function AccountMenu() {
                 </p>
               )}
 
+              {/* THE ADDRESS, UNDER THE BALANCE IT BELONGS TO.
+                  Quiet on purpose: it is no longer a section of its own, and
+                  the full-size treatment it had was competing with the figure
+                  above it. Still copyable in one click, because "what is my
+                  address" is asked far more often than it is acted on — and the
+                  answer being one modal away is fine for depositing, not for
+                  pasting into a chat. */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copy(mine.address)}
+                aria-label={t("account_copy_wallet_aria", {
+                  label: walletLabel(mine, t),
+                  address: mine.address,
+                })}
+                className={`group -mx-1 mt-2.5 flex w-[calc(100%+0.5rem)] items-center justify-between gap-3 rounded-md px-1 py-1 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+              >
+                <span className="truncate font-mono text-[11px] text-text-dim">
+                  {mine.address}
+                </span>
+                <span
+                  className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                    copied === mine.address
+                      ? "text-accent opacity-100"
+                      : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                  }`}
+                  aria-hidden
+                >
+                  {copied === mine.address ? (
+                    t("common_copied")
+                  ) : (
+                    <CopyIcon className="size-3" />
+                  )}
+                </span>
+              </button>
+
               <div className="flex gap-2 pt-3">
                 <button
                   type="button"
@@ -972,7 +993,10 @@ function AccountMenu() {
             </div>
           ) : null}
 
-          {!email && shown.length === 0 ? (
+          {/* Nothing to show at all: no email, no linked wallet, and no Canopy
+              one yet. `mine` has to be checked separately now that it has its
+              own block rather than being the tail of a combined list. */}
+          {!email && external.length === 0 && !mine ? (
             <div className="border-b border-grid px-4 py-3.5">
               <p className="font-ui text-[13px] text-text-dim">
                 {t("account_no_details")}
@@ -1000,15 +1024,11 @@ function AccountMenu() {
                   ? null
                   : t("account_row_deployed", { amount: usd(deployedUsd) })
               }
-              active={isActive(pathname, ["/portfolio"])}
-              onNavigate={() => close(false)}
-            />
-            <MenuRow
-              href="/workspace"
-              icon={<AgentsIcon className="size-3.5" />}
-              label={t("account_row_my_agents")}
-              value={agentCount === null ? null : String(agentCount)}
-              active={isActive(pathname, ["/workspace"])}
+              // Matches /workspace too, now that it redirects here and that the
+              // bar's own item does the same. The row for "My agents" is gone
+              // from this group: it pointed at a redirect back to this page,
+              // and two rows to one destination is a menu arguing with itself.
+              active={isActive(pathname, ["/portfolio", "/workspace"])}
               onNavigate={() => close(false)}
             />
           </div>
@@ -1184,7 +1204,7 @@ function AccountMenu() {
                 close(true);
                 void logout();
               }}
-              className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
+              className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
             >
               <SignOutIcon className="size-3.5 shrink-0" />
               <span className="font-ui text-[12.5px] font-medium">
@@ -1219,15 +1239,70 @@ function AccountMenu() {
 
 /* ------------------------------------------------------------------ nav -- */
 
+/**
+ * Whether the page has moved at all.
+ *
+ * rAF-throttled and passive, per the motion rule: a scroll handler that does
+ * work on every event is the one thing on a page guaranteed to run during the
+ * frames a reader is most likely to notice jank.
+ *
+ * The threshold is one pixel, not a distance. This answers "is anything behind
+ * the bar", and a page scrolled by two pixels has content under it exactly as
+ * much as one scrolled by two hundred.
+ */
+function useScrolled(): boolean {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      setScrolled(window.scrollY > 0);
+    };
+    const onScroll = () => {
+      if (frame === 0) frame = requestAnimationFrame(read);
+    };
+
+    // Once on mount: a restored scroll position or a deep link lands mid-page
+    // without ever firing an event, and the bar would sit borderless over
+    // content it is plainly covering.
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return scrolled;
+}
+
 export function TopNav() {
   const pathname = usePathname() ?? "";
   const t = useT();
+  const scrolled = useScrolled();
 
   return (
     // Translucent + blurred rather than opaque: content scrolling under the bar
     // stays faintly legible, which is what tells you the page moved. The solid
     // fallback keeps browsers without backdrop-filter from showing text through.
-    <header className="sticky top-0 z-30 border-b border-border bg-surface supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-md">
+    //
+    // THE HAIRLINE ARRIVES WHEN IT HAS WORK TO DO. The design principles ask
+    // chrome not to assert itself — a floating panel with no hard border — and
+    // this app cannot take that literally, because it is flat by construction:
+    // there is not one shadow in the stylesheet, and separation is carried by
+    // hairlines everywhere. So the rule is honoured the other way round. At the
+    // top of a page there is nothing behind the bar and the line divides
+    // nothing; the moment content passes under it, the line is what says so.
+    //
+    // The border is always PRESENT and only changes colour, so the bar's height
+    // never changes and the page beneath it cannot shift by a pixel as you
+    // begin to scroll.
+    <header
+      className={`sticky top-0 z-30 border-b bg-surface transition-colors duration-200 supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-md ${
+        scrolled ? "border-border" : "border-transparent"
+      }`}
+    >
       <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4 lg:gap-6">
           {/* The brand wordmark, not set type: it is a specific blocky face with

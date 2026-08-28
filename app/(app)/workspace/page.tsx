@@ -1,22 +1,25 @@
-import type { Metadata } from "next";
-import { MyAgents } from "@/components/myAgents";
-import { PageHeader } from "@/components/pageHeader";
-import { getServerT } from "@/lib/i18n/server";
+import { redirect } from "next/navigation";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: (await getServerT())("page_title_workspace") };
-}
-
-/** "My agents" — wireframe 1j. The landing page for an owner. */
-export default function MyAgentsPage() {
-  return (
-    <main>
-      <PageHeader
-        eyebrowKey="page_eyebrow_portfolio"
-        titleKey="workspace_page_title"
-        bodyKey="workspace_page_body"
-      />
-      <MyAgents />
-    </main>
-  );
+/**
+ * "My agents" — retired, and pointed at the portfolio.
+ *
+ * This page and /portfolio had drifted into answering one question. Its own
+ * docblock said it existed to answer "what is all of my capital doing right
+ * now", which is the portfolio question — and /portfolio answers it with an
+ * aggregate curve, where the capital sits, the open book and what settled,
+ * before listing the same agents underneath.
+ *
+ * What was genuinely only here has moved rather than been dropped. The count of
+ * agents wanting you belongs in the notification centre, which already carries
+ * `proposal`, `breach`, `risk_hold` and `state_change` and is reachable from
+ * both the desktop bell and the mobile Alerts tab. Pause and resume are now the
+ * status badge on each portfolio row.
+ *
+ * A REDIRECT RATHER THAN A DELETION. This route was the owner's landing page
+ * for a long time; it is in bookmarks, in old notification links and in
+ * whatever anybody pasted to a teammate. /workspace/:id is untouched and is
+ * still where a row goes.
+ */
+export default function WorkspacePage() {
+  redirect("/portfolio");
 }

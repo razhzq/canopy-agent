@@ -622,7 +622,7 @@ export function AgentDetailView({
       {/* ------------------------------------------------------------ head -- */}
       <section className="border-b border-grid px-5 sm:px-8 pt-5 pb-5">
         <Link
-          href="/workspace"
+          href="/portfolio"
           className="font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
         >
           {t("ad_back")}

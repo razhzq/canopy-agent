@@ -139,8 +139,11 @@ export function Workspace({
           </span>
         ) : (
           <div className="flex min-w-0 items-center gap-3">
+            {/* Back out of an agent lands on the portfolio now — /workspace is
+                a redirect to it, and a back link that takes a hop is a back
+                link that flashes a page nobody asked for. */}
             <Link
-              href="/workspace"
+              href="/portfolio"
               className="shrink-0 font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
             >
               {t("ws_back")}

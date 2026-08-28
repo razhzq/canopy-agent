@@ -2695,6 +2695,22 @@ export interface TelegramStatus {
 export type NotificationKind =
   "fill" | "proposal" | "breach" | "risk_hold" | "state_change" | "cycle";
 
+/** What a `fill` notification carries besides its sentence. */
+export interface FillPayload {
+  side: "buy" | "sell" | "add_liquidity" | "remove_liquidity";
+  symbol: string;
+  isPaper: boolean;
+  filledUsd: number;
+  qty: number;
+  priceUsd: number;
+  /** Booked on a sale. Absent on an open. */
+  realizedPnlUsd?: number;
+  /** The lots the sale consumed, for expressing that as a return. */
+  costBasisUsd?: number;
+  /** Why a rule closed it, when a rule did rather than the Analyst. */
+  reason?: string;
+}
+
 export interface NotificationItem {
   id: string;
   kind: NotificationKind;
@@ -2718,10 +2734,44 @@ export interface NotificationItem {
    * rendering a button that has nothing to call.
    */
   messageId?: string | null;
+  /**
+   * Still waiting on a decision — as opposed to merely unread.
+   *
+   * Reading a proposal does not approve it, so the two states are independent
+   * and only this one empties by acting. `messageId` used to stand in for it
+   * and could not: it says a message EXISTS, not that anybody still owes it an
+   * answer, so an approved proposal went on offering its Apply button.
+   *
+   * Absent on an older backend, where it reads as false — which understates
+   * rather than inventing an approval that is not there.
+   */
+  actionable?: boolean;
+  /**
+   * The figures the message was written from, when the kind has any.
+   *
+   * `text` remains the authority on what happened — this is the same facts, not
+   * different ones — so a surface that ignores this loses nothing. It exists
+   * because `text` is composed for Telegram, which has no typography and
+   * compensates with markup the app strips: rendering it here produced a run of
+   * prose where every other number in the product gets a column.
+   *
+   * Absent on everything written before CANOPY_088, and on every kind that is
+   * genuinely a sentence — a breach reason is the engine's own words and
+   * re-deriving it from parts would eventually disagree with the agent's record.
+   */
+  payload?: FillPayload | null;
 }
 
 export interface NotificationFeed {
   unread: number;
+  /**
+   * How many decisions are outstanding across every agent.
+   *
+   * The same figure `GET /agents` calls `needs_you`, counted from the messages
+   * so the two cannot drift. Not a subset of `unread`: an approval can be read
+   * and still waiting, which is exactly the case a single badge could not show.
+   */
+  waiting?: number;
   items: NotificationItem[];
 }
 
@@ -2749,11 +2799,20 @@ export const getNotificationFeed = (token: string, limit = 30) =>
  */
 export const markNotificationsRead = (
   token: string,
-  what: { ids: string[] } | { upToId: string },
+  /**
+   * `ids` — exactly these. `upToId` — that row and everything older.
+   * `all` — every unread row there is, including any the client never loaded.
+   *
+   * The last one is why it is not simply `upToId: newest`: the feed is a page,
+   * and "mark all read" that leaves unread rows behind the ones on screen is a
+   * badge that will not clear no matter how many times it is pressed. The
+   * server reads a missing `upToId` as no bound, so `all` sends an empty body.
+   */
+  what: { ids: string[] } | { upToId: string } | { all: true },
 ) =>
   request<{ marked: number }>("/agents/notifications/read", token, {
     method: "POST",
-    body: JSON.stringify(what),
+    body: JSON.stringify("all" in what ? {} : what),
   });
 
 export const getTelegramStatus = (token: string) =>

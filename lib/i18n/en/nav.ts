@@ -2,7 +2,7 @@
 
 export const enNav = {
   // ── Top bar ────────────────────────────────────────────────────
-  nav_my_agents: "My agents",
+  nav_portfolio: "Portfolio",
   nav_explore: "Explore",
   nav_create_agent: "Create agent",
   nav_home_aria: "Canopy — home",
@@ -29,11 +29,6 @@ export const enNav = {
   account_your_wallet: "Your wallet",
   account_your_wallets: "Your wallets",
   account_copy_wallet_aria: "Copy {label} address {address}",
-  // Two forms rather than a `{count} wallet(s)` fragment: the singular drops
-  // "each", and English and Chinese break the sentence in different places.
-  account_agent_wallets_one: "1 agent wallet — on its own agent's page.",
-  account_agent_wallets_many:
-    "{count} agent wallets — each on its own agent's page.",
   account_balance: "Balance",
   account_balance_failed: "Couldn't load",
   account_deposit: "Deposit",
@@ -45,7 +40,6 @@ export const enNav = {
   // Suffix is load-bearing: a bare figure beside "Portfolio" reads as what the
   // portfolio is worth, which is a different number.
   account_row_deployed: "{amount} deployed",
-  account_row_my_agents: "My agents",
   account_row_settings: "Plan & notifications",
   account_sign_out: "Sign out",
 

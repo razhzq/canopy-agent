@@ -39,7 +39,7 @@ import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useApi } from "@/lib/useApi";
-import { compactAge } from "@/lib/format";
+import { compactAge, tokenPrice, tokenQty, usd } from "@/lib/format";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import {
   applyProposal,
@@ -48,6 +48,7 @@ import {
   linkTelegram,
   markNotificationsRead,
   setTelegramEnabled,
+  type FillPayload,
   type NotificationItem,
   type NotificationKind,
 } from "@/lib/api";
@@ -84,9 +85,30 @@ const FLUSH_MS = 700;
  * tell what was on screen, so nothing is marked. A badge that stays lit is a
  * far better failure than one that clears rows the reader never saw.
  */
-export function useSeenRows(onSeen: (ids: string[]) => void) {
+export function useSeenRows(
+  onSeen: (ids: string[]) => void,
+  /**
+   * The scrolling element the rows live in.
+   *
+   * Used as the observer's root, which the viewport was standing in for. It
+   * works either way for "is this visible", but only a real root gives
+   * `rootBounds` in the panel's own coordinates — and that is what makes
+   * "scrolled off the top" answerable below.
+   */
+  rootRef?: { current: Element | null },
+) {
   const pending = useRef(new Set<string>());
   const dwell = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  /**
+   * Rows that have been on screen at all, however briefly.
+   *
+   * The dwell timer answers "did they stop on it". This answers the other way a
+   * notification gets read: you scan it as it passes and keep going. Without
+   * the distinction, a row that was never reached and a row the reader went
+   * PAST are treated identically — and the second one is the common case, so
+   * the badge sat unchanged through exactly the gesture that clears a list.
+   */
+  const grazed = useRef(new Set<string>());
   const flush = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -130,39 +152,59 @@ export function useSeenRows(onSeen: (ids: string[]) => void) {
         for (const e of entries) {
           const id = byEl.current.get(e.target);
           if (!id) continue;
+          const mark = () => {
+            pending.current.add(id);
+            if (flush.current) clearTimeout(flush.current);
+            flush.current = setTimeout(send, FLUSH_MS);
+          };
+
           if (e.isIntersecting) {
+            grazed.current.add(id);
             if (dwell.current.has(id)) continue;
             dwell.current.set(
               id,
               setTimeout(() => {
                 dwell.current.delete(id);
-                pending.current.add(id);
-                if (flush.current) clearTimeout(flush.current);
-                flush.current = setTimeout(send, FLUSH_MS);
+                mark();
               }, SEEN_MS),
             );
           } else {
-            // Left before it was read. Not seen, and not marked.
             const timer = dwell.current.get(id);
             if (timer) {
               clearTimeout(timer);
               dwell.current.delete(id);
             }
+            // GONE OFF THE TOP IS READ. The reader was shown it and moved
+            // beyond it, which is what reading a list of notifications looks
+            // like — nobody rests on each line for most of a second.
+            //
+            // Off the BOTTOM is not: that is a row scrolled away from, either
+            // by going back up or because it never came into view in the first
+            // place. `grazed` is what separates the two, since a row that was
+            // never visible cannot have been passed.
+            const above =
+              e.rootBounds !== null &&
+              e.boundingClientRect.bottom <= e.rootBounds.top + 1;
+            if (above && grazed.current.has(id)) mark();
           }
         }
       },
-      { threshold: SEEN_RATIO },
+      // A real root, so `rootBounds` describes the panel rather than the window.
+      // Null falls back to the viewport, which is what this always used.
+      { root: rootRef?.current ?? null, threshold: SEEN_RATIO },
     );
     observer.current = io;
     // Everything that registered during the commit that preceded this effect.
     for (const el of byEl.current.keys()) io.observe(el);
 
     const dwelling = dwell.current;
+    const grazedNow = grazed.current;
     return () => {
       io.disconnect();
       observer.current = null;
       for (const timer of dwelling.values()) clearTimeout(timer);
       dwelling.clear();
+      grazedNow.clear();
       // Whatever was seen but not yet sent still counts.
       send();
     };
@@ -285,6 +327,38 @@ export function NotificationCentre() {
     [getAccessToken],
   );
 
+  /**
+   * Clear the lot, on purpose.
+   *
+   * The automatic path marks what was actually looked at, which is the right
+   * default and is also, by design, conservative — it will leave rows lit that
+   * the reader considers dealt with. This is the other half: an explicit "I am
+   * done with these", which needs no inference and cannot be wrong about what
+   * someone saw, because they said so.
+   *
+   * Marks EVERY unread row, not just the page on screen. A button that empties
+   * the visible list and leaves the badge at 12 has not done what it says.
+   */
+  const [clearing, setClearing] = useState(false);
+  const markAll = useCallback(async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      await markNotificationsRead(token, { all: true });
+      // The server is the count now, so re-read rather than book-keeping it
+      // locally — this is the one interaction where the list changing under
+      // the cursor is exactly what was asked for.
+      feed.reload();
+    } catch {
+      // Left lit. Nothing was lost, and a failed clear that pretends to have
+      // worked is worse than a badge that stays.
+    } finally {
+      setClearing(false);
+    }
+  }, [clearing, feed, getAccessToken]);
+
   // Counted against what the SERVER still calls unread, so a row cannot be
   // subtracted twice once the poll brings back its read state.
   const pending = items.filter((i) => !i.read && readHere.has(i.id)).length;
@@ -332,6 +406,9 @@ export function NotificationCentre() {
           // stale — that one IS worth a refetch.
           onActed={() => feed.reload()}
           onClose={() => setOpen(false)}
+          onMarkAll={unread > 0 ? markAll : undefined}
+          clearing={clearing}
+          waiting={feed.phase === "ready" ? (feed.data.waiting ?? 0) : 0}
         />
       ) : null}
     </div>
@@ -346,6 +423,9 @@ function Panel({
   failed,
   onActed,
   onClose,
+  onMarkAll,
+  clearing,
+  waiting,
 }: {
   items: NotificationItem[];
   readHere: ReadonlySet<string>;
@@ -354,9 +434,29 @@ function Panel({
   failed: string | null;
   onActed: () => void;
   onClose: () => void;
+  /** Absent when there is nothing unread — the control has nothing to do. */
+  onMarkAll?: () => void;
+  clearing: boolean;
+  /** Outstanding decisions, for the tab's own count. */
+  waiting: number;
 }) {
   const t = useT();
-  const rowRef = useSeenRows(onSeen);
+  // The list scrolls, not the page. Without this the observer measured against
+  // the window and could not tell a row that had gone off the top of the PANEL
+  // from one merely above the fold.
+  const list = useRef<HTMLDivElement | null>(null);
+  const rowRef = useSeenRows(onSeen, list);
+
+  /**
+   * Opens on the queue when there IS one.
+   *
+   * A list sorted by time buries the one thing that is waiting on you under
+   * everything that merely happened, and an approval is the only row here that
+   * goes stale by being ignored. When nothing is waiting there is nothing to
+   * privilege, and the full list is the honest default.
+   */
+  const [tab, setTab] = useState<FeedTab>(waiting > 0 ? "waiting" : "all");
+  const shown = items.filter((n) => inTab(n, tab));
 
   return (
     <div
@@ -364,13 +464,60 @@ function Panel({
       aria-label={t("nc_aria")}
       className="absolute right-0 z-40 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
     >
-      <div className="flex items-center justify-between border-b border-grid px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-grid px-4 py-3">
         <p className="font-mono text-[11px] tracking-[0.12em] text-text-secondary uppercase">
           {t("nc_title")}
         </p>
+        {/* Quiet, and only while it has something to clear. A permanent
+            "mark all read" over an empty list is a control that spends its
+            prominence saying no. */}
+        {onMarkAll ? (
+          <button
+            type="button"
+            onClick={onMarkAll}
+            disabled={clearing}
+            className={`shrink-0 rounded font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent disabled:opacity-50 ${FOCUS}`}
+          >
+            {t(clearing ? "nc_marking_all" : "nc_mark_all")}
+          </button>
+        ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* One row of tabs, under the title and above the scroll. Outside the
+          scrolling element on purpose: a filter that scrolls away is one the
+          reader cannot get back to without scrolling up first. */}
+      <div className="flex items-center gap-1 border-b border-grid px-2 py-1.5">
+        {TABS.map((x) => {
+          const on = tab === x.key;
+          const count = x.key === "waiting" ? waiting : 0;
+          return (
+            <button
+              key={x.key}
+              type="button"
+              onClick={() => setTab(x.key)}
+              aria-pressed={on}
+              className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors ${FOCUS} ${
+                on
+                  ? "bg-accent-wash text-accent"
+                  : "text-text-dim hover:bg-surface hover:text-text-secondary"
+              }`}
+            >
+              {t(x.labelKey)}
+              {/* Only the queue carries a number. "3 fills" is trivia; three
+                  decisions nobody has made is the reason to open this. */}
+              {count > 0 ? (
+                <span
+                  className={`tnum ${on ? "text-accent" : "text-text-secondary"}`}
+                >
+                  {count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <div ref={list} className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="space-y-2 p-4" aria-hidden>
             {[0, 1, 2].map((i) => (
@@ -381,12 +528,21 @@ function Panel({
           <p className="px-4 py-6 font-ui text-[13px] text-negative">
             {failed}
           </p>
-        ) : items.length === 0 ? (
+        ) : shown.length === 0 ? (
           <p className="px-4 py-8 text-center font-ui text-[13px] leading-relaxed text-text-dim">
-            {t("nc_empty")}
+            {/* An empty TAB and an empty feed are different facts. "Nothing
+                here yet" under a filter reads as "you have no notifications",
+                which is wrong and sends people looking for a bug. */}
+            {t(
+              items.length === 0
+                ? "nc_empty"
+                : tab === "waiting"
+                  ? "nc_empty_waiting"
+                  : "nc_empty_trades",
+            )}
           </p>
         ) : (
-          items.map((n) => {
+          shown.map((n) => {
             const read = n.read || readHere.has(n.id);
             return (
               <NotificationRow
@@ -406,6 +562,82 @@ function Panel({
     </div>
   );
 }
+
+/**
+ * A fill, laid out rather than recounted.
+ *
+ * THE SAME FACTS THE SENTENCE WAS BUILT FROM. `text` still arrives and is still
+ * the authority; it is just written for a chat client, and a chat client has no
+ * columns — so it leans on bold and separators that the app strips on the way
+ * in, leaving "alpha_hunter bought BONK $100.00 · 1,234 @ $0.000081" as one
+ * flat line of prose. Every other number in this product gets a position and a
+ * weight. This gives these theirs.
+ *
+ * Money and price go through the same helpers the positions table uses, so a
+ * memecoin at $0.00005835 renders as a price rather than as "$0.00" — and the
+ * two surfaces cannot round the same token differently.
+ */
+function FillBody({ fill }: { fill: FillPayload }) {
+  const t = useT();
+  const pnl = fill.realizedPnlUsd;
+  const pct =
+    pnl !== undefined && fill.costBasisUsd && fill.costBasisUsd > 0
+      ? (pnl / fill.costBasisUsd) * 100
+      : null;
+
+  return (
+    <div className="space-y-1">
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-mono text-[12.5px] text-text-primary">
+          {t(SIDE_KEY[fill.side])}
+        </span>
+        <span className="font-mono text-[12.5px] text-text-primary">
+          {fill.symbol}
+        </span>
+        {/* A paper fill mistaken for a real one is the most alarming way this
+            row can be misread, so the tag rides with the symbol rather than
+            waiting at the end of a line. */}
+        {fill.isPaper ? (
+          <span className="font-mono text-[9px] tracking-[0.1em] text-text-muted uppercase">
+            {t("nc_fill_paper")}
+          </span>
+        ) : null}
+      </p>
+
+      <p className="tnum font-mono text-[11.5px] text-text-dim">
+        {usd(fill.filledUsd)} · {tokenQty(fill.qty, fill.priceUsd)} @{" "}
+        {tokenPrice(fill.priceUsd).display}
+      </p>
+
+      {pnl !== undefined ? (
+        <p
+          className={`tnum font-mono text-[11.5px] ${
+            pnl >= 0 ? "text-accent" : "text-negative"
+          }`}
+        >
+          {t("nc_fill_realised")} {usd(pnl, { sign: true })}
+          {pct === null
+            ? ""
+            : ` (${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%)`}
+        </p>
+      ) : null}
+
+      {fill.reason ? (
+        <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
+          {fill.reason}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The verb, in the reader's language rather than the engine's. */
+const SIDE_KEY: Record<FillPayload["side"], TranslationKey> = {
+  buy: "nc_fill_bought",
+  sell: "nc_fill_sold",
+  add_liquidity: "nc_fill_added",
+  remove_liquidity: "nc_fill_removed",
+};
 
 /**
  * One notification, and a way to act on it.
@@ -439,7 +671,12 @@ export function NotificationRow({
   // An approval can be answered here. Everything else is a report of something
   // already done, and a button on those would be a button with nothing to do.
   const approvable =
-    n.kind === "proposal" && !!n.messageId && n.agentId !== null;
+    n.kind === "proposal" &&
+    !!n.messageId &&
+    n.agentId !== null &&
+    // An approved proposal keeps its messageId forever, so without this the
+    // Apply button outlived the decision it was offering.
+    n.actionable !== false;
 
   const inner = (
     <>
@@ -463,11 +700,18 @@ export function NotificationRow({
             {compactAge(n.createdAt, t)}
           </span>
         </div>
-        {/* Plain text, stripped server-side. Never markup: this table carries
-            token symbols and error strings from outside the product. */}
-        <p className="font-ui text-[12.5px] leading-relaxed break-words whitespace-pre-line text-text-secondary">
-          {n.text}
-        </p>
+        {/* The figures where there are figures, the sentence where there are
+            not. See FillBody — `text` is composed for Telegram and reads like
+            it when the markup is stripped out of it. */}
+        {n.kind === "fill" && n.payload ? (
+          <FillBody fill={n.payload} />
+        ) : (
+          /* Plain text, stripped server-side. Never markup: this table carries
+             token symbols and error strings from outside the product. */
+          <p className="font-ui text-[12.5px] leading-relaxed break-words whitespace-pre-line text-text-secondary">
+            {n.text}
+          </p>
+        )}
         {n.undeliverable ? (
           <p className="font-ui text-[11px] text-warning">
             {t("nc_undeliverable")}
@@ -724,6 +968,34 @@ const FALLBACK_KIND = {
   tone: "text-text-secondary",
   dot: "bg-text-dim",
 };
+
+/**
+ * The two questions a notification list gets asked, and the pile that is
+ * neither.
+ *
+ * APPROVALS IS NOT A KIND, IT IS A STATE. Filtering on `kind === "proposal"`
+ * would show every proposal ever made, decided or not — and the point of the
+ * tab is the queue, which empties by acting rather than by reading. It filters
+ * on `actionable`, which also catches the requires-action messages the safety
+ * monitor raises under other kinds.
+ *
+ * ALL EXISTS BECAUSE SOMETHING HAS TO HOLD THE REST. A drawdown breach is not
+ * a trade and not an approval, and it is the most important line in the list.
+ * Two tabs alone would have hidden it.
+ */
+const TABS = [
+  { key: "all" as const, labelKey: "nc_tab_all" as TranslationKey },
+  { key: "waiting" as const, labelKey: "nc_tab_approvals" as TranslationKey },
+  { key: "trades" as const, labelKey: "nc_tab_trades" as TranslationKey },
+];
+
+type FeedTab = (typeof TABS)[number]["key"];
+
+function inTab(n: NotificationItem, tab: FeedTab): boolean {
+  if (tab === "all") return true;
+  if (tab === "waiting") return n.actionable === true;
+  return n.kind === "fill";
+}
 
 const KIND: Record<
   NotificationKind,

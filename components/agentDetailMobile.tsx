@@ -177,7 +177,7 @@ export function AgentDetailMobile({
     <div className="pb-2">
       {/* ---------------------------------------------------------- nav -- */}
       <div className="flex items-center justify-between px-[18px] py-2">
-        <Link href="/workspace" aria-label={t("agent_back_aria")}>
+        <Link href="/portfolio" aria-label={t("agent_back_aria")}>
           <ChevronLeft className="size-6 text-text-primary" aria-hidden />
         </Link>
         <div className="flex items-center gap-[18px]">
