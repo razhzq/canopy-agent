@@ -292,16 +292,55 @@
 .tick-down {
   /* The wash needs room to read as a wash rather than a stripe behind digits. */
   border-radius: 3px;
-  margin: 0 -3px;
-  padding: 0 3px;
+  /*
+   * INLINE ONLY, and written as logical properties for exactly that reason.
+   * `margin: 0 -3px` also sets the BLOCK margins to zero, so on any stack that
+   * spaces its children with a top margin — which is every `space-y-*` in this
+   * codebase — a figure would lose its gap for the 700ms it was flashing and
+   * take it back afterwards. It only escaped notice because Tailwind's
+   * `space-y` selector outranks a bare class; a slightly different stack would
+   * have twitched on every tick.
+   */
+  margin-inline: -3px;
+  padding-inline: 3px;
+}
+
+/*
+ * The digits arriving, not just the cell lighting up.
+ *
+ * The wash says a change happened and which way. On its own it leaves the
+ * number itself to swap instantly, and an instant swap is the one thing the eye
+ * does not catch — you see the colour, look at the figure, and it is already
+ * the new one with no sense of what it was. So the value fades in as it
+ * changes: brief, and over well before the wash is.
+ *
+ * OPACITY ONLY. This lifted the figure 2px as it faded, which does not move
+ * anything in layout terms and moves everything visually: a stacked equity
+ * figure over a P&L line, with only one of the two changing, opened a gap
+ * between them for a third of a second and closed it again. Nothing was
+ * mis-sized — the number was simply somewhere else while the other was not. A
+ * figure that jumps to announce itself is worse than one that does not
+ * announce itself, and the wash was already doing the announcing.
+ */
+@keyframes tick-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .tick-up {
-  animation: tick-up 700ms ease-out;
+  animation:
+    tick-up 700ms ease-out,
+    tick-in 320ms ease-out;
 }
 
 .tick-down {
-  animation: tick-down 700ms ease-out;
+  animation:
+    tick-down 700ms ease-out,
+    tick-in 320ms ease-out;
 }
 
 /*

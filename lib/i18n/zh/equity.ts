@@ -10,7 +10,6 @@ export const zhEquity: Record<keyof typeof enEquity, string> = {
   equity_against_capital: "{pnl} · {pct}（相对 {capital}）",
   equity_realised: "已实现",
   equity_unrealised: "未实现",
-  equity_at_cycle: "按第 {seq} 周期计",
   equity_max_drawdown: "最大回撤",
   equity_hit_rate: "胜率",
   equity_deployed: "已投入",

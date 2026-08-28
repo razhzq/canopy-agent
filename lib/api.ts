@@ -2065,6 +2065,79 @@ export const getAgentMarks = (
     at: string;
   }>(`/agents/${agentId}/marks${book ? `?book=${book}` : ""}`, token);
 
+/**
+ * The open book's prices, pushed as they move.
+ *
+ * FETCH RATHER THAN `EventSource`, and the reason is boring but decisive:
+ * EventSource cannot set headers, so the bearer token would have to travel in
+ * the query string — into access logs, proxy logs and browser history. Reading
+ * the stream by hand keeps the token exactly where every other call in this
+ * file puts it.
+ *
+ * Resolves when the stream ends: cleanly on abort, or by throwing if it drops.
+ * The caller decides what to do about that, because the right answer is to fall
+ * back to polling rather than to show an error — the figures are still correct,
+ * they just stop being live.
+ */
+export async function streamMarks(
+  token: string,
+  /** Path under /api, e.g. `/agents/12/marks/stream`. The caller owns the key. */
+  path: string,
+  onMarks: (marks: { key: string; priceUsd: number }[]) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/api${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream" },
+    signal,
+  });
+  if (!res.ok || !res.body) throw new ApiError(res.status, "marks stream unavailable");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Frames are separated by a blank line, and a read can land mid-frame — so
+    // the tail stays in the buffer rather than being parsed as a short frame.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      // Heartbeats are comment lines and carry no data. Skipping them here is
+      // what lets the server keep the connection open through a proxy without
+      // the client seeing anything.
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("");
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (!Array.isArray(parsed)) continue;
+        // `mint` from the owner's stream, `symbol` from a public record's. One
+        // shape out, so the caller keys its lookup the way its own rows are
+        // keyed and never has to know which route it is reading.
+        onMarks(
+          parsed
+            .map((m: { mint?: string; symbol?: string; priceUsd: number }) => ({
+              key: m.mint ?? m.symbol ?? "",
+              priceUsd: m.priceUsd,
+            }))
+            .filter((m) => m.key !== "" && typeof m.priceUsd === "number"),
+        );
+      } catch {
+        // A frame we cannot read is one tick of prices, not a reason to tear
+        // down a working stream.
+      }
+    }
+  }
+}
+
 export const getAgent = (
   token: string,
   agentId: number,

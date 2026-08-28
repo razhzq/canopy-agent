@@ -13,7 +13,6 @@ export const enEquity = {
   equity_against_capital: "{pnl} · {pct} against {capital}",
   equity_realised: "Realised",
   equity_unrealised: "Unrealised",
-  equity_at_cycle: "at cycle {seq}",
   equity_max_drawdown: "Max drawdown",
   equity_hit_rate: "Hit rate",
   equity_deployed: "Deployed",

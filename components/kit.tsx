@@ -441,8 +441,14 @@ export function Tick({
   children: ReactNode;
 }) {
   const direction = useTickDirection(value);
+  // `block`, ALWAYS, and it is not cosmetic. These figures are stacked block
+  // spans — a dollar line over a percent line — and an inline box wrapping
+  // block children has no paintable area of its own, so the wash rendered into
+  // nothing and no flash was ever visible. It also has to be on the base class
+  // rather than the animation class, or the box would change shape for 700ms
+  // every time a price moved.
   return (
-    <span className={`${direction ? `tick-${direction}` : ""} ${className}`.trim()}>
+    <span className={`block ${direction ? `tick-${direction}` : ""} ${className}`.trim()}>
       {children}
     </span>
   );

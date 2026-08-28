@@ -38,6 +38,7 @@ import { AssetLogo } from "@/components/ui";
 import { ModelBadge } from "@/components/modelBadge";
 import { ModelPanel } from "@/components/modelPanel";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
+import { useMarks } from "@/lib/useMarks";
 import {
   DEFAULT_TIMEFRAME,
   RWA_RULES,
@@ -213,15 +214,29 @@ export function AgentDetailView({
    *
    * Held apart from `state` rather than folded into `assets`, because the two
    * refresh on completely different clocks: the universe is fetched once and is
-   * expensive, these are refetched every ten seconds and are cheap. Merging
-   * them would mean either paying for the universe on every tick or writing
-   * prices into a payload the rest of the page treats as immutable.
+   * expensive, these arrive as the market moves. Merging them would mean either
+   * paying for the universe on every tick or writing prices into a payload the
+   * rest of the page treats as immutable.
    *
    * Empty is the correct starting value and a correct steady state: on the
-   * first frame nothing is priced yet, and if the marks call never succeeds the
+   * first frame nothing is priced yet, and if the stream never connects the
    * page marks against the universe exactly as it did before.
    */
-  const [marks, setMarks] = useState<Map<string, number>>(new Map());
+  // The REST route is the backstop: identical prices, read once every thirty
+  // seconds, so a stream that connects and then silently buffers cannot leave
+  // the figures frozen. Stable identity, or the hook would tear down and
+  // rebuild its stream on every render.
+  const marksFallback = useCallback(
+    async (token: string) => {
+      const { marks: rows } = await getAgentMarks(token, agentId, book ?? undefined);
+      return rows.map((m) => ({ key: m.mint, priceUsd: m.priceUsd }));
+    },
+    [agentId, book],
+  );
+  const marks = useMarks(
+    `/agents/${agentId}/marks/stream${book ? `?book=${book}` : ""}`,
+    marksFallback,
+  );
 
   const [modelOpen, setModelOpen] = useState(false);
   const personalWallet = usePersonalWallet();
@@ -401,52 +416,6 @@ export function AgentDetailView({
     };
   }, [load]);
 
-  /**
-   * The ten-second tick, and the only thing on this page that moves by itself.
-   *
-   * IT REFETCHES MARKS, NOT THE PAGE. Calling `load()` on this cadence would
-   * pull the agent, the strategy, the equity curve and the universe every ten
-   * seconds — the universe alone being the most expensive request the product
-   * makes — to move a handful of prices. The marks call prices only the mints
-   * the agent holds.
-   *
-   * The position rows themselves do not change on a price tick: quantity and
-   * cost basis change when the agent TRADES, and a trade is a cycle, which is
-   * minutes at its fastest. So the heavy load stays where it was — mount, book
-   * switch, and after an action that changed something.
-   *
-   * Runs while the tab is hidden, deliberately not paused. Someone coming back
-   * to a backgrounded tab should find a current figure, not the one from when
-   * they left plus a spinner; the request is small enough that this costs
-   * little, and `document.hidden` gating is the kind of optimisation that shows
-   * a stale number at the exact moment someone looks.
-   */
-  useEffect(() => {
-    if (!ready || !authenticated) return;
-    let live = true;
-
-    const pull = async () => {
-      try {
-        const token = await tokenRef.current();
-        if (!token || !live) return;
-        const { marks: rows } = await getAgentMarks(token, agentId, book ?? undefined);
-        if (!live) return;
-        setMarks(new Map(rows.map((m) => [m.mint, m.priceUsd])));
-      } catch {
-        // Silent, and the previous marks are KEPT rather than cleared. A failed
-        // poll means "no newer price", which is what is already on screen — and
-        // dropping back to the hourly universe mark mid-session would make the
-        // P&L jump for a reason nobody could see.
-      }
-    };
-
-    void pull();
-    const id = setInterval(() => void pull(), 10_000);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
-  }, [ready, authenticated, agentId, book]);
 
   // Which market is mid-removal, by its selection key. A single id rather than
   // a boolean so only the card being removed shows a pending state.
@@ -512,9 +481,29 @@ export function AgentDetailView({
     if (state.phase !== "ready") return [] as UniverseAsset[];
     const list = state.assets;
     if (marks.size === 0) return list;
-    return list.map((a) =>
-      a.mint && marks.has(a.mint) ? { ...a, priceUsd: marks.get(a.mint)! } : a,
-    );
+
+    // TWO IDENTITY SHAPES, AND MATCHING ONLY ONE OF THEM WAS A BUG.
+    //
+    // Marks are keyed by mint, because a position is. But a universe row for a
+    // tokenized stock carries NO mint — it is intent, "Apple, via Backed",
+    // resolved to an address at boot — so an `a.mint && marks.has(a.mint)`
+    // test never matched one, and the live price for AAPLx was fetched and then
+    // dropped. `markOpenBook` joins those rows by symbol for exactly this
+    // reason; this has to do the same or it feeds it a price it cannot use.
+    //
+    // The positions are the bridge: each one carries both the mint that was
+    // priced and the symbol the universe row is filed under.
+    const bySymbol = new Map<string, number>();
+    for (const p of state.detail.positions) {
+      const price = p.mint ? marks.get(p.mint) : undefined;
+      if (price !== undefined) bySymbol.set(p.symbol, price);
+    }
+
+    return list.map((a) => {
+      const byMint = a.mint ? marks.get(a.mint) : undefined;
+      const price = byMint ?? bySymbol.get(a.symbol);
+      return price === undefined ? a : { ...a, priceUsd: price };
+    });
   }, [state, marks]);
 
   if (state.phase === "loading") return <SkeletonAgentDetail />;

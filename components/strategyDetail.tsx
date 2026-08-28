@@ -16,6 +16,8 @@ import {
 } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { useLocale, type Locale, type Translate } from "@/lib/i18n";
+import { useMarks } from "@/lib/useMarks";
+import { Tick } from "@/components/kit";
 import {
   getStrategy,
   getStrategyRecord,
@@ -109,7 +111,37 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       ),
     [meta.phase === "ready" ? meta.data.strategy.strategy_class : null],
   );
-  const marks = universe.phase === "ready" ? universe.data.assets : NO_ASSETS;
+  const universeMarks = universe.phase === "ready" ? universe.data.assets : NO_ASSETS;
+
+  /**
+   * Live prices, keyed by SYMBOL because that is all a public record carries.
+   *
+   * The universe above is swept hourly and fetched once, so without this the
+   * open book on a visitor's page is priced at whatever it was worth up to an
+   * hour before they opened the tab — and never moves while they watch. The
+   * server resolves each symbol to the position's actual mint before pricing
+   * it, so the three tokens called CAT cannot be confused for one another on
+   * the way through.
+   */
+  const liveMarks = useMarks(`/agents/strategies/${strategyId}/marks/stream`);
+
+  /**
+   * The universe with the live price written over the swept one.
+   *
+   * Overridden here rather than at each row, so the value, the P&L and the
+   * open-book total all read one number and cannot disagree — the same reason
+   * the owner's page merges into its universe instead of threading marks
+   * through every component.
+   */
+  const marks = useMemo(
+    () =>
+      liveMarks.size === 0
+        ? universeMarks
+        : universeMarks.map((a) =>
+            liveMarks.has(a.symbol) ? { ...a, priceUsd: liveMarks.get(a.symbol)! } : a,
+          ),
+    [universeMarks, liveMarks],
+  );
   const [view, setView] = useState<View>("positions");
   // One tab stop for the whole strip (roving tabindex, below), so the arrow
   // keys need to move focus themselves — the browser no longer will.
@@ -672,16 +704,23 @@ function PositionRow({
             : t("sd_at_price", { price: tokenPrice(entry).display })
         }
       />
-      <Money
-        value={value === null ? t("sd_not_priced") : usd(value)}
-        note={
-          mark === null
-            ? null
-            : t("sd_at_price", { price: tokenPrice(mark).display })
-        }
-        muted={value === null}
-      />
-      <Delta usd={pnl} pct={pnlPct} />
+      {/* Watching the MARK, not the value: a small position's dollar value can
+          round to unchanged through a real price tick. Same pairing the
+          workspace uses, so the two pages flash on the same events. */}
+      <Tick value={mark} className="text-right">
+        <Money
+          value={value === null ? t("sd_not_priced") : usd(value)}
+          note={
+            mark === null
+              ? null
+              : t("sd_at_price", { price: tokenPrice(mark).display })
+          }
+          muted={value === null}
+        />
+      </Tick>
+      <Tick value={pnl} className="text-right">
+        <Delta usd={pnl} pct={pnlPct} />
+      </Tick>
     </div>
   );
 }

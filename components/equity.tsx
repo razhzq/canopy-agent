@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
 import { markAgent } from "@/lib/perf";
+import { Tick } from "@/components/kit";
 import {
   num,
   type AgentDetail,
@@ -79,8 +80,6 @@ export function EquityView({
     );
   }
 
-  const last = points[points.length - 1];
-
   // The figures come from lib/perf so the portfolio overview, which sums them
   // across every agent, cannot end up computing one agent differently from the
   // way this panel does. `markAgent` only returns null for an empty series,
@@ -95,7 +94,6 @@ export function EquityView({
     openBookUsd: deployed,
     maxDrawdownPct: drawdown,
     hitRatePct: hitRate,
-    marked,
   } = mark;
 
   return (
@@ -105,11 +103,18 @@ export function EquityView({
           <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
             {t(isPaper ? "equity_paper_equity" : "equity_equity")}
           </p>
-          <p className="tnum font-mono text-[32px] leading-none text-text-primary">
+          {/* Equity is capital plus realised plus unrealised, so it moves on
+              every mark exactly as the unrealised stat does. Flashing one and
+              not the other would read as the two disagreeing. */}
+          <Tick
+            value={equity}
+            className="tnum block font-mono text-[32px] leading-none text-text-primary"
+          >
             {money(equity)}
-          </p>
-          <p
-            className={`tnum font-mono text-[12.5px] ${
+          </Tick>
+          <Tick
+            value={pnl}
+            className={`tnum block font-mono text-[12.5px] ${
               pnl >= 0 ? "text-accent" : "text-negative"
             }`}
           >
@@ -118,7 +123,7 @@ export function EquityView({
               pct: signedPct(returnPct),
               capital: money(deployedCapital),
             })}
-          </p>
+          </Tick>
         </div>
 
         <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
@@ -131,10 +136,11 @@ export function EquityView({
             label={t("equity_unrealised")}
             value={signed(unrealized)}
             tone={toneOf(unrealized)}
-            // Silent when it is marked live, because then it reconciles with
-            // the positions table and needs no explaining. Only the degraded
-            // case has something to say.
-            note={marked ? undefined : t("equity_at_cycle", { seq: last.tickSeq })}
+            // THE FIGURE THAT ACTUALLY MOVES. Marks refresh every ten seconds,
+            // so this is the one stat on the panel that changes while someone
+            // is looking at it — and the wash is what makes a change legible
+            // instead of a number quietly becoming a different number.
+            watch={unrealized}
           />
           <Stat
             label={t("equity_max_drawdown")}
@@ -366,18 +372,33 @@ function Stat({
   value,
   note,
   tone = "neutral",
+  watch,
 }: {
   label: string;
   value: string;
   /** Small dim qualifier, e.g. the fraction behind a percentage. */
   note?: string;
   tone?: "accent" | "negative" | "neutral";
+  /**
+   * The NUMBER behind `value`, when this figure moves on its own.
+   *
+   * Given, the stat washes green or red for a moment each time it changes. Not
+   * given, it never flashes — which is right for the ones that only move when
+   * the agent trades, where a wash would be claiming an event that a hit rate
+   * or a drawdown does not have.
+   *
+   * The number rather than the string, because a formatted figure rounds: two
+   * different marks both rendering "−$32.91" are not a tick, and comparing text
+   * would miss a real move that happened to round the same way.
+   */
+  watch?: number | null;
 }) {
   return (
     <div className="space-y-1.5">
       <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">{label}</p>
-      <p
-        className={`tnum font-mono text-[16px] leading-none whitespace-nowrap ${
+      <Tick
+        value={watch}
+        className={`tnum block font-mono text-[16px] leading-none whitespace-nowrap ${
           tone === "accent"
             ? "text-accent"
             : tone === "negative"
@@ -391,7 +412,7 @@ function Stat({
             {note}
           </span>
         ) : null}
-      </p>
+      </Tick>
     </div>
   );
 }

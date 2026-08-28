@@ -326,7 +326,9 @@ function OpenTable({
                     the mark is the thing that actually arrived from the poll —
                     and a value can sit unchanged through a price tick when the
                     position is small enough to round. */}
-                <Tick value={h.markUsd}>
+                {/* `text-right` moves onto the wrapper, because the wrapper is
+                    now the grid item and the alignment has to travel with it. */}
+                <Tick value={h.markUsd} className="text-right">
                   <Amount
                     main={
                       h.valueUsd === null
