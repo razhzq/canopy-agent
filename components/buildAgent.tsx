@@ -43,7 +43,7 @@ import {
   PickModel,
   type ModelChoice,
 } from "@/components/pickModel";
-import { ModelPanel } from "@/components/modelPanel";
+import { FundNewAgent } from "@/components/fundNewAgent";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -480,24 +480,32 @@ export function BuildAgent() {
   if (mobile === null) return null;
 
   /* The funding step, once the agent exists and before the builder is left.
-     Mounted here rather than inside either layout: both reach it, and Modal
-     portals to document.body anyway, so one mount serves both. The builder
-     behind it is finished — every field is frozen into the deployed agent by
-     this point — which is why replacing it rather than layering over it costs
-     nothing. */
+     Mounted here rather than inside either layout: both reach it, and it is one
+     column at any width. The builder behind it is finished — every field is
+     frozen into the deployed agent by this point — which is why replacing it
+     rather than layering over it costs nothing.
+
+     NOT ModelPanel any more. That is the owner's standing panel for a running
+     agent, and pointed at one four seconds old it opened on a $0.00 balance, a
+     $0.00 spend and an "Out of model balance" WARNING — telling someone who had
+     just finished building an agent that it was broken. FundNewAgent says the
+     two things that are actually true here instead, and shows both of them at
+     once rather than revealing the second after the first is signed. */
   if (funding) {
     return (
-      <ModelPanel
+      <FundNewAgent
         agentId={funding.agentId}
+        agentName={name.trim() || t("build_untitled")}
+        model={model}
         agentWallet={funding.wallet}
         personalWallet={personalWallet}
-        // Re-read after the grant lands, so the panel moves from asking for a
-        // wallet to asking for a balance without the owner reopening anything.
-        onChanged={() => void refreshFunding(funding.agentId)}
-        // Dismissing is allowed. The agent is real and scheduled either way —
-        // it simply waits, and the page it lands on says so and offers the
-        // same panel again.
-        onClose={() => leaveFunding(funding.agentId)}
+        // Re-read after the grant lands, so step two unlocks in place without
+        // the owner reopening anything.
+        onWalletGranted={() => void refreshFunding(funding.agentId)}
+        // Leaving is allowed and is not an abandonment. The agent is real and
+        // scheduled either way — it waits, and the page it lands on says so and
+        // offers the same steps again.
+        onLeave={() => leaveFunding(funding.agentId)}
       />
     );
   }

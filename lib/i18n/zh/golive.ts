@@ -64,6 +64,7 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
   gl_done: "完成",
 
   gd_grant: "授予签名权限",
+  gd_give_wallet: "为它创建钱包",
   gd_preparing: "正在准备该智能体的钱包…",
   gd_granting: "请在您的钱包中确认…",
   gd_registering: "正在记录…",

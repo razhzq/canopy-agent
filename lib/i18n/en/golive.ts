@@ -75,6 +75,10 @@ export const enGoLive = {
 
   // ── Grant delegation button ────────────────────────────────────
   gd_grant: "Grant delegation",
+  // The same act, named for what it does rather than for the mechanism, where
+  // the reader has not yet met the mechanism. Funding a new agent is the first
+  // time most people see this button, and "delegation" is our word, not theirs.
+  gd_give_wallet: "Give it a wallet",
   gd_preparing: "Preparing this agent's wallet…",
   gd_granting: "Approve in your wallet…",
   gd_registering: "Recording…",

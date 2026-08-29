@@ -35,6 +35,7 @@ import {
   NamedValue,
   SectionLabel,
   PRIMARY,
+  SECONDARY,
   QUIET,
   SURFACE,
   BODY,
@@ -271,7 +272,7 @@ export function ModelPanel({
                     provider: model.provider,
                   })
                 }
-                className="flex h-11 w-full items-center justify-center border border-grid-strong font-mono text-[11px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent"
+                className={`w-full ${SECONDARY}`}
               >
                 Change model
               </button>
@@ -312,7 +313,7 @@ export function ModelPanel({
                 <button
                   type="button"
                   onClick={() => setTopUp(true)}
-                  className="flex h-11 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
+                  className={`w-full ${PRIMARY}`}
                 >
                   Top up
                 </button>
@@ -375,11 +376,25 @@ export function ModelTopUpForm({
   agentWallet,
   personalWallet,
   onDone,
+  /**
+   * What the amount field opens on, in USDC.
+   *
+   * The builder collects this in step 3, where the model, its ceiling and the
+   * cadence are all on screen together — see `StartingBalance` in pickModel.
+   * Carrying it here turns this form from a fresh question into a confirmation
+   * of one already answered. Undefined everywhere else, and the field opens
+   * empty exactly as it did.
+   *
+   * A STARTING VALUE, NOT A CONTROLLED ONE: it seeds the state and then lets
+   * go. Re-deriving from the prop would fight anyone editing the number.
+   */
+  initialAmountUsd,
 }: {
   agentId: number;
   agentWallet: string | null;
   personalWallet: string | null;
   onDone: (next: AgentModel) => void;
+  initialAmountUsd?: number;
 }) {
   /**
    * READS ITS OWN MODEL rather than being handed one.
@@ -408,7 +423,9 @@ export function ModelTopUpForm({
   ].filter((p): p is { address: string; label: string } => p !== null);
 
   const [payer, setPayer] = useState(payers[0]?.address ?? "");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(
+    initialAmountUsd !== undefined && initialAmountUsd > 0 ? String(initialAmountUsd) : "",
+  );
   const [held, setHeld] = useState<number | null>(null);
   const [step, setStep] = useState<Step>({ at: "form" });
 
@@ -658,7 +675,7 @@ export function ModelTopUpForm({
               amount.trim() === "" ||
               amountError !== null
             }
-            className="flex h-11 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+            className={`w-full ${PRIMARY}`}
           >
             {step.at === "signing"
               ? "Waiting for signature…"

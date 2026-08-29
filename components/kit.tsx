@@ -52,6 +52,29 @@
 //     surface, `Divider` only where there is a genuine change of kind. A rule
 //     between two facts that belong together says they do not.
 //
+// 11. A SEQUENCE IS A RAIL, NOT A STACK OF CARDS. Numbered steps are carried
+//     by their markers and a hairline threaded through them. A card per step
+//     is a bordered container holding the bordered, pressable controls the
+//     step is made of — rule 3's outline drawn around the ones that can be
+//     pressed — and two boxes read as two unrelated blocks where a rail reads
+//     as one job. The marker carries the state (ring / tick / flat outline) so
+//     the copy beside it can stay one weight throughout.
+//
+// 12. DIM, DON'T HIDE. A step, control or figure that is not reachable YET
+//     stays drawn — full title, full body, and the value it is going to ask
+//     for — in the muted tone. Revealing it only once it unlocks turns the
+//     rest of the job into a surprise, and someone who would have finished a
+//     two-step task abandons the first step because nothing said how deep it
+//     went. Hide a thing only when it does not apply at all. This is the
+//     opposite of rule 4: absence is not a quiet state, it is a missing one.
+//
+// A SYMPTOM WORTH LEARNING. If a control that does the same job on two screens
+// looks different on each — a different radius, padding, type scale or hover —
+// neither screen is wrong about design; one of them was hand-written instead of
+// reaching for the constant below. Four buttons that spend money had four
+// different definitions before anyone noticed, because each one looked fine on
+// its own page.
+//
 // ─────────────────────────────────────────────────────────────────────────────
 // THE TOKENS. Use the constants; do not retype the class strings.
 

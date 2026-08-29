@@ -5,6 +5,9 @@ import { useMemo, useState } from "react";
 import { getModels, type ModelOption } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { RemoteIcon } from "@/components/remoteIcon";
+import { PrepaidBundles } from "@/components/prepaidBundles";
+import { bundlesFor } from "@/lib/modelBundles";
+import { QUIET } from "@/components/kit";
 
 /**
  * Step 3 — choose the model. The council's, not the compiler's.
@@ -43,12 +46,19 @@ import { RemoteIcon } from "@/components/remoteIcon";
  * chosen in step 2. The per-million prices stay, in smaller type, because they
  * are the thing that can be checked against Pod.
  *
- * NOTHING IS CHARGED HERE.
+ * NOTHING IS CHARGED HERE — BUT THE AMOUNT IS DECIDED HERE.
  *
  * The agent does not exist yet, so it has no Pod account and no deposit code to
- * credit. Funding happens on the agent's own page, straight after creation. A
- * wizard that takes money before the thing exists is a wizard that needs a
- * refund path.
+ * credit, and a wizard that takes money before the thing exists is a wizard
+ * that needs a refund path. The DECISION is a different matter: this screen is
+ * the only place that knows the model, its accepted ceiling, and the cadence
+ * from step 2 all at once, which is everything a bundle has to be sized
+ * against. Asking here and signing later means the funding screen confirms a
+ * number rather than opening a fresh question on a page with no context left.
+ *
+ * That is what `intendedTopUpUsd` has always been for. It was previously
+ * defaulted, carried to the rail, and then dropped — the top-up form opened
+ * empty and asked again from nothing.
  */
 
 export interface ModelChoice {
@@ -350,6 +360,19 @@ export function PickModel({
             </div>
 
             {onPod ? <PodTerms value={value} cadenceSec={cadenceSec} isPaper={isPaper} /> : null}
+
+            {/* HOW MUCH IT STARTS WITH, decided where the numbers that size it
+                are. Builder only: in the panel the agent already exists and has
+                a balance, and its top-up is a signature away rather than an
+                intention. */}
+            {onPod && inBuilder ? (
+              <StartingBalance
+                value={value}
+                picked={models.find((m) => m.id === value.modelId) ?? null}
+                cadenceSec={cadenceSec}
+                onChange={(usdc) => onChange({ ...value, intendedTopUpUsd: usdc })}
+              />
+            ) : null}
           </div>
         </>
       )}
@@ -357,7 +380,7 @@ export function PickModel({
       <button
         type="button"
         onClick={onBack}
-        className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary"
+        className={QUIET}
       >
         {inBuilder ? "← Back to limits" : "← Keep the current model"}
       </button>
@@ -418,6 +441,76 @@ function PodTerms({
   );
 }
 
+/**
+ * What the agent starts with — chosen here, signed for after it exists.
+ *
+ * THE QUESTION BELONGS TO THIS SCREEN AND NOT TO THE ONE AFTER IT.
+ *
+ * Sizing a prepaid bundle needs three facts: the model, the ceiling its tokens
+ * are priced at, and how often it will run. All three are on this screen and
+ * none of them are on the funding screen, which opens after the builder has
+ * been torn down. Asking there meant asking with the context gone — an empty
+ * USDC field and a rate, on a page that had just told the owner they were out
+ * of balance.
+ *
+ * NOTHING IS CHARGED AND THE WORDING MUST NOT IMPLY IT IS. This is a stated
+ * intention that pre-fills a form; the money moves later, against a signature,
+ * from a wallet chosen there. "Starts with" rather than "Pay" for exactly that
+ * reason.
+ */
+function StartingBalance({
+  value,
+  picked,
+  cadenceSec,
+  onChange,
+}: {
+  value: ModelChoice;
+  /** The catalogue row for the chosen model, for its measured per-cycle cost. */
+  picked: ModelOption | null;
+  cadenceSec?: number;
+  onChange: (usdc: number) => void;
+}) {
+  const bundles = bundlesFor(value.maxPriceInputUsd, value.maxPriceOutputUsd);
+  if (!bundles || value.maxPriceInputUsd === undefined || value.maxPriceOutputUsd === undefined) {
+    return null;
+  }
+
+  const chosen = value.intendedTopUpUsd ?? null;
+  // How long the money lasts, in the unit the owner actually holds the question
+  // in. Only ever from a MEASURED per-cycle cost — `estCostPerCycleUsd` is null
+  // until the model has run somewhere, and a runway extrapolated from a price
+  // nobody has spent is a promise we have no basis for.
+  const perCycle = picked?.estCostPerCycleUsd ?? null;
+  const days =
+    chosen !== null && perCycle !== null && perCycle > 0 && cadenceSec
+      ? Math.floor(chosen / (perCycle * perDay(cadenceSec)))
+      : null;
+
+  return (
+    <div className="space-y-2.5">
+      <PrepaidBundles
+        bundles={bundles}
+        priceInPerM={value.maxPriceInputUsd}
+        priceOutPerM={value.maxPriceOutputUsd}
+        // A number, held as the string PrepaidBundles matches tiers on.
+        current={chosen === null ? "" : String(chosen)}
+        onPick={onChange}
+      />
+      <p className="font-ui text-[12px] leading-relaxed text-text-secondary">
+        {days !== null ? (
+          <>
+            About <span className="tnum font-mono text-text-primary">{days}</span>{" "}
+            {days === 1 ? "day" : "days"} of thinking at{" "}
+            {cadence(cadenceSec!)} cycles, on what this model has cost so far.{" "}
+          </>
+        ) : null}
+        Nothing is charged now — you sign for it once the agent exists, from a
+        wallet you pick then.
+      </p>
+    </div>
+  );
+}
+
 function ModeCard({
   title,
   badge,
@@ -436,7 +529,7 @@ function ModeCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-full flex-col gap-2.5 border p-5 text-left transition-colors ${
+      className={`flex h-full flex-col gap-2.5 rounded-lg border p-5 text-left transition-colors ${
         active ? "border-accent bg-accent-wash" : "border-grid hover:border-grid-strong"
       }`}
     >
@@ -462,7 +555,7 @@ function ModeCard({
 function Note({ children, tone }: { children: React.ReactNode; tone?: "negative" }) {
   return (
     <p
-      className={`border px-4 py-3 font-ui text-[12.5px] ${
+      className={`rounded-lg border px-4 py-3 font-ui text-[12.5px] ${
         tone === "negative" ? "border-negative text-negative" : "border-grid text-text-secondary"
       }`}
     >

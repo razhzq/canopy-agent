@@ -48,6 +48,7 @@ import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
 import { getClaimedWallets, registerAgentWallet, type RegisteredWallet } from "@/lib/api";
 import { assignableWallets, type WalletFacts } from "@/lib/wallets";
+import { PRIMARY, StatusLine } from "@/components/kit";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 type EmbeddedWallet = Extract<
@@ -125,11 +126,23 @@ export function GrantDelegation({
   maxSpendUsd,
   expiresAt,
   onGranted,
+  /**
+   * What the button says at rest.
+   *
+   * Overridable because the same act has two audiences. At go-live the reader
+   * has already met the word "delegation" and it is the precise term; funding a
+   * brand-new agent is most people's FIRST sight of this button, and there the
+   * precise term names a mechanism they have no model of yet. The in-flight
+   * labels are not overridable — "Approve in your wallet" is the same sentence
+   * to everyone.
+   */
+  idleLabelKey = "gd_grant",
 }: {
   agentId: number;
   maxSpendUsd: number;
   expiresAt: Date;
   onGranted?: (result: RegisteredWallet) => void;
+  idleLabelKey?: TranslationKey;
 }) {
   const { user, getAccessToken } = usePrivy();
   const t = useT();
@@ -240,20 +253,29 @@ export function GrantDelegation({
     // Canopy owns this wallet, the user is told plainly rather than shown the
     // reassurance the grant screen carries.
     const custodial = phase.result.ownerModel === "app_owned";
+    if (custodial) {
+      // Rule 4's exception. "This wallet is Canopy's, not yours" is the rare
+      // thing a reader genuinely needs interrupting for, so it keeps a surface.
+      return (
+        <div className="space-y-2 rounded-lg border border-warning p-4" role="status">
+          <p className="font-mono text-[11px] tracking-[0.08em] text-warning uppercase">
+            {t("gd_active_custodial")}
+          </p>
+          <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
+            {t("gd_custodial_body")}
+          </p>
+        </div>
+      );
+    }
+    // The ordinary outcome, and rule 4 says it is a dot and a word. It was a
+    // bordered accent panel — the loudest object on whatever screen it landed
+    // on, spent on "this worked", which leaves nothing louder for the case
+    // directly above that actually needs it.
     return (
-      <div
-        className={`border p-5 ${custodial ? "border-warning" : "border-accent"}`}
-        role="status"
-      >
-        <p
-          className={`font-mono text-[12px] tracking-[0.06em] uppercase ${
-            custodial ? "text-warning" : "text-accent"
-          }`}
-        >
-          {t(custodial ? "gd_active_custodial" : "gd_active")}
-        </p>
-        <p className="pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-          {t(custodial ? "gd_custodial_body" : "gd_self_custody_body")}
+      <div className="space-y-1.5" role="status">
+        <StatusLine tone="good">{t("gd_active")}</StatusLine>
+        <p className="max-w-[46ch] font-ui text-[12px] leading-relaxed text-text-dim">
+          {t("gd_self_custody_body")}
         </p>
       </div>
     );
@@ -270,9 +292,9 @@ export function GrantDelegation({
         type="button"
         onClick={grant}
         disabled={busy || misconfigured}
-        className="border border-accent px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-black disabled:cursor-not-allowed disabled:border-border disabled:text-text-dim disabled:hover:bg-transparent"
+        className={PRIMARY}
       >
-        {t(LABEL[phase.step])}
+        {t(phase.step === "idle" ? idleLabelKey : LABEL[phase.step])}
       </button>
 
       {/* No "you have no Solana wallet" case any more: this flow creates one
