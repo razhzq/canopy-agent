@@ -4,6 +4,7 @@ import Image from "next/image";
 
 import type { UniverseAsset } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { CLOB_BRAND } from "@/lib/partner";
 
 /**
  * Where an asset trades: the chain it settles on and the router that fills it,
@@ -65,14 +66,21 @@ const CHAIN: Record<Chain, Mark> = {
  */
 const ROUTER_LABEL: Record<Router, string> = {
   jupiter: "Jupiter",
-  kalqix: "KalqiX",
+  // The Base book is named by the BUILD, not by the router key. PhantX is a
+  // whitelabel of KalqiX: identical book, identical fills, a different name on
+  // the door — so a PhantX reader must not be shown a venue they have never
+  // heard of on every market row. `routeOf` still answers "kalqix", because
+  // where the order goes has not changed. See lib/partner.ts.
+  kalqix: CLOB_BRAND.label,
 };
 
 const ROUTER: Record<Router, Mark> = {
   jupiter: { label: ROUTER_LABEL.jupiter, src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
-  // Cropped from the icon+wordmark lockup: the horse fills its square edge to
-  // edge, so it needs no scaling, and its art is on opaque dark like Solana's.
-  kalqix: { label: ROUTER_LABEL.kalqix, src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
+  // Mark and bed both come from the build's brand — the two logos are packaged
+  // differently and need different beds, which is why the pair travels
+  // together rather than the src alone. Neither needs scaling: both fill their
+  // square.
+  kalqix: { label: ROUTER_LABEL.kalqix, src: CLOB_BRAND.src, scale: 1, bg: CLOB_BRAND.bg },
 };
 
 /**

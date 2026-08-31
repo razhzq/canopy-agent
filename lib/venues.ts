@@ -1,6 +1,7 @@
 import type { UniverseAsset } from "@/lib/api";
 import { routeOf, type Chain } from "@/components/routeBadge";
 import type { Translate } from "@/lib/i18n/translate";
+import { CLOB_BRAND } from "@/lib/partner";
 
 /**
  * Where an agent's trades actually fill.
@@ -42,7 +43,11 @@ export const VENUES: Venue[] = [
   { key: "canopy", name: "Canopy", feePct: 0.02, live: true, chain: "solana" },
   // KalqiX publishes no flat taker schedule to quote here, so its fee stays
   // null rather than becoming a guess with a percent sign on it.
-  { key: "kalqix", name: "KalqiX", feePct: null, live: true, chain: "base" },
+  //
+  // The KEY stays "kalqix" — it is what the backend, the universe rows and the
+  // saved selections all say. Only the NAME follows the build, so a PhantX
+  // reader sees the venue they signed up to. See lib/partner.ts.
+  { key: "kalqix", name: CLOB_BRAND.label, feePct: null, live: true, chain: "base" },
   { key: "aeonian", name: "Aeonian", feePct: null, live: false },
   { key: "edgex", name: "edgeX", feePct: null, live: false },
 ];
