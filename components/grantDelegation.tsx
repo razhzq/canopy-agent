@@ -43,7 +43,7 @@
 // not need — see `chooseWallet`.
 
 import { useState } from "react";
-import { usePrivy, useSigners, type User } from "@privy-io/react-auth";
+import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
 import { getClaimedWallets, registerAgentWallet, type RegisteredWallet } from "@/lib/api";
@@ -69,6 +69,20 @@ function embeddedSolanaWallets(user: User | null): EmbeddedWallet[] {
 /** The wallet at exactly this address. Never used to CHOOSE one. */
 function walletAt(user: User | null, address: string): EmbeddedWallet | undefined {
   return embeddedSolanaWallets(user).find((w) => w.address === address);
+}
+
+/**
+ * Privy refusing an address it does not yet see on the account.
+ *
+ * Matched on the message because the SDK gives this no code. It is the one
+ * grant failure that is purely a matter of timing — the wallet exists and is
+ * the user's; the account object had not caught up — so it is the one worth
+ * retrying rather than reporting.
+ */
+function notAssociated(err: unknown): boolean {
+  return /not associated with current user/i.test(
+    err instanceof Error ? err.message : String(err),
+  );
 }
 
 /** Privy's wallet, described in the terms lib/wallets reasons about. */
@@ -146,6 +160,7 @@ export function GrantDelegation({
 }) {
   const { user, getAccessToken } = usePrivy();
   const t = useT();
+  const { refreshUser } = useUser();
   const { addSigners } = useSigners();
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
@@ -168,6 +183,18 @@ export function GrantDelegation({
     const free = firstFreeWallet(user, new Set(claimed.addresses));
     if (free) return { address: free.address, from: "reused" };
 
+    // Before creating one, ask Privy rather than React.
+    //
+    // `user` here is hook state, and hook state lags: a wallet created on a
+    // previous attempt that failed later is on the account but not necessarily
+    // on this render's snapshot, so the search above would miss it and this
+    // would create ANOTHER one. Refreshing costs a round trip on the create
+    // path only, and creating a wallet is the one branch here that cannot be
+    // taken back.
+    const latest = await refreshUser().catch(() => user);
+    const fresh = firstFreeWallet(latest ?? null, new Set(claimed.addresses));
+    if (fresh) return { address: fresh.address, from: "reused" };
+
     // Nothing spare — which is the NORMAL path for an account that only ever
     // had its login wallet, now that the login wallet is off limits. A fresh
     // wallet per agent is the architecture (CANOPY_036), not a fallback.
@@ -176,6 +203,38 @@ export function GrantDelegation({
     // already has an embedded wallet, which by this point is everyone.
     const { wallet } = await createWallet({ createAdditional: true });
     return { address: wallet.address, from: "created" };
+  }
+
+  /**
+   * The user object with `address` on it, waited for rather than assumed.
+   *
+   * WHY PRESSING THE BUTTON ONCE WAS NOT ENOUGH.
+   *
+   * `addSigners` resolves the address against the account's LINKED ACCOUNTS,
+   * and a wallet created a moment earlier in `chooseWallet` is not on the
+   * user object the instant `createWallet` resolves — the linked account
+   * propagates a beat later. Calling straight through raised "address to add
+   * signers to is not associated with current user", the grant failed, and the
+   * only thing that fixed it was pressing the button again once the account
+   * had caught up. So the second press appeared to be what worked, and people
+   * learned to press it two or three times.
+   *
+   * Waiting here is the whole fix: the first press does what the third one did.
+   * `refreshUser` returns the fresh user as a VALUE — hook state is a render
+   * behind and would never update inside this call.
+   */
+  async function linkedUser(address: string): Promise<User> {
+    if (user && walletAt(user, address)) return user;
+
+    let latest: User | null = user;
+    // ~8s of patience. Longer than this is not propagation any more, and an
+    // honest error beats a button that spins until the user gives up.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((r) => setTimeout(r, attempt === 0 ? 200 : 650));
+      latest = await refreshUser().catch(() => latest);
+      if (latest && walletAt(latest, address)) return latest;
+    }
+    throw new Error(t("gd_err_wallet_not_ready"));
   }
 
   async function grant() {
@@ -196,7 +255,12 @@ export function GrantDelegation({
       // Chosen once. Everything below is pinned to this string, so the wallet
       // that receives the signer and the wallet that gets registered cannot
       // come apart — which they did when the choice was made twice.
-      const { address } = await chooseWallet(token);
+      const { address, from } = await chooseWallet(token);
+
+      // A wallet that was just created has to appear on the account before it
+      // can be granted from. See `linkedUser` — this is what the repeated
+      // presses were doing by hand.
+      const owner = from === "created" ? await linkedUser(address) : user;
 
       setPhase({ step: "granting" });
       // The user object `addSigners` RETURNS, not the one in hook state.
@@ -212,12 +276,31 @@ export function GrantDelegation({
           signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [AGENT_POLICY_ID] }],
         }));
       } catch (err) {
-        // A wallet that already carries the signer can refuse the duplicate.
-        // That is not a failure to be delegated — it is the grant already
-        // existing, which is the state a retry after a failed registration
-        // lands in. Anything else is a real error and is rethrown.
-        if (!walletAt(user, address)?.delegated) throw err;
-        granted = user as User;
+        // Everything in here is a press the user used to have to make.
+        //
+        // Asked of Privy, not of hook state: on the attempt that DID the
+        // grant, `user` still describes the wallet as undelegated, so reading
+        // the answer off the closure turned a success into an error message.
+        const latest = (await refreshUser().catch(() => owner)) ?? owner;
+
+        if (walletAt(latest, address)?.delegated) {
+          // A wallet that already carries the signer can refuse the duplicate.
+          // That is not a failure to be delegated — it is the grant already
+          // existing, which is the state a retry after a failed registration
+          // lands in.
+          granted = latest as User;
+        } else if (notAssociated(err) && walletAt(latest, address)) {
+          // The account had not caught up when we asked, and has now. This is
+          // exactly what the second press did, so it is done here instead of
+          // being handed back to the user as an error they can only respond to
+          // by pressing the same button again.
+          ({ user: granted } = await addSigners({
+            address,
+            signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [AGENT_POLICY_ID] }],
+          }));
+        } else {
+          throw err;
+        }
       }
 
       setPhase({ step: "registering" });

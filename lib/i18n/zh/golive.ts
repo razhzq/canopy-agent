@@ -77,4 +77,5 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
   gd_err_not_configured: "委托授权未配置 — 缺少签名者和策略 id",
   gd_err_session: "您的登录状态已过期 — 请重新登录后再试",
   gd_err_no_wallet_id: "授权已完成，但 Privy 没有返回钱包 id — 未登记任何内容",
+  gd_err_wallet_not_ready: "新钱包还没有出现在您的账户上 — 请稍候片刻再试",
 };

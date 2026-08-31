@@ -95,4 +95,6 @@ export const enGoLive = {
   gd_err_session: "your session expired — sign in and try again",
   gd_err_no_wallet_id:
     "the grant completed but Privy did not return a wallet id — nothing was registered",
+  gd_err_wallet_not_ready:
+    "the new wallet has not appeared on your account yet — wait a moment and try again",
 } as const;
