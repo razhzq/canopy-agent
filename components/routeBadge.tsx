@@ -4,7 +4,6 @@ import Image from "next/image";
 
 import type { UniverseAsset } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import { CLOB_BRAND } from "@/lib/partner";
 
 /**
  * Where an asset trades: the chain it settles on and the router that fills it,
@@ -21,7 +20,7 @@ import { CLOB_BRAND } from "@/lib/partner";
  */
 
 export type Chain = "solana" | "base";
-export type Router = "jupiter" | "kalqix";
+export type Router = "jupiter" | "kalqix" | "phantx";
 
 interface Mark {
   label: string;
@@ -66,21 +65,24 @@ const CHAIN: Record<Chain, Mark> = {
  */
 const ROUTER_LABEL: Record<Router, string> = {
   jupiter: "Jupiter",
-  // The Base book is named by the BUILD, not by the router key. PhantX is a
-  // whitelabel of KalqiX: identical book, identical fills, a different name on
-  // the door — so a PhantX reader must not be shown a venue they have never
-  // heard of on every market row. `routeOf` still answers "kalqix", because
-  // where the order goes has not changed. See lib/partner.ts.
-  kalqix: CLOB_BRAND.label,
+  kalqix: "KalqiX",
+  // PhantX is KalqiX's whitelabel: the same order book and the same listings,
+  // reached through a different account. Two names here rather than one
+  // because an agent trades one of them — the balance its orders draw on and
+  // the fills it records follow the account, so the row a person picked has to
+  // say which. See services/kalqix/partners.ts in canopy-be.
+  phantx: "PhantX",
 };
 
 const ROUTER: Record<Router, Mark> = {
   jupiter: { label: ROUTER_LABEL.jupiter, src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
-  // Mark and bed both come from the build's brand — the two logos are packaged
-  // differently and need different beds, which is why the pair travels
-  // together rather than the src alone. Neither needs scaling: both fill their
-  // square.
-  kalqix: { label: ROUTER_LABEL.kalqix, src: CLOB_BRAND.src, scale: 1, bg: CLOB_BRAND.bg },
+  // Cropped from the icon+wordmark lockup: the horse fills its square edge to
+  // edge, so it needs no scaling, and its art is on opaque dark like Solana's.
+  kalqix: { label: ROUTER_LABEL.kalqix, src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
+  // The pony is transparent art with a dark navy outline, so it takes a LIGHT
+  // bed — on the black one its outline is the background and the mark loses
+  // its edge. Trimmed to the artwork, so like the horse it fills its square.
+  phantx: { label: ROUTER_LABEL.phantx, src: "/venues/phantx.png", scale: 1, bg: "bg-white" },
 };
 
 /**
@@ -100,12 +102,22 @@ const ROUTER: Record<Router, Mark> = {
  * same distinction and refuses there, which is where refusing belongs.
  */
 export function routeOf(asset: UniverseAsset): { chain: Chain; router: Router } {
+  // The row's own venue wins where it has one: KalqiX and PhantX both settle
+  // on Base, so the chain cannot separate them and the backend is the thing
+  // that knows which listing this row is.
+  if (asset.venue === "kalqix" || asset.venue === "phantx") {
+    return { chain: "base", router: asset.venue };
+  }
   return asset.chain ? routeOfChain(asset.chain) : routeOfMint(asset.mint);
 }
 
 function routeOfChain(chain: string): { chain: Chain; router: Router } {
   return chain === "base"
-    ? { chain: "base", router: "kalqix" }
+    ? // The chain alone cannot tell KalqiX from PhantX — they settle on the
+      // same one. `routeOf` consults the row's own `venue` before falling back
+      // here, and the mint's namespace decides for a saved pick; this is only
+      // the answer for a Base row that states neither.
+      { chain: "base", router: "kalqix" }
     : { chain: "solana", router: "jupiter" };
 }
 
@@ -119,9 +131,11 @@ function routeOfChain(chain: string): { chain: Chain; router: Router } {
  * be an address.
  */
 export function routeOfMint(mint?: string): { chain: Chain; router: Router } {
-  return mint?.startsWith("kalqix:")
-    ? { chain: "base", router: "kalqix" }
-    : { chain: "solana", router: "jupiter" };
+  if (mint?.startsWith("kalqix:")) return { chain: "base", router: "kalqix" };
+  // Same book, same listings, a different account — and the namespace is the
+  // only thing that says which, which is exactly why the identity carries it.
+  if (mint?.startsWith("phantx:")) return { chain: "base", router: "phantx" };
+  return { chain: "solana", router: "jupiter" };
 }
 
 function Disc({ mark, size }: { mark: Mark; size: number }) {

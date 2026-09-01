@@ -38,6 +38,7 @@ import {
   toPayload,
 } from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
+import { routeOf } from "@/components/routeBadge";
 import {
   DEFAULT_MODEL,
   PickModel,
@@ -53,6 +54,24 @@ import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
  * Stable so it can be compared as a string: the rule list only needs rebuilding
  * when the SET changes, not every time an asset is added within a class.
  */
+/**
+ * The order book a selection trades, named as its owner picked it.
+ *
+ * KalqiX and PhantX are the same book through different accounts, and the
+ * picker offers them as separate rows precisely so the choice is explicit — so
+ * this reports whichever one the markets carry. Mixed selections cannot reach
+ * here: the backend refuses a universe spanning both, since one agent holds one
+ * signing slot on one account.
+ */
+function clobVenueOf(assets: UniverseAsset[]): string | null {
+  for (const a of assets) {
+    const { router } = routeOf(a);
+    if (router === "kalqix") return "KalqiX";
+    if (router === "phantx") return "PhantX";
+  }
+  return null;
+}
+
 function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
   const set = new Set(assets.map(classFor));
   return (["rwa", "spot"] as const).filter((c) => set.has(c));
@@ -499,6 +518,13 @@ export function BuildAgent() {
         model={model}
         agentWallet={funding.wallet}
         personalWallet={personalWallet}
+        // The order book this agent will trade, or nothing.
+        //
+        // Read from the markets actually picked rather than from a venue
+        // choice, because there is no venue choice: picking a PhantX row IS
+        // picking PhantX. An agent with no CLOB market needs no CLOB
+        // delegation and is not asked for one.
+        clobVenue={clobVenueOf(markets)}
         // Re-read after the grant lands, so step two unlocks in place without
         // the owner reopening anything.
         onWalletGranted={() => void refreshFunding(funding.agentId)}

@@ -490,8 +490,15 @@ export interface UniverseAsset {
    * way it is to the executor.
    */
   chain?: "solana" | "base";
-  /** The venue that fills it. Absent means the default router for the chain. */
-  venue?: "jupiter" | "kalqix";
+  /**
+   * The venue that fills it. Absent means the default router for the chain.
+   *
+   * "kalqix" and "phantx" are the same order book reached through different
+   * accounts, so on Base this is the ONLY thing that separates two otherwise
+   * identical rows — the chain cannot, and the picker has to show both because
+   * an agent trades one of them.
+   */
+  venue?: "jupiter" | "kalqix" | "phantx";
   /** How much is known about a crypto token. Absent for RWA. */
   tier?: "verified" | "listed" | "pool";
   /**
@@ -1520,6 +1527,88 @@ export const registerAgentWallet = (
     method: "POST",
     body: JSON.stringify(body),
   });
+
+/* ------------------------------------------------------- CLOB delegation -- */
+
+/**
+ * The user's EVM wallet, delegated once so the order-book venues need no
+ * further prompts.
+ *
+ * KalqiX and PhantX each need two EIP-191 signatures from the owner's Base
+ * address — the SIWE login that mints their API key, and the payload that
+ * authorises an agent's signing key. Granting Canopy's signer on that wallet
+ * once lets canopy-be produce both, so an agent goes from picked to trading
+ * with nothing else to approve. Revocable at any time from the user's wallet
+ * settings, exactly like the agent delegation.
+ *
+ * These routes are keyed by `privyId` rather than a bearer token — they predate
+ * the token-authenticated agent surface — so they do not go through `request`.
+ */
+export interface ClobSignerState {
+  delegated: boolean;
+  address: string | null;
+}
+
+export async function getClobSigner(privyId: string): Promise<ClobSignerState> {
+  const res = await fetch(
+    `${BASE}/api/kalqix/signer?privyId=${encodeURIComponent(privyId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) throw new ApiError(res.status, `CLOB signer state failed (${res.status})`);
+  return res.json() as Promise<ClobSignerState>;
+}
+
+export async function registerClobSigner(body: {
+  privyId: string;
+  walletId: string;
+  address: string;
+}): Promise<{ address: string; delegatedAt: string | null }> {
+  const res = await fetch(`${BASE}/api/kalqix/signer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(res.status, err.error ?? `Registering the signer failed (${res.status})`);
+  }
+  return res.json() as Promise<{ address: string; delegatedAt: string | null }>;
+}
+
+/**
+ * Finishes CLOB onboarding for an agent, using the delegation. No prompts.
+ *
+ * Idempotent — safe to call on the way into a trade without checking first.
+ * The venue account it provisions follows the agent's own markets, so a PhantX
+ * agent gets a PhantX account and a KalqiX agent a KalqiX one.
+ */
+export async function onboardClob(body: {
+  privyId: string;
+  agentId?: number;
+}): Promise<{
+  bootstrapped: boolean;
+  agentRegistered: boolean;
+  minted: boolean;
+  registered: boolean;
+  partner: string;
+}> {
+  const res = await fetch(`${BASE}/api/kalqix/onboard`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(res.status, err.error ?? `CLOB onboarding failed (${res.status})`);
+  }
+  return res.json() as Promise<{
+    bootstrapped: boolean;
+    agentRegistered: boolean;
+    minted: boolean;
+    registered: boolean;
+    partner: string;
+  }>;
+}
 
 /* ---------------------------------------------------- capability notices -- */
 

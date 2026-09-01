@@ -34,6 +34,24 @@ export const AGENT_KEY_QUORUM_ID =
   process.env.NEXT_PUBLIC_PRIVY_AGENT_KEY_QUORUM_ID || "";
 export const AGENT_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_AGENT_POLICY_ID || "";
 
+/**
+ * The policy for the CLOB signer — the user's EVM wallet, delegated once so
+ * canopy-be can sign KalqiX/PhantX onboarding without a prompt each time.
+ *
+ * A SEPARATE ID FROM THE AGENT POLICY, and it has to be. Privy policies are
+ * chain-scoped: the agent policy constrains Solana transactions, and attaching
+ * it to an Ethereum wallet constrains nothing it will ever be asked to do.
+ * What this one must permit is `personal_sign` and nothing else — the two
+ * onboarding payloads are signatures, never transfers, so a policy that allows
+ * a transaction would be granting authority the flow does not use.
+ *
+ * Falls back to nothing rather than to the agent policy: an unset id refuses
+ * the grant (see the misconfigured branch in the delegation component), which
+ * is the honest failure. Silently attaching the wrong policy would produce a
+ * signer that looks constrained and is not.
+ */
+export const CLOB_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_CLOB_POLICY_ID || "";
+
 // Live trading is NOT switched here.
 //
 // This file used to carry its own `LIVE_TRADING_ENABLED` constant, mirroring

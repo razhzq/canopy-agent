@@ -58,11 +58,12 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 /**
  * What each venue is called in the filter — which is not always its name.
  *
- * KalqiX reads as "CLOB DEX" here because that is the property someone reaches
- * for this control to filter on: an order book rather than a pool, with the
- * spread and the resting depth that implies. The venue's own name is on every
- * row it returns, in the badge, so nothing is hidden by naming the structure in
- * the filter and the brand in the results.
+ * KalqiX used to read as "CLOB DEX" here — the structure someone reaches for
+ * this control to filter on, rather than a brand. That worked while there was
+ * one order book. There are now two: PhantX is KalqiX's whitelabel, the same
+ * listings through a different account, and an agent trades one of them. Two
+ * chips both saying "CLOB DEX" would be a control that cannot be used, so the
+ * structure name gives way to the names that actually distinguish them.
  *
  * The key order is the order of the buttons.
  *
@@ -70,19 +71,27 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  * not invent a second name for the same venue — the dialog draws the control as
  * a dropdown rather than chips, but the words have to match.
  */
-export const VENUE_LABEL: Record<Router, TranslationKey | "Jupiter"> = {
-  // A brand, not a description — it reads the same in every language.
+export const VENUE_LABEL: Record<Router, TranslationKey | "Jupiter" | "KalqiX" | "PhantX"> = {
+  // Brands, not descriptions — they read the same in every language.
   jupiter: "Jupiter",
-  kalqix: "mk_venue_clob",
+  kalqix: "KalqiX",
+  phantx: "PhantX",
 };
 
-/** Jupiter's entry is its own name; KalqiX's is a key to resolve. */
+/**
+ * Every entry is a brand today, so nothing needs resolving — but the signature
+ * keeps `t` and the table keeps its union: the moment a venue is best named by
+ * what it IS rather than what it is called, that entry becomes a key again and
+ * only this function changes.
+ */
 export function venueLabel(
   router: Router,
   t: (k: TranslationKey) => string,
 ): string {
   const entry = VENUE_LABEL[router];
-  return entry === "Jupiter" ? entry : t(entry);
+  return entry === "Jupiter" || entry === "KalqiX" || entry === "PhantX"
+    ? entry
+    : t(entry);
 }
 
 export const MARKET_CLASSES = [

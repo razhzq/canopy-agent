@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 
 import { DELEGATION_CEILING_USD, type AgentModel } from "@/lib/api";
 import { GrantDelegation } from "@/components/grantDelegation";
+import { GrantClobDelegation } from "@/components/grantClobDelegation";
 import { ModelTopUpForm } from "@/components/modelPanel";
 import { ModelBadge } from "@/components/modelBadge";
 import { CheckIcon } from "@/components/ui";
@@ -73,6 +75,8 @@ export function FundNewAgent({
   /** The agent's own wallet. Null until delegation is granted — the usual case here. */
   agentWallet,
   personalWallet,
+  /** Which order book this agent trades, if any — see the prop's note above. */
+  clobVenue,
   /** When the agent's mandate ends. The delegation is scoped to the same clock. */
   expiresAt,
   /** Re-read the agent so step two unlocks once the grant lands. */
@@ -86,10 +90,19 @@ export function FundNewAgent({
   model: ModelChoice;
   agentWallet: string | null;
   personalWallet: string | null;
+  /**
+   * The order book this agent trades, if it trades one: "KalqiX" or "PhantX".
+   *
+   * Null for a Solana-only agent, and then the second grant is not drawn at
+   * all — asking someone to authorise an order-book login for an agent that
+   * will never place an order-book order is a step that can only confuse.
+   */
+  clobVenue?: string | null;
   expiresAt?: string | null;
   onWalletGranted: () => void;
   onLeave: () => void;
 }) {
+  const { user } = usePrivy();
   const [funded, setFunded] = useState<AgentModel | null>(null);
   const hasWallet = agentWallet !== null;
 
@@ -173,6 +186,31 @@ export function FundNewAgent({
               />
             </>
           )}
+
+          {/* THE SECOND GRANT, AND ONLY WHEN IT IS REAL.
+
+              An order-book agent needs one authorisation a Solana one does not:
+              the venue wants the owner's own signature to mint their account
+              and to authorise the agent's signing key. Granted here once, it
+              covers this agent and every order-book agent built after it — so
+              what used to be two wallet prompts per agent becomes one, ever.
+
+              Beside the wallet grant rather than as its own step, because it is
+              the same act at the same moment: what this agent needs before it
+              can trade. Drawn in both arms of the branch above — the two
+              delegations are independent, and an agent that already has its
+              wallet may still be missing this one.
+
+              It renders as a finished line when the account has already granted
+              it, which is the usual case from the second order-book agent on. */}
+          {clobVenue ? (
+            <div className="pt-5">
+              <p className="pb-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+                {clobVenue}
+              </p>
+              <GrantClobDelegation privyId={user?.id ?? ""} />
+            </div>
+          ) : null}
         </Step>
 
         {/* ────────────────────────────────────────────────────── two: the money */}
