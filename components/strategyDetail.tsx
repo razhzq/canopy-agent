@@ -143,6 +143,19 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     [universeMarks, liveMarks],
   );
   const [view, setView] = useState<View>("positions");
+
+  /**
+   * Which page of the open book is showing.
+   *
+   * CLIENT-SIDE, unlike History's. The record arrives with every open position
+   * in it — one array, already fetched, and the count is bounded by what one
+   * agent holds at once rather than by everything it has ever done. So this
+   * pages what is already here instead of asking the API again; a request per
+   * press would be a round trip to re-slice a list the page is holding.
+   *
+   * Zero-based, like the trade pager, so both feed the same control.
+   */
+  const [positionsPage, setPositionsPage] = useState(0);
   // One tab stop for the whole strip (roving tabindex, below), so the arrow
   // keys need to move focus themselves — the browser no longer will.
   const tabRefs = useRef<Record<View, HTMLButtonElement | null>>({
@@ -259,6 +272,23 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
   // The array when we have it, the count when the record only reports one —
   // the tab badge must not claim zero holdings for a page still loading them.
   const openCount = ready?.positions?.length ?? ready?.openPositions ?? 0;
+
+  /**
+   * The slice of the book on screen, and where it sits in the whole.
+   *
+   * The page is CLAMPED rather than trusted. A record that reloads with fewer
+   * positions — one closed while the reader was on the last page — would
+   * otherwise leave them on a page that no longer exists, looking at an empty
+   * table with a pager that says there is nothing wrong. Clamping puts them on
+   * the last real page instead, which is where the rows they were reading went.
+   */
+  const shownPositions = useMemo(() => {
+    const all = ready?.positions ?? [];
+    const pages = Math.max(1, Math.ceil(all.length / ROWS_PER_PAGE));
+    const page = Math.min(positionsPage, pages - 1);
+    const from = page * ROWS_PER_PAGE;
+    return { rows: all.slice(from, from + ROWS_PER_PAGE), page, pages, from };
+  }, [ready?.positions, positionsPage]);
 
   return (
     <>
@@ -566,27 +596,44 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                     {t("sd_holdings_note")}
                   </p>
 
-                  <div className="overflow-x-auto border border-grid">
-                    <div className="min-w-[600px]">
-                      <div
-                        className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
-                      >
-                        <span>{t("sd_col_asset")}</span>
-                        <span className="text-right">
-                          {t("sd_col_quantity")}
-                        </span>
-                        <span className="text-right">{t("sd_col_cost")}</span>
-                        <span className="text-right">{t("sd_col_value")}</span>
-                        <span className="text-right">{t("sd_col_pnl")}</span>
+                  <div className="border border-grid">
+                    {/* Its own scroller, inside the frame rather than around
+                        it — five columns of figures must not push the page
+                        sideways, and the pager below has to stay put while
+                        the table scrolls. Same shape as History's. */}
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[600px]">
+                        <div
+                          className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+                        >
+                          <span>{t("sd_col_asset")}</span>
+                          <span className="text-right">
+                            {t("sd_col_quantity")}
+                          </span>
+                          <span className="text-right">{t("sd_col_cost")}</span>
+                          <span className="text-right">{t("sd_col_value")}</span>
+                          <span className="text-right">{t("sd_col_pnl")}</span>
+                        </div>
+                        {shownPositions.rows.map((p) => (
+                          <PositionRow
+                            key={`${p.symbol}-${p.openedAt}`}
+                            p={p}
+                            marks={marks}
+                          />
+                        ))}
                       </div>
-                      {ready.positions.map((p) => (
-                        <PositionRow
-                          key={`${p.symbol}-${p.openedAt}`}
-                          p={p}
-                          marks={marks}
-                        />
-                      ))}
                     </div>
+
+                    {shownPositions.pages > 1 ? (
+                      <Pager
+                        page={shownPositions.page}
+                        pages={shownPositions.pages}
+                        from={shownPositions.from + 1}
+                        to={shownPositions.from + shownPositions.rows.length}
+                        total={ready.positions.length}
+                        onPage={setPositionsPage}
+                      />
+                    ) : null}
                   </div>
                 </>
               )}
