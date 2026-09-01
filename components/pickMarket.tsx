@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
+import { LABEL, SURFACE } from "@/components/kit";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -343,38 +344,44 @@ export function PickMarket({
           </div>
 
           {/*
-            The venue filter. Same pill as the class chips, so the two read as
-            one family of filters — with the caption and the rule to its left
-            carrying the distinction the shape used to: class picks WHAT, venue
-            picks WHERE, and they compose rather than compete. The caption is
-            not decoration now that it is the only thing separating the axes.
+            The venue filter, as a dropdown rather than pills.
+            
+            It used to be the same pill as the class chips, on the reasoning
+            that one shape read as one family of filters. That held while the
+            row was "All · Jupiter · KalqiX" — three options beside four class
+            chips. PhantX made it four, and seven pills on one line is a row
+            you scan rather than read, with the two axes running into each
+            other exactly where the rule was supposed to separate them.
+
+            A dropdown states the current venue in one control's width and
+            costs a click only when someone actually wants to change it —
+            which is rarely, since the class chips are the filter people
+            reach for. It also stops the row growing again the next time a
+            venue is added. Same control the add-market dialog already uses,
+            so the two surfaces filtering the same universe now look alike.
           */}
           {venuesPresent.length > 1 ? (
-            <div className="flex items-center gap-2 border-l border-grid pl-3">
-              <span className="font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-                {t("mk_venue")}
-              </span>
-              <div className="flex items-center gap-2">
-                {(["all", ...venuesPresent] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={venue === v}
-                    onClick={() => {
-                      setVenue(v);
-                      setCursor(0);
-                    }}
-                    className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
-                      venue === v
-                        ? "border-accent bg-accent-wash text-accent"
-                        : "border-border text-text-secondary hover:border-grid-strong"
-                    }`}
-                  >
-                    {v === "all" ? t("mk_venue_all") : venueLabel(v, t)}
-                  </button>
+            <label className={`flex items-center gap-2 border-l border-grid pl-3 ${LABEL}`}>
+              {t("mk_venue")}
+              <select
+                value={venue}
+                onChange={(e) => {
+                  setVenue(e.target.value as Router | "all");
+                  setCursor(0);
+                }}
+                aria-label={t("mk_venue")}
+                className={`${SURFACE} px-2 py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent`}
+              >
+                <option value="all" className="bg-bg">
+                  {t("mk_venue_all")}
+                </option>
+                {venuesPresent.map((v) => (
+                  <option key={v} value={v} className="bg-bg">
+                    {venueLabel(v, t)}
+                  </option>
                 ))}
-              </div>
-            </div>
+              </select>
+            </label>
           ) : null}
         </div>
         <div className="flex items-center gap-3">
