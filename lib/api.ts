@@ -1773,7 +1773,8 @@ export interface ModelCatalogue {
    * sentences to a reader, indistinguishable from an empty array, which is why
    * the server names it rather than leaving the UI to guess.
    */
-  podStatus?: "ok" | "disabled" | "unreachable";
+  /** "stale" is a real list, served while Pod is briefly unreachable. */
+  podStatus?: "ok" | "disabled" | "unreachable" | "stale";
   /**
    * How far above list price the accepted ceiling sits, e.g. 1.5.
    *
@@ -1784,15 +1785,57 @@ export interface ModelCatalogue {
   priceCeilingMultiple: number;
 }
 
+const MODELS_TTL_MS = 5 * 60_000;
+
+let modelsCache: { at: number; data: ModelCatalogue } | null = null;
+let modelsInFlight: Promise<ModelCatalogue> | null = null;
+
+/**
+ * The cached catalogue if it is still fresh, else null.
+ *
+ * For seeding the first render, exactly like {@link peekUniverse}: a cache that
+ * can only be read through a promise still costs a frame of "Loading models…",
+ * and the model step is one people page back into repeatedly while deciding.
+ * The list they saw a moment ago should still be there.
+ */
+export function peekModels(): ModelCatalogue | null {
+  return modelsCache && Date.now() - modelsCache.at < MODELS_TTL_MS
+    ? modelsCache.data
+    : null;
+}
+
 /**
  * The catalogue.
  *
  * Under `/agents` like everything else on this surface, rather than a top-level
  * `/models`: canopy-be mounts the whole agent API there, and a second mount
  * point for one route is a second thing to keep in sync.
+ *
+ * Cached for the length of a decision. canopy-be caches this too, and the two
+ * are not redundant: the server's spares Pod's marketplace a fetch per user,
+ * this one spares the round trip entirely, which is the part the reader sees.
+ * Concurrent callers share one request rather than each starting their own.
  */
-export const getModels = (token: string) =>
-  request<ModelCatalogue>("/agents/models", token);
+export function getModels(token: string): Promise<ModelCatalogue> {
+  const fresh = peekModels();
+  if (fresh) return Promise.resolve(fresh);
+  if (modelsInFlight) return modelsInFlight;
+
+  modelsInFlight = request<ModelCatalogue>("/agents/models", token)
+    .then((data) => {
+      // A degraded answer is not remembered: "Pod is unreachable" describes
+      // this second, and caching it would keep the choice hidden after the
+      // outage ended. A stale list from the server IS cached — it is a real
+      // list, and re-asking for it every render helps nobody.
+      if (data.podStatus !== "unreachable") modelsCache = { at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      modelsInFlight = null;
+    });
+
+  return modelsInFlight;
+}
 
 /**
  * What an agent thinks with, and what that is costing.

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { getModels, type ModelOption } from "@/lib/api";
+import { getModels, peekModels, type ModelOption } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { RemoteIcon } from "@/components/remoteIcon";
 import { PrepaidBundles } from "@/components/prepaidBundles";
@@ -115,7 +115,10 @@ export function PickModel({
   context?: "builder" | "panel";
 }) {
   const inBuilder = context === "builder";
-  const catalogue = useApi((t) => getModels(t), []);
+  // Seeded from the cache so paging back into this step does not flash a
+  // spinner over a list that has not changed — the same treatment the market
+  // picker gets. useApi still revalidates behind it.
+  const catalogue = useApi((t) => getModels(t), [], peekModels() ?? undefined);
   const [query, setQuery] = useState("");
 
   const models = catalogue.phase === "ready" ? catalogue.data.models : [];
@@ -144,13 +147,28 @@ export function PickModel({
   }, [all, query]);
 
   function choose(m: ModelOption) {
-    // A model with no ceiling cannot be agreed to: the agreement IS the
-    // ceiling. The catalogue marks those unselectable; this is the second lock.
-    if (!m.selectable || m.maxPriceInputUsd === null) return;
+    if (!m.selectable) return;
+
+    // THE CEILING RULE IS ABOUT BOUGHT MODELS, AND ONLY ABOUT THOSE.
+    //
+    // Canopy's model carries no ceiling on purpose: there is nothing to buy and
+    // no spend to cap, so `maxPriceInputUsd` is null the way `inputPerMTokenUsd`
+    // is — an absent price, not an unpriced risk.
+    //
+    // That null used to be caught by the same guard as the Pod rows, one line
+    // above this branch. The effect was that once someone picked a bought
+    // model, clicking "Included" to go back did NOTHING — no change, no error,
+    // no reason given. The way out of a purchase decision was a dead button,
+    // which is the worst place in the flow to put one.
     if (m.provider === "canopy") {
       onChange({ modelId: m.id, label: m.label, provider: "canopy" });
       return;
     }
+
+    // A BOUGHT model with no ceiling cannot be agreed to: the agreement IS the
+    // ceiling. The catalogue marks those unselectable; this is the second lock.
+    if (m.maxPriceInputUsd === null) return;
+
     onChange({
       modelId: m.id,
       label: m.label,
@@ -574,7 +592,11 @@ function Note({ children, tone }: { children: React.ReactNode; tone?: "negative"
  * either act on or stop worrying about.
  */
 function emptyReason(status?: string, searching?: boolean): string {
-  if (status === "unreachable") {
+  // "stale" never lands here: it carries a real list, so the empty branch is
+  // not reached. It is named anyway, because a status this function does not
+  // know would otherwise fall through to "Pod is listing no models", which
+  // would be a lie about a list that exists.
+  if (status === "unreachable" || status === "stale") {
     return "Pod could not be reached just now. Your agent can still run on the included model.";
   }
   if (searching) return "No model matches that.";
