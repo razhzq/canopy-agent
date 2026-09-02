@@ -515,12 +515,10 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                   : undefined
               }
             />
-            <Fact label={t("sd_fact_custody")} value={t("sd_custody_value")} />
-            <Fact
-              label={t("sd_fact_creator_fee")}
-              value={t("sd_creator_fee_value", { pct: strategy.fee_pct })}
-              last
-            />
+            {/* `last` moves up as the fee row goes: it is what drops the
+                trailing hairline, and leaving it on the row above's neighbour
+                would draw a rule under the final fact with nothing beneath it. */}
+            <Fact label={t("sd_fact_custody")} value={t("sd_custody_value")} last />
           </div>
 
           {/* Inside the column, boxed — it is a term of the listing, not a
