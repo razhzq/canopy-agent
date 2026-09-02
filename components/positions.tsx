@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { shortDate, tokenPrice, tokenQty, usd } from "@/lib/format";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  exitCostUsd,
   getAgentFills,
   num,
   type AgentDetail,
   type AgentFill,
+  type SwapCost,
   type UniverseAsset,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -46,12 +48,15 @@ export function Positions({
   agentId,
   positions,
   universe,
+  swapCost,
   onChanged,
 }: {
   agentId: number;
   positions: AgentDetail["positions"];
   /** Priced assets, for the mark. Absent while the universe call is in flight. */
   universe: UniverseAsset[];
+  /** What a swap costs, so the book can state what closing would leave. */
+  swapCost?: SwapCost;
   /** Re-read the book after the owner closes something out from under it. */
   onChanged?: () => void;
 }) {
@@ -64,7 +69,7 @@ export function Positions({
         <TabButton active={tab === "open"} onClick={() => setTab("open")}>
           {positions.length > 0
             ? t("positions_tab_open_count", {
-                count: aggregate(positions, universe).length,
+                count: aggregate(positions, universe, swapCost).length,
               })
             : t("positions_tab_open")}
         </TabButton>
@@ -78,6 +83,7 @@ export function Positions({
           agentId={agentId}
           positions={positions}
           universe={universe}
+          swapCost={swapCost}
           onChanged={onChanged}
         />
       ) : (
@@ -146,6 +152,21 @@ interface Holding {
   valueUsd: number | null;
   pnlUsd: number | null;
   pnlPct: number | null;
+  /**
+   * What closing this holding right now would cost, and what it would leave.
+   *
+   * `pnlUsd` above is the position's own performance: value against cost. It
+   * already nets the fee paid to OPEN — that fee is inside the cost basis — but
+   * not the one closing would charge, which is why a row could read "+$1" and
+   * settle red. These two say what the owner would actually receive, which is
+   * the only question a close button asks.
+   *
+   * Null when the position cannot be priced, like the figures above; zero cost
+   * when the backend sent no model, in which case net equals gross and the
+   * screen behaves exactly as it did before.
+   */
+  exitCostUsd: number | null;
+  netPnlUsd: number | null;
   openedAt: string;
   lots: Lot[];
 }
@@ -160,6 +181,7 @@ interface Holding {
 export function aggregate(
   positions: AgentDetail["positions"],
   universe: UniverseAsset[],
+  swapCost?: SwapCost,
 ): Holding[] {
   const bySymbol = new Map<string, AgentDetail["positions"]>();
   for (const p of positions) {
@@ -206,6 +228,11 @@ export function aggregate(
           valueUsd === null || costUsd <= 0
             ? null
             : ((valueUsd - costUsd) / costUsd) * 100,
+        exitCostUsd: valueUsd === null ? null : exitCostUsd(valueUsd, swapCost),
+        netPnlUsd:
+          valueUsd === null
+            ? null
+            : valueUsd - exitCostUsd(valueUsd, swapCost) - costUsd,
         // Oldest lot: when this position started, not when it was last added to.
         openedAt: lots[0].openedAt,
         lots,
@@ -218,18 +245,20 @@ function OpenTable({
   agentId,
   positions,
   universe,
+  swapCost,
   onChanged,
 }: {
   agentId: number;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
+  swapCost?: SwapCost;
   onChanged?: () => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   /** The holding awaiting confirmation, or null when no dialog is up. */
   const [closing, setClosing] = useState<Holding | null>(null);
   const { t, locale } = useLocale();
-  const holdings = aggregate(positions, universe);
+  const holdings = aggregate(positions, universe, swapCost);
 
   if (holdings.length === 0) {
     return (
@@ -355,25 +384,44 @@ function OpenTable({
                   mark, so they cannot disagree. */}
                 <span
                   className={`text-right ${
-                    h.pnlUsd === null
+                    h.netPnlUsd === null
                       ? "text-text-muted"
-                      : h.pnlUsd >= 0
+                      : h.netPnlUsd >= 0
                         ? "text-accent"
                         : "text-negative"
                   }`}
+                  /* What the gross figure was, and what closing costs. The row
+                     shows the number the owner can act on; the number the
+                     position itself earned is a click away rather than gone. */
+                  title={
+                    h.pnlUsd === null || h.exitCostUsd === null
+                      ? undefined
+                      : t("positions_pnl_net_title", {
+                          gross: usd(h.pnlUsd, { sign: true }),
+                          cost: usd(h.exitCostUsd),
+                        })
+                  }
                 >
-                  {/* Watching the dollars, wrapping both. They come off one
+                  {/* NET OF WHAT CLOSING COSTS, and that is the whole point of
+                      this column. Cost basis already carries the fee paid to
+                      open, so a gross figure counted one side of a round trip
+                      and not the other: a position up less than the exit fee
+                      read "+$1" and settled red the moment it was closed.
+
+                      Watching the dollars, wrapping both. They come off one
                       mark, so flashing them separately would be two washes for
                       one event — and the percent alone can round to unchanged
                       while the dollars moved. */}
-                  <Tick value={h.pnlUsd}>
+                  <Tick value={h.netPnlUsd}>
                     <span className="tnum block font-mono text-[12.5px]">
-                      {h.pnlUsd === null ? "—" : usd(h.pnlUsd, { sign: true })}
+                      {h.netPnlUsd === null
+                        ? "—"
+                        : usd(h.netPnlUsd, { sign: true })}
                     </span>
-                    {h.pnlPct === null ? null : (
+                    {h.netPnlUsd === null || h.costUsd <= 0 ? null : (
                       <span className="tnum block pt-0.5 font-mono text-[11px] opacity-70">
-                        {h.pnlPct >= 0 ? "+" : "−"}
-                        {Math.abs(h.pnlPct).toFixed(1)}%
+                        {h.netPnlUsd >= 0 ? "+" : "−"}
+                        {Math.abs((h.netPnlUsd / h.costUsd) * 100).toFixed(1)}%
                       </span>
                     )}
                   </Tick>

@@ -769,6 +769,10 @@ export function AgentDetailView({
               agentId={agentId}
               positions={positions}
               universe={marked}
+              // What a swap costs, straight from the execution adapter — so
+              // the book states what closing would leave rather than what the
+              // position is worth on paper.
+              swapCost={detail.swapCost}
               onChanged={() => void load()}
             />
           </section>

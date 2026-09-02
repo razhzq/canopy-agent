@@ -2109,8 +2109,29 @@ export const refreshBilling = (token: string) =>
 
 /* ------------------------------------------------------------- monitoring -- */
 
+/**
+ * What one swap costs, as the execution adapter charges it.
+ *
+ * Sent by the API rather than hardcoded here: a second copy of these numbers in
+ * the client is how the figure on screen and the figure booked drift apart —
+ * which is the bug this exists to fix. Absent on an older backend, and the
+ * screen then falls back to the gross PnL it always showed.
+ */
+export interface SwapCost {
+  feeBps: number;
+  networkFeeUsd: number;
+}
+
+/** What closing a position of this size would cost. */
+export function exitCostUsd(valueUsd: number, cost?: SwapCost): number {
+  if (!cost) return 0;
+  return (Math.max(valueUsd, 0) * cost.feeBps) / 10_000 + cost.networkFeeUsd;
+}
+
 export interface AgentDetail {
   agent: AgentRow;
+  /** Absent on an older backend — see {@link SwapCost}. */
+  swapCost?: SwapCost;
   positions: {
     id: number;
     mint: string;

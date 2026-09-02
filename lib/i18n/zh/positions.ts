@@ -13,6 +13,7 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   positions_at_price: "@ {price}",
   positions_col_value: "市值",
   positions_col_pnl: "盈亏",
+  positions_pnl_net_title: "已扣除平仓成本 {cost}。持仓本身为 {gross}。",
   positions_since: "自 {date} 起",
   positions_entries_since: "{count} 笔建仓 · 自 {date} 起",
   positions_not_priced: "无法定价",

@@ -25,6 +25,8 @@ export const zhEquity: Record<keyof typeof enEquity, string> = {
   close_price_now: "当前价格",
   close_total_value: "总市值",
   close_pnl: "盈亏",
+  close_fee: "平仓成本",
+  close_pnl_net: "扣费后盈亏",
   close_not_priced: "无法定价",
   close_unpriced_note:
     "该标的当前没有可读取的价格。系统会拒绝这笔卖出，而不是按猜测的价格成交 — 请几分钟后再试。",

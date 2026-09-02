@@ -29,6 +29,8 @@ export const enEquity = {
   close_price_now: "Price now",
   close_total_value: "Total value",
   close_pnl: "P&L",
+  close_fee: "Cost to close",
+  close_pnl_net: "P&L after fee",
   close_not_priced: "not priced",
   close_unpriced_note:
     "This asset has no readable price right now. The sale will be refused rather than filled at a guess — try again in a few minutes.",

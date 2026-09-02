@@ -15,6 +15,8 @@ export const enPositions = {
   positions_at_price: "@ {price}",
   positions_col_value: "Value",
   positions_col_pnl: "P&L",
+  positions_pnl_net_title:
+    "After the {cost} it costs to close. The position itself is {gross}.",
   positions_since: "since {date}",
   positions_entries_since: "{count} entries · since {date}",
   // Never "$0.00" — a position we could not price is unknown, not flat.

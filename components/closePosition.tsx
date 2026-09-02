@@ -37,6 +37,9 @@ export interface ClosableHolding {
   valueUsd: number | null;
   pnlUsd: number | null;
   pnlPct: number | null;
+  /** See Holding in positions.tsx — what closing costs, and what it leaves. */
+  exitCostUsd?: number | null;
+  netPnlUsd?: number | null;
 }
 
 export function ClosePositionModal({
@@ -59,6 +62,26 @@ export function ClosePositionModal({
   const cancel = useRef<HTMLButtonElement>(null);
 
   const priced = holding.valueUsd !== null;
+
+  /**
+   * What the owner would actually receive, when the page knows the fee.
+   *
+   * `netPnlUsd` is absent only against a backend that sends no cost model, and
+   * then this falls back to the gross figure — the dialog says "P&L" instead
+   * of "P&L after fee" and behaves exactly as it did before.
+   */
+  const net = holding.netPnlUsd ?? null;
+  const shownPnl = net ?? holding.pnlUsd;
+  // Cost basis, derived rather than passed: value minus what the position made
+  // is what it cost, and both of those are already here.
+  const costBasis =
+    holding.valueUsd === null || holding.pnlUsd === null
+      ? null
+      : holding.valueUsd - holding.pnlUsd;
+  const shownPct =
+    shownPnl === null || costBasis === null || costBasis <= 0
+      ? holding.pnlPct
+      : (shownPnl / costBasis) * 100;
 
   // Escape closes, and focus starts on CANCEL rather than on the destructive
   // button — a stray Enter on an unread dialog should do nothing.
@@ -166,17 +189,29 @@ export function ClosePositionModal({
             }
             dim={holding.valueUsd === null}
           />
+          {/* THE COST OF THE ACT BEING CONFIRMED, on the screen confirming it.
+              A dialog that quotes a gain and then books a loss is the one place
+              this gap is least forgivable — the owner pressed the button
+              BECAUSE of the number above it. Shown as its own line rather than
+              folded silently into the total, so the arithmetic is checkable. */}
+          {net === null ? null : (
+            <Row
+              label={t("close_fee")}
+              value={`−$${(holding.exitCostUsd ?? 0).toFixed(2)}`}
+              dim
+            />
+          )}
           <Row
-            label={t("close_pnl")}
-            dim={holding.pnlUsd === null}
-            tone={holding.pnlUsd === null ? "none" : holding.pnlUsd >= 0 ? "up" : "down"}
+            label={net === null ? t("close_pnl") : t("close_pnl_net")}
+            dim={shownPnl === null}
+            tone={shownPnl === null ? "none" : shownPnl >= 0 ? "up" : "down"}
             value={
-              holding.pnlUsd === null
+              shownPnl === null
                 ? "—"
-                : `${holding.pnlUsd >= 0 ? "+" : "−"}$${Math.abs(holding.pnlUsd).toFixed(2)}` +
-                  (holding.pnlPct === null
+                : `${shownPnl >= 0 ? "+" : "−"}$${Math.abs(shownPnl).toFixed(2)}` +
+                  (shownPct === null
                     ? ""
-                    : `  (${holding.pnlPct >= 0 ? "+" : "−"}${Math.abs(holding.pnlPct).toFixed(1)}%)`)
+                    : `  (${shownPct >= 0 ? "+" : "−"}${Math.abs(shownPct).toFixed(1)}%)`)
             }
           />
         </dl>
