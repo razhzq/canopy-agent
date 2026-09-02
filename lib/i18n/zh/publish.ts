@@ -82,7 +82,7 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   sd_custody_value: "非托管",
   sd_fact_creator_fee: "创建者分成",
   sd_creator_fee_value: "利润的 {pct}%",
-  sd_meta: "{class} · {fee}% 分成 · 自 {date} 起运行",
+  sd_meta: "{class} · 自 {date} 起运行",
   sd_open_workspace: "在工作区中打开",
   sd_deploy_this: "部署这个策略",
   sd_open_positions: "当前持仓",

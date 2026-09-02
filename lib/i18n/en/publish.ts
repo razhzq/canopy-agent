@@ -86,7 +86,7 @@ export const enPublish = {
   sd_custody_value: "Non-custodial",
   sd_fact_creator_fee: "Creator fee",
   sd_creator_fee_value: "{pct}% of profit",
-  sd_meta: "{class} · {fee}% fee · running since {date}",
+  sd_meta: "{class} · running since {date}",
   sd_open_workspace: "Open in workspace",
   sd_deploy_this: "Deploy this",
   sd_open_positions: "Open positions",

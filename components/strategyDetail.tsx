@@ -205,6 +205,30 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     return points.slice(Math.max(points.length - keep, 0));
   }, [points, range]);
 
+  /**
+   * The slice of the open book on screen, and where it sits in the whole.
+   *
+   * UP HERE WITH THE OTHER HOOKS, and the comment above `ready` says why: the
+   * early returns for a loading or signed-out `meta` are below, so a memo
+   * placed after them runs on some renders and not others. React counts hooks
+   * per render, and this exact mistake took the page down with error #310
+   * ("rendered more hooks than during the previous render") — the record
+   * arrived, the hook appeared, and the page died rather than rendering.
+   *
+   * The page is CLAMPED rather than trusted. A record that reloads with fewer
+   * positions — one closed while the reader was on the last page — would
+   * otherwise leave them on a page that no longer exists, looking at an empty
+   * table under a pager insisting nothing is wrong. Clamping puts them on the
+   * last real page, which is where the rows they were reading went.
+   */
+  const shownPositions = useMemo(() => {
+    const all = ready?.positions ?? [];
+    const pages = Math.max(1, Math.ceil(all.length / ROWS_PER_PAGE));
+    const page = Math.min(positionsPage, pages - 1);
+    const from = page * ROWS_PER_PAGE;
+    return { rows: all.slice(from, from + ROWS_PER_PAGE), page, pages, from };
+  }, [ready?.positions, positionsPage]);
+
   const crumbs = (name?: string) => (
     <div className="px-5 sm:px-8 pt-6">
       <Breadcrumb
@@ -273,23 +297,6 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
   // the tab badge must not claim zero holdings for a page still loading them.
   const openCount = ready?.positions?.length ?? ready?.openPositions ?? 0;
 
-  /**
-   * The slice of the book on screen, and where it sits in the whole.
-   *
-   * The page is CLAMPED rather than trusted. A record that reloads with fewer
-   * positions — one closed while the reader was on the last page — would
-   * otherwise leave them on a page that no longer exists, looking at an empty
-   * table with a pager that says there is nothing wrong. Clamping puts them on
-   * the last real page instead, which is where the rows they were reading went.
-   */
-  const shownPositions = useMemo(() => {
-    const all = ready?.positions ?? [];
-    const pages = Math.max(1, Math.ceil(all.length / ROWS_PER_PAGE));
-    const page = Math.min(positionsPage, pages - 1);
-    const from = page * ROWS_PER_PAGE;
-    return { rows: all.slice(from, from + ROWS_PER_PAGE), page, pages, from };
-  }, [ready?.positions, positionsPage]);
-
   return (
     <>
       {crumbs(strategy.name)}
@@ -319,9 +326,13 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             {/* A draft has neither of the first two — it has only when it was
                 created, which for a draft with an agent on it IS when the
                 record started. */}
+            {/* The creator fee is NOT here any more. It is a term of the
+                listing, and it already has a labelled row in the facts column
+                beside this — stating it twice made a fee the second thing a
+                visitor read about an agent, ahead of what it trades and how
+                long it has been running. */}
             {t("sd_meta", {
               class: strategy.strategy_class,
-              fee: strategy.fee_pct,
               date: since(
                 strategy.verification_started_at ??
                   strategy.published_at ??
