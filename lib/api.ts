@@ -591,6 +591,18 @@ export interface ExitRules {
   stopLossPct: number;
   /** Zero or absent means never on time alone. */
   maxHoldDays?: number;
+  /**
+   * Close EVERY open position at once when the book as a whole reaches a level.
+   *
+   * The only exit here that is not a question about one position. "Close all my
+   * orders when I am up 10% overall" cannot be written as `takeProfitPct`: that
+   * fires per position, so it would sell the winners and keep the losers, which
+   * is the opposite of closing all. Measured on open positions marked to price
+   * against their summed cost, never including realised PnL.
+   *
+   * Mirrors `ExitRules.basket` in @canopy/agent-contracts. Keep them in step.
+   */
+  basket?: { takeProfitPct?: number; stopLossPct?: number };
 }
 
 /**
@@ -1218,6 +1230,20 @@ export interface AddPlan {
   maxAdds?: number;
   maxTotalUsd?: number;
   minSpacingSec?: number;
+  /**
+   * Judge exits on each rung separately instead of on the blended position.
+   *
+   * What makes a ladder a grid: the rung bought cheapest sells on its own
+   * bounce while the higher rungs stay open. Off by default, which is the
+   * blended behaviour every existing strategy has.
+   *
+   * Applies to take profit, stop loss and the hold limit. The trailing stop,
+   * break-even floor and scale-out ladder still measure the whole position —
+   * they are remembered per position, not per entry.
+   *
+   * Mirrors `AddPlan.perLotExits` in @canopy/agent-contracts. Keep them in step.
+   */
+  perLotExits?: boolean;
 }
 
 /**

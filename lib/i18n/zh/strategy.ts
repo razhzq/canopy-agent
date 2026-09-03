@@ -120,6 +120,14 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   bs_days: "{n} 天",
   bs_exits_note:
     "出场规则在每个周期都会先于寻找新标的被检查 — 包括那些什么都没买的周期。价格无法读取的持仓绝不会按猜测的价格平掉。",
+  bs_basket_title: "整体出场",
+  bs_basket_body: "当整个持仓组合达到某个水平时,一次性平掉所有仓位 — 而不是按每个仓位各自的水平。",
+  bs_basket_on: "开启",
+  bs_basket_off: "关闭",
+  bs_basket_take: "组合止盈",
+  bs_basket_take_help: "当整体持仓组合的浮盈达到这个百分比时,平掉所有仓位,不论各个仓位表现如何。",
+  bs_basket_stop: "组合止损",
+  bs_basket_stop_help: "当整体持仓组合的浮亏达到这个百分比时,平掉所有仓位。",
   bs_timeframe: "K 线周期",
   bs_timeframe_note: "上面每条规则所依据的 K 线级别。",
   bs_timeframe_help:
@@ -142,6 +150,12 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   acc_off_body: "智能体买入一次后便只管理该仓位。打开此项即可摊平成本 — 按计划、按下跌或按走强加仓。",
   acc_blend_warning:
     "您的止盈和止损现在衡量的是全部买入的加权平均成本，而不是每一笔单独计算。一个向下摊平了三次的仓位会作为一个整体出场。",
+  acc_perlot_note: "现在每一笔买入都各自判断自己的止盈和止损。买入价最低的那一笔可以在自己反弹时单独卖出,其余的继续持有。",
+  acc_perlot_title: "网格 — 每笔单独出场",
+  acc_perlot_body:
+    "关闭时,所有买入会合并为一个平均仓位。开启时,每一笔买入按自己的止盈止损单独出场 — 这就是网格交易。",
+  acc_perlot_on: "按笔出场",
+  acc_perlot_off: "合并计算",
   acc_when: "何时加仓",
   acc_schedule: "按计划",
   acc_falls: "下跌时",

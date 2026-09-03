@@ -809,6 +809,68 @@ export function StrategyStep({
         <p className="pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
           {t("bs_exits_note")}
         </p>
+
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-grid pt-4">
+          <div>
+            <p className="font-ui text-[12.5px] text-text-primary">{t("bs_basket_title")}</p>
+            <p className="pt-0.5 max-w-[56ch] font-ui text-[11.5px] leading-relaxed text-text-dim">
+              {t("bs_basket_body")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setExit({
+                basket: exits.basket ? undefined : { takeProfitPct: 10 },
+              })
+            }
+            aria-pressed={!!exits.basket}
+            className={`h-8 shrink-0 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+              exits.basket
+                ? "border-accent text-accent"
+                : "border-grid text-text-muted hover:text-text-secondary"
+            }`}
+          >
+            {t(exits.basket ? "bs_basket_on" : "bs_basket_off")}
+          </button>
+        </div>
+
+        {exits.basket ? (
+          <div className="border-t border-grid">
+            <Slider
+              label={t("bs_basket_take")}
+              help={t("bs_basket_take_help")}
+              value={exits.basket.takeProfitPct ?? 0}
+              min={0}
+              max={200}
+              step={1}
+              display={
+                exits.basket.takeProfitPct
+                  ? `+${exits.basket.takeProfitPct}%`
+                  : t("bs_time_never")
+              }
+              onChange={(v) =>
+                setExit({ basket: { ...exits.basket, takeProfitPct: v || undefined } })
+              }
+            />
+            <Slider
+              label={t("bs_basket_stop")}
+              help={t("bs_basket_stop_help")}
+              value={exits.basket.stopLossPct ?? 0}
+              min={0}
+              max={90}
+              step={1}
+              display={
+                exits.basket.stopLossPct
+                  ? `−${exits.basket.stopLossPct}%`
+                  : t("bs_time_never")
+              }
+              onChange={(v) =>
+                setExit({ basket: { ...exits.basket, stopLossPct: v || undefined } })
+              }
+            />
+          </div>
+        ) : null}
       </section>
 
       {onTimeframe ? (
@@ -1120,9 +1182,38 @@ export function AddPlanCard({
         </p>
       ) : (
         <div className="mt-4 space-y-5">
-          <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-warning">
-            {t("acc_blend_warning")}
-          </p>
+          {plan?.perLotExits ? (
+            <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
+              {t("acc_perlot_note")}
+            </p>
+          ) : (
+            <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-warning">
+              {t("acc_blend_warning")}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-4 border border-grid px-3 py-2.5">
+            <div>
+              <p className="font-ui text-[12.5px] text-text-primary">{t("acc_perlot_title")}</p>
+              <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                {t("acc_perlot_body")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                plan && onChange({ ...plan, perLotExits: !plan.perLotExits })
+              }
+              aria-pressed={!!plan?.perLotExits}
+              className={`h-8 shrink-0 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+                plan?.perLotExits
+                  ? "border-accent text-accent"
+                  : "border-grid text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              {t(plan?.perLotExits ? "acc_perlot_on" : "acc_perlot_off")}
+            </button>
+          </div>
 
           <div>
             <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">

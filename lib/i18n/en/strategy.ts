@@ -147,6 +147,16 @@ export const enStrategy = {
   bs_days: "{n}d",
   bs_exits_note:
     "Exits are evaluated every cycle, before the agent looks for anything new — including on cycles where it finds nothing to buy. A position whose price cannot be read is never closed on a guess.",
+  bs_basket_title: "Whole-book exit",
+  bs_basket_body:
+    "Close every open position at once when the book as a whole reaches a level — not each position on its own terms.",
+  bs_basket_on: "On",
+  bs_basket_off: "Off",
+  bs_basket_take: "Book target",
+  bs_basket_take_help:
+    "Close everything when the open book is up this much overall, whatever the individual positions are doing.",
+  bs_basket_stop: "Book stop",
+  bs_basket_stop_help: "Close everything when the open book is down this much overall.",
   bs_timeframe: "Chart timeframe",
   bs_timeframe_note: "The bar size every rule above is measured on.",
   bs_timeframe_help:
@@ -172,6 +182,13 @@ export const enStrategy = {
     "The agent buys once and then manages that position. Turn this on to average in — on a schedule, on dips, or on strength.",
   acc_blend_warning:
     "Your take profit and stop loss now measure the BLEND of everything you have bought, not each entry separately. A position averaged down three times exits as one.",
+  acc_perlot_note:
+    "Each entry now judges its own take profit and stop loss. The rung bought cheapest can sell on its own bounce while the others stay open.",
+  acc_perlot_title: "Grid — exit each entry separately",
+  acc_perlot_body:
+    "Off means every buy blends into one average position. On means each buy exits on its own take profit and stop loss — this is what makes it a grid.",
+  acc_perlot_on: "Per entry",
+  acc_perlot_off: "Blended",
   acc_when: "When to add",
   acc_schedule: "On a schedule",
   acc_falls: "When it falls",
