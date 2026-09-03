@@ -8,6 +8,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
+import { EditStrategyModal } from "@/components/editStrategy";
 import { describeScreen } from "@/components/discoveryFilters";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
@@ -149,6 +150,16 @@ export function AgentDetailView({
   const runSeq = useRef(0);
 
   const [adding, setAdding] = useState(false);
+  /**
+   * Whether the strategy editor is open.
+   *
+   * This button used to be a link into the agent thread. Editing a threshold
+   * is a question with a known answer, and routing it through a model call and
+   * a round of approval charged three steps for a number the owner already
+   * had — see editStrategy.tsx. The conversation still applies proposals
+   * through the same backend function; this is the short path to it.
+   */
+  const [editing, setEditing] = useState(false);
   /**
    * Below lg this screen is wireframe M03, MOUNTED rather than hidden: its
    * phase bar needs a cycle the desktop layout never asks for, and a hidden
@@ -968,12 +979,17 @@ export function AgentDetailView({
             {/* justify-end because the caption that used to sit here was the
                 flex spacer holding the button to the right. */}
             <div className="flex items-center justify-end gap-3 border-t border-grid bg-panel px-3.5 py-2.5">
-              <Link
-                href={`/workspace/${agentId}?tab=chat`}
-                className={`shrink-0 ${SECONDARY}`}
+              {/* Disabled until the strategy has actually loaded: the dialog
+                  edits a diff against what was fetched, and opening it against
+                  nothing would present an empty recipe as this agent's. */}
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={!strategy}
+                className={`shrink-0 ${SECONDARY} disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {t("ad_edit_strategy")}
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -1153,6 +1169,18 @@ export function AgentDetailView({
           // agree the moment a removal lands rather than only after closing.
           onChanged={() => void load()}
           onClose={() => setAdding(false)}
+        />
+      ) : null}
+
+      {editing && strategy ? (
+        <EditStrategyModal
+          agentId={agentId}
+          strategy={strategy}
+          // Reloads behind the dialog on the way out, so the rule chips, the
+          // exit cards and the accumulation note in the rail all restate the
+          // strategy that was just saved rather than the one that was loaded.
+          onSaved={() => void load()}
+          onClose={() => setEditing(false)}
         />
       ) : null}
 

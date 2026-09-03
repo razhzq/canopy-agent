@@ -79,6 +79,37 @@ export const enAgentDetail = {
   ad_accumulation_warning:
     "Take profit and stop-loss measure the blend of every entry, not each one separately.",
   ad_edit_strategy: "Edit strategy",
+
+  // ── Edit strategy dialog ───────────────────────────────────────
+  es_title: "Edit strategy",
+  es_intro:
+    "These are the rules this agent is running right now. Changes apply in place — same agent, same positions, same record — from its next cycle.",
+  es_entry: "Entry rules",
+  es_exits: "Exits",
+  es_accumulation: "Accumulation",
+  es_timeframe: "Chart timeframe",
+  es_entry_help:
+    "Every rule switched on must hold before the agent buys. A rule switched off is not evaluated at all — it is not a loosened condition, it is no condition.",
+  es_exits_help:
+    "How a position closes. Take profit and stop-loss are measured from the entry price; a trailing stop measures from the highest price since. Any of them set to zero is off, and the portfolio drawdown breaker still applies either way.",
+  es_accumulation_help:
+    "Whether the agent adds to a position it already holds. Setting a plan changes what the exits above measure: they stop describing one entry and start describing the blend of every entry.",
+  es_timeframe_note:
+    "The bar size the rules above are measured on. Percent thresholds move with it, so a rule keeps meaning what it meant rather than becoming one nothing can reach.",
+  es_cadence_note:
+    "How often the agent wakes is a separate setting, fixed when it was deployed. Changing the bar size here does not change it.",
+  es_exits_unset:
+    "This strategy has no exits of its own and is running its risk posture's defaults. Saving writes the values shown here.",
+  es_passthrough:
+    "{count} rule(s) this editor cannot show are kept exactly as they are.",
+  es_no_entry:
+    "A strategy with no entry condition buys the first thing it screens. Switch at least one rule on.",
+  es_takes_effect: "Applies from the next cycle.",
+  es_no_changes: "Nothing changed yet.",
+  es_save: "Save changes",
+  es_saving: "Saving…",
+  es_cancel: "Cancel",
+  es_sign_in: "Sign in to change this agent.",
   ad_anyof_or: "or",
 
   // ── Universe ───────────────────────────────────────────────────

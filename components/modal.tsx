@@ -43,8 +43,16 @@ export function Modal({
    * keyboard takes the lower half of the screen and shoves a centred box off
    * the top. A sheet is already anchored to the bottom, so the composer stays
    * where the thumb is and the content above it simply gets shorter.
+   *
+   * `wide` is the same centred dialog with room for a two-column control row.
+   *
+   * The 420px panel is right for a confirmation and wrong for anything with a
+   * label, a slider and a figure on one line — at that width the three wrap
+   * onto three rows and a list of eight rules becomes a page. It caps its own
+   * height and scrolls its body rather than the backdrop, so the header and
+   * the footer's actions stay put while the rules move under them.
    */
-  variant?: "dialog" | "sheet";
+  variant?: "dialog" | "sheet" | "wide";
   /** Suppresses the title bar for content that brings its own. */
   headless?: boolean;
 }) {
@@ -95,7 +103,12 @@ export function Modal({
         // screen and scrollable on a short one, rather than centring it off the
         // top edge where the header is unreachable.
         className={
-          variant === "sheet"
+          variant === "wide"
+            ? // Its own height cap, because the body scrolls rather than the
+              // backdrop — a dialog whose actions scroll off the bottom of a
+              // laptop screen is one people cannot finish.
+              "my-auto flex max-h-[calc(100dvh-64px)] w-full max-w-[760px] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+            : variant === "sheet"
             ? // `dvh`, not `vh`: on iOS Safari `vh` counts the URL bar's height
               // whether or not it is showing, so a 90vh sheet is taller than the
               // screen and its composer sits under the browser chrome.

@@ -65,6 +65,34 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_accumulation_warning:
     "止盈和止损衡量的是所有建仓的加权平均成本，而不是每一笔单独计算。",
   ad_edit_strategy: "修改策略",
+
+  es_title: "修改策略",
+  es_intro:
+    "以下是该智能体当前运行的规则。修改就地生效——同一个智能体、同样的持仓、同一份记录——从下一个周期开始执行。",
+  es_entry: "入场规则",
+  es_exits: "退出条件",
+  es_accumulation: "加仓",
+  es_timeframe: "图表周期",
+  es_entry_help:
+    "所有启用的规则都必须同时满足，智能体才会买入。关闭的规则完全不参与判断——那不是放宽条件，而是没有该条件。",
+  es_exits_help:
+    "持仓如何平掉。止盈与止损以入场价为基准；移动止损以入场后的最高价为基准。任一项设为 0 即为关闭。无论如何，组合层面的回撤熔断始终生效。",
+  es_accumulation_help:
+    "智能体是否会对已持有的仓位加仓。设置加仓计划会改变上方退出条件的衡量对象：它们不再针对单次入场，而是针对所有入场的综合成本。",
+  es_timeframe_note:
+    "上述规则所依据的K线周期。百分比阈值会随之换算，规则的含义保持不变，不会变成永远无法触发的条件。",
+  es_cadence_note:
+    "智能体的唤醒频率是另一项设置，在部署时已固定。在此更改K线周期不会改变它。",
+  es_exits_unset:
+    "该策略没有自己的退出条件，目前沿用风险偏好的默认值。保存后将写入此处显示的数值。",
+  es_passthrough: "有 {count} 条规则本编辑器无法显示，将原样保留。",
+  es_no_entry: "没有入场条件的策略会买入它筛到的第一个标的。请至少启用一条规则。",
+  es_takes_effect: "将从下一个周期开始生效。",
+  es_no_changes: "尚未有任何修改。",
+  es_save: "保存修改",
+  es_saving: "保存中…",
+  es_cancel: "取消",
+  es_sign_in: "登录后才能修改该智能体。",
   ad_anyof_or: "或",
 
   ad_universe: "标的池",

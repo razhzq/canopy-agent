@@ -2573,6 +2573,52 @@ export const removeAgentMarket = (
     { method: "DELETE", body: JSON.stringify(market) },
   );
 
+/**
+ * Edits this agent's strategy parameters, in place.
+ *
+ * THE DIRECT PATH, and it lands on the same backend function the chat does.
+ *
+ * A change agreed in the thread arrives as a proposal and is applied with
+ * {@link applyProposal}; both routes call `applyStrategyEdit`, so an edit made
+ * here and one agreed in conversation cannot behave differently. What this
+ * saves is the round trip: "set the stop to 8%" is a question with a known
+ * answer, and it should not cost a model call and a round of approval.
+ *
+ * Same agent, same id, same positions, same thread — the agent follows the new
+ * settings from its next cycle. The edit is posted into the thread by the
+ * server, so the history still says what the owner did.
+ *
+ * FIELD SEMANTICS, and the one that bites:
+ *
+ * - Omit a field to leave it alone.
+ * - `addPlan: null` REMOVES the accumulation plan. `undefined` keeps it. The
+ *   backend takes it as an envelope for exactly this reason — reading "stop
+ *   accumulating" as "leave it alone" is a change the owner is told happened
+ *   and that did not.
+ * - `exits` MERGES onto what is stored, so a patch naming only takeProfitPct
+ *   cannot silently drop the stop. `anyOf` and `rules` REPLACE.
+ *
+ * Universe is not here: it has its own two routes, because adding a market
+ * screens it immediately and removing one must not sell.
+ */
+export const updateAgentStrategy = (
+  token: string,
+  agentId: number,
+  patch: {
+    rules?: DetectionRule[];
+    anyOf?: DetectionRule[][];
+    setup?: SetupSpec | null;
+    exits?: ExitRules;
+    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+    addPlan?: AddPlan | null;
+  },
+) =>
+  request<{ agentId: number; changed: string[] }>(
+    `/agents/${agentId}/strategy`,
+    token,
+    { method: "PATCH", body: JSON.stringify(patch) },
+  );
+
 export const getAgentFills = (
   token: string,
   agentId: number,

@@ -33,7 +33,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote } from "@/components/kit";
+import { FieldNote, InfoDot } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -1238,7 +1238,7 @@ function RankingControl({
  * setting; it is whatever the rungs leave behind, and showing it as a
  * consequence rather than a field is what makes "and let the rest ride" legible.
  */
-function ScaleOutLadder({
+export function ScaleOutLadder({
   rungs,
   onChange,
 }: {
@@ -1269,13 +1269,13 @@ function ScaleOutLadder({
   return (
     <div className="border-b border-grid px-4 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-mono text-[12px] text-text-primary">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 font-mono text-[12px] text-text-primary">
             {t("sl_steps_title")}
           </p>
-          <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+          <InfoDot label={t("sl_steps_title")}>
             {t(rungs.length === 0 ? "sl_steps_off" : "sl_steps_on")}
-          </p>
+          </InfoDot>
         </div>
         <button
           type="button"
@@ -1627,7 +1627,7 @@ function TurnRow({ turn }: { turn: Turn }) {
  * needs no editor and cannot produce something incoherent, and it means nobody
  * is stuck with a group they did not want. Changing one is a sentence away.
  */
-function ComposedOnly({
+export function ComposedOnly({
   anyOf,
   setup,
   catalogue,
@@ -1927,7 +1927,7 @@ const PRESETS: { labelKey: TranslationKey; promptKey: TranslationKey }[] = [
   { labelKey: "preset_deep", promptKey: "preset_deep_prompt" },
 ];
 
-function RuleChip({
+export function RuleChip({
   rule: r,
   timeframe = DEFAULT_TIMEFRAME,
   onChange,
@@ -1962,26 +1962,34 @@ function RuleChip({
   const span = ruleSpan(r, timeframe, t);
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
         <p
-          className={`font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
+          className={`min-w-0 font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
         >
           {label}{" "}
           <span className="text-text-dim">
             {t(r.op === "gte" ? "rule_at_least" : "rule_at_most")}
           </span>
         </p>
-        <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+        {/* BEHIND A MARK, NOT UNDER THE LABEL.
+            Eleven rules each carrying two lines of prose is a wall: the reader
+            passes every paragraph to reach the one number they came to set, and
+            the sentence that matters most — the basis note below — arrives as
+            the third line of the fourth block and reads as boilerplate. A list
+            of names is scannable; the explanation is one hover, tap or Tab away
+            for the visit where it is wanted. */}
+        <InfoDot label={label}>
           {t(r.helpKey)}
           {span ? (
             <span className="text-text-muted">{t("sl_window", { span })}</span>
           ) : null}
-        </p>
-        {basisNote ? (
-          <p className="pt-0.5 font-ui text-[11px] leading-relaxed text-text-muted">
-            {basisNote}
-          </p>
-        ) : null}
+          {/* Its own line rather than run on. It is the one sentence in here
+              that changes what the NUMBER means — a daily-basis rule on a
+              15-minute strategy is the most misreadable row on the list. */}
+          {basisNote ? (
+            <span className="block pt-1.5 text-text-dim">{basisNote}</span>
+          ) : null}
+        </InfoDot>
       </div>
       <input
         type="range"
@@ -2047,7 +2055,7 @@ function RuleChip({
  * slider cannot express "off", so without somewhere to return to, turning it
  * back on would land wherever the track happened to be.
  */
-function ExitChip({
+export function ExitChip({
   labelKey,
   value,
   min,
@@ -2069,17 +2077,19 @@ function ExitChip({
   const off = value <= 0;
   const t = useT();
   const label = t(labelKey);
+  // The copy differs by state: what a stop DOES against what its absence means.
+  const copy = t(
+    EXIT_COPY[labelKey]?.[off ? "off" : "on"] ??
+      (off ? "exit_generic_off" : "exit_generic_on"),
+  );
 
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
-      <div className="min-w-0">
-        <p className="font-mono text-[12px] text-text-primary">{label}</p>
-        <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-          {t(
-            EXIT_COPY[labelKey]?.[off ? "off" : "on"] ??
-              (off ? "exit_generic_off" : "exit_generic_on"),
-          )}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <p className="min-w-0 font-mono text-[12px] text-text-primary">
+          {label}
         </p>
+        <InfoDot label={label}>{copy}</InfoDot>
       </div>
       <input
         type="range"

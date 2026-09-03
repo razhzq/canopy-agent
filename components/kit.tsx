@@ -79,6 +79,7 @@
 // THE TOKENS. Use the constants; do not retype the class strings.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** Group label. 9.5px mono, wide tracking, muted. The only label treatment. */
 export const LABEL =
@@ -510,5 +511,120 @@ export function Tick({
     <span className={`block ${direction ? `tick-${direction}` : ""} ${className}`.trim()}>
       {children}
     </span>
+  );
+}
+
+/**
+ * A circled "i" that explains one control, on hover or on focus.
+ *
+ * WHY THIS EXISTS.
+ *
+ * A row of settings where every label carries two lines of explanation under it
+ * is a wall: the reader scans eight paragraphs to find the one number they came
+ * to change, and the sentence that matters most — "this one does NOT follow the
+ * strategy timeframe" — is the third line of the fourth block and reads as
+ * boilerplate. Held behind a mark, the list becomes a list of names and the
+ * explanation is one hover away when it is actually wanted.
+ *
+ * PORTALLED AND FIXED, and it has to be. These sit inside dialogs whose bodies
+ * scroll, and a scroll container is not `overflow: visible` on either axis — an
+ * absolutely positioned bubble on the last row would be clipped by the very box
+ * it is trying to explain. Rendering to the body against viewport coordinates
+ * escapes that. The trade is that the coordinates go stale the moment anything
+ * scrolls, which is why any scroll closes it.
+ *
+ * KEYBOARD REACHABLE, deliberately a <button>. The content here is not
+ * decoration — one of these is the difference between a rule measured on your
+ * bars and the same rule measured on the day — so it cannot be hover-only.
+ */
+export function InfoDot({
+  label,
+  children,
+}: {
+  /** Names the thing being explained, for a screen reader: "About {label}". */
+  label: string;
+  children: ReactNode;
+}) {
+  const dot = useRef<HTMLButtonElement>(null);
+  const [at, setAt] = useState<{
+    x: number;
+    y: number;
+    above: boolean;
+  } | null>(null);
+
+  const open = () => {
+    const r = dot.current?.getBoundingClientRect();
+    if (!r) return;
+    // Below by default, flipped above when the bottom of the viewport is
+    // closer than the bubble is tall. A tooltip that opens off-screen is a
+    // tooltip that never gets read.
+    const above = window.innerHeight - r.bottom < 150;
+    setAt({
+      // Clamped to keep a centred bubble's edges inside the viewport — the
+      // rules these explain start at the far left of their row.
+      x: Math.min(Math.max(r.left + r.width / 2, 150), window.innerWidth - 150),
+      y: above ? r.top - 8 : r.bottom + 8,
+      above,
+    });
+  };
+
+  useEffect(() => {
+    if (!at) return;
+    const close = () => setAt(null);
+    // Capture, because the scroller is an ancestor and scroll does not bubble.
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [at]);
+
+  return (
+    <>
+      <button
+        ref={dot}
+        type="button"
+        aria-label={`About ${label}`}
+        aria-expanded={!!at}
+        onMouseEnter={open}
+        onMouseLeave={() => setAt(null)}
+        onFocus={open}
+        onBlur={() => setAt(null)}
+        // Press is a no-op on a pointer, and the only way in on a touch screen,
+        // where there is no hover to open it with.
+        onClick={() => (at ? setAt(null) : open())}
+        className={`inline-flex size-[15px] shrink-0 translate-y-[1px] items-center justify-center rounded-full border font-mono text-[9px] leading-none transition-colors ${
+          at
+            ? "border-accent text-accent"
+            : "border-grid-strong text-text-dim hover:border-text-dim hover:text-text-secondary"
+        } ${FOCUS}`}
+      >
+        i
+      </button>
+      {at && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="tooltip"
+              style={{
+                left: at.x,
+                top: at.y,
+                transform: `translateX(-50%)${at.above ? " translateY(-100%)" : ""}`,
+              }}
+              // Above the dialog's own z-50, or it opens behind the panel that
+              // asked for it.
+              className={`pointer-events-none fixed z-[60] w-[280px] rounded-lg border border-grid-strong bg-panel px-3 py-2.5 font-ui text-[11.5px] leading-relaxed text-text-secondary ${POPOVER_SHADOW}`}
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
