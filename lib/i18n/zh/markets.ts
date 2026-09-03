@@ -140,7 +140,7 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   dsc_near_misses: "差一点符合",
   dsc_stale_note: "代币数据每小时更新一次，智能体每个周期重新筛选一遍。",
 
-  dsc_needs_ranking: "这可能匹配到上百个代币。下一步决定智能体实际买入其中的哪几个。",
+  dsc_needs_ranking: "这可能匹配到上百个代币。没有排序时，智能体会按推理顺序买入通过筛选的代币——设置排序可以让选择更有依据。",
 
   // ── 分页 ───────────────────────────────────────────────────────
   mk_page_range: "第 {from}–{to} 条，共 {total} 条",

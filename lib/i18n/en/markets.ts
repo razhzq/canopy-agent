@@ -174,7 +174,7 @@ export const enMarkets = {
   dsc_stale_note: "Token data refreshes hourly. Your agent re-checks every cycle.",
 
   dsc_needs_ranking:
-    "This can match hundreds of tokens. The next step decides which few your agent actually buys.",
+    "This can match hundreds of tokens. Without a ranking the agent buys whatever passes, in the order it reasons about them — a ranking picks deliberately instead.",
 
   // ── Pagination ─────────────────────────────────────────────────
   //

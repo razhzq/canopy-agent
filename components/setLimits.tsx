@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   classFor,
@@ -984,11 +984,14 @@ export function SetLimits({
         offering a setting that cannot do anything — the same reason ATR is
         hidden for tokenized stocks.
 
-        A SCREEN ALWAYS COUNTS AS SOMETHING TO RANK, however few markets are
-        pinned: it can match hundreds, and the count is not known until the
-        agent runs. It also makes the control REQUIRED rather than optional —
-        without a ranking every token that passes the rules is bought, every
-        cycle, and the server refuses such a strategy rather than creating one.
+        A screen counts as something to rank even with few markets pinned: it
+        can match hundreds, and the count is not known until the agent runs.
+        Optional even there, same as everywhere else — the per-cycle trade
+        cap, the mandate's capital ceiling, and per-asset position sizing
+        (see RiskAgent) already bound what an unranked screen can do in a
+        cycle. Ranking is what makes the pick deliberate rather than
+        reasoning-window order; it is not what stands between the agent and
+        its capital.
       */}
       {markets.length > 1 || discovery ? (
         <section>
@@ -1000,11 +1003,12 @@ export function SetLimits({
             // number this step knows. The cap is the honest ceiling on how many
             // the agent will even look at in a cycle.
             markets={discovery ? discovery.maxCandidates : markets.length}
-            required={Boolean(discovery)}
             value={value.ranking}
             onChange={(ranking) => onChange({ ...value, ranking })}
           />
-          {discovery ? <FieldNote>{t("dsc_needs_ranking")}</FieldNote> : null}
+          {discovery && !value.ranking ? (
+            <FieldNote>{t("dsc_needs_ranking")}</FieldNote>
+          ) : null}
         </section>
       ) : null}
 
@@ -1070,50 +1074,15 @@ export function SetLimits({
  */
 function RankingControl({
   markets,
-  required = false,
   value,
   onChange,
 }: {
   markets: number;
-  /**
-   * Whether "all of them" is a legal answer.
-   *
-   * False normally — ranking narrows what an agent buys, and a narrowing nobody
-   * asked for is the setting people find months later wondering why two of
-   * their markets never trade.
-   *
-   * True with a screen, where the reasoning inverts: the set is not a handful
-   * of markets somebody chose but whatever the filters match, so "all of them"
-   * means buying everything that passes, every cycle, until the capital is
-   * gone. The server refuses that; this makes the refusal unreachable rather
-   * than something to hit at the end of the flow.
-   */
-  required?: boolean;
   value?: RankingSpec;
   onChange: (next: RankingSpec | undefined) => void;
 }) {
   const on = !!value;
   const t = useT();
-
-  // Filled in rather than left to the author, because required means required
-  // and a step that opens on an invalid state asks somebody to fix a problem
-  // they did not create. `momentum20dPct` is the fact both specialists produce
-  // and the one a ranking is nearly always about.
-  // `onChange` is an inline arrow at the call site, so it is a new function
-  // every render — the guard above is what makes that safe. Once a value
-  // exists the effect is a no-op, so the re-render its own call causes ends
-  // there rather than looping.
-  const commit = useRef(onChange);
-  commit.current = onChange;
-  useEffect(() => {
-    if (required && !value) {
-      commit.current({
-        by: "momentum20dPct",
-        take: Math.max(1, Math.min(5, markets)),
-        prefer: "highest",
-      });
-    }
-  }, [required, value, markets]);
 
   return (
     <div className="space-y-3">
@@ -1121,9 +1090,8 @@ function RankingControl({
         <button
           type="button"
           aria-pressed={!on}
-          disabled={required}
           onClick={() => onChange(undefined)}
-          className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
             !on
               ? "border-accent bg-accent-wash text-text-primary"
               : "border-grid text-text-dim hover:border-grid-strong hover:text-text-primary"
