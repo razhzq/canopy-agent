@@ -16,6 +16,8 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_reading_it: "正在理解…",
   sl_compose_placeholder:
     "例如：当 {symbol} 当日跌幅达到 4% 或以上、且池子足够深时买入，止盈 3%，止损 2%",
+  sl_compose_placeholder_discovery:
+    "例如：当日跌幅达到 4% 或以上、且池子足够深时买入，止盈 3%，止损 2%",
   sl_compose_followup: "回答问题，或补充任何它该知道的事…",
   sl_compose_aria: "描述这条规则",
   sl_compiling: "编译中…",

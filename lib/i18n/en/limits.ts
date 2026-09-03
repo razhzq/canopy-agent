@@ -22,6 +22,8 @@ export const enLimits = {
   // only nudge, and it is written in the reader's language for that reason.
   sl_compose_placeholder:
     "e.g. buy {symbol} when it is down 4% or more on the day and the pool is deep, take profit at 3%, stop out at 2%",
+  sl_compose_placeholder_discovery:
+    "e.g. buy when it is down 4% or more on the day and the pool is deep, take profit at 3%, stop out at 2%",
   sl_compose_followup: "Answer, or add anything else it should know…",
   sl_compose_aria: "Describe the rule",
   sl_compiling: "Compiling…",

@@ -90,11 +90,20 @@ async function request<T>(
     let message = res.statusText;
     let detail: Record<string, unknown> | undefined;
     try {
-      const body = (await res.json()) as { error?: string } & Record<
+      const body = (await res.json()) as { error?: unknown } & Record<
         string,
         unknown
       >;
-      if (body.error) message = body.error;
+      // `error` is usually a string, but a validation failure can hand back a
+      // structured shape (e.g. a zod flatten/format result). `Error`'s own
+      // constructor stringifies whatever it's given via ToString(), which
+      // turns a plain object into the literal text "[object Object]" — so an
+      // object body is JSON-stringified here instead of let through raw.
+      if (typeof body.error === "string") {
+        message = body.error;
+      } else if (body.error && typeof body.error === "object") {
+        message = JSON.stringify(body.error);
+      }
       // Kept whole rather than picked apart here: a 402 carries the plan and
       // slot counts the upgrade prompt needs, and this helper has no business
       // knowing which endpoint returns what.

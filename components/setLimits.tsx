@@ -33,7 +33,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot } from "@/components/kit";
+import { FieldNote, InfoDot, NUM, SURFACE } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -587,7 +587,9 @@ export function SetLimits({
                 maxLength={2000}
                 placeholder={
                   turns.length === 0
-                    ? t("sl_compose_placeholder", { symbol: market.symbol })
+                    ? market
+                      ? t("sl_compose_placeholder", { symbol: market.symbol })
+                      : t("sl_compose_placeholder_discovery")
                     : t("sl_compose_followup")
                 }
                 aria-label={t("sl_compose_aria")}
@@ -1123,8 +1125,8 @@ function RankingControl({
           onClick={() => onChange(undefined)}
           className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             !on
-              ? "border-accent bg-accent/10 text-text"
-              : "border-line text-text-dim hover:text-text"
+              ? "border-accent bg-accent-wash text-text-primary"
+              : "border-grid text-text-dim hover:border-grid-strong hover:text-text-primary"
           }`}
         >
           <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
@@ -1148,8 +1150,8 @@ function RankingControl({
           }
           className={`rounded-lg border px-3 py-2 text-left transition-colors ${
             on
-              ? "border-accent bg-accent/10 text-text"
-              : "border-line text-text-dim hover:text-text"
+              ? "border-accent bg-accent-wash text-text-primary"
+              : "border-grid text-text-dim hover:border-grid-strong hover:text-text-primary"
           }`}
         >
           <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
@@ -1162,7 +1164,9 @@ function RankingControl({
       </div>
 
       {value ? (
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
+        <div
+          className={`flex flex-wrap items-center gap-x-2.5 gap-y-2 ${SURFACE} px-3.5 py-3 font-mono text-[12px]`}
+        >
           <span className="text-text-dim">{t("sl_hold_best")}</span>
           <input
             type="number"
@@ -1175,7 +1179,7 @@ function RankingControl({
                 take: Math.max(1, Math.min(markets, Number(e.target.value))),
               })
             }
-            className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+            className={`w-11 rounded-md bg-surface-2 px-1.5 py-1 text-center outline-none focus-visible:ring-1 focus-visible:ring-accent ${NUM}`}
             aria-label={t("sl_how_many_aria")}
           />
           <span className="text-text-dim">
@@ -1191,7 +1195,7 @@ function RankingControl({
                 prefer: prefer as "highest" | "lowest",
               });
             }}
-            className="border border-line bg-transparent px-2 py-1 text-text-primary"
+            className="rounded-md bg-surface-2 py-1 pr-6 pl-2 text-text-primary outline-none focus-visible:ring-1 focus-visible:ring-accent"
             aria-label={t("sl_rank_by_aria")}
           >
             {/* Each option names the DIRECTION as well as the measure, because
