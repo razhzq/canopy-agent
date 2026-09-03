@@ -8,12 +8,21 @@ import {
   peekAllMarkets,
   getAllMarkets,
   num,
+  type DiscoverySpec,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
+import { DEFAULT_DISCOVERY, DiscoveryFilters } from "@/components/discoveryFilters";
 import { useApi } from "@/lib/useApi";
 import { AssetLogo } from "@/components/ui";
-import { LABEL, SURFACE } from "@/components/kit";
+import {
+  LABEL,
+  SEGMENT_ITEM,
+  SEGMENT_OFF,
+  SEGMENT_ON,
+  SEGMENT_TRACK,
+  SURFACE,
+} from "@/components/kit";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -119,6 +128,23 @@ export const MARKET_CLASSES = [
 const CLASSES = MARKET_CLASSES;
 
 /**
+ * Rows on one page.
+ *
+ * THE LIST OUTGREW THE PAGE. The universe used to be a few hundred tokens
+ * behind a $50k liquidity floor, and rendering all of it was fine. Removing
+ * that floor — so a screen can reach the long tail, which is the whole point of
+ * one — took "All" into the thousands, and an unpaginated list of thousands
+ * does not merely scroll badly: it buries everything BELOW it. The discovery
+ * section sits under this table, and it became unreachable without a very
+ * determined scroll.
+ *
+ * Fifty because it is a screen or two of rows — enough that paging feels like
+ * an occasional act rather than the primary way to move, and few enough that
+ * the thing after the table is always within reach.
+ */
+export const PAGE_SIZE = 50;
+
+/**
  * Step 1 — choose what the agent may trade.
  *
  * MULTI-SELECT, because the engine always was.
@@ -143,11 +169,24 @@ const CLASSES = MARKET_CLASSES;
 export function PickMarket({
   value,
   onChange,
+  discovery,
+  onDiscoveryChange,
   onNext,
 }: {
   value: UniverseAsset[];
   /** The whole selection, every time — the parent never merges. */
   onChange: (next: UniverseAsset[]) => void;
+  /**
+   * The screen, if this strategy has one. Undefined means it trades only what
+   * is picked above.
+   *
+   * A SECOND WAY TO ANSWER THIS STEP, not a replacement for the first. Both can
+   * be set: picked markets are always traded, and the screen adds to them. So
+   * this is a section below the table rather than a mode beside it — a tab
+   * would say the two are alternatives, and they are not.
+   */
+  discovery?: DiscoverySpec;
+  onDiscoveryChange: (next: DiscoverySpec | undefined) => void;
   onNext: () => void;
 }) {
   const { authenticated } = usePrivy();
@@ -164,6 +203,26 @@ export function PickMarket({
   /** A router key, or "all". Independent of the class chips — see the note above. */
   const [venue, setVenue] = useState<Router | "all">("all");
   const [cursor, setCursor] = useState(0);
+  const [page, setPage] = useState(0);
+  /**
+   * Which half of the step is on screen.
+   *
+   * A VIEW, NOT A MODE — and the distinction is the whole reason the tabs are
+   * labelled the way they are. The two compose: a strategy may pin markets AND
+   * carry a screen, and the pinned ones are traded whether or not they satisfy
+   * it. Switching tabs shows the other half; it never turns this one off.
+   *
+   * Two tabs rather than one long page because the list won. Discovery lived
+   * under the table, and the table is a thousand rows — so the section that
+   * offers the more powerful of the two answers was the one nobody found. A
+   * pager helped and did not fix it: what is below a long list is still below
+   * a long list.
+   *
+   * Each tab states what it holds, so nothing the other one contains is hidden
+   * while it is off screen. That is what stops a view switch reading as an
+   * either/or.
+   */
+  const [view, setView] = useState<"markets" | "discovery">("markets");
   const search = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +242,17 @@ export function PickMarket({
     for (const a of assets) seen.add(routeOf(a).router);
     return (Object.keys(VENUE_LABEL) as Router[]).filter((r) => seen.has(r));
   }, [assets]);
+
+  /**
+   * Whether a screen is worth offering at all.
+   *
+   * Derived rather than assumed, for the same reason the venue filter is: every
+   * metric a screen names — market cap, pool depth, pair age, the buy/sell
+   * split — is a property of an AMM pool. On a universe of tokenized equities
+   * alone the whole panel would read "—" and could only ever match nothing,
+   * which is a control that exists to disappoint.
+   */
+  const tokensPresent = useMemo(() => assets.some((a) => a.kind === "crypto"), [assets]);
 
   // A venue can leave the universe between loads. Fall back rather than show an
   // empty list under a chip that is still lit.
@@ -205,6 +275,32 @@ export function PickMarket({
     );
   }, [assets, query, klass, venue]);
 
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
+  /**
+   * The page currently in view, clamped.
+   *
+   * Clamped rather than trusted because `rows` shrinks under the reader: typing
+   * a fourth letter into the search can take a list of nine hundred down to two
+   * while `page` still says 12, and the honest answer to that is the last page
+   * that exists, not an empty table under a pager insisting there are more.
+   */
+  const safePage = Math.min(page, pageCount - 1);
+
+  const pageRows = useMemo(
+    () => rows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
+    [rows, safePage],
+  );
+
+  // Back to the top whenever the SET changes, not merely when it re-renders.
+  // Keyed on the filters rather than on `rows` itself: `rows` is a fresh array
+  // on every render, so depending on it would reset the page on every keystroke
+  // including the ones that did not change what matches.
+  useEffect(() => {
+    setPage(0);
+    setCursor(0);
+  }, [query, klass, venue]);
+
   /**
    * Tickers held by more than one asset on screen.
    *
@@ -214,34 +310,74 @@ export function PickMarket({
    * letters. Selection is keyed on the mint, so the ENGINE is never confused;
    * the person choosing from two identical-looking rows is.
    *
-   * Computed over the FILTERED rows rather than the whole universe: a name is
-   * only worth the horizontal space when the ambiguity is actually visible. A
-   * search narrowed to one CAT does not need to explain which CAT it is.
+   * Computed over the rows ON THIS PAGE rather than the whole universe, or even
+   * the whole filtered set: a name is only worth the horizontal space when the
+   * ambiguity is actually visible. A search narrowed to one CAT does not need to
+   * explain which CAT it is, and neither does a page holding only one of the
+   * three.
    */
   const ambiguous = useMemo(() => {
     const seen = new Map<string, number>();
-    for (const a of rows) {
+    for (const a of pageRows) {
       const key = a.symbol.toUpperCase();
       seen.set(key, (seen.get(key) ?? 0) + 1);
     }
     return new Set([...seen].filter(([, n]) => n > 1).map(([sym]) => sym));
-  }, [rows]);
+  }, [pageRows]);
 
   // Keyboard navigation over the whole step, not just the input — the table is
   // the subject of the page, so arrows should drive it wherever focus sits.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // THE TABLE'S KEYBOARD BELONGS TO THE TABLE. On the discovery tab every
+      // binding below is either meaningless or actively harmful: `/` would steal
+      // a slash somebody is typing into a filter, ↑↓ would move a cursor over
+      // rows nobody can see, and ⏎ would toggle a market chosen by an invisible
+      // highlight.
+      if (view !== "markets") return;
       const typing = document.activeElement === search.current;
       if (e.key === "/" && !typing) {
         e.preventDefault();
         search.current?.focus();
         return;
       }
+      // ← → TURN PAGES, but never while somebody is typing: in a text field
+      // they move the caret, and stealing that would make the search box
+      // unusable for anyone correcting a letter mid-word.
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
+        const back = e.key === "ArrowLeft";
+        if (back ? safePage > 0 : safePage < pageCount - 1) {
+          e.preventDefault();
+          setPage(back ? safePage - 1 : safePage + 1);
+          setCursor(0);
+        }
+        return;
+      }
+
+      // ARROWS CARRY ACROSS PAGES. Clamping at the edge of a page would make
+      // the boundary a wall the reader has to notice and step around with a
+      // different control — which is exactly the friction pagination is
+      // supposed to remove. Falling off the bottom turns the page and lands on
+      // its first row; off the top lands on the previous page's last.
+      //
+      // The ends of the LIST still clamp: there is nothing past them.
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
+        const down = e.key === "ArrowDown";
         setCursor((c) => {
-          const next = e.key === "ArrowDown" ? c + 1 : c - 1;
-          return Math.max(0, Math.min(next, rows.length - 1));
+          const next = down ? c + 1 : c - 1;
+          if (next >= 0 && next < pageRows.length) return next;
+          if (down && safePage < pageCount - 1) {
+            setPage(safePage + 1);
+            return 0;
+          }
+          if (!down && safePage > 0) {
+            setPage(safePage - 1);
+            // The previous page is always full — only the last page can be
+            // short — so its final row is at PAGE_SIZE - 1.
+            return PAGE_SIZE - 1;
+          }
+          return c;
         });
         return;
       }
@@ -258,17 +394,17 @@ export function PickMarket({
       ) {
         return;
       }
-      if (e.key === "Enter" && rows[cursor]) {
+      if (e.key === "Enter" && pageRows[cursor]) {
         // Toggles rather than advancing. Advancing on Enter made sense when one
         // pick WAS the whole selection; with several it would end the step on
         // the first choice.
         e.preventDefault();
-        toggle(rows[cursor]);
+        toggle(pageRows[cursor]);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [rows, cursor, onChange, onNext]);
+  }, [pageRows, cursor, safePage, pageCount, view, onChange, onNext]);
 
   // Keep the cursor in view as it moves past the fold.
   useEffect(() => {
@@ -321,6 +457,70 @@ export function PickMarket({
         </p>
       </div>
 
+      {/*
+        The two halves of this step.
+
+        Rendered only where there is a second half to reach: on a universe with
+        no tokens in it a screen can only ever match nothing, so the tab bar
+        would be one usable tab beside one that exists to disappoint. Same rule
+        the venue filter follows.
+
+        `w-fit` on the track: SEGMENT_TRACK is a bare flex container, which as a
+        block-level child would stretch the full width of the column and read as
+        a toolbar rather than as a control.
+      */}
+      {tokensPresent ? (
+        <div className={`${SEGMENT_TRACK} w-fit`} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "markets"}
+            onClick={() => setView("markets")}
+            className={`${SEGMENT_ITEM} ${view === "markets" ? SEGMENT_ON : SEGMENT_OFF}`}
+          >
+            {t("mk_tab_pick")}
+            {/* The count travels with the tab, so what the other view holds is
+                never invisible while you are not looking at it. Absent at zero
+                rather than shown as "0": a figure guaranteed to be zero is not
+                a reading. */}
+            {value.length > 0 ? (
+              <span className="tnum text-[10px] opacity-70">{value.length}</span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "discovery"}
+            onClick={() => {
+              setView("discovery");
+              // SELECTING THE TAB IS WHAT TURNS THE SCREEN ON. There is no
+              // second gesture — a button behind the tab that only revealed the
+              // same controls was a click charging rent on itself.
+              //
+              // Which means a curious click enables a screen, so nothing about
+              // it is quiet: the tab lights a dot, the footer names it beside
+              // the picked markets, and step 2 makes the ranking it needs
+              // required and pre-filled. "Remove screen" in the panel undoes it
+              // and returns here.
+              if (!discovery) onDiscoveryChange(DEFAULT_DISCOVERY);
+            }}
+            className={`${SEGMENT_ITEM} ${view === "discovery" ? SEGMENT_ON : SEGMENT_OFF}`}
+          >
+            {t("mk_tab_discovery")}
+            {/* A dot, not a word: it says "there is something here" in the
+                width the tab already had. */}
+            {discovery ? (
+              <span
+                aria-hidden
+                className="size-1.5 rounded-full bg-accent"
+              />
+            ) : null}
+          </button>
+        </div>
+      ) : null}
+
+      {view === "markets" ? (
+      <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="flex items-center gap-2">
@@ -429,7 +629,7 @@ export function PickMarket({
             <span className="text-right">{t("mk_col_depth")}</span>
           </div>
 
-          {rows.map((a, i) => (
+          {pageRows.map((a, i) => (
             <button
               // `idOf`, the same identity selection is keyed on, rather than a
               // second hand-rolled one. The old key was the bare mint, which
@@ -506,38 +706,135 @@ export function PickMarket({
               </span>
             </button>
           ))}
+
+          {/* Only when there is somewhere to go. A pager over a single page is
+              furniture, the same reason the venue filter hides itself at one
+              venue. */}
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
+              <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+                {t("mk_page_range", {
+                  from: safePage * PAGE_SIZE + 1,
+                  to: safePage * PAGE_SIZE + pageRows.length,
+                  total: rows.length,
+                })}
+              </span>
+              <span className="flex items-center gap-1">
+                <PagerButton
+                  label={t("mk_page_prev")}
+                  disabled={safePage === 0}
+                  onClick={() => {
+                    setPage(safePage - 1);
+                    setCursor(0);
+                  }}
+                />
+                <PagerButton
+                  label={t("mk_page_next")}
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() => {
+                    setPage(safePage + 1);
+                    setCursor(0);
+                  }}
+                />
+              </span>
+            </div>
+          ) : null}
         </div>
+      )}
+
+      </>
+      ) : (
+        <DiscoveryFilters
+          value={discovery}
+          onChange={(next) => {
+            onDiscoveryChange(next);
+            // Removing the screen leaves this tab with nothing on it, so it
+            // hands the reader back to the table rather than to an empty panel
+            // they have to work out how to leave.
+            if (!next) setView("markets");
+          }}
+        />
       )}
 
       {/* The step no longer ends on a click, so it needs a way to end. */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-grid pt-5">
-        <div className="flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+        {/* Keyboard hints describe the TABLE. On the discovery tab they would
+            name controls that are not on screen. */}
+        <div
+          className={`flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase ${
+            view === "markets" ? "" : "invisible"
+          }`}
+        >
           <span>{t("mk_hint_navigate")}</span>
+          {/* Only when there is more than one page — a hint about a control
+              that cannot do anything is noise on the one line the reader is
+              meant to trust. */}
+          {pageCount > 1 ? <span>{t("mk_hint_page")}</span> : null}
           <span>{t("mk_hint_toggle")}</span>
           <span>{t("mk_hint_search")}</span>
         </div>
 
         <div className="flex items-center gap-4">
-          {value.length > 0 ? (
+          {value.length > 0 || discovery ? (
             <span className="font-ui text-[12.5px] text-text-secondary">
               {/* Named, not just counted, while the list is short enough to read.
-                  "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision. */}
-              {value.length <= 4
-                ? value.map((a) => a.symbol).join(", ")
-                : t("mk_count_many", { count: value.length })}
+                  "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision.
+                  A screen is named too, because "3 markets" beside a strategy
+                  that also screens two hundred is the wrong summary. */}
+              {[
+                value.length === 0
+                  ? null
+                  : value.length <= 4
+                    ? value.map((a) => a.symbol).join(", ")
+                    : t("mk_count_many", { count: value.length }),
+                discovery ? t("dsc_title") : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </span>
           ) : null}
           <button
             type="button"
             onClick={onNext}
-            disabled={value.length === 0}
+            // EITHER PATH ENDS THE STEP. A strategy with a screen and no picked
+            // market is a complete answer to "what may this trade" — it is the
+            // whole point of the section above — so gating on the table alone
+            // would make the feature unreachable.
+            disabled={value.length === 0 && !discovery}
             className="border border-border px-5 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
           >
-            {t(value.length === 0 ? "mk_pick_a_market" : "mk_continue")}
+            {t(value.length === 0 && !discovery ? "mk_pick_a_market" : "mk_continue")}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One step through the list.
+ *
+ * Quiet on purpose: paging is a way to keep looking, not a decision, and it
+ * must not compete with Continue — the only thing on this screen that commits.
+ */
+function PagerButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-md px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-text-dim"
+    >
+      {label}
+    </button>
   );
 }
 

@@ -16,6 +16,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   MARKET_CLASSES,
+  PAGE_SIZE,
   VENUE_LABEL,
   venueLabel,
 } from "@/components/pickMarket";
@@ -104,6 +105,7 @@ export function AddMarketModal({
   const [venue, setVenue] = useState<Router | "all">("all");
   const venueSelect = useRef<HTMLSelectElement>(null);
   const [cursor, setCursor] = useState(0);
+  const [page, setPage] = useState(0);
   const [picked, setPicked] = useState<UniverseAsset | null>(null);
   /**
    * Markets removed during THIS visit.
@@ -321,6 +323,34 @@ export function AddMarketModal({
     return [...local, ...extra];
   }, [assets, found, query, klass, venue]);
 
+  /**
+   * The list is paginated for the same reason the picker's is.
+   *
+   * Removing the universe's liquidity floor took this list from a few hundred
+   * rows to thousands, and in a dialog that is worse than on a page: the
+   * confirm button sits below the list, so an unbounded one puts the only
+   * action out of reach behind a very long scroll.
+   *
+   * PAGE_SIZE is the picker's, imported rather than redeclared — two lists of
+   * the same universe paging at different rates would read as a bug in
+   * whichever one the reader saw second.
+   */
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // Clamped, not trusted: `rows` shrinks under the reader as they type, and the
+  // honest answer to a page that no longer exists is the last one that does.
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = useMemo(
+    () => rows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
+    [rows, safePage],
+  );
+
+  // Back to the first page when the filters change — keyed on the filters
+  // rather than on `rows`, which is a new array every render.
+  useEffect(() => {
+    setPage(0);
+    setCursor(0);
+  }, [query, klass, venue]);
+
   // The dialog owns the keyboard while it is open. Escape closes, arrows drive
   // the list wherever focus sits, and Tab is wrapped inside the panel so focus
   // cannot wander onto the page behind it.
@@ -340,16 +370,41 @@ export function AddMarketModal({
       ) {
         return;
       }
+      // ← → turn pages, except in the search box where they move the caret.
+      if (
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        document.activeElement !== search.current
+      ) {
+        const back = e.key === "ArrowLeft";
+        if (back ? safePage > 0 : safePage < pageCount - 1) {
+          e.preventDefault();
+          setPage(back ? safePage - 1 : safePage + 1);
+          setCursor(0);
+        }
+        return;
+      }
+      // ↑↓ carry across pages rather than stopping at the boundary — see the
+      // same handler in pickMarket.
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
+        const down = e.key === "ArrowDown";
         setCursor((c) => {
-          const next = e.key === "ArrowDown" ? c + 1 : c - 1;
-          return Math.max(0, Math.min(next, rows.length - 1));
+          const next = down ? c + 1 : c - 1;
+          if (next >= 0 && next < pageRows.length) return next;
+          if (down && safePage < pageCount - 1) {
+            setPage(safePage + 1);
+            return 0;
+          }
+          if (!down && safePage > 0) {
+            setPage(safePage - 1);
+            return PAGE_SIZE - 1;
+          }
+          return c;
         });
         return;
       }
       if (e.key === "Enter") {
-        const a = rows[cursor];
+        const a = pageRows[cursor];
         if (a && !isHeld(a)) {
           e.preventDefault();
           setPicked(a);
@@ -375,7 +430,7 @@ export function AddMarketModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, cursor, onClose]);
+  }, [pageRows, cursor, safePage, pageCount, onClose]);
 
   // The page behind a modal must not scroll under it.
   useEffect(() => {
@@ -579,7 +634,7 @@ export function AddMarketModal({
               )}
             </Note>
           ) : (
-            rows.map((a, i) => {
+            pageRows.map((a, i) => {
               const taken = isHeld(a);
               const chosen = sameAsset(picked, a);
               return (
@@ -725,6 +780,45 @@ export function AddMarketModal({
               );
             })
           )}
+
+          {/* Inside the scroll area, at the end of the rows, so it is where a
+              reader who has read to the bottom already is. Only when there is
+              somewhere to go. */}
+          {pageCount > 1 && !loading && rows.length > 0 ? (
+            <div className="flex items-center justify-between gap-4 border-t border-grid px-7 py-3">
+              <span className={LABEL}>
+                {t("mk_page_range", {
+                  from: safePage * PAGE_SIZE + 1,
+                  to: safePage * PAGE_SIZE + pageRows.length,
+                  total: rows.length,
+                })}
+              </span>
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safePage === 0}
+                  onClick={() => {
+                    setPage(safePage - 1);
+                    setCursor(0);
+                  }}
+                  className="rounded-md px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-text-dim"
+                >
+                  {t("mk_page_prev")}
+                </button>
+                <button
+                  type="button"
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() => {
+                    setPage(safePage + 1);
+                    setCursor(0);
+                  }}
+                  className="rounded-md px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-text-dim"
+                >
+                  {t("mk_page_next")}
+                </button>
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* ---------------------------------------------------------- footer */}

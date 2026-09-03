@@ -20,8 +20,15 @@ export const enMarkets = {
   // ── Picker ─────────────────────────────────────────────────────
   mk_step: "Step 1 of 2 · Assign",
   mk_title: "Pick what you're trading",
+  // SHORT, AND NO LONGER WRONG.
+  //
+  // This used to run four lines and end on "everything must come from one
+  // category" — a restriction that stopped being true when MultiSme shipped and
+  // the tick started running a specialist per class. It was telling people they
+  // could not do something the product does. The trading-hours paragraph went
+  // with it: true, and not a fact anybody needs while deciding what to pick.
   mk_intro:
-    "Pick one or several — the agent screens every market you choose, on the same rules, and buys whichever qualify. Tokenized stocks and commodities keep their underlying's trading hours even though the token trades around the clock; crypto never closes. Everything must come from one category, because a single specialist screens them all, and that choice decides which rules are available in the next step.",
+    "Pick one or several. The agent checks each one against your rules every cycle and buys whichever qualify.",
   mk_search_placeholder: "Search markets…  /",
   mk_search_aria: "Search markets",
   mk_count_one: "1 market",
@@ -72,5 +79,119 @@ export const enMarkets = {
   am_only_market_aria: "{symbol} is the only market this agent trades and cannot be removed",
   am_picked: "Picked",
   am_same_rules: "{market} — same rules and limits as {agent}.",
-  am_hints: "↑↓ navigate · ⏎ pick · esc close",
+  am_hints: "↑↓ navigate · ← → page · ⏎ pick · esc close",
+
+  // ── Discovery: filters that choose the markets ─────────────────
+  //
+  // A second way to answer step 1. The table above says WHICH markets; this
+  // says WHAT KIND, and the agent re-runs it every cycle.
+  //
+  // Metric names are deliberately literal about what is measured. "Market cap"
+  // is circulating, not fully diluted, because DexScreener serves both and
+  // labelling one as the other is the kind of quiet inaccuracy somebody sizes a
+  // position on. "Pair age" is the pool's age, not the token's.
+  dsc_title: "Or let it find its own",
+  dsc_intro:
+    "Describe the kind of token instead of naming one. The agent re-runs these filters every cycle and buys what fits. Markets you picked by hand are traded too.",
+  dsc_remove: "Remove screen",
+
+  dsc_group_size: "Size and depth",
+  dsc_group_activity: "Activity",
+  dsc_group_age: "Age",
+  dsc_group_quality: "Leave out",
+  dsc_group_safety: "Rug checks",
+
+  dsc_marketCapUsd: "Market cap",
+  dsc_marketCapUsd_note: "Based on circulating supply.",
+  dsc_fdvUsd: "Fully diluted value",
+  dsc_liquidityUsd: "Pool depth",
+  dsc_liquidityUsd_note: "How much is sitting in the pool to trade against.",
+  dsc_volume24hUsd: "24h volume",
+  dsc_volume24hUsd_note: "From the token's biggest pool.",
+  dsc_volume1hUsd: "1h volume",
+  dsc_volumeToLiquidity: "Volume against depth",
+  dsc_volumeToLiquidity_note: "$200k is thin in a $2M pool and frantic in a $50k one.",
+  dsc_pairAgeHours: "Pair age",
+  dsc_pairAgeHours_note: "How long this token has been trading.",
+  dsc_change5mPct: "5m move",
+  dsc_change1hPct: "1h move",
+  dsc_change6hPct: "6h move",
+  dsc_change24hPct: "24h move",
+  dsc_txns24h: "24h trades",
+  dsc_buySellRatio24h: "Buys per sell",
+  dsc_buySellRatio24h_note: "Above 1 means more buys than sells.",
+
+  dsc_min: "At least",
+  dsc_max: "At most",
+  dsc_any: "Any",
+  dsc_unit_hours: "hours",
+  dsc_unit_days: "days",
+
+  dsc_tier: "How checked it is",
+  dsc_tier_verified: "Verified",
+  dsc_tier_verified_note: "Jupiter confirmed it's the real token, not a copycat.",
+  dsc_tier_listed: "Listed",
+  dsc_tier_listed_note: "Has a CoinGecko listing.",
+  dsc_tier_pool: "Anything tradable",
+  dsc_tier_pool_note: "Nobody has checked it.",
+  // Sits beside the tier control, not under a hazard heading. The consequence
+  // is specific and worth reading; a warning tone would make it noise.
+  dsc_tier_live_note:
+    "With real money your agent only buys at this level or above. Most new or small tokens sit below Verified.",
+
+  dsc_exclude_stablecoins: "Stablecoins",
+  dsc_exclude_solDerivatives: "Tokens that just track SOL",
+  dsc_exclude_rwaImpersonators: "Copycats of real stocks",
+  dsc_exclude_withoutPool: "Tokens with no price history",
+  dsc_exclude_withoutPool_note:
+    "Your rules in the next step read past prices. Without any, nothing can trigger.",
+  dsc_exclude_note: "These are left out unless you untick them.",
+
+  dsc_safety_note: "Only run on tokens that already match everything above.",
+  dsc_safety_mint: "Nobody can create more of it",
+  dsc_safety_freeze: "Nobody can freeze your tokens",
+  dsc_safety_lp: "The liquidity cannot be pulled",
+  dsc_safety_holder: "Biggest holder owns no more than",
+
+  dsc_cap: "Look at up to",
+  dsc_cap_unit: "tokens each cycle",
+  dsc_cap_note:
+    "Your agent reads recent prices for each one every cycle, so this is a real cost. The next step decides how many it actually buys.",
+
+  dsc_matching: "Checking…",
+  dsc_match_one: "1 token matches right now",
+  dsc_match_many: "{count} tokens match right now",
+  dsc_match_none: "Nothing matches right now",
+  dsc_match_of: "of {swept} tokens",
+  dsc_match_failed: "Could not check this screen — {message}",
+  // Said plainly rather than folded into the count: the preview cannot run rug
+  // checks (one network call per token), so the agent will hold fewer.
+  dsc_safety_pending:
+    "Rug checks only run when the agent does, so it will buy from fewer than this.",
+  dsc_sample_show: "Show what matched",
+  dsc_sample_hide: "Hide",
+  dsc_near_misses: "Just missed",
+  dsc_stale_note: "Token data refreshes hourly. Your agent re-checks every cycle.",
+
+  dsc_needs_ranking:
+    "This can match hundreds of tokens. The next step decides which few your agent actually buys.",
+
+  // ── Pagination ─────────────────────────────────────────────────
+  //
+  // The list outgrew the page when the universe's liquidity floor came off:
+  // "All" went from a few hundred rows to thousands, which buried the discovery
+  // section sitting under the table.
+  mk_page_range: "{from}–{to} of {total}",
+  mk_page_prev: "← Prev",
+  mk_page_next: "Next →",
+  mk_hint_page: "← → page",
+
+  // ── The two halves of step 1 ───────────────────────────────────
+  //
+  // A VIEW SWITCH, NOT A MODE SWITCH, and the labels have to carry that: both
+  // can hold something at once, and a strategy may pin markets AND screen for
+  // more. "Pick markets" rather than "Assets" because the verb is what
+  // distinguishes it from the other tab, where the agent does the picking.
+  mk_tab_pick: "Pick markets",
+  mk_tab_discovery: "Discovery",
 } as const;

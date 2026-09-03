@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   classFor,
@@ -13,6 +13,7 @@ import {
   type ComplianceProfile,
   type ExitRules,
   type UniverseAsset,
+  type DiscoverySpec,
 } from "@/lib/api";
 import {
   AddPlanCard,
@@ -32,6 +33,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
+import { FieldNote } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -148,6 +150,7 @@ function retimeframe(limits: Limits, to: Timeframe): Limits {
 
 export function SetLimits({
   markets,
+  discovery,
   value,
   onChange,
   onBack,
@@ -161,16 +164,38 @@ export function SetLimits({
    * happily write a rule that only makes sense for the one.
    */
   markets: UniverseAsset[];
+  /**
+   * Whether step 1 also handed the agent a screen.
+   *
+   * TWO THINGS DEPEND ON IT HERE. First, `markets` may now be EMPTY — a
+   * strategy can be built entirely from a screen — and everything below that
+   * read `markets[0]` would have thrown on it. Second, a screen makes the
+   * ranking mandatory rather than optional: a filter can match hundreds of
+   * tokens, and the server refuses a strategy that has no way to choose between
+   * them.
+   */
+  discovery?: DiscoverySpec;
   value: Limits;
   onChange: (next: Limits) => void;
   onBack: () => void;
 }) {
-  const market = markets[0];
   const t = useT();
+  /**
+   * A screen only ever finds SPL tokens, so a strategy built from one is a
+   * crypto strategy with nothing picked yet.
+   *
+   * Used everywhere the first market used to stand in for the class. `market`
+   * itself stays possibly-undefined below and every read of it is guarded,
+   * because inventing a placeholder asset would put a made-up symbol into the
+   * composer prompt and the headings.
+   */
+  const market: UniverseAsset | undefined = markets[0];
+  const klass = market ? classFor(market) : "spot";
+  const isCrypto = market ? market.kind === "crypto" : true;
   // Every market in a strategy shares one class, so the first decides which bar
   // sizes are on offer — the same rule the ATR rule and the compliance screen
   // already follow.
-  const servedTimeframes = timeframesForClass(classFor(market));
+  const servedTimeframes = timeframesForClass(klass);
   const { getAccessToken } = usePrivy();
   const [mode, setMode] = useState<"write" | "preset">("write");
   const [sentence, setSentence] = useState("");
@@ -331,7 +356,7 @@ export function SetLimits({
         ...(unserved
           ? [
               t(
-                classFor(market) === "spot"
+                klass === "spot"
                   ? "sl_unserved_bars_spot"
                   : "sl_unserved_bars_rwa",
                 {
@@ -477,12 +502,14 @@ export function SetLimits({
           {t("sl_title")}
         </h2>
         <p className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-text-secondary">
-          {markets.length === 1
-            ? t("sl_markets_one", { symbol: market.symbol })
-            : t("sl_markets_many", { count: markets.length })}{" "}
+          {markets.length === 0
+            ? t("dsc_title")
+            : markets.length === 1 && market
+              ? t("sl_markets_one", { symbol: market.symbol })
+              : t("sl_markets_many", { count: markets.length })}{" "}
           ·{" "}
           {t(
-            market.kind === "crypto"
+            !market || market.kind === "crypto"
               ? "sl_class_crypto"
               : market.assetClass === "commodity"
                 ? "sl_class_commodity"
@@ -504,9 +531,11 @@ export function SetLimits({
           <h3 className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             {t("sl_strategy_for", {
               markets:
-                markets.length === 1
-                  ? market.symbol
-                  : t("sl_markets_many", { count: markets.length }),
+                markets.length === 0
+                  ? t("dsc_title")
+                  : markets.length === 1 && market
+                    ? market.symbol
+                    : t("sl_markets_many", { count: markets.length }),
             })}
           </h3>
           <div className="flex items-center gap-0.5 rounded-full border border-grid p-1">
@@ -814,7 +843,7 @@ export function SetLimits({
           // for all of them. It decides whether ATR spacing is offered at all:
           // ATR needs a high and a low per bar, which the tokenized-stock feed
           // does not carry.
-          strategyClass={classFor(market)}
+          strategyClass={klass}
         />
       ) : null}
 
@@ -952,17 +981,28 @@ export function SetLimits({
         market, so offering the control on a single-asset strategy would be
         offering a setting that cannot do anything — the same reason ATR is
         hidden for tokenized stocks.
+
+        A SCREEN ALWAYS COUNTS AS SOMETHING TO RANK, however few markets are
+        pinned: it can match hundreds, and the count is not known until the
+        agent runs. It also makes the control REQUIRED rather than optional —
+        without a ranking every token that passes the rules is bought, every
+        cycle, and the server refuses such a strategy rather than creating one.
       */}
-      {markets.length > 1 ? (
+      {markets.length > 1 || discovery ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             {t("sl_how_many")}
           </h3>
           <RankingControl
-            markets={markets.length}
+            // With a screen the universe is whatever it matches, which is not a
+            // number this step knows. The cap is the honest ceiling on how many
+            // the agent will even look at in a cycle.
+            markets={discovery ? discovery.maxCandidates : markets.length}
+            required={Boolean(discovery)}
             value={value.ranking}
             onChange={(ranking) => onChange({ ...value, ranking })}
           />
+          {discovery ? <FieldNote>{t("dsc_needs_ranking")}</FieldNote> : null}
         </section>
       ) : null}
 
@@ -973,7 +1013,7 @@ export function SetLimits({
         choice on a crypto strategy would be offering a setting that cannot do
         anything.
       */}
-      {market.kind !== "crypto" ? (
+      {!isCrypto ? (
         <section>
           <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
             {t("sl_compliance")}
@@ -1028,15 +1068,50 @@ export function SetLimits({
  */
 function RankingControl({
   markets,
+  required = false,
   value,
   onChange,
 }: {
   markets: number;
+  /**
+   * Whether "all of them" is a legal answer.
+   *
+   * False normally — ranking narrows what an agent buys, and a narrowing nobody
+   * asked for is the setting people find months later wondering why two of
+   * their markets never trade.
+   *
+   * True with a screen, where the reasoning inverts: the set is not a handful
+   * of markets somebody chose but whatever the filters match, so "all of them"
+   * means buying everything that passes, every cycle, until the capital is
+   * gone. The server refuses that; this makes the refusal unreachable rather
+   * than something to hit at the end of the flow.
+   */
+  required?: boolean;
   value?: RankingSpec;
   onChange: (next: RankingSpec | undefined) => void;
 }) {
   const on = !!value;
   const t = useT();
+
+  // Filled in rather than left to the author, because required means required
+  // and a step that opens on an invalid state asks somebody to fix a problem
+  // they did not create. `momentum20dPct` is the fact both specialists produce
+  // and the one a ranking is nearly always about.
+  // `onChange` is an inline arrow at the call site, so it is a new function
+  // every render — the guard above is what makes that safe. Once a value
+  // exists the effect is a no-op, so the re-render its own call causes ends
+  // there rather than looping.
+  const commit = useRef(onChange);
+  commit.current = onChange;
+  useEffect(() => {
+    if (required && !value) {
+      commit.current({
+        by: "momentum20dPct",
+        take: Math.max(1, Math.min(5, markets)),
+        prefer: "highest",
+      });
+    }
+  }, [required, value, markets]);
 
   return (
     <div className="space-y-3">
@@ -1044,8 +1119,9 @@ function RankingControl({
         <button
           type="button"
           aria-pressed={!on}
+          disabled={required}
           onClick={() => onChange(undefined)}
-          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+          className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             !on
               ? "border-accent bg-accent/10 text-text"
               : "border-line text-text-dim hover:text-text"

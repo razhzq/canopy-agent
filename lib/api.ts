@@ -337,6 +337,13 @@ export interface StrategyRow {
   setup?: SetupSpec;
   /** What the strategy may trade. Empty means the whole class. */
   universe?: UniverseSelection[];
+  /**
+   * A screen that finds markets the author did not name.
+   *
+   * Composes with `universe`: both may be set. Absent means the strategy trades
+   * only what it was given, which is every strategy written before this.
+   */
+  discovery?: DiscoverySpec | null;
   exits?: ExitRules | null;
   safety_floor?: Record<string, unknown> | null;
   /** Seconds between cycles. Copied on fork; never editable. */
@@ -532,6 +539,40 @@ export interface UniverseAsset {
   liquidityUsd: number | null;
   /** Daily close-to-close from research, NOT a rolling 24 hours. */
   changePct: number | null;
+
+  /* ---- what a discovery screen reads ------------------------------------
+   *
+   * Collected for nothing: the sweep already calls DexScreener once per mint to
+   * find its deepest pool, and every figure below was in that response and being
+   * discarded. The picker table and a screen's sample render the same row, so
+   * they arrive on every crypto row rather than only on a screen result.
+   *
+   * ABSENT ON RWA ROWS AND ON KALQIX LISTINGS, both for the same reason: these
+   * are properties of an AMM pool, and neither has one. Absent, never zero — a
+   * zero market cap is a figure, and it passes a bound asking for small ones. */
+
+  /** Circulating market cap. Distinct from `fdvUsd` where supply is unvested. */
+  marketCapUsd?: number | null;
+  fdvUsd?: number | null;
+  volume24hUsd?: number | null;
+  volume1hUsd?: number | null;
+  change1hPct?: number | null;
+  /** Counted separately: the ratio is the signal, and a total cannot be split. */
+  txns24hBuys?: number | null;
+  txns24hSells?: number | null;
+  /** When the deepest PAIR was created. Shown as "pair age", never token age. */
+  poolCreatedAt?: string | null;
+  /**
+   * What this token IS, as the universe stamped it.
+   *
+   * Facts, not verdicts. These were exclusions until screens existed — a
+   * stablecoin or a staked-SOL wrapper simply never appeared — and they are
+   * carried now so a screen can exclude them by default and an author can say
+   * otherwise.
+   */
+  isStablecoin?: boolean;
+  isSolDerivative?: boolean;
+  impersonatesRwa?: boolean;
 }
 
 /**
@@ -567,6 +608,86 @@ export interface ExitRules {
 export type UniverseSelection =
   | { kind: "rwa"; underlying: string; issuer?: string }
   | { kind: "crypto"; mint: string };
+
+/**
+ * A fact knowable about a token WITHOUT fetching a candle series.
+ *
+ * Every metric here is a stored column on the token universe, which is what
+ * makes a screen over thousands of tokens free where a DetectionRule over the
+ * same set would be thousands of network calls. That cost difference is why
+ * this is a separate vocabulary rather than more rule keys.
+ *
+ * Mirrors `ScreenMetric` in @canopy/agent-contracts. Keep them in step.
+ */
+export type ScreenMetric =
+  | "marketCapUsd"
+  | "fdvUsd"
+  | "liquidityUsd"
+  | "volume24hUsd"
+  | "volume1hUsd"
+  /** 24h volume over pool depth — thin or frantic, which absolutes cannot say. */
+  | "volumeToLiquidity"
+  /** Hours since the deepest POOL was created. Not since the mint was. */
+  | "pairAgeHours"
+  | "change5mPct"
+  | "change1hPct"
+  | "change6hPct"
+  | "change24hPct"
+  | "txns24h"
+  | "buySellRatio24h";
+
+/**
+ * One bound on one metric. A range is two of them.
+ *
+ * Deliberately the same {key, op, value} shape as DetectionRule, so the
+ * vocabulary a reader met in the rules step carries over. No `eq`: none of these
+ * is usefully compared for equality.
+ */
+export interface ScreenFilter {
+  key: ScreenMetric;
+  op: "gte" | "lte";
+  value: number;
+}
+
+/**
+ * A screen that finds markets the author did not name.
+ *
+ * COMPOSES WITH `universe` rather than replacing it. Both may be set: the named
+ * markets are always screened and the discovered ones are added on top, because
+ * a pinned market is a decision somebody made and a filter does not overrule it.
+ *
+ * Requires a `ranking` — the server refuses a strategy without one. A screen can
+ * match hundreds of tokens and something has to decide which few are bought.
+ */
+export interface DiscoverySpec {
+  filters: ScreenFilter[];
+  /**
+   * The least-vouched-for tier admitted.
+   *
+   * Load-bearing for real money: this is the bar the live path checks before
+   * spending funds. `verified` is Jupiter's own identity gate, which most of the
+   * long tail does not pass — so a screen hunting that tail has to lower this
+   * deliberately, and the builder says what that means beside the control.
+   */
+  minTier: "verified" | "listed" | "pool";
+  /** Every field defaults to TRUE — excluded — when omitted. */
+  exclude?: {
+    solDerivatives?: boolean;
+    stablecoins?: boolean;
+    rwaImpersonators?: boolean;
+    /** No pool means no candles, so indicator rules cannot be evaluated. */
+    withoutPool?: boolean;
+  };
+  /** Rug checks, run only on what already passed the filters. Omitted = none. */
+  safety?: {
+    mintRenounced?: boolean;
+    freezeRenounced?: boolean;
+    lpLockedOrBurned?: boolean;
+    maxTopHolderPct?: number;
+  };
+  /** Most discovered tokens screened per cycle. 1–60, refused outside. */
+  maxCandidates: number;
+}
 
 /**
  * How a selection reads to a person.
@@ -726,6 +847,17 @@ interface CryptoPickerMarket {
   changePct: number | null;
   sources: string[];
   aliases: string[];
+  marketCapUsd?: number | null;
+  fdvUsd?: number | null;
+  volume24hUsd?: number | null;
+  volume1hUsd?: number | null;
+  change1hPct?: number | null;
+  txns24hBuys?: number | null;
+  txns24hSells?: number | null;
+  poolCreatedAt?: string | null;
+  isStablecoin?: boolean;
+  isSolDerivative?: boolean;
+  impersonatesRwa?: boolean;
   /**
    * When the sweep last saw it, or NULL when it has never seen it.
    *
@@ -757,6 +889,43 @@ export const searchUniverse = (token: string, q: string) =>
     token,
   );
 
+/** What a screen matches right now, and a few of the rows it matched. */
+export interface ScreenPreview {
+  /** How many tokens the universe holds. The denominator, so a count means something. */
+  swept: number;
+  matched: number;
+  /**
+   * The screen also demands rug checks, which this count does NOT include.
+   *
+   * Those cost an HTTP call per mint and cannot run on a keystroke, so the agent
+   * will hold fewer than `matched` when this is true. Surfaced rather than
+   * folded in, because a preview quietly promising a number the agent will not
+   * reproduce is worse than one that says what it did not check.
+   */
+  safetyPending: boolean;
+  sample: UniverseAsset[];
+  /** A few near-misses with the screen's own reasons — the same ones the trace shows. */
+  nearMisses: { symbol: string; reason: string }[];
+}
+
+/**
+ * Runs a screen server-side and reports what it matched.
+ *
+ * SERVER-SIDE ON PURPOSE, even though the builder already holds the universe.
+ * The route runs the same `screenUniverse` the tick does, so the count somebody
+ * watches while typing cannot drift from the set their agent will actually
+ * trade. A predicate reimplemented in the browser would agree right up until it
+ * did not, and the disagreement would show up as an agent holding something the
+ * preview said it would skip.
+ *
+ * POST because the spec is a structured body. Nothing here writes.
+ */
+export const screenMarkets = (token: string, spec: DiscoverySpec) =>
+  request<ScreenPreview>("/agents/universe/screen", token, {
+    method: "POST",
+    body: JSON.stringify(spec),
+  });
+
 /**
  * Every market a new strategy could be built on, across all classes.
  *
@@ -783,6 +952,19 @@ function cryptoRowToAsset(r: CryptoPickerMarket): UniverseAsset {
     priceUsd: r.priceUsd,
     liquidityUsd: r.liquidityUsd,
     changePct: r.changePct,
+    // The screener metrics ride along on every crypto row, so the picker table
+    // and a screen's sample can be one component with one set of columns.
+    marketCapUsd: r.marketCapUsd,
+    fdvUsd: r.fdvUsd,
+    volume24hUsd: r.volume24hUsd,
+    volume1hUsd: r.volume1hUsd,
+    change1hPct: r.change1hPct,
+    txns24hBuys: r.txns24hBuys,
+    txns24hSells: r.txns24hSells,
+    poolCreatedAt: r.poolCreatedAt,
+    isStablecoin: r.isStablecoin,
+    isSolDerivative: r.isSolDerivative,
+    impersonatesRwa: r.impersonatesRwa,
     // underlying and issuer are deliberately absent — see UniverseAsset.
   };
 }
@@ -1076,6 +1258,16 @@ export const createStrategy = (
     feePct?: number;
     /** Empty or omitted means every asset in the class. */
     universe?: UniverseSelection[];
+    /**
+     * A screen that finds markets beyond the ones named above.
+     *
+     * REFUSED WITHOUT `ranking`, with a 400 that says why: a screen can match
+     * hundreds of tokens and every one that passes the rules is bought, so
+     * without a ranking the agent takes the whole match set every cycle. The
+     * builder pre-fills one; the server checks because the builder can be
+     * bypassed.
+     */
+    discovery?: DiscoverySpec;
     /** Omitted falls back to the platform defaults for the agent's posture. */
     exits?: ExitRules;
     /** Seconds between cycles. 300–86400; refused outside that, not clamped. */
@@ -2451,6 +2643,15 @@ export const getCycle = (token: string, agentId: number, runId: string) =>
  */
 export interface ScreenStep {
   stage:
+    /**
+     * The screen that chose the universe — before the universe stage counts it.
+     *
+     * Present only on a strategy carrying a `discovery` spec. It is the one
+     * stage whose reasons a reader cannot work out for themselves: the tokens
+     * it dropped are ones nobody named and would have no reason to go looking
+     * for.
+     */
+    | "discovery"
     | "universe"
     | "session"
     | "held"

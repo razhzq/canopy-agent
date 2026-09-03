@@ -8,6 +8,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
 import { AddMarketModal } from "@/components/addMarket";
+import { describeScreen } from "@/components/discoveryFilters";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
 import { ChatButton } from "@/components/agentChatSheet";
@@ -528,6 +529,8 @@ export function AgentDetailView({
     asset: marked.find((a) => assetMatchesSelection(a, sel)) ?? null,
   }));
 
+  /** The screen, when this agent finds its own markets. */
+  const screen = strategy?.discovery ?? undefined;
   const rules = strategy?.rules ?? [];
   const anyOf = strategy?.anyOf ?? [];
   const setup = strategy?.setup;
@@ -987,17 +990,27 @@ export function AgentDetailView({
             <Rule
               label={
                 markets.length === 0
-                  ? t("ad_universe")
+                  ? screen
+                    ? t("dsc_title")
+                    : t("ad_universe")
                   : markets.length === 1
                     ? t("ad_screening_one")
                     : t("ad_screening_many", { count: markets.length })
               }
             />
-            {markets.length === 0 ? (
+            {/* The screen, above the markets it produced.
+                For a discovery agent the list below is a RESULT — what matched
+                this hour — rather than a configuration, so the sentence that
+                chose it belongs above it. Without this the panel answers "what
+                does it hold" and silently drops "and why those". */}
+            {screen ? (
+              <p className={`pt-3 ${BODY}`}>{describeScreen(screen, t)}</p>
+            ) : null}
+            {markets.length === 0 && !screen ? (
               <p className={`pt-3 ${BODY}`}>
                 {t("ad_no_universe", { class: agent.strategy_class })}
               </p>
-            ) : (
+            ) : markets.length === 0 ? null : (
               <div className={`mt-3 overflow-hidden ${SURFACE}`}>
                 {markets.map((m) => (
                   <MarketRow

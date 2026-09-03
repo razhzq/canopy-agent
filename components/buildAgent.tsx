@@ -4,17 +4,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Callout, Columns, WarnIcon } from "@/components/ui";
-import { StepBar } from "@/components/wizard";
 import {
   classFor,
   createStrategy,
   selectionFor,
   startPaperRun,
   getAgent,
+  type DiscoverySpec,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
-import { BUILD_STAGES } from "@/lib/data";
 import {
   BuildName,
   BuildReview,
@@ -164,6 +163,15 @@ export function BuildAgent() {
    */
   const [markets, setMarkets] = useState<UniverseAsset[]>([]);
   const asset = markets[0] ?? null;
+  /**
+   * The screen, when the author asked the agent to find its own markets.
+   *
+   * COMPOSES WITH `markets` rather than replacing them, which is why it is
+   * separate state and not a variant of the list. A strategy may pin two
+   * markets and screen for a hundred more; the pinned ones are traded either
+   * way, and the screen re-runs every cycle.
+   */
+  const [discovery, setDiscovery] = useState<DiscoverySpec | undefined>(undefined);
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
   // What the council will reason with. Canopy's model until someone chooses
   // otherwise — the state every agent built before step 3 existed is in.
@@ -300,7 +308,12 @@ export function BuildAgent() {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error(t("error_not_signed_in"));
-      if (markets.length === 0) throw new Error(t("build_pick_market_error"));
+      // A screen is a complete answer to step 1 on its own — it says what the
+      // agent may trade without naming any of it. Only the case where NEITHER
+      // was given is an error.
+      if (markets.length === 0 && !discovery) {
+        throw new Error(t("build_pick_market_error"));
+      }
 
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim(),
@@ -308,7 +321,11 @@ export function BuildAgent() {
         // longer what decides the specialist. The tick reads the UNIVERSE and
         // runs a specialist per class present (MultiSme), so this is the
         // strategy's primary class: what it screens when nothing is named.
-        strategyClass: classesIn(markets)[0] ?? "rwa",
+        // A screen only ever finds SPL tokens, so a strategy with one and no
+        // named market is "spot" — the "rwa" fallback below is for a strategy
+        // that named nothing at all, and would put a token screen under the
+        // specialist that reads filings.
+        strategyClass: classesIn(markets)[0] ?? (discovery ? "spot" : "rwa"),
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
         // threshold still applies and still excludes things.
         rules: toPayload(activeRules),
@@ -329,6 +346,10 @@ export function BuildAgent() {
         // Every market chosen. The picker guarantees they share a class, which
         // is what makes one `strategyClass` above correct for all of them.
         universe: markets.map(selectionFor),
+        // Undefined rather than null when there is no screen: the field is
+        // optional on the route, and absent is what every strategy written
+        // before this sends.
+        discovery,
         exits: limits.exits,
         // Both of these were collected by the builder and then dropped on the
         // floor here — a timeframe the author picked and a plan the composer
@@ -395,21 +416,50 @@ export function BuildAgent() {
    * already done.
    */
   function onMarketsChange(next: UniverseAsset[]): void {
-    const beforeClasses = classesIn(markets);
-    const afterClasses = classesIn(next);
+    syncRulesTo(classesIn(next), discovery);
     setMarkets(next);
-    if (afterClasses.join() !== beforeClasses.join()) {
-      setLimits((l) => {
-        const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
-        return {
-          ...l,
-          rules: rulesForClasses(afterClasses).map((r) => ({
-            ...r,
-            enabled: enabled.get(r.key) ?? false,
-          })),
-        };
-      });
-    }
+  }
+
+  /**
+   * Adding or removing a screen changes which rules step 2 can offer.
+   *
+   * A screen only ever finds SPL tokens, so it puts the token class in play
+   * exactly as picking one does. Without this a discovery-only strategy reaches
+   * step 2 with the RWA rule set — margins and filings, none of which a token
+   * carries — and every rule it could actually use is missing, on a step that
+   * refuses to continue until one is enabled.
+   */
+  function onDiscoveryChange(next: DiscoverySpec | undefined): void {
+    syncRulesTo(classesIn(markets), next);
+    setDiscovery(next);
+  }
+
+  /**
+   * Rebuilds the rule list for a set of classes, keeping what was switched on.
+   *
+   * Shared by the two callers above because they are the same operation from
+   * two directions, and a second copy would be the one that forgets to preserve
+   * `enabled` — which silently switches off every rule the author had chosen.
+   */
+  function syncRulesTo(
+    classes: ("rwa" | "spot")[],
+    spec: DiscoverySpec | undefined,
+  ): void {
+    const withScreen = (cs: ("rwa" | "spot")[], on: boolean): ("rwa" | "spot")[] =>
+      on ? [...new Set<"rwa" | "spot">([...cs, "spot"])] : cs;
+    const beforeAll = withScreen(classesIn(markets), Boolean(discovery));
+    const afterAll = withScreen(classes, Boolean(spec));
+    if (afterAll.join() === beforeAll.join()) return;
+    setLimits((l) => {
+      const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
+      return {
+        ...l,
+        rules: rulesForClasses(afterAll).map((r) => ({
+          ...r,
+          enabled: enabled.get(r.key) ?? false,
+        })),
+      };
+    });
   }
 
   /**
@@ -423,7 +473,17 @@ export function BuildAgent() {
     return [
       {
         label: t("review_row_markets"),
-        value: markets.length ? markets.map((m) => m.symbol).join(" · ") : "—",
+        // A screen is part of the answer to this row, so it is named here. A
+        // review that showed "—" for a strategy about to screen the whole token
+        // universe would be describing something other than what gets created,
+        // which is the one thing this screen exists not to do.
+        value:
+          [
+            markets.length ? markets.map((m) => m.symbol).join(" · ") : null,
+            discovery ? t("dsc_title") : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "—",
         step: "01",
       },
       {
@@ -599,15 +659,22 @@ export function BuildAgent() {
         cta={<BuildCta {...stepCta} />}
       >
         <div className="px-[18px] pb-6">
-          {step === 0 || !asset ? (
+          {/* `!asset` is a fallback for a step past 1 with nothing picked —
+              which USED to be impossible and now is not: a strategy can be
+              built entirely from a screen. Without `|| discovery` in the test,
+              such a build lands back on step 1 the moment it leaves it. */}
+          {step === 0 || (!asset && !discovery) ? (
             <PickMarket
               value={markets}
               onChange={onMarketsChange}
+              discovery={discovery}
+              onDiscoveryChange={onDiscoveryChange}
               onNext={() => setStep(1)}
             />
           ) : step === 1 ? (
             <SetLimits
               markets={markets}
+              discovery={discovery}
               value={limits}
               onChange={setLimits}
               onBack={() => setStep(0)}
@@ -643,8 +710,18 @@ export function BuildAgent() {
 
   return (
     <main>
-      <StepBar steps={BUILD_STAGES} current={0} />
-
+      {/* WHAT USED TO BE HERE: the lifecycle bar — 01 Draft · configure,
+          02 Paper run, 03 Published.
+          
+          It described where this agent sits in a lifecycle that has not started:
+          two of its three stages are things that happen after the builder is
+          finished, and the one it was on is the whole page. So it spent the top
+          of the screen telling somebody the step they are already looking at,
+          above a wizard with its own step numbers — two counters disagreeing
+          about what "01" means.
+          
+          The publish page still shows it, where the stages are a real position
+          in a real sequence. */}
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 sm:px-8 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
@@ -695,15 +772,18 @@ export function BuildAgent() {
       <Columns
         main={
           <div className="px-5 sm:px-8 py-8">
-            {step === 0 || !asset ? (
+            {step === 0 || (!asset && !discovery) ? (
               <PickMarket
                 value={markets}
                 onChange={onMarketsChange}
+                discovery={discovery}
+                onDiscoveryChange={onDiscoveryChange}
                 onNext={() => setStep(1)}
               />
             ) : step === 1 ? (
               <SetLimits
                 markets={markets}
+                discovery={discovery}
                 value={limits}
                 onChange={setLimits}
                 onBack={() => setStep(0)}
@@ -731,12 +811,18 @@ export function BuildAgent() {
                 {t("build_so_far")}
               </h3>
               <Trail
-                done={step > 0 && !!asset}
+                // A screen answers this step as completely as a pick does, so
+                // the rail must count it as answered — otherwise a
+                // discovery-only build shows step 1 as unfinished for the rest
+                // of the flow.
+                done={step > 0 && (!!asset || !!discovery)}
                 here={step === 0}
                 label={t("build_trail_market")}
                 value={
                   markets.length === 0
-                    ? t("build_trail_this_step")
+                    ? discovery
+                      ? t("dsc_title")
+                      : t("build_trail_this_step")
                     : markets.length === 1
                       ? `${markets[0].symbol}/USDC`
                       : t("build_trail_markets", { count: markets.length })
