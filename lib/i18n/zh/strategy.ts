@@ -63,8 +63,12 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   tf_15m: "15 分钟",
   tf_15m_detail: "一个月的历史数据。14 周期 RSI 覆盖约 3 个半小时。",
   tf_5m: "5 分钟",
-  tf_5m_detail: "一个月的历史数据。这是调度器能够执行的最细级别。",
+  tf_5m_detail: "一个月的历史数据。足以支撑日内波段。",
+  tf_1m: "1 分钟",
+  tf_1m_detail: "两小时的历史数据。仅限加密资产 —— RWA 数据源不提供分钟级 K 线。",
 
+  cad_1m: "1 分钟",
+  cad_1m_detail: "调度器的最快频率。建议搭配带排序的筛选使用。",
   cad_5m: "5 分钟",
   cad_5m_detail: "止损最灵敏。每天约 288 次模型调用。",
   cad_15m: "15 分钟",
@@ -118,6 +122,9 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   bs_time_limit_help: "超过这段时间后，无论价格如何都平仓。",
   bs_time_never: "不限",
   bs_days: "{n} 天",
+  bs_minutes: "{n} 分钟",
+  bs_time_limit_mins: "时间限制（分钟）",
+  bs_time_limit_mins_help: "达到该分钟数后无论价格如何都平仓。与天数限制同时设置时，以较早者为准。",
   bs_exits_note:
     "出场规则在每个周期都会先于寻找新标的被检查 — 包括那些什么都没买的周期。价格无法读取的持仓绝不会按猜测的价格平掉。",
   bs_basket_title: "整体出场",

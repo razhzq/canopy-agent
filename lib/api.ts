@@ -260,7 +260,7 @@ export interface StrategyRow {
    * authored before timeframes existed, which were all daily — so a reader
    * must default it rather than treat it as unknown.
    */
-  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | null;
+  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m" | null;
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
@@ -600,6 +600,14 @@ export interface ExitRules {
   stopLossPct: number;
   /** Zero or absent means never on time alone. */
   maxHoldDays?: number;
+  /**
+   * The same limit at minute resolution, for a thesis that expires inside a
+   * day. 0-1440; zero or absent means the minute clock is off.
+   *
+   * Set alongside `maxHoldDays` the EARLIER deadline wins, so adding this to a
+   * strategy can only tighten its time stop, never loosen one.
+   */
+  maxHoldMinutes?: number;
   /**
    * Close EVERY open position at once when the book as a whole reaches a level.
    *
@@ -1121,7 +1129,7 @@ export interface ComposedDraft {
   ranking?: RankingSpec;
   exits: ExitRules;
   /** Bar size the rules are measured on. Always concrete. */
-  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
   /** Set only when the description asked to buy repeatedly. */
   addPlan?: AddPlan;
   /** One sentence on how the request was read. */
@@ -1144,7 +1152,7 @@ export interface ComposeProvenance {
    * fallback — still live, still going to trade, just chosen by nobody.
    *
    * Field names as the engine spells them: `takeProfitPct`, `stopLossPct`,
-   * `maxHoldDays`, `trailingStopPct`, `breakevenAfterPct`.
+   * `maxHoldDays`, `maxHoldMinutes`, `trailingStopPct`, `breakevenAfterPct`.
    */
   stated: string[];
   /** Exits whose stated number did not fit, and the nearest one that does. */
@@ -1305,10 +1313,10 @@ export const createStrategy = (
     discovery?: DiscoverySpec;
     /** Omitted falls back to the platform defaults for the agent's posture. */
     exits?: ExitRules;
-    /** Seconds between cycles. 300–86400; refused outside that, not clamped. */
+    /** Seconds between cycles. 60–86400; refused outside that, not clamped. */
     tickIntervalSec?: number;
     /** Bar size the technical rules are measured on. Omitted means daily. */
-    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
     /** Accumulation. Omitted means one entry per asset. */
     addPlan?: AddPlan | null;
     /**
@@ -1372,11 +1380,30 @@ export const getVerification = (token: string, strategyId: number) =>
  * Starts the paper run and returns the agent that will run it — the caller
  * navigates there. A paper run the creator cannot find is not much of one.
  */
-export const startPaperRun = (token: string, strategyId: number) =>
+export const startPaperRun = (
+  token: string,
+  strategyId: number,
+  /**
+   * The paper book, when it should not be the default $10,000.
+   *
+   * 100-10000, refused outside. A record earned on $10k and shown to someone
+   * about to deploy $100 is not the same claim: the paper adapter's network fee
+   * is FLAT per fill and its slippage scales with size, so the costs a strategy
+   * meets depend on the book it was run at. Omitted keeps the verification
+   * figure, which is the right default for a strategy headed for the
+   * marketplace.
+   */
+  opts: { capitalUsd?: number } = {},
+) =>
   request<{ agentId: number; verification: VerificationStatus }>(
     `/agents/strategies/${strategyId}/verify`,
     token,
-    { method: "POST" },
+    {
+      method: "POST",
+      ...(opts.capitalUsd === undefined
+        ? {}
+        : { body: JSON.stringify({ capitalUsd: opts.capitalUsd }) }),
+    },
   );
 
 /**
@@ -2644,7 +2671,7 @@ export const updateAgentStrategy = (
     anyOf?: DetectionRule[][];
     setup?: SetupSpec | null;
     exits?: ExitRules;
-    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m";
+    timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
     addPlan?: AddPlan | null;
   },
 ) =>

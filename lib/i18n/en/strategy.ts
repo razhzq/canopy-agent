@@ -82,9 +82,13 @@ export const enStrategy = {
   tf_15m: "15 min",
   tf_15m_detail: "A month of history. A 14-period RSI spans about 3½ hours.",
   tf_5m: "5 min",
-  tf_5m_detail: "A month of history. The finest the scheduler can act on.",
+  tf_5m_detail: "A month of history. Enough context for a swing inside a day.",
+  tf_1m: "1 min",
+  tf_1m_detail: "Two hours of history. Crypto only — no RWA feed builds minute bars.",
 
   // ── Cadences ───────────────────────────────────────────────────
+  cad_1m: "1 min",
+  cad_1m_detail: "The fastest the scheduler runs. Best paired with a ranked screen.",
   cad_5m: "5 min",
   cad_5m_detail: "Fastest stops. ~288 model calls a day.",
   cad_15m: "15 min",
@@ -145,6 +149,10 @@ export const enStrategy = {
   bs_time_limit_help: "Close regardless of price after this long.",
   bs_time_never: "Never",
   bs_days: "{n}d",
+  bs_minutes: "{n}m",
+  bs_time_limit_mins: "Time limit (minutes)",
+  bs_time_limit_mins_help:
+    "Close regardless of price after this many minutes. Set with the day limit, the earlier one wins.",
   bs_exits_note:
     "Exits are evaluated every cycle, before the agent looks for anything new — including on cycles where it finds nothing to buy. A position whose price cannot be read is never closed on a guess.",
   bs_basket_title: "Whole-book exit",

@@ -359,7 +359,7 @@ export const RWA_RULES: RuleSpec[] = [
 ];
 
 /** Bar sizes a strategy's technical rules can be measured on. */
-export type Timeframe = "1d" | "1h" | "30m" | "15m" | "5m";
+export type Timeframe = "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
 export const DEFAULT_TIMEFRAME: Timeframe = "1d";
 
 export const TIMEFRAMES: {
@@ -388,6 +388,17 @@ export const TIMEFRAMES: {
   },
   { tf: "15m", labelKey: "tf_15m", detailKey: "tf_15m_detail" },
   { tf: "5m", labelKey: "tf_5m", detailKey: "tf_5m_detail" },
+  {
+    // The mirror of 30m, and refused for the mirror reason: GeckoTerminal
+    // serves minute/1 for a Solana pool, and Wintel's bar contract stops at 5m
+    // because equity and commodity bars are collected per symbol upstream. An
+    // RWA strategy on 1m would deploy, wake every minute and compute no
+    // technical fact at all.
+    tf: "1m",
+    labelKey: "tf_1m",
+    detailKey: "tf_1m_detail",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
 ];
 
 /** The bar sizes one class can actually be screened at. */
@@ -405,6 +416,7 @@ export const BARS_PER_DAY: Record<Timeframe, number> = {
   "30m": 48,
   "15m": 96,
   "5m": 288,
+  "1m": 1440,
 };
 
 /**
@@ -571,10 +583,12 @@ export function ruleBasisNote(
  * Faster re-reads a bar that has not changed and pays for an LLM call to reach
  * the same conclusion; slower steps over bars without ever seeing them.
  *
- * The 5-minute floor is the sweep cron's own period — anything faster is a
- * promise the scheduler cannot keep.
+ * The one-minute floor is the smallest bar any upstream feed builds. It is
+ * reachable because the sweep cron runs every fifteen seconds, so an agent that
+ * becomes due is ticked inside a quarter of its own period.
  */
 export const CADENCES: { sec: number; labelKey: TranslationKey; detailKey: TranslationKey }[] = [
+  { sec: 60, labelKey: "cad_1m", detailKey: "cad_1m_detail" },
   { sec: 300, labelKey: "cad_5m", detailKey: "cad_5m_detail" },
   { sec: 900, labelKey: "cad_15m", detailKey: "cad_15m_detail" },
   // Present for the same reason as the 30-minute timeframe: without it,
@@ -593,6 +607,7 @@ export const CADENCE_FOR_TIMEFRAME: Record<Timeframe, number> = {
   "30m": 1800,
   "15m": 900,
   "5m": 300,
+  "1m": 60,
 };
 
 /**
@@ -805,6 +820,36 @@ export function StrategyStep({
             }
             onChange={(v) => setExit({ maxHoldDays: v })}
           />
+          {/*
+            The same limit at a resolution a fast strategy can express, and
+            shown only where it means something.
+
+            A day is not a unit a minute-bar thesis has: the shortest limit the
+            slider above can express is 1, which is 1,440 bars, so a scalper
+            setting a "time stop" was setting no time stop at all. Hidden on
+            slower timeframes rather than merely defaulted to zero, because a
+            second time control on a daily strategy is a question nobody asked
+            and one more thing to read.
+
+            Both may be set — the engine takes the EARLIER deadline — so this
+            can only tighten what the slider above already says.
+          */}
+          {(timeframe === "1m" || timeframe === "5m" || timeframe === "15m") && (
+            <Slider
+              label={t("bs_time_limit_mins")}
+              help={t("bs_time_limit_mins_help")}
+              value={exits.maxHoldMinutes ?? 0}
+              min={0}
+              max={1440}
+              step={5}
+              display={
+                exits.maxHoldMinutes
+                  ? t("bs_minutes", { n: exits.maxHoldMinutes })
+                  : t("bs_time_never")
+              }
+              onChange={(v) => setExit({ maxHoldMinutes: v })}
+            />
+          )}
         </div>
         <p className="pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
           {t("bs_exits_note")}
@@ -1445,7 +1490,7 @@ export function AddPlanCard({
               label={t("acc_wait_at_least")}
               help={t("acc_wait_help")}
               value={plan!.minSpacingSec ?? 86_400}
-              min={300}
+              min={60}
               max={2_592_000}
               step={300}
               display={(() => {
