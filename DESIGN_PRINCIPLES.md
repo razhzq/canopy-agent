@@ -1,205 +1,191 @@
 # Canopy — Design Principles
 
-Use this as the reference when revamping any page, so the product reads as one
-system. Two sources, two altitudes:
+What the landing rebuild (`components/landing/`) established, written down so
+every new surface reads as the same product. The constant is **clean and
+modern**. Ground, layout and density are choices made per section; the rules
+below say what makes any of those choices look clean.
 
-- **§1–9 — the look.** Distilled from the landing page (`app/(marketing)`,
-  `components/canopyLanding/`). Where the landing scopes its own copy of the
-  tokens under `.cnp`, the same values live in `app/globals.css` for the rest of
-  the app — keep them in sync.
-- **§10 — the sequence.** Distilled from the agent-creation flow: what a screen
-  says the first time someone reaches it, and in what order it asks.
-
-Below both sits **`components/kit.tsx`** — twelve numbered rules and the tokens
-that enforce them, extracted from the deposit and withdraw dialogs. That file is
-the authority on a single surface: what leads, what gets a border, what gets a
-callout. If it and this document ever disagree about an in-app screen, the kit
-is right. Read its header before building one.
+Tokens and values are lifted from `components/landing/landing.css`. The
+previous system lives at `docs/design-principles-dark-legacy.md`; its §10
+(flow and first-run sequencing) still applies to the app and is not restated.
+Reference: `docs/design-ref-public-agents.md`.
 
 ---
 
-## 1. Palette
+## 1. What "clean" means here
 
-Near-black ground, a single mint accent, cool neutrals. Warmth comes from
-imagery, never from the UI.
+1. **One idea per container.** A section makes one claim. A card or cell
+   holds one thought, one figure, or one miniature — never two of them.
+2. **Hairlines separate; nothing floats.** On any ground, edges are 1px
+   lines. Shadows exist only to lift a miniature off a well, or a toast off a
+   panel. Cards on the page ground never cast one.
+3. **Colour is a signal.** Each section gets one accent moment: a halo, a
+   meter fill, a live pill, a sparkline, a fade. Text is never the accent.
+4. **Show the product, not a picture of it.** Where a site would put an icon
+   or an illustration, put a faithful miniature of the real UI.
+5. **Whitespace is structure.** Consistent gaps, generous padding, and one
+   grid per container. Nothing is nudged by hand.
+6. **Quiet type, tight and light.** Hierarchy comes from size and cut, not
+   weight or colour.
+
+If a layout satisfies all six it is allowed, whatever shape it takes.
+
+## 2. Grounds
+
+Two grounds, equal standing. Choose per section for rhythm; alternate them,
+never mix them inside one container.
+
+### Light
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#050505` | page ground |
-| `--surface` | `#0A0A0A` | cards, panels |
-| `--elevated` / `--elevated-2` | `#111111` / `#151515` | hovered / inset surfaces |
-| `--border` | `#1A1A1A` | hairline dividers |
-| `--border-accent` | `#1E3A30` | green-tinted border on accented cards |
-| `--accent` | `#5ED3B3` | **the** brand mint — primary accent |
-| `--accent-2` | `#3AAE92` | deeper mint (gradients, hovers) |
-| `--accent-dim` | `#1A3D33` | mint fills/tints |
-| `--text` | `#EDEDED` | primary text |
-| `--text-2` | `#8A8A8A` | secondary text |
-| `--text-3` | `#555555` | muted / captions **(never over imagery — see §6)** |
-| `--loss` | `#E5484D` | negative / down |
-| `--hot` | `#F2A64D` | "hot" flags only |
+| `--bg` | `#FFFFFF` | page and cards (same white; borders do the separating) |
+| `--ink` | `#0B1410` | headlines, primary buttons, nav |
+| `--body` | `#33403A` | paragraphs |
+| `--muted` | `#8A968F` | captions, placeholders, inactive tabs |
+| `--line` | `#E6EBE8` | every hairline |
+| `--chip` | `#EEF3F0` | selected segment, tag fill |
+| `--green-deep` | `#1FA97A` | the accent when it must read on white |
+| second headline line | `#A8B3AD` | |
+
+### Dark
+
+| Token | Value | Use |
+|---|---|---|
+| panel / section | `#0B100E` | ground |
+| card | `#151A17` | cells, nodes |
+| card, emphasised | `#12171A` | the one highlighted card |
+| border | `#262D29` | every hairline |
+| grid line | `#1B221E` | faint construction lines |
+| text | `#FFFFFF` / `#E8ECEA` | headings / body |
+| meta | white at 45–55% | timestamps, labels |
+| `--green` | `#5ED3B3` | the accent; safe on dark |
+| check circle | `#1E4A38` fill, green tick | |
+
+Shared: `--loss` `#E5484D` for negative deltas on either ground.
 
 Rules:
-- **Positive/up is mint** (`--accent`), not a separate green. Down is `--loss`.
-- Mint is the *only* accent. Don't introduce a second UI accent colour.
-- Text selection: mint background, `#031611` text.
-- Amber (`--hot`) is reserved for "hot" tags; never a general accent.
+- **Green is the only accent.** No amber, blue or violet. On white use
+  `--green-deep` for anything that must be read; `--green` is for dark.
+- **Buttons are ink on light and white on dark.** Never green.
+- **A dark section on a light page has a radius** (20px) when it is a panel
+  inside the flow, and none when it is full-bleed. Either is fine; pick one
+  per section.
 
-## 2. Typography
+## 3. Typography
 
-Three roles, deliberately paired:
+One family with two cuts, plus mono for figures. Same on both grounds.
 
-- **Display wordmark** — `NT Brick Sans` (chunky pixel face), mint, with a hard
-  offset shadow. **Only** for the `canopy` wordmark / oversized brandmark. Never
-  body or headings.
-- **Sans** — `Inter Tight` (`--sans`) for headings and prose.
-- **Mono** — `JetBrains Mono` (`--mono`) for eyebrows, numbered labels, data,
-  tickers, tags, captions, fine print.
+| Role | Face | Size | Weight | Tracking | Leading |
+|---|---|---|---|---|---|
+| Display headline | Inter Tight (`--display`) | `clamp(40px, 5.2vw, 72px)` | 300 | `-.03em` | 1.02 |
+| Section title | Inter Tight | `clamp(32px, 4vw, 56px)` | 300 | `-.03em` | 1.06 |
+| Card / column title | Inter (`--sans`) | 18–30px | 400–500 | `-.01em` | 1.2 |
+| Eyebrow | Inter | 16px | 400 | 0 | 1.4 |
+| Body | Inter | 15–18px | 400 | 0 | 1.5 |
+| Chip / tag | Inter | 11–12.5px | 500 | 0 | 1 |
+| Figures | IBM Plex Mono (`--mono`) | 11–32px | 400 | `-.02em` above 20px | — |
 
-Scale & weight:
-- Display headline: `clamp(40px, 6vw, 78px)`, **weight 300** (light, calm).
-- Section title: `clamp(28px, 3.6vw, 52px)`, **weight 300**.
-- Lede: 17–18px, `--text-2`.
-- Body: 14–15px.
-- Eyebrow: 11px mono, `uppercase`, `letter-spacing: .2em`, mint, often with a
-  small line-icon.
-- Headings are light-weight on purpose — the calm register is part of the brand.
-- **Highlight the key phrase of a heading in mint** (`.mint`), the rest in
-  `--text`. One highlight per heading.
+- Headlines are light, never bold. Section titles run two lines: the claim,
+  then a muted second line.
+- Sentence case. Headlines end with a full stop.
+- Every number is mono. The words around it are not.
+- The wordmark is the pixel image `public/canopy-wordmark.png`, 24px in the
+  nav; never typeset.
 
-## 3. Layout
+## 4. Layouts
 
-- Content max-width **1200px**, 28px gutters.
-- **Spacious** vertical rhythm — sections ~96px+ padding; let things breathe.
-- Standard section rhythm: **mono eyebrow (+icon) → light title (mint on the key
-  phrase) → grey sub → content**.
-- Hero fills the first screen (`.fold` pins ticker + hero to the viewport).
-- Cards: dark surface, 1px subtle border, radius 16–22px; on hover the border
-  brightens and/or the card lifts a few px.
-- **Breakpoints are min-width and they cascade in source order.** Write the
-  small layout on the bare class and widen upward (`grid-cols-1` →
-  `sm:grid-cols-[…]`). Never `lg:grid-cols-1 sm:grid-cols-[…]`: `lg` is emitted
-  after `sm`, so above 1024px the *narrow* rule wins and the desktop layout
-  silently collapses to a stack — correct only in the 640–1023px band nobody
-  develops in. A control in a collapsed 1-column grid stretches to the
-  container, which is how a 52px toggle ends up spanning the page.
+A catalogue, not a sequence. Any of these may follow any other. What keeps a
+page coherent is the shared header, the shared tokens, and the gap rhythm.
 
-## 4. Motion
+**Section header** — eyebrow, two-line title, optional one-sentence lede,
+centred, 72px above the content. Every section starts this way.
 
-Elegant, restrained, and always reduced-motion-safe.
+**Hero** — header, one primary pill, one disclosure chip, then a dark demo
+panel showing the product running. Decorative motion lives in the margins
+(the orbit), never behind the copy.
 
-- **Scroll reveal**: `opacity 0→1`, `translateY(30px→0)`, `blur(8px→0)` over
-  **1s `cubic-bezier(.16, 1, .3, 1)`** (ease-out-expo). Add a small per-item
-  stagger across a row/grid (~90ms steps). Implemented as `.rv` → `.in` via an
-  IntersectionObserver.
-- **Hero entrance**: choreograph the hero children in on load (eyebrow → headline
-  → lede → CTAs → trust), staggered.
-- **Parallax**: layered scroll transforms so depth reads — background image
-  slowest (~0.22×), mid motifs ~0.34×, foreground particles ~0.5×, copy ~0.16×
-  and fading as it leaves. rAF-throttled (one transform per frame).
-- **Always** honour `@media (prefers-reduced-motion: reduce)` — disable reveals,
-  parallax, entrance, and ambient loops.
+**Split card** — one hairline container cut by one vertical hairline, halves
+of title → preview well → body. For "two ways" choices.
 
-## 5. Imagery
+**Feature row** — three or four columns under one hairline, each a title, a
+short body and optionally one mono figure pinned to the bottom.
 
-One consistent painted world, used sparingly and always legible.
+**Bento** — a grid of cells. Rules that keep a bento clean:
+- one gap value throughout (12–16px), one radius (16px), one border colour;
+- at most two cell sizes, and exactly one feature cell (the largest);
+- the feature cell holds the miniature; every other cell holds one title,
+  one line, and at most one figure;
+- no gradients on cells; the accent appears in one cell only;
+- cells are the card colour of the ground, never lighter and darker mixed.
 
-- **Style**: cinematic, painterly, subtle **film grain**; cool near-black
-  palette with **mint** as the warm-ish accent (match `--accent`). No orange/gold.
-- **Recurring motifs**: glowing **mint ring-portals** (the signature), Earth /
-  lunar-space scenes, slender tower spires, bioluminescent flora, floating light
-  motes. A lone figure for scale/wonder.
-- **Grain**: a faint fractal-noise overlay sits across the whole page.
-- **Legibility over art is non-negotiable**: every image gets a scrim (radial +
-  linear) plus soft text-shadows on the copy, and fades to `--bg` at its edges.
-  Never place `--text-3` (muted) copy over a bright image — brighten it first.
-- Prompt guidance for new art lives with the hero; keep rings mint and the scene
-  cool so generated images sit natively in the palette.
+**Dark panel** — a rounded dark container inside the light flow (the demo
+panel, a spotlight prompt). Carries the section's colour: a green fade at the
+foot or a halo behind the highlighted element.
 
-## 6. Chrome & components
+**Carousel** — equal cards in a row, the selected one lifted 16px with a halo
+behind it; two 40px circular outline arrows centred below.
 
-- **Nav**: a floating translucent panel (backdrop-blur + soft shadow, **no hard
-  border**) over the hero — not a full-width bar.
-- **Buttons are pills**:
-  - Primary — **solid mint** (`--accent`, text `#04120e`), soft mint glow shadow.
-  - Ghost — glassy translucent (blur, subtle green-tinted border).
-- **Ticker**: mono marquee, hairline top/bottom, edge-masked.
-- **Glassy circular badges / pills** for overlays on imagery.
-- **Device mocks** (e.g. iPhone) are built in **CSS/SVG**, not image assets —
-  titanium-edge bezel, inner rim, side buttons, screen glare.
+**Preview well** — the inset gradient box (`#F7F9F8 → #FCFDFC` on light,
+card colour on dark) that holds a miniature, fading out at the bottom.
 
-## 7. Voice & copy
+Spacing constants: container 1280px with 28px gutters; inner containers
+1060px; section padding 120px top and 96px bottom; card padding 32px sides,
+48px top, 56px bottom; 72px from header to content.
 
-- Calm, confident, concrete. Short sentences. No hype, no overclaiming.
-- **Say what things are, from the user's side.** Name the metric the owner
-  configured; don't invent product vocabulary.
-- **Vocabulary bans**:
-  - Not **"mobile"** and not **"app"** — Canopy runs in the browser. Say
-    "in your browser", "on the go", "wherever you are".
-  - Agents are **autonomous within caps** — frame as *"runs on autopilot / you
-    watch, they work"*, never "the agent proposes a trade and you approve".
-- **Number formatting** (any surface that shows figures): money with thousands
-  separators and `$`; percentages with `%` and trimmed decimals; indices (RSI…)
-  bare with no unit; operators as `≥` / `≤`. Format by the metric's type; keep
-  the raw metric key visible for technical users.
+## 5. Components
 
-## 8. i18n & self-containment
+Defined once in `landing.css`; reuse the class.
 
-- All copy goes through i18n keys — **English and Chinese** kept at parity
-  (`lib/i18n/en`, `lib/i18n/zh`). A missing key breaks the build, by design.
-- **Never translate** product identifiers: symbols (`AAPLx`, `SOL`), model names
-  (`cQWEN3`, `DeepSeek-V3`), venue/brand names, agent display names.
-- Keep a surface's styles self-contained and scoped (the landing lives entirely
-  under `.cnp` in `components/canopyLanding/`, tokens re-declared locally) so a
-  page can be lifted or removed without side effects.
+- **Pill button (`.pill`)** — 42px in the nav, 56px in a hero, full radius,
+  1px border. `.dark` is the primary. Hover lifts 1px. Arrow icons slide 3px.
+- **Disclosure chip (`.disc`)** — 28px hairline chip for the one quiet link
+  under a primary.
+- **Segmented pill (`.seg`)** — white tray, selected segment in `--chip`,
+  default on the left.
+- **Prompt pill (`.ask`)** — 56px input, ink circular submit, soft shadow and
+  a 6px green ring at 10%. The "AI" cue.
+- **Category strip (`.cats`)** — chips in a hairline tray.
+- **Marketplace card (`.mcard`)** — name and tags, 44px sparkline, hairline,
+  four-column stat row (label 10px muted, value 14px mono). No avatar.
+- **Watch strip (`.watch`)** — market label, live dot, rule in words, a
+  meter from 0 to the firing threshold, mono footer with check cadence.
+- **Demo nodes** — prompt (gradient hairline, halo), agent (chip, name,
+  Active pill, timeline rows), market (tabs, mono price, delta, drawn
+  sparkline, toast). Joined by 1px connectors with 8px white terminals.
+- **Orbit tiles (`.orb`)** — 52px white circles holding brand marks;
+  decorative and hidden under 1180px.
 
-## 9. Accessibility checklist
+## 6. Motion
 
-- Legible contrast over imagery (scrim + shadow), verified on the brightest frame.
-- Visible keyboard focus states.
-- Decorative layers `aria-hidden`.
-- Reduced-motion path disables all motion.
-- Wide content (tables, tickers) scrolls within its own container — the page body
-  never scrolls sideways.
+Easing `cubic-bezier(.2,.8,.2,1)`. Nothing bounces or spins.
 
-## 10. Flows & first run
+- Hover: lift 1px in 180ms.
+- Demo: prompts cycle every 7s; rows enter top-down at 150 / 550 / 950 /
+  1350ms; sparkline draws over 1.6s; toast lands at 2.1s. Picking a prompt
+  pins it.
+- Orbit: take-offs 420ms apart, 2.6s figure-eight flights, then a 4px bob.
+- Reduced motion is a full path: everything renders in its final state.
 
-Surface rules live in `components/kit.tsx` (twelve of them, applied by hand
-where a primitive does not fit). These are the ones about *sequence* — what a
-screen says the first time someone reaches it, and in what order it asks.
+## 7. Copy, i18n, accessibility
 
-- **Onboarding is not management.** A panel that reports balance, spend and
-  history is right for a thing with a history and wrong for one that is four
-  seconds old. Do not point one at the other: split the component. Reusing the
-  management panel as the first-run step is what produced a *$0.00* balance, a
-  *$0.00* spend, "no cycles measured yet", "nothing recorded yet" and an **Out
-  of model balance** warning, all at once, as the first thing the product said
-  to someone who had just finished building an agent.
-- **Absence of history is not data.** A figure that is structurally guaranteed
-  to be zero is not a reading; rendering it as one asks the reader to interpret
-  a number that means nothing yet. Show no figure.
-- **Never open on a failure nobody has caused.** "Out of" is a sentence about
-  running out. A thing that has never been filled has not run out, and greeting
-  a new account with a hazard colour teaches people that the warning tone is
-  noise.
-- **Show the whole job before asking for the first part of it.** Every step of a
-  multi-step commitment is drawn from the first frame — dimmed, unpressable, and
-  carrying the value it will ask for. See kit rule 12. A second wallet signature
-  that appears only after the first one lands is an ambush.
-- **Ask where the context is, not where the form is.** Collect a decision on the
-  screen that holds the facts it depends on, and let the later screen *confirm*
-  it. The bundle size needs the model, its price ceiling and the cadence — all
-  three live in step 3 and none survive into the funding step, so asking there
-  meant asking with the context gone.
-- **Reassurance sits next to the control, not inside the warning.** The same
-  sentence reads as an excuse under a hazard heading and as an answer beside the
-  button. Put it where the hesitation is.
-- **Do not offer to undo a decision made five seconds ago.** A prominent "change
-  it" beside the thing just chosen competes with the step the reader is actually
-  on. Demote it, or move it to the page where changing it is a real task.
-- **Leaving is an outcome, not an escape.** If stopping half-way is safe, say so
-  in a sentence and give it a label — "Do this later", with what happens if they
-  do. An X in the corner makes an ordinary choice feel like abandonment.
-- **Name the act, not the mechanism** — at first contact. "Give it a wallet"
-  where the reader has not met delegation; "Grant delegation" later, where the
-  precise term is the useful one. Same component, overridable label.
+- One line says who Canopy is; one sentence says what you can do.
+- Product identifiers (tickers, venues, models, agent names) are never
+  translated. Every other string goes through i18n, English and Chinese at
+  parity, keys prefixed `lp_`.
+- Demo content is illustrative and shaped like real data: a rule, the checks
+  it ran, the fill it produced.
+- Ink and body clear AA on white; white and `#E8ECEA` clear it on dark.
+  Muted is for skippable text only.
+- Decorative layers are `aria-hidden` and ignore the pointer. Mocks contain
+  no real controls. Tab strips use `role="tablist"`.
+
+## 8. Do not
+
+- Do not put a shadow on a card on the page ground, light or dark.
+- Do not colour a button, heading or link green.
+- Do not set a headline bold or in a serif.
+- Do not use gradients on cells, or mix cell tones inside one grid.
+- Do not put two accent moments in one section.
+- Do not use an icon or illustration where a miniature of the real UI fits.
+- Do not mix the light and dark token sets inside one container.

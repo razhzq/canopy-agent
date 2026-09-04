@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Instrument_Serif, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { getServerT } from "@/lib/i18n/server";
 
 /**
@@ -26,6 +26,16 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
 });
 
+// The display serif for headlines only — `.h1` and `.sec-title` in
+// landing.css. One weight, because the face does its work through contrast
+// with the sans, not through boldness. Loaded here for the same reason as the
+// other two: no signed-in page sets a headline in it.
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-instrument-serif",
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getServerT();
   return {
@@ -37,5 +47,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <div className={`${interTight.variable} ${jetbrains.variable}`}>{children}</div>;
+  return (
+    <div className={`${interTight.variable} ${jetbrains.variable} ${instrumentSerif.variable}`}>
+      {children}
+    </div>
+  );
 }

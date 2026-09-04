@@ -1,26 +1,31 @@
 "use client";
 
-// The landing page — a live agent window over watching-now telemetry.
+// The landing page.
 //
-// Ported from canopy-fe-mono (feat/canopy-landing-variants), where it was the
-// "terminal" of two candidate directions; the editorial variant was dropped
-// once this one was chosen.
+// Built to DESIGN_PRINCIPLES.md, section by section, in components/landing.
+// The reference it was distilled from is docs/design-ref-public-agents.md.
 //
 // SERVED AT `/`, WHICH USED TO REDIRECT TO /agents.
 //
-// So a signed-in visitor now lands here rather than in the app. That is
-// deliberate — it is the public front door — and "Launch app" carries them
-// straight through: the handler below reads the Privy session and skips the
-// login prompt for anyone who already has one.
+// A signed-in visitor lands here rather than in the app. That is deliberate —
+// it is the public front door — and every login button carries them straight
+// through: the handler reads the Privy session and skips the prompt for
+// anyone who already has one.
 
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { CanopyNav } from "@/components/canopyLanding/CanopyNav";
-import { CanopyTicker } from "@/components/canopyLanding/CanopyTicker";
-import { HeroTerminal } from "@/components/canopyLanding/HeroTerminal";
-import { CanopyBody } from "@/components/canopyLanding/CanopyBody";
+import { Nav } from "@/components/landing/Nav";
+import { Hero } from "@/components/landing/Hero";
+import { TwoWays } from "@/components/landing/TwoWays";
+import { Getting } from "@/components/landing/Getting";
+import { Mind } from "@/components/landing/Mind";
+import { Build } from "@/components/landing/Build";
+import { Pricing } from "@/components/landing/Pricing";
+import { Marketplace } from "@/components/landing/Marketplace";
+import { Footer } from "@/components/landing/Footer";
+import { Anywhere } from "@/components/landing/Anywhere";
 import { DEFAULT_ROUTE } from "@/components/routeMemory";
-import "@/components/canopyLanding/landing.css";
+import "@/components/landing/landing.css";
 
 export default function Landing() {
   const router = useRouter();
@@ -38,17 +43,19 @@ export default function Landing() {
   };
 
   return (
-    <main className="cnp dark">
-      <div className="grid-tex" />
-      <CanopyNav onLogin={handleLogin} />
-      {/* Ticker and hero together own the first screen — see `.fold` in
-          landing.css. The ticker sits directly under the nav rather than under
-          the hero, where it used to be the first block of CanopyBody. */}
-      <div className="fold">
-        <CanopyTicker />
-        <HeroTerminal onLogin={handleLogin} />
-      </div>
-      <CanopyBody onLogin={handleLogin} />
-    </main>
+    <>
+      <main className="lp">
+        <Nav onLogin={handleLogin} />
+        <Hero onLogin={handleLogin} />
+        <TwoWays />
+        <Getting />
+        <Mind />
+        <Build />
+        <Marketplace />
+        <Anywhere />
+        <Pricing onLogin={handleLogin} />
+        <Footer onLogin={handleLogin} />
+      </main>
+    </>
   );
 }
