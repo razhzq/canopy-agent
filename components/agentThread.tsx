@@ -43,11 +43,14 @@ import { useApi } from "@/lib/useApi";
  * guesses about its own behaviour is worse than one that admits the limit.
  */
 export function AgentThread({
+  autoFocus = false,
   agentId,
   agent,
 }: {
   agentId: number;
   agent: AgentRow | null;
+  /** Put the caret in the composer on mount — the drawer just opened for this. */
+  autoFocus?: boolean;
 }) {
   const [nonce, setNonce] = useState(0);
   const [draft, setDraft] = useState("");
@@ -205,7 +208,7 @@ export function AgentThread({
     return <ErrorState message={state.message} onRetry={state.reload} />;
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-152px)] max-w-[820px] flex-col px-8">
+    <div className="flex h-full min-h-0 flex-col px-5">
       {/* shadcn's Conversation: the library owns the scroll box and keeps it
           pinned as content grows, so nothing here listens for scroll events.
           `instant` on both, not their `smooth` — the note this replaced was
@@ -219,7 +222,7 @@ export function AgentThread({
       >
         {({ isAtBottom, scrollToBottom }) => (
           <>
-            <StickToBottom.Content className="flex flex-col gap-8 py-7">
+            <StickToBottom.Content className="flex flex-col gap-7 py-6">
               <Opening agent={agent} />
               {messages.map((m, i) => (
                 <Turn
@@ -253,7 +256,7 @@ export function AgentThread({
                 The shape below is therefore a copy of the settled bubble, not
                 a variation on it: same rounded-lg, same px-4 py-3, same 95%.
                 It drifted once already when the settled one moved. */}
-                  <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
+                  <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-2xl rounded-br-md bg-surface-2 px-4 py-2.5">
                     <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-secondary">
                       {echo}
                     </p>
@@ -285,7 +288,7 @@ export function AgentThread({
                   type="button"
                   onClick={() => void scrollToBottom()}
                   style={{ animation: "pill-enter 180ms ease-out" }}
-                  className="pointer-events-auto absolute left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-grid-strong bg-surface-2/95 py-2 pr-4 pl-3 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase shadow-lg backdrop-blur transition-colors hover:border-accent hover:text-accent"
+                  className="pointer-events-auto absolute left-1/2 flex h-8 -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface/95 pr-3.5 pl-3 font-ui text-[12px] font-medium text-text-primary shadow-[0_12px_28px_-16px_rgba(0,0,0,0.8)] backdrop-blur transition-colors hover:border-grid-strong"
                 >
                   <svg viewBox="0 0 16 16" className="size-3" aria-hidden>
                     <path
@@ -306,10 +309,10 @@ export function AgentThread({
       </StickToBottom>
 
       <div
-        className={`mb-6 rounded-xl border bg-panel/60 transition-colors duration-150 ${
+        className={`mb-5 rounded-2xl border bg-surface transition-[border-color,box-shadow] duration-200 ${
           sending
-            ? "border-accent"
-            : "border-grid-strong focus-within:border-accent focus-within:bg-panel"
+            ? "border-accent/40 shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
+            : "border-border focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
         }`}
       >
         <textarea
@@ -323,6 +326,7 @@ export function AgentThread({
             }
           }}
           disabled={sending}
+          autoFocus={autoFocus}
           rows={1}
           maxLength={2000}
           aria-label={t("th_message_aria")}
@@ -336,10 +340,10 @@ export function AgentThread({
           // floor is the visible change: this rested at a single row, so the
           // composer read as a search field rather than somewhere to write a
           // paragraph to your agent.
-          className="max-h-48 min-h-16 w-full resize-none bg-transparent px-5 pt-4 pb-2 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
+          className="max-h-48 min-h-14 w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
         />
-        <div className="flex items-center justify-between gap-4 px-4 pb-3">
-          <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+        <div className="flex items-center justify-between gap-4 px-3 pb-2.5 pl-4">
+          <span className="font-ui text-[11.5px] text-text-muted">
             {error ? (
               <span className="text-negative">{error}</span>
             ) : draft.length > 1800 ? (
@@ -361,7 +365,7 @@ export function AgentThread({
             onClick={() => void send()}
             disabled={sending || draft.trim().length === 0}
             aria-label={t("th_send_aria")}
-            className="flex size-9 items-center justify-center rounded-lg bg-accent text-bg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim"
+            className="flex size-9 items-center justify-center rounded-full bg-white text-bg transition-[transform,background-color,color] duration-150 hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-dim disabled:hover:translate-y-0"
           >
             {sending ? (
               <Loader2
@@ -436,7 +440,7 @@ function Thinking({ stage }: { stage: TurnStage }) {
                 }`}
               />
               <span
-                className={`font-mono text-[11px] tracking-[0.06em] ${
+                className={`font-ui text-[12.5px] ${
                   done ? "text-text-dim" : "text-text-secondary"
                 }`}
               >
@@ -665,7 +669,7 @@ function Turn({
             has none, and once the gap between turns is 32px the tail is doing
             work nothing needs done. Width now comes from the wrapper at 95%
             rather than 78%, so a long question wraps later. */}
-        <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-surface-2 px-4 py-3">
+        <div className="w-fit max-w-full min-w-0 overflow-hidden rounded-2xl rounded-br-md bg-surface-2 px-4 py-2.5">
           <p className="font-ui text-[14px] leading-[1.65] whitespace-pre-wrap text-text-primary">
             {m.body}
           </p>
@@ -704,10 +708,10 @@ function Turn({
           // a wash at a quarter strength, and a shadow. It was a hard 45%
           // border on a square box, which is most of what made this feel like a
           // table dropped into a conversation.
-          className={`mt-3 overflow-hidden rounded-lg border transition-colors duration-200 ${
+          className={`mt-3 overflow-hidden rounded-xl border bg-surface transition-[border-color,box-shadow] duration-200 ${
             open
-              ? "border-accent/30 bg-accent-wash/20 shadow-[0_8px_24px_-14px_rgba(0,0,0,0.8)]"
-              : "border-grid"
+              ? "border-accent/40 shadow-[0_0_0_6px_rgba(94,211,179,0.08)]"
+              : "border-border"
           }`}
         >
           {changes.map((c) => (
@@ -717,12 +721,12 @@ function Turn({
               // gives a small table its grid, and there are rarely more than
               // three of these. py-3 for the same reason — the rhythm was tight
               // enough to read as data rather than as a proposal.
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-grid/55 px-4 py-3 last:border-b-0"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-grid px-4 py-3 last:border-b-0"
             >
-              <span className="truncate font-mono text-[11.5px] text-text-primary">
+              <span className="truncate font-ui text-[12.5px] text-text-primary">
                 {c.label}
               </span>
-              <span className="flex shrink-0 items-baseline gap-2 font-mono text-[11.5px]">
+              <span className="flex shrink-0 items-baseline gap-2 font-mono text-[12px]">
                 <span className="text-text-dim line-through">{c.from}</span>
                 <span className="text-text-muted">→</span>
                 <span className="text-accent">{c.to}</span>
@@ -747,7 +751,7 @@ function Turn({
             <p
               // Tinted, so the outcome reads as the foot of the block rather
               // than one more row of the table above it.
-              className={`flex items-center gap-2 border-t border-grid/55 bg-surface/30 px-4 py-3 font-mono text-[10px] tracking-[0.1em] uppercase ${
+              className={`flex items-center gap-2 border-t border-grid px-4 py-2.5 font-ui text-[12px] font-medium ${
                 m.approved === true
                   ? "text-accent"
                   : m.approved === false
@@ -776,7 +780,7 @@ function Turn({
           of the narrator — which is not the same claim as "these prove it", and
           matters most when the honest answer was "that is not in my record". */}
       {cycles(m).length > 0 ? (
-        <p className="pt-2 font-mono text-[10px] tracking-[0.06em] text-text-muted uppercase">
+        <p className="pt-2 font-ui text-[11.5px] text-text-muted">
           {t(cycles(m).length === 1 ? "th_read_cycle" : "th_read_cycles", {
             cycles: compact(cycles(m)),
           })}
@@ -784,7 +788,7 @@ function Turn({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 pt-2.5">
-        <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+        <span className="font-ui text-[11.5px] text-text-muted">
           {relativeTime(m.created_at, t)}
           {m.acted_at ? t("th_settled_suffix") : ""}
         </span>
@@ -794,7 +798,7 @@ function Turn({
           {m.run_id ? (
             <Link
               href={`/workspace/${agentId}?tab=cycles`}
-              className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+              className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
             >
               {t("th_see_cycle")}
             </Link>
@@ -805,7 +809,7 @@ function Turn({
               // Acknowledged, NOT declined — there was no diff to refuse. Sends
               // no verdict, so the record stays neutral.
               onClick={() => onAck()}
-              className="font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
+              className="font-ui text-[12px] font-medium text-text-primary underline-offset-4 transition-colors hover:underline"
             >
               {t("th_mark_handled")}
             </button>
@@ -895,7 +899,7 @@ function ApplyBar({
     // Same footer treatment as the settled line — a softened rule and a tint,
     // so the decision sits at the foot of the block instead of reading as a
     // final table row with buttons in it.
-    <div className="border-t border-grid/55 bg-surface/30 px-4 py-3">
+    <div className="border-t border-grid px-4 py-3">
       {error ? (
         <p className="pb-2 font-ui text-[12px] leading-relaxed text-negative">
           {error}
@@ -919,7 +923,7 @@ function ApplyBar({
           type="button"
           onClick={onDismiss}
           disabled={busy}
-          className="flex h-8 items-center rounded-md px-2.5 font-mono text-[10.5px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
+          className="flex h-8 items-center rounded-full px-2.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
         >
           {t("th_leave_it")}
         </button>
@@ -930,7 +934,7 @@ function ApplyBar({
           // rounded-md, matching the container it now sits inside. A square
           // button in a rounded box is the corner that gives the whole thing
           // away.
-          className="flex h-8 items-center rounded-md border border-accent bg-accent-wash px-3.5 font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-50"
+          className="flex h-8 items-center rounded-full bg-white px-3.5 font-ui text-[12.5px] font-medium text-bg transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {t(busy ? "th_applying" : "th_apply")}
         </button>

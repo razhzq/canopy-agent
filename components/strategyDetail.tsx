@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
-import { AssetLogo, Badge, Breadcrumb } from "@/components/ui";
+import { AssetLogo } from "@/components/ui";
 import {
   FOCUS,
   SEGMENT_ITEM,
@@ -84,14 +84,37 @@ const NO_POINTS: StrategyRecord["points"] = [];
 /** Stable empty universe, for the same reason as {@link NO_POINTS}. */
 const NO_ASSETS: UniverseAsset[] = [];
 
-export function StrategyDetail({ strategyId }: { strategyId: number }) {
+/** Fixture data for the dev preview route. Never set in production. */
+export interface StrategyPreview {
+  meta: Awaited<ReturnType<typeof getStrategy>>;
+  record: StrategyRecord;
+  universe: UniverseAsset[];
+}
+
+export function StrategyDetail({
+  strategyId,
+  preview,
+}: {
+  strategyId: number;
+  preview?: StrategyPreview;
+}) {
   const { t, locale } = useLocale();
   // `token`, not `t` — the translator holds that name in this file.
-  const meta = useApi((token) => getStrategy(token, strategyId), [strategyId]);
-  const record = useApi<StrategyRecord>(
+  //
+  // The hooks always run — React counts them — and a preview simply writes
+  // its fixture over the result. Signed out, the real calls settle to
+  // `signed-out` and cost nothing.
+  const metaLive = useApi((token) => getStrategy(token, strategyId), [strategyId]);
+  const recordLive = useApi<StrategyRecord>(
     (token) => getStrategyRecord(token, strategyId),
     [strategyId],
   );
+  const meta = preview
+    ? ({ phase: "ready", data: preview.meta, reload: () => {} } as const)
+    : metaLive;
+  const record = preview
+    ? ({ phase: "ready", data: preview.record, reload: () => {} } as const)
+    : recordLive;
   const [range, setRange] = useState<Range>("30d");
   /**
    * Live marks for the open book.
@@ -111,7 +134,11 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       ),
     [meta.phase === "ready" ? meta.data.strategy.strategy_class : null],
   );
-  const universeMarks = universe.phase === "ready" ? universe.data.assets : NO_ASSETS;
+  const universeMarks = preview
+    ? preview.universe
+    : universe.phase === "ready"
+      ? universe.data.assets
+      : NO_ASSETS;
 
   /**
    * Live prices, keyed by SYMBOL because that is all a public record carries.
@@ -229,14 +256,15 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
     return { rows: all.slice(from, from + ROWS_PER_PAGE), page, pages, from };
   }, [ready?.positions, positionsPage]);
 
-  const crumbs = (name?: string) => (
-    <div className="px-5 sm:px-8 pt-6">
-      <Breadcrumb
-        parts={[
-          { label: t("sd_crumb_agents"), href: "/agents" },
-          name ?? t("sd_crumb_fallback"),
-        ]}
-      />
+  // One quiet link back, not a breadcrumb: the name is the title under it.
+  const crumbs = (_name?: string) => (
+    <div className="px-5 sm:px-8 pt-8">
+      <Link
+        href="/agents"
+        className={`inline-flex items-center gap-1 rounded font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary ${FOCUS}`}
+      >
+        <span aria-hidden>←</span> {t("sd_crumb_agents")}
+      </Link>
     </div>
   );
 
@@ -302,27 +330,27 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       {crumbs(strategy.name)}
 
       {/* ------------------------------------------------------------ head */}
-      <section className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 px-5 sm:px-8 pt-4 pb-6">
-        <div className="space-y-2">
+      <section className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 px-5 sm:px-8 pt-4 pb-7">
+        <div className="space-y-2.5">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-[28px] leading-none text-text-primary">
+            <h1 className="font-ui text-[28px] font-light leading-none tracking-[-0.02em] text-text-primary">
               {strategy.name}
             </h1>
             {/* Straight after the name, ahead of the state badges: what it is
                 made of, before what it is currently doing. */}
             <ModelBadge model={strategy.model} />
-            {live ? <Badge tone="accent">{t("sd_badge_listed")}</Badge> : null}
+            {live ? <StatusWord tone="accent">{t("sd_badge_listed")}</StatusWord> : null}
             {/* Draft and verifying are both paper, and the page says so the
                 same way for both. A draft only reaches a non-author at all
                 once an agent is running on it, so "Paper" is a statement
                 about a real record rather than about an empty shell. */}
-            {onPaper ? <Badge tone="muted">{t("sd_badge_paper")}</Badge> : null}
+            {onPaper ? <StatusWord tone="muted">{t("sd_badge_paper")}</StatusWord> : null}
             {strategy.status === "delisted" ? (
-              <Badge tone="warning">{t("sd_badge_delisted")}</Badge>
+              <StatusWord tone="warning">{t("sd_badge_delisted")}</StatusWord>
             ) : null}
-            {isMine ? <Badge tone="muted">{t("sd_badge_yours")}</Badge> : null}
+            {isMine ? <Tag>{t("sd_badge_yours")}</Tag> : null}
           </div>
-          <p className="font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
+          <p className="font-mono text-[12px] text-text-dim">
             {/* A draft has neither of the first two — it has only when it was
                 created, which for a draft with an agent on it IS when the
                 record started. */}
@@ -348,7 +376,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           {isMine && ready?.agentId ? (
             <Link
               href={`/workspace/${ready.agentId}?tab=chat`}
-              className="flex h-11 items-center border border-border px-5 font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
+              className={`flex h-10 items-center rounded-full border border-border px-4 font-ui text-[13px] font-medium text-text-primary transition-colors hover:border-grid-strong ${FOCUS}`}
             >
               {t("sd_open_workspace")}
             </Link>
@@ -362,7 +390,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           {live ? (
             <Link
               href={`/deploy/describe?strategy=${strategy.id}`}
-              className="flex h-11 items-center border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
+              className={`flex h-10 items-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px ${FOCUS}`}
             >
               {t("sd_deploy_this")}
             </Link>
@@ -372,7 +400,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
 
       {/* ----------------------------------------------------------- stats */}
       <section className="border-y border-grid px-5 sm:px-8 py-6">
-        <div className="flex flex-wrap gap-x-12 gap-y-5">
+        <div className="flex flex-wrap gap-x-14 gap-y-5">
           <Stat
             label={t("sd_return")}
             value={ret === null ? "—" : signedPct(ret)}
@@ -409,7 +437,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
           gets better with width; a table does not. */}
       <section className="border-b border-grid px-5 sm:px-8 py-7">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
-          <h2 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+          <h2 className="font-ui text-[15px] font-medium text-text-primary">
             {t("sd_tab_performance")}
           </h2>
           <div className={SEGMENT_TRACK}>
@@ -434,8 +462,8 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
         ) : record.phase === "error" ? (
           <ErrorState message={record.message} onRetry={record.reload} />
         ) : windowed.length < 2 ? (
-          <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
-            <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+          <div className="rounded-2xl border border-border bg-surface px-5 sm:px-8 py-10 text-center">
+            <p className="font-ui text-[15px] font-medium text-text-primary">
               {t("sd_not_enough_title")}
             </p>
             <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -443,13 +471,13 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             </p>
           </div>
         ) : (
-          <div className="border border-grid p-4">
+          <div className="rounded-2xl border border-border bg-surface p-5">
             <EquityCurve
               values={windowed.map((p) => p.equityUsd)}
               baseline={capital}
               height={220}
             />
-            <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+            <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
               <span>{t("sd_cycle_n", { seq: windowed[0].tickSeq })}</span>
               <span className="text-text-muted">{t("sd_dashed_line")}</span>
               <span>
@@ -474,13 +502,13 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
       <section className="grid gap-8 px-5 sm:px-8 py-8 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         {/* ------------------------------------------- public information -- */}
         <div className="min-w-0">
-          <h2 className="pb-3.5 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+          <h2 className="pb-3 font-ui text-[15px] font-medium text-text-primary">
             {t("sd_public_info")}
           </h2>
           <div>
             <Fact
               label={t("sd_fact_class")}
-              value={strategy.strategy_class.toUpperCase()}
+              value={strategy.strategy_class}
             />
             <Fact
               label={t("sd_fact_status")}
@@ -523,7 +551,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
 
           {/* Inside the column, boxed — it is a term of the listing, not a
               footnote about the page. */}
-          <p className="mt-5 border border-grid-strong p-3.5 font-ui text-[12px] leading-relaxed text-text-secondary">
+          <p className="mt-5 rounded-xl border border-border bg-surface p-4 font-ui text-[12.5px] leading-relaxed text-text-secondary">
             {t("sd_private_note")}
           </p>
         </div>
@@ -562,7 +590,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                   {/* The count rides on the tab, so a visitor knows whether it
                       is worth opening before they open it. */}
                   {v === "positions" && openCount > 0 ? (
-                    <span className="tnum text-[9.5px] text-text-muted">
+                    <span className="tnum font-mono text-[12px] text-text-muted">
                       {openCount}
                     </span>
                   ) : null}
@@ -571,7 +599,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
             </div>
 
             {/* One line of provenance for whichever table is showing. */}
-            <span className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
+            <span className="font-ui text-[12px] text-text-muted">
               {view === "positions"
                 ? openCount === 1
                   ? t("sd_holdings_one")
@@ -594,18 +622,18 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
               {ready === null ? (
                 <SkeletonPanel labelKey="loading_record" />
               ) : !ready.positions || ready.positions.length === 0 ? (
-                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+                <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
                   {t("sd_no_positions")}
                 </p>
               ) : (
                 <>
                   {/* Said once, plainly. The entry price is the author's own
                       execution — a deployer starting today gets their own. */}
-                  <p className="max-w-[78ch] pb-4 font-ui text-[12.5px] leading-relaxed text-text-dim">
+                  <p className="max-w-[78ch] pb-4 font-ui text-[12.5px] leading-relaxed text-text-muted">
                     {t("sd_holdings_note")}
                   </p>
 
-                  <div className="border border-grid">
+                  <div className="overflow-hidden rounded-2xl border border-border">
                     {/* Its own scroller, inside the frame rather than around
                         it — five columns of figures must not push the page
                         sideways, and the pager below has to stay put while
@@ -613,7 +641,7 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
                     <div className="overflow-x-auto">
                       <div className="min-w-[600px]">
                         <div
-                          className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+                          className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted`}
                         >
                           <span>{t("sd_col_asset")}</span>
                           <span className="text-right">
@@ -682,11 +710,11 @@ export function StrategyDetail({ strategyId }: { strategyId: number }) {
               ) : daily === null ? (
                 // The API answered without a daily breakdown. Saying so beats
                 // claiming the agent has never traded.
-                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] leading-relaxed text-text-secondary">
+                <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-center font-ui text-[13px] leading-relaxed text-text-secondary">
                   {t("sd_no_daily")}
                 </p>
               ) : daily.length === 0 ? (
-                <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+                <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
                   {t("sd_no_cycles")}
                 </p>
               ) : (
@@ -746,7 +774,7 @@ function PositionRow({
             issuer={asset?.issuer}
             src={asset?.iconUrl}
           />
-          <span className="truncate font-mono text-[12.5px] text-text-primary">
+          <span className="truncate font-mono text-[13px] text-text-primary">
             {p.symbol}
           </span>
         </span>
@@ -809,7 +837,7 @@ function TradeRow({ tr, marks }: { tr: RecordTrade; marks: UniverseAsset[] }) {
             issuer={asset?.issuer}
             src={asset?.iconUrl}
           />
-          <span className="truncate font-mono text-[12.5px] text-text-primary">
+          <span className="truncate font-mono text-[13px] text-text-primary">
             {tr.symbol}
           </span>
           {tr.underlying ? (
@@ -860,7 +888,7 @@ function Money({
   return (
     <span className="text-right">
       <span
-        className={`tnum block font-mono text-[12.5px] ${
+        className={`tnum block font-mono text-[13px] ${
           muted ? "text-text-muted" : "text-text-secondary"
         }`}
       >
@@ -901,7 +929,7 @@ function Delta({
               : "text-text-secondary"
       }`}
     >
-      <span className="tnum block font-mono text-[12.5px]">
+      <span className="tnum block font-mono text-[13px]">
         {amount === null ? "—" : usd(amount, { sign: true })}
       </span>
       {pct === null ? null : (
@@ -938,13 +966,13 @@ function DayTable({ daily }: { daily: RecordDay[] }) {
   const rows = daily.slice(from, from + ROWS_PER_PAGE);
 
   return (
-    <div className="border border-grid">
+    <div className="overflow-hidden rounded-2xl border border-border">
       {/* Its own scroller: four columns of figures must not make the page
           scroll sideways on a narrow screen (§9). */}
       <div className="overflow-x-auto">
         <div className="min-w-[520px]">
           <div
-            className={`${DAY_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+            className={`${DAY_COLS} border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted`}
           >
             <span>{t("sd_col_day")}</span>
             <span className="text-right">{t("sd_col_return")}</span>
@@ -984,20 +1012,20 @@ function DayRow({ day: d }: { day: RecordDay }) {
   return (
     <div
       className={`${DAY_COLS} border-b border-grid px-4 py-2.5 last:border-b-0 ${
-        today ? "bg-accent-wash" : ""
+        today ? "bg-surface-2/60" : ""
       }`}
     >
       <span className="flex min-w-0 items-baseline gap-2">
         <span
-          className={`truncate font-mono text-[12.5px] ${
-            today ? "text-accent" : "text-text-primary"
+          className={`truncate font-mono text-[13px] ${
+            today ? "text-text-primary" : "text-text-primary"
           }`}
         >
           {dayLabel(d.day, t, locale)}
         </span>
         {/* Cycles run, so a day it held rather than traded still reads as a
             day it was working. */}
-        <span className="shrink-0 font-mono text-[9.5px] tracking-[0.06em] text-text-muted uppercase">
+        <span className="shrink-0 font-ui text-[11px] text-text-muted">
           {d.cycles === 1
             ? t("sd_cycles_one")
             : t("sd_cycles_many", { count: d.cycles })}
@@ -1074,7 +1102,7 @@ function TradeHistory({
 
   if (data.total === 0)
     return (
-      <p className="border border-grid bg-panel px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
+      <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-center font-ui text-[13px] text-text-secondary">
         {t("sd_no_trades")}
       </p>
     );
@@ -1084,7 +1112,7 @@ function TradeHistory({
 
   return (
     <div
-      className={`border border-grid transition-opacity ${
+      className={`overflow-hidden rounded-2xl border border-border transition-opacity ${
         trades.phase === "loading" ? "opacity-50" : ""
       }`}
       aria-busy={trades.phase === "loading"}
@@ -1094,7 +1122,7 @@ function TradeHistory({
       <div className="overflow-x-auto">
         <div className="min-w-[600px]">
           <div
-            className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase`}
+            className={`${BOOK_COLS} border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted`}
           >
             <span>{t("sd_col_asset")}</span>
             <span className="text-right">{t("sd_col_quantity")}</span>
@@ -1164,7 +1192,7 @@ function Pager({
       className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-grid px-4 py-2.5"
     >
       <span
-        className="tnum font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase"
+        className="tnum font-ui text-[11.5px] text-text-muted"
         aria-live="polite"
       >
         {t("sd_page_range", { from, to, total })}
@@ -1200,7 +1228,7 @@ function Pager({
               aria-label={t("sd_page_n", { n: n + 1 })}
               aria-current={n === page ? "page" : undefined}
               className={`${PAGE_STEP} ${
-                n === page ? "bg-accent-wash text-accent" : ""
+                n === page ? "bg-surface-2 text-text-primary" : ""
               }`}
             >
               {n + 1}
@@ -1223,7 +1251,7 @@ function Pager({
 }
 
 /** One page control. Square, so a row of them reads as one ruler. */
-const PAGE_STEP = `tnum flex size-6 items-center justify-center rounded-md font-mono text-[10px] text-text-dim transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-30 ${FOCUS}`;
+const PAGE_STEP = `tnum flex size-7 items-center justify-center rounded-full font-mono text-[12px] text-text-dim transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-30 ${FOCUS}`;
 
 /**
  * Which page numbers to show: at most five, with `null` where a run was
@@ -1263,13 +1291,13 @@ function Fact({
         last ? "" : "border-b border-grid"
       }`}
     >
-      <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+      <span className="font-ui text-[12.5px] text-text-dim">
         {label}
       </span>
-      <span className="truncate font-mono text-[12.5px] text-text-primary">
+      <span className="truncate font-mono text-[13px] text-text-primary">
         {value}
         {note ? (
-          <span className="pl-2 text-[10px] text-text-muted">{note}</span>
+          <span className="pl-2 font-ui text-[11px] text-text-muted">{note}</span>
         ) : null}
       </span>
     </div>
@@ -1287,11 +1315,11 @@ function Stat({
 }) {
   return (
     <div className="space-y-2">
-      <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
+      <p className="font-ui text-[12.5px] text-text-dim">
         {label}
       </p>
       <p
-        className={`tnum font-mono text-[22px] leading-none whitespace-nowrap ${
+        className={`tnum font-mono text-[24px] leading-none tracking-[-0.02em] whitespace-nowrap ${
           tone === "accent"
             ? "text-accent"
             : tone === "negative"
@@ -1302,6 +1330,34 @@ function Stat({
         {value}
       </p>
     </div>
+  );
+}
+
+/** Status is a dot and a word. */
+function StatusWord({
+  tone,
+  children,
+}: {
+  tone: "accent" | "warning" | "muted";
+  children: React.ReactNode;
+}) {
+  const text =
+    tone === "accent" ? "text-accent" : tone === "warning" ? "text-warning" : "text-text-secondary";
+  const dot = tone === "accent" ? "bg-accent" : tone === "warning" ? "bg-warning" : "bg-text-muted";
+  return (
+    <span className={`inline-flex items-center gap-1.5 font-ui text-[12.5px] font-medium ${text}`}>
+      <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
+      {children}
+    </span>
+  );
+}
+
+/** A quiet tag: hairline, full radius, sentence case. */
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-[22px] items-center rounded-full border border-border px-2.5 font-ui text-[11.5px] font-medium text-text-secondary">
+      {children}
+    </span>
   );
 }
 

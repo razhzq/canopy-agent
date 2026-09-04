@@ -63,6 +63,7 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   chat_your_agent: "您的智能体",
   chat_agent_fallback: "您的智能体",
   chat_subtitle: "它提方案 · 由您决定",
+  chat_waiting_count: "{count} 项待处理",
   chat_close_aria: "关闭对话",
   chat_button_aria: "与您的智能体对话",
   chat_button_close: "关闭对话",

@@ -135,7 +135,7 @@ export function SkeletonCards({
     <Screen labelKey={labelKey}>
       <div className="grid gap-4 px-5 sm:px-8 py-8 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: count }, (_, i) => (
-          <div key={i} className="space-y-4 border border-grid bg-panel p-5">
+          <div key={i} className="space-y-4 rounded-2xl border border-border bg-surface p-5">
             <Bar className="h-[13px] w-[62%]" />
             <Bar className="h-[7px] w-[38%]" />
             <div className="flex gap-4 pt-3">

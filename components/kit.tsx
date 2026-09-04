@@ -81,15 +81,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-/** Group label. 9.5px mono, wide tracking, muted. The only label treatment. */
-export const LABEL =
-  "font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase";
+/** Group label. 11.5px Inter, sentence case, muted. The only label treatment. */
+export const LABEL = "font-ui text-[11.5px] text-text-muted";
 
 /** Body copy inside a surface. Never larger than 12.5px. */
-export const BODY = "font-ui text-[12px] leading-relaxed text-text-dim";
+export const BODY = "font-ui text-[12.5px] leading-relaxed text-text-dim";
 
 /** A bordered, interactive-feeling container. */
-export const SURFACE = "rounded-lg border border-grid bg-surface";
+export const SURFACE = "rounded-xl border border-border bg-surface";
 
 /* ------------------------------------------------------------- elevation -- */
 
@@ -125,19 +124,19 @@ export const OVERLAY_SHADOW = "shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]";
  * card, the anchored elevation, and clipping so a hover fill on the first or
  * last row cannot square off the corner it sits in.
  */
-export const POPOVER = `overflow-hidden rounded-md border border-grid-strong bg-panel ${POPOVER_SHADOW}`;
+export const POPOVER = `overflow-hidden rounded-2xl border border-border bg-surface ${POPOVER_SHADOW}`;
 
-/** The one action that commits. Filled on hover, never filled at rest. */
+/** The one action that commits. The white pill — the primary on a dark ground. */
 export const PRIMARY =
-  "rounded-lg border border-accent bg-accent-wash px-4 py-2.5 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-9 items-center justify-center rounded-full bg-white px-4 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
 
 /** A real alternative to the primary — present, but not competing. */
 export const SECONDARY =
-  "rounded-lg border border-grid px-4 py-2.5 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-text-dim hover:text-text-primary disabled:opacity-40";
+  "inline-flex h-9 items-center justify-center rounded-full border border-border px-4 font-ui text-[13px] font-medium text-text-primary transition-colors hover:border-grid-strong disabled:opacity-40";
 
 /** A utility. Text only. Must never read as the call to action. */
 export const QUIET =
-  "font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent disabled:opacity-40";
+  "font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40";
 
 /**
  * The focus ring. One definition, because a keyboard user learns it once.
@@ -161,15 +160,15 @@ export const FOCUS =
  * Bigger than the glyph inside it on purpose: 36px of target around a 16px mark.
  * A control that is exactly its icon is a control people miss.
  */
-export const ICON_BUTTON = `flex size-9 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary ${FOCUS}`;
+export const ICON_BUTTON = `flex size-9 shrink-0 items-center justify-center rounded-full text-text-dim transition-colors hover:bg-surface-2 hover:text-text-primary ${FOCUS}`;
 
 /** An icon control whose thing is currently open. Same accent as a selection. */
 export const ICON_BUTTON_ON =
-  "bg-accent-wash text-accent hover:bg-accent-wash hover:text-accent";
+  "bg-surface-2 text-text-primary hover:bg-surface-2 hover:text-text-primary";
 
 /** The smallest control there is — inline inside a field, like Max. */
 export const MICRO =
-  "font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent";
+  "font-ui text-[11px] font-medium text-text-dim transition-colors hover:text-text-primary";
 
 /**
  * A segmented control: a filled pill inside a quiet inset track.
@@ -183,12 +182,12 @@ export const MICRO =
  * action.
  */
 export const SEGMENT_TRACK =
-  "flex items-center gap-1 rounded-lg border border-grid bg-surface p-1";
+  "flex items-center gap-1 rounded-full border border-border bg-surface p-1";
 
 export const SEGMENT_ITEM =
-  "flex items-center justify-center gap-2 rounded-md px-4 py-1.5 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors";
+  "flex h-8 items-center justify-center gap-2 rounded-full px-3.5 font-ui text-[12.5px] font-medium transition-colors";
 
-export const SEGMENT_ON = "bg-accent-wash text-accent";
+export const SEGMENT_ON = "bg-surface-2 text-text-primary";
 export const SEGMENT_OFF = "text-text-dim hover:text-text-primary";
 
 /**
@@ -199,7 +198,7 @@ export const SEGMENT_OFF = "text-text-dim hover:text-text-primary";
  * container is the object; a chip is a filled step up from it.
  */
 export const CHIP =
-  "rounded-md bg-surface-2 px-2.5 py-1.5 font-ui text-[12px] text-text-secondary";
+  "rounded-lg bg-surface-2 px-2.5 py-1.5 font-ui text-[12.5px] text-text-secondary";
 
 /** A figure inside running text or a chip. Rule 9. */
 export const NUM = "tnum font-mono text-[12px] text-text-primary";
@@ -305,7 +304,7 @@ export function StatusLine({
   children: ReactNode;
 }) {
   return (
-    <span className="flex items-center gap-1.5 font-ui text-[12px] text-text-dim">
+    <span className="flex items-center gap-1.5 font-ui text-[12.5px] font-medium text-text-secondary">
       <span
         className={`size-[5px] shrink-0 rounded-full ${live ? "animate-pulse" : ""} ${
           tone === "good"

@@ -56,4 +56,7 @@ export const enMarketplace = {
   market_showing: "Showing {from}–{to} of {total}",
   market_previous: "← Previous",
   market_next: "Next →",
+  // ── Page header ────────────────────────────────────────────────
+  market_title: "Explore",
+  market_sub: "Every agent with a live record. Listed ones can be deployed.",
 } as const;

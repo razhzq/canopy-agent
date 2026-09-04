@@ -9,10 +9,10 @@ import { AgentChatSheet, ChatButton } from "@/components/agentChatSheet";
 import { AgentChatRail } from "@/components/agentChatRail";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentThread } from "@/components/agentThread";
-import { Badge } from "@/components/ui";
 import { listAgents, type AgentRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { StatusLine } from "@/components/kit";
 
 /**
  * One agent, open.
@@ -128,13 +128,18 @@ export function Workspace({
       : null;
 
   return (
-    <div className="min-h-[calc(100vh-64px)]">
+    // A ROW: the page, then the thread docked beside it. The rail is a column
+    // that animates its width, so opening it pushes the page over once rather
+    // than covering the page's own right-hand rail — which is what a fixed
+    // overlay did on any screen wider than the 1440px frame.
+    <div className="flex items-start">
+      <div className="min-h-[calc(100vh-64px)] min-w-0 flex-1">
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 py-3 sm:px-8">
         {/* On Overview the name and status are the page's own headline, so the
             bar carries only the back link — repeating them here would give the
             screen two titles. */}
         {tab === "overview" ? (
-          <span className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+          <span className="font-ui text-[12.5px] text-text-muted">
             {t("ws_eyebrow")}
           </span>
         ) : (
@@ -144,22 +149,24 @@ export function Workspace({
                 link that flashes a page nobody asked for. */}
             <Link
               href="/portfolio"
-              className="shrink-0 font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
+              className="shrink-0 font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary"
             >
               {t("ws_back")}
             </Link>
-            <h1 className="truncate font-mono text-[16px] text-text-primary">
+            <h1 className="truncate font-ui text-[15px] font-medium text-text-primary">
               {agent?.strategy_name ?? t("ws_fallback_name", { id: agentId })}
             </h1>
             {agent ? (
               <>
-                <Badge tone={agent.status === "active" ? "accent" : "warning"}>
+                <StatusLine tone={agent.status === "active" ? "good" : "pending"}>
                   {STATUS_WORD_KEY[agent.status]
                     ? t(STATUS_WORD_KEY[agent.status])
                     : agent.status}
-                </Badge>
+                </StatusLine>
                 {agent.is_paper ? (
-                  <Badge tone="muted">{t("ws_badge_paper")}</Badge>
+                  <span className="inline-flex h-[22px] items-center rounded-full border border-border px-2.5 font-ui text-[11.5px] font-medium text-text-secondary">
+                    {t("ws_badge_paper")}
+                  </span>
                 ) : null}
               </>
             ) : null}
@@ -179,7 +186,7 @@ export function Workspace({
 
         <nav
           aria-label={t("ws_views_aria")}
-          className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+          className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface p-1"
         >
           {/* `entry`, not `t` — the translator owns that name here. */}
           {TABS.map((entry) => (
@@ -190,11 +197,11 @@ export function Workspace({
               onClick={() => router.push(tabHref(agentId, entry.key))}
               // Chat is the sheet below lg — see AgentChatSheet — so its tab
               // is hidden there rather than offering a second door to one room.
-              className={`h-7 items-center rounded-full px-4 font-mono text-[11.5px] tracking-[0.04em] transition-colors ${
+              className={`h-8 items-center rounded-full px-4 font-ui text-[13px] font-medium transition-colors ${
                 entry.key === "chat" ? "hidden lg:flex" : "flex"
               } ${
                 entry.key === tab
-                  ? "bg-accent-wash text-accent"
+                  ? "bg-surface-2 text-text-primary"
                   : "text-text-dim hover:text-text-primary"
               }`}
             >
@@ -203,22 +210,6 @@ export function Workspace({
           ))}
         </nav>
       </section>
-
-      {chatOpen ? (
-        mobile ? (
-          <AgentChatSheet
-            agentId={agentId}
-            agent={agent}
-            onClose={() => setChatOpen(false)}
-          />
-        ) : (
-          <AgentChatRail
-            agentId={agentId}
-            agent={agent}
-            onClose={() => setChatOpen(false)}
-          />
-        )
-      ) : null}
 
       {tab === "cycles" ? (
         <section className="px-8 py-7">
@@ -231,6 +222,26 @@ export function Workspace({
         <AgentDetailView
           agentId={agentId}
           onOpenChat={() => setChatOpen(true)}
+        />
+      )}
+      </div>
+
+      {mobile ? (
+        chatOpen ? (
+          <AgentChatSheet
+            agentId={agentId}
+            agent={agent}
+            onClose={() => setChatOpen(false)}
+          />
+        ) : null
+      ) : (
+        // Always mounted on a desktop: the rail animates its own width closed
+        // after `open` turns false, which it cannot do once unmounted.
+        <AgentChatRail
+          agentId={agentId}
+          agent={agent}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
         />
       )}
     </div>

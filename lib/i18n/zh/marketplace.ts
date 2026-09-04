@@ -49,4 +49,6 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_showing: "显示第 {from}–{to} 个，共 {total} 个",
   market_previous: "← 上一页",
   market_next: "下一页 →",
+  market_title: "探索",
+  market_sub: "所有拥有实盘记录的智能体。已上架的可以直接部署。",
 };

@@ -399,7 +399,7 @@ export function NotificationCentre() {
         aria-label={
           unread > 0 ? t("nc_aria_unread", { count: unread }) : t("nc_aria")
         }
-        className={`relative flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-surface ${
+        className={`relative flex size-10 items-center justify-center rounded-full border border-border transition-colors hover:border-grid-strong ${
           unread > 0
             ? "text-text-primary"
             : "text-text-muted hover:text-text-secondary"
@@ -486,10 +486,10 @@ function Panel({
     <div
       role="dialog"
       aria-label={t("nc_aria")}
-      className="absolute right-0 z-40 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
+      className="absolute right-0 z-40 mt-2.5 flex max-h-[min(70vh,560px)] w-[min(92vw,392px)] origin-top-right animate-[menu-enter_120ms_ease-out] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-grid px-4 py-3">
-        <p className="font-mono text-[11px] tracking-[0.12em] text-text-secondary uppercase">
+      <div className="flex items-center justify-between gap-3 border-b border-grid px-4 py-3.5">
+        <p className="font-ui text-[14px] font-medium text-text-primary">
           {t("nc_title")}
         </p>
         {/* Quiet, and only while it has something to clear. A permanent
@@ -501,10 +501,10 @@ function Panel({
             onClick={onMarkAll}
             disabled={clearing}
             title={clearFailed ?? undefined}
-            className={`shrink-0 rounded font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors disabled:opacity-50 ${FOCUS} ${
+            className={`shrink-0 rounded font-ui text-[12px] transition-colors disabled:opacity-50 ${FOCUS} ${
               clearFailed
                 ? "text-negative hover:text-negative"
-                : "text-text-dim hover:text-accent"
+                : "text-text-dim hover:text-text-primary"
             }`}
           >
             {clearing
@@ -519,7 +519,7 @@ function Panel({
       {/* One row of tabs, under the title and above the scroll. Outside the
           scrolling element on purpose: a filter that scrolls away is one the
           reader cannot get back to without scrolling up first. */}
-      <div className="flex items-center gap-1 border-b border-grid px-2 py-1.5">
+      <div className="flex items-center gap-1 border-b border-grid px-3 py-2">
         {TABS.map((x) => {
           const on = tab === x.key;
           const count = x.key === "waiting" ? waiting : 0;
@@ -529,10 +529,10 @@ function Panel({
               type="button"
               onClick={() => setTab(x.key)}
               aria-pressed={on}
-              className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors ${FOCUS} ${
+              className={`flex h-8 items-center gap-1.5 rounded-full px-3 font-ui text-[12.5px] font-medium transition-colors ${FOCUS} ${
                 on
-                  ? "bg-accent-wash text-accent"
-                  : "text-text-dim hover:bg-surface hover:text-text-secondary"
+                  ? "bg-surface-2 text-text-primary"
+                  : "text-text-dim hover:text-text-primary"
               }`}
             >
               {t(x.labelKey)}
@@ -540,7 +540,7 @@ function Panel({
                   decisions nobody has made is the reason to open this. */}
               {count > 0 ? (
                 <span
-                  className={`tnum ${on ? "text-accent" : "text-text-secondary"}`}
+                  className={`tnum font-mono text-[12px] ${on ? "text-accent" : "text-text-secondary"}`}
                 >
                   {count}
                 </span>
@@ -554,7 +554,7 @@ function Panel({
         {loading ? (
           <div className="space-y-2 p-4" aria-hidden>
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-surface" />
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-surface-2" />
             ))}
           </div>
         ) : failed ? (
@@ -631,7 +631,7 @@ function FillBody({ fill }: { fill: FillPayload }) {
             row can be misread, so the tag rides with the symbol rather than
             waiting at the end of a line. */}
         {fill.isPaper ? (
-          <span className="font-mono text-[9px] tracking-[0.1em] text-text-muted uppercase">
+          <span className="font-ui text-[11px] text-text-muted">
             {t("nc_fill_paper")}
           </span>
         ) : null}
@@ -720,7 +720,7 @@ export function NotificationRow({
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2">
           <span
-            className={`font-mono text-[10px] tracking-[0.1em] uppercase ${kind.tone}`}
+            className={`font-ui text-[12px] font-medium ${kind.tone}`}
           >
             {t(kind.labelKey)}
           </span>
@@ -761,8 +761,8 @@ export function NotificationRow({
     </>
   );
 
-  const shell = `flex gap-3 border-b border-grid px-4 py-3 last:border-b-0 ${
-    n.read ? "" : "bg-surface/60"
+  const shell = `flex gap-3 border-b border-grid px-4 py-3.5 last:border-b-0 ${
+    n.read ? "" : "bg-surface-2/50"
   }`;
 
   // A row with its own buttons cannot also BE a link: a tap on Apply would
@@ -783,7 +783,7 @@ export function NotificationRow({
       // Closed on navigate: the panel is absolutely positioned and would
       // otherwise hang over the page it just sent you to.
       onClick={onNavigate}
-      className={`${shell} text-left transition-colors hover:bg-surface ${FOCUS}`}
+      className={`${shell} text-left transition-colors hover:bg-surface-2 ${FOCUS}`}
     >
       {inner}
     </Link>
@@ -820,14 +820,14 @@ function ApproveBar({
 
   if (state === "applied") {
     return (
-      <p className="pt-1 font-mono text-[11px] text-accent">
+      <p className="pt-1 font-ui text-[12px] font-medium text-accent">
         {t("nc_applied")}
       </p>
     );
   }
   if (state === "dismissed") {
     return (
-      <p className="pt-1 font-mono text-[11px] text-text-dim">
+      <p className="pt-1 font-ui text-[12px] text-text-dim">
         {t("nc_dismissed")}
       </p>
     );
@@ -856,7 +856,7 @@ function ApproveBar({
           type="button"
           onClick={() => setState("dismissed")}
           disabled={state === "applying"}
-          className={`border border-border px-3 py-1.5 font-ui text-[12px] text-text-secondary transition-colors hover:bg-surface disabled:opacity-40 ${FOCUS}`}
+          className={`h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] font-medium text-text-primary transition-colors hover:border-grid-strong disabled:opacity-40 ${FOCUS}`}
         >
           {t("nc_decline")}
         </button>
@@ -864,7 +864,7 @@ function ApproveBar({
           type="button"
           onClick={() => void apply()}
           disabled={state === "applying"}
-          className={`bg-accent px-3.5 py-1.5 font-ui text-[12px] font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-50 ${FOCUS}`}
+          className={`h-8 rounded-full bg-white px-4 font-ui text-[12.5px] font-medium text-bg transition-transform hover:-translate-y-px disabled:opacity-50 ${FOCUS}`}
         >
           {t(state === "applying" ? "nc_applying" : "nc_apply")}
         </button>
@@ -929,7 +929,7 @@ export function TelegramSection() {
   const { linked, enabled, username } = status.data;
 
   return (
-    <div className="flex items-center gap-3 border-t border-grid bg-surface/40 px-4 py-3">
+    <div className="flex items-center gap-3 border-t border-grid px-4 py-3">
       <TelegramIcon
         className={linked && enabled ? "text-accent" : "text-text-muted"}
       />
@@ -948,10 +948,10 @@ export function TelegramSection() {
         type="button"
         onClick={() => void (linked ? toggle() : connect())}
         disabled={busy}
-        className={`shrink-0 border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors disabled:opacity-40 ${
+        className={`h-8 shrink-0 rounded-full px-3.5 font-ui text-[12px] font-medium transition-colors disabled:opacity-40 ${
           linked
-            ? "border-border text-text-dim hover:border-accent hover:text-accent"
-            : "border-accent text-accent hover:bg-accent hover:text-bg"
+            ? "border border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
+            : "bg-white text-bg hover:-translate-y-px"
         } ${FOCUS}`}
       >
         {t(
@@ -977,7 +977,7 @@ export function TelegramSection() {
           onClick={() => void connect()}
           disabled={busy}
           title={t("nc_tg_reconnect_title")}
-          className={`shrink-0 border border-border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40 ${FOCUS}`}
+          className={`h-8 shrink-0 rounded-full border border-border px-3 font-ui text-[12px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
         >
           {t("nc_tg_reconnect")}
         </button>

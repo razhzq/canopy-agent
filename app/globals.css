@@ -9,26 +9,26 @@
 @source "../lib";
 
 @theme {
-  /* Surfaces — lifted verbatim from canopy-agent-stack.pen variables */
-  --color-bg: #080b0a;
-  --color-panel: #0b0f0e;
-  --color-surface: #0e1412;
-  --color-surface-2: #141c19;
+  /* Surfaces — the dark ground from DESIGN_PRINCIPLES.md §2 */
+  --color-bg: #0B100E;
+  --color-panel: #0F1412;
+  --color-surface: #151A17;
+  --color-surface-2: #1A211D;
 
   /* Lines */
-  --color-border: #1e2a25;
-  --color-border-soft: #16201c;
-  --color-grid: #161e1b;
-  --color-grid-strong: #212c28;
+  --color-border: #262D29;
+  --color-border-soft: #1F2622;
+  --color-grid: #1F2622;
+  --color-grid-strong: #2E3632;
 
   /* Accents */
-  --color-accent: #3ddc91;
-  --color-accent-wash: #0f241b;
+  --color-accent: #5ED3B3;
+  --color-accent-wash: #143026;
   --color-accent-dim: #16302459;
 
   /* Semantic */
-  --color-positive: #3ddc91;
-  --color-negative: #f2705f;
+  --color-positive: #5ED3B3;
+  --color-negative: #E5484D;
   --color-warning: #e8b54a;
   --color-simulated: #77867e;
 
@@ -47,10 +47,10 @@
    * rather than by raw ratio, which is what keeps the steps perceptible now
    * that they are packed into 5.8:1 → 4.6:1. Hue and saturation are unchanged;
    * only lightness moved. */
-  --color-text-primary: #e9efec;
-  --color-text-secondary: #8b9992;
-  --color-text-dim: #838f88;
-  --color-text-muted: #77877d;
+  --color-text-primary: #F2F5F3;
+  --color-text-secondary: #9AA59F;
+  --color-text-dim: #8A948E;
+  --color-text-muted: #7D877F;
 
   /* Inter and Plex Mono are loaded with the `latin` subset only, so neither
      carries a single CJK glyph. Without an explicit fallback the browser picks
@@ -179,11 +179,24 @@
 @keyframes rail-enter {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateX(24px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* The same drawer, leaving. `forwards` so it holds the off-screen frame for
+   the tick between the animation ending and the node unmounting. */
+@keyframes rail-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
   }
 }
 

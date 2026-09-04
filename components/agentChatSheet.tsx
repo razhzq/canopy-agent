@@ -52,10 +52,10 @@ export function AgentChatSheet({
           aria-hidden
         />
         <div className="min-w-0 flex-1 pt-1.5 sm:pt-0">
-          <p className="truncate font-mono text-[13.5px] text-text-primary">
+          <p className="truncate font-ui text-[14px] font-medium text-text-primary">
             {agent?.strategy_name ?? t("chat_agent_fallback")}
           </p>
-          <p className="pt-0.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+          <p className="pt-0.5 font-ui text-[11.5px] text-text-muted">
             {t("chat_subtitle")}
           </p>
         </div>
@@ -63,7 +63,7 @@ export function AgentChatSheet({
           type="button"
           onClick={onClose}
           aria-label={t("chat_close_aria")}
-          className="-mr-1 flex size-8 shrink-0 items-center justify-center text-text-dim transition-colors hover:text-text-primary"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-text-dim transition-colors hover:border-grid-strong hover:text-text-primary"
         >
           <X className="size-4" aria-hidden />
         </button>
@@ -72,8 +72,8 @@ export function AgentChatSheet({
       {/* The thread scrolls; the sheet does not. Without `min-h-0` a flex child
           refuses to shrink below its content and the composer is pushed off the
           bottom of the sheet instead of pinned to it. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <AgentThread agentId={agentId} agent={agent} />
+      <div className="min-h-0 flex-1">
+        <AgentThread agentId={agentId} agent={agent} autoFocus />
       </div>
     </Modal>
   );
@@ -141,6 +141,7 @@ export function ChatButton({
       // have to rediscover. Below `lg` the icon alone still carries it — the bar
       // is narrow and the accessible name is on the button either way.
       aria-pressed={active}
+      data-chat-button=""
       // QUIET AT REST. This was a bordered box beside a 28px headline — rule 6:
       // a control pressed constantly and costing nothing does not draw an
       // outline around itself all day. The target appears on hover as a fill,
@@ -155,7 +156,7 @@ export function ChatButton({
         <span className="hidden font-ui text-[13px] lg:inline">Chat</span>
       )}
       {waiting > 0 ? (
-        <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 font-mono text-[9px] leading-none text-bg">
+        <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 font-mono text-[9.5px] leading-none text-bg">
           {waiting > 9 ? "9+" : waiting}
         </span>
       ) : null}

@@ -225,11 +225,11 @@ export function RailSection({
       className={`border-b border-grid px-5 py-6 sm:px-8 sm:py-7 ${className}`}
     >
       <div className="flex items-center justify-between gap-4 pb-2">
-        <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+        <h3 className="font-ui text-[14px] font-medium text-text-primary">
           {title}
         </h3>
         {note ? (
-          <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+          <span className="font-ui text-[11.5px] text-text-muted">
             {note}
           </span>
         ) : null}

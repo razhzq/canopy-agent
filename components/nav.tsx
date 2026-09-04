@@ -185,7 +185,7 @@ function Avatar({ label, size = 20 }: { label: string; size?: number }) {
   return (
     <span
       aria-hidden
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-accent-wash font-mono text-accent ring-1 ring-accent/30"
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-surface-2 font-ui font-medium text-text-primary ring-1 ring-border"
       style={{ width: size, height: size, fontSize: Math.max(size * 0.46, 9) }}
     >
       {initialOf(label)}
@@ -315,7 +315,7 @@ function SignOutIcon({ className = "" }: { className?: string }) {
  */
 function MenuGroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-4 pt-2.5 pb-1 font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
+    <p className="px-4 pt-3 pb-1 font-ui text-[11.5px] text-text-muted">
       {children}
     </p>
   );
@@ -357,13 +357,13 @@ function MenuRow({
       // lights up for a destination, an edge-to-edge band for a wallet — but
       // they have to begin on the same line or the panel reads as two lists
       // pasted together.
-      className={`mx-1.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors -outline-offset-2 ${FOCUS} ${
+      className={`mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors -outline-offset-2 ${FOCUS} ${
         active
-          ? "bg-accent-wash text-accent"
-          : "text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:bg-surface focus-visible:text-text-primary"
+          ? "bg-surface-2 text-text-primary"
+          : "text-text-secondary hover:bg-surface-2 hover:text-text-primary focus-visible:bg-surface-2 focus-visible:text-text-primary"
       }`}
     >
-      <span className={`shrink-0 ${active ? "text-accent" : "text-text-dim"}`}>
+      <span className={`shrink-0 ${active ? "text-text-primary" : "text-text-dim"}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate font-ui text-[12.5px] font-medium">
@@ -371,7 +371,7 @@ function MenuRow({
       </span>
       {value ? (
         <span
-          className={`tnum shrink-0 font-mono text-[11.5px] ${active ? "text-accent" : "text-text-dim"}`}
+          className={`tnum shrink-0 font-mono text-[11.5px] ${active ? "text-text-primary" : "text-text-dim"}`}
         >
           {value}
         </span>
@@ -621,7 +621,7 @@ function AccountMenu() {
     // loudest thing in the bar, and it stands in for a bordered button.
     return (
       <div
-        className="h-9 w-[60px] rounded-md border border-border bg-surface-2/50 sm:w-[148px]"
+        className="h-10 w-[60px] rounded-full border border-border bg-surface/50 sm:w-[148px]"
         aria-hidden
       />
     );
@@ -632,7 +632,7 @@ function AccountMenu() {
       <button
         type="button"
         onClick={() => login()}
-        className={`h-9 rounded-md border border-border px-4 font-ui text-[14px] font-medium text-text-secondary transition-colors hover:border-accent hover:bg-accent-wash hover:text-accent ${FOCUS}`}
+        className={`h-10 rounded-full border border-border px-5 font-ui text-[14px] font-medium text-text-primary transition-colors hover:border-grid-strong ${FOCUS}`}
       >
         {t("nav_sign_in")}
       </button>
@@ -713,13 +713,11 @@ function AccountMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("account_aria", { name: primary })}
-        className={`flex h-9 items-center gap-2.5 rounded-lg border pr-2.5 pl-2 transition-colors ${FOCUS} ${
-          open
-            ? "border-grid-strong bg-surface-2"
-            : "border-grid hover:border-grid-strong hover:bg-surface"
+        className={`flex h-10 items-center gap-2.5 rounded-full border pr-3 pl-1.5 transition-colors ${FOCUS} ${
+          open ? "border-grid-strong bg-surface" : "border-border hover:border-grid-strong"
         }`}
       >
-        <Avatar label={username ?? email ?? primary} />
+        <Avatar label={username ?? email ?? primary} size={28} />
         <span
           // The avatar and the chevron alone say "your account" on a phone;
           // the address or email is the first thing that can go when the bar
@@ -762,16 +760,16 @@ function AccountMenu() {
           // is a system decision, where this one hangs and how wide it is are
           // this menu's own. Splitting them is what stops the next overlay
           // inventing an eighth shadow.
-          className={`absolute right-0 z-40 mt-2 w-[288px] origin-top-right animate-[menu-enter_120ms_ease-out] sm:w-[320px] ${POPOVER}`}
+          className={`absolute right-0 z-40 mt-2.5 w-[300px] origin-top-right animate-[menu-enter_120ms_ease-out] sm:w-[332px] ${POPOVER}`}
         >
           {/* Identity, stated once at the top. The rows below are things to DO
               with the account; this is the answer to "whose account is this",
               which the old header ("Signed in") never actually gave. */}
-          <div className="flex items-center gap-3 border-b border-grid px-4 py-3.5">
-            <Avatar label={username ?? email ?? primary} size={32} />
+          <div className="flex items-center gap-3 border-b border-grid px-4 py-4">
+            <Avatar label={username ?? email ?? primary} size={36} />
             <div className="min-w-0">
               <p
-                className={`truncate text-[13.5px] text-text-primary ${
+                className={`truncate text-[14px] font-medium text-text-primary ${
                   primaryIsAddress ? "font-mono" : "font-ui"
                 }`}
               >
@@ -793,7 +791,7 @@ function AccountMenu() {
                     setNamingOpen(true);
                     setOpen(false);
                   }}
-                  className={`-mx-1 mt-0.5 rounded px-1 py-0.5 text-left font-ui text-[11.5px] text-accent transition-colors hover:underline ${FOCUS}`}
+                  className={`-mx-1 mt-0.5 rounded px-1 py-0.5 text-left font-ui text-[12px] text-text-secondary underline-offset-4 transition-colors hover:text-text-primary hover:underline ${FOCUS}`}
                 >
                   {t("account_set_username")}
                 </button>
@@ -801,7 +799,7 @@ function AccountMenu() {
                 // Neither name nor prompt until the profile has been read —
                 // flashing "set a username" at someone who has one is worse
                 // than a beat of nothing.
-                <p className="pt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-text-dim uppercase">
+                <p className="pt-0.5 font-ui text-[11.5px] text-text-dim">
                   {t("account_signed_in_via", { method })}
                 </p>
               )}
@@ -844,14 +842,14 @@ function AccountMenu() {
                   // pointed at: a permanent "COPY" on every row competed with
                   // the addresses themselves. It shows on focus too, or the
                   // keyboard path has no affordance at all.
-                  className={`group mx-1.5 block w-[calc(100%-0.75rem)] rounded-md px-2.5 py-1.5 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                  className={`group mx-1.5 block w-[calc(100%-0.75rem)] rounded-lg px-2.5 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface-2 focus-visible:bg-surface-2 ${FOCUS}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-mono text-[12.5px] text-text-primary">
                       {w.address}
                     </span>
                     <span
-                      className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                      className={`flex shrink-0 items-center gap-1 font-ui text-[11px] transition-opacity ${
                         copied === w.address
                           ? "text-accent opacity-100"
                           : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
@@ -881,11 +879,11 @@ function AccountMenu() {
           {mine ? (
             <div className="border-b border-grid px-4 pt-3 pb-3.5">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="font-mono text-[8.5px] tracking-[0.14em] text-text-dim uppercase">
+                <span className="font-ui text-[11.5px] text-text-muted">
                   {t("account_balance")}
                 </span>
                 {balance.at === "ready" ? (
-                  <span className="tnum font-mono text-[10px] text-text-dim">
+                  <span className="tnum font-mono text-[11px] text-text-dim">
                     {balance.funds.sol.toLocaleString("en-US", {
                       minimumFractionDigits: 1,
                       maximumFractionDigits: 4,
@@ -905,14 +903,14 @@ function AccountMenu() {
                   <button
                     type="button"
                     onClick={() => setBalanceNonce((n) => n + 1)}
-                    className="font-mono text-[9.5px] tracking-[0.1em] text-accent uppercase"
+                    className="font-ui text-[12px] text-text-secondary underline-offset-4 hover:underline"
                   >
                     {t("common_retry")}
                   </button>
                 </div>
               ) : (
                 <p className="flex items-baseline gap-1.5 pt-1.5">
-                  <span className="tnum font-mono text-[22px] leading-none text-text-primary">
+                  <span className="tnum font-mono text-[26px] leading-none tracking-[-0.02em] text-text-primary">
                     {balance.at === "ready" ? (
                       `$${balance.funds.usdc.toLocaleString("en-US", {
                         minimumFractionDigits: 2,
@@ -924,7 +922,7 @@ function AccountMenu() {
                       <span className="text-text-dim">—</span>
                     )}
                   </span>
-                  <span className="font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
+                  <span className="font-ui text-[12px] text-text-dim">
                     USDC
                   </span>
                 </p>
@@ -945,13 +943,13 @@ function AccountMenu() {
                   label: walletLabel(mine, t),
                   address: mine.address,
                 })}
-                className={`group -mx-1 mt-2.5 flex w-[calc(100%+0.5rem)] items-center justify-between gap-3 rounded-md px-1 py-1 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                className={`group -mx-1 mt-2.5 flex w-[calc(100%+0.5rem)] items-center justify-between gap-3 rounded-md px-1 py-1 text-left transition-colors -outline-offset-2 hover:bg-surface-2 focus-visible:bg-surface-2 ${FOCUS}`}
               >
                 <span className="truncate font-mono text-[11px] text-text-dim">
                   {mine.address}
                 </span>
                 <span
-                  className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                  className={`flex shrink-0 items-center gap-1 font-ui text-[11px] transition-opacity ${
                     copied === mine.address
                       ? "text-accent opacity-100"
                       : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
@@ -974,7 +972,7 @@ function AccountMenu() {
                     setModal("deposit");
                     setOpen(false);
                   }}
-                  className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
+                  className={`h-9 flex-1 rounded-full bg-white font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px ${FOCUS}`}
                 >
                   {t("account_deposit")}
                 </button>
@@ -985,7 +983,7 @@ function AccountMenu() {
                     setModal("withdraw");
                     setOpen(false);
                   }}
-                  className={`flex-1 border border-grid-strong py-2 font-mono text-[10px] tracking-[0.1em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent ${FOCUS}`}
+                  className={`h-9 flex-1 rounded-full border border-border font-ui text-[13px] font-medium text-text-primary transition-colors hover:border-grid-strong ${FOCUS}`}
                 >
                   {t("account_withdraw")}
                 </button>
@@ -1053,12 +1051,12 @@ function AccountMenu() {
           {invite ? (
             <div className="border-b border-grid py-1.5">
               <div className="flex items-baseline justify-between gap-3 px-4 pt-1.5 pb-1">
-                <p className="font-mono text-[9px] tracking-[0.12em] text-text-muted uppercase">
+                <p className="font-ui text-[11.5px] text-text-muted">
                   {t("invite_your_code")}
                 </p>
                 {/* The budget, stated as remaining rather than used: the
                     question being asked is "can I still invite someone". */}
-                <p className="font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
+                <p className="tnum font-mono text-[11px] text-text-dim">
                   {t("invite_remaining", {
                     remaining: invite.remaining,
                     max: invite.maxUses,
@@ -1072,14 +1070,14 @@ function AccountMenu() {
                 onClick={() => copy(invite.code)}
                 disabled={invite.disabled}
                 aria-label={t("invite_copy_code_aria", { code: invite.code })}
-                className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface disabled:opacity-50 ${FOCUS}`}
+                className={`group block w-full px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface-2 focus-visible:bg-surface-2 disabled:opacity-50 ${FOCUS}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="truncate font-mono text-[12.5px] tracking-[0.06em] text-text-primary">
                     {invite.code}
                   </span>
                   <span
-                    className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                    className={`flex shrink-0 items-center gap-1 font-ui text-[11px] transition-opacity ${
                       copied === invite.code
                         ? "text-accent opacity-100"
                         : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
@@ -1105,13 +1103,13 @@ function AccountMenu() {
                   role="menuitem"
                   onClick={() => copy(inviteLink(invite.code))}
                   aria-label={t("invite_copy_link_aria")}
-                  className={`group flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface focus-visible:bg-surface ${FOCUS}`}
+                  className={`group flex w-full items-center justify-between gap-3 px-4 py-2 text-left transition-colors -outline-offset-2 hover:bg-surface-2 focus-visible:bg-surface-2 ${FOCUS}`}
                 >
                   <span className="font-ui text-[12px] text-text-secondary">
                     {t("invite_copy_link")}
                   </span>
                   <span
-                    className={`flex shrink-0 items-center gap-1 font-mono text-[9px] tracking-[0.1em] uppercase transition-opacity ${
+                    className={`flex shrink-0 items-center gap-1 font-ui text-[11px] transition-opacity ${
                       copied === inviteLink(invite.code)
                         ? "text-accent opacity-100"
                         : "text-text-dim opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
@@ -1204,7 +1202,7 @@ function AccountMenu() {
                 close(true);
                 void logout();
               }}
-              className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-negative/90 transition-colors -outline-offset-2 hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative ${FOCUS}`}
+              className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-text-secondary transition-colors -outline-offset-2 hover:bg-surface-2 hover:text-negative focus-visible:bg-surface-2 focus-visible:text-negative ${FOCUS}`}
             >
               <SignOutIcon className="size-3.5 shrink-0" />
               <span className="font-ui text-[12.5px] font-medium">
@@ -1299,11 +1297,11 @@ export function TopNav() {
     // never changes and the page beneath it cannot shift by a pixel as you
     // begin to scroll.
     <header
-      className={`sticky top-0 z-30 border-b bg-surface transition-colors duration-200 supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-md ${
-        scrolled ? "border-border" : "border-transparent"
+      className={`sticky top-0 z-30 border-b bg-bg transition-colors duration-200 supports-[backdrop-filter]:bg-bg/85 supports-[backdrop-filter]:backdrop-blur-md ${
+        scrolled ? "border-grid" : "border-transparent"
       }`}
     >
-      <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+      <div className="relative flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4 lg:gap-6">
           {/* The brand wordmark, not set type: it is a specific blocky face with
               its own mint fill and offset shadow, taken from canopy-fe's
@@ -1326,15 +1324,18 @@ export function TopNav() {
               width={1298}
               height={303}
               priority
-              className="h-[21px] w-auto"
+              className="h-[24px] w-auto"
             />
           </Link>
           {/* Desktop only. Below lg the bottom tab bar owns navigation, and
               these links were a second set of destinations competing with it
               for the narrowest bar in the app. */}
+          {/* Centred in the bar, as the landing's nav is, so the two bars read
+              as one product. Absolute so the left and right groups can grow
+              without pushing it off centre. */}
           <nav
             aria-label={t("nav_primary_aria")}
-            className="hidden min-w-0 items-center gap-1 lg:flex"
+            className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex"
           >
             {NAV.map((item) => {
               const active = isActive(pathname, item.match);
@@ -1352,20 +1353,11 @@ export function TopNav() {
                   // only when active, which re-flowed the label a pixel or two
                   // wider and nudged its neighbour sideways on every route
                   // change; the fill and text colour already say which is live.
-                  className={`flex h-9 shrink-0 items-center rounded-lg px-2.5 font-ui text-[14px] font-medium transition-colors sm:px-3.5 ${FOCUS} ${
-                    active
-                      ? // ACCENT-WASH, not surface-2. Active was `bg-surface-2`
-                        // and the inactive hover `bg-surface-2/60` — the same
-                        // fill at 60%, so the page you are ON and the link you
-                        // happen to be pointing at were separated by nothing but
-                        // alpha. Everywhere else in this app accent-wash means
-                        // selected (kit.tsx, SEGMENT_ON); here it also gives the
-                        // two states something other than opacity to differ by.
-                        "bg-accent-wash text-accent"
-                      : // Inactive links get a background on hover too, so the
-                        // hit target is legible before the click, not only the
-                        // label colour shifting.
-                        "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                  // No fill in either state: the current page is the white
+                  // label, the others are quiet. Colour is a signal, and
+                  // "where am I" is carried by weight of tone alone.
+                  className={`flex h-9 shrink-0 items-center rounded-full px-1 font-ui text-[15px] font-medium transition-colors ${FOCUS} ${
+                    active ? "text-text-primary" : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {t(item.key)}
@@ -1387,7 +1379,10 @@ export function TopNav() {
             // The typography stays a nav's — 14px ui semibold, not the kit's
             // 10px mono — because this is a destination, not a data surface.
             // The rule being borrowed is about WEIGHT, not about type.
-            className={`flex h-9 items-center gap-1.5 rounded-lg border border-accent bg-accent-wash px-3 font-ui text-[14px] font-semibold text-accent transition-colors hover:bg-accent hover:text-bg sm:pr-4 ${FOCUS}`}
+            // WHITE ON DARK: the primary on a dark ground is the white pill,
+            // never green (DESIGN_PRINCIPLES.md §2). It is the one filled
+            // control in the bar.
+            className={`flex h-10 items-center gap-1.5 rounded-full bg-white px-3.5 font-ui text-[14px] font-medium text-bg transition-transform hover:-translate-y-px sm:pr-4 ${FOCUS}`}
           >
             <PlusIcon className="size-3.5 shrink-0" />
             {/* On a phone the plus alone carries it; the label stays in the

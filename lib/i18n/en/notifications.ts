@@ -70,6 +70,7 @@ export const enNotifs = {
   chat_your_agent: "your agent",
   chat_agent_fallback: "Your agent",
   chat_subtitle: "Proposes · you decide",
+  chat_waiting_count: "{count} waiting",
   chat_close_aria: "Close chat",
   chat_button_aria: "Chat with your agent",
   chat_button_close: "Close chat",

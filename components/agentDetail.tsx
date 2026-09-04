@@ -637,7 +637,7 @@ export function AgentDetailView({
       <section className="border-b border-grid px-5 sm:px-8 pt-5 pb-5">
         <Link
           href="/portfolio"
-          className="font-ui text-[12px] text-text-dim transition-colors hover:text-accent"
+          className="font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary"
         >
           {t("ad_back")}
         </Link>
@@ -672,7 +672,7 @@ export function AgentDetailView({
               the two descriptors sit under it as a metadata line. */}
           <div className="min-w-0 flex-1 space-y-3">
             <div className="flex items-center gap-3">
-              <h1 className="min-w-0 truncate font-mono text-[28px] leading-none text-text-primary">
+              <h1 className="min-w-0 truncate font-ui text-[28px] font-light leading-none tracking-[-0.02em] text-text-primary">
                 {agent.strategy_name}
               </h1>
               {/* Chat lives with the agent, not with the page furniture — and
@@ -817,7 +817,7 @@ export function AgentDetailView({
 
             {entry ? (
               <>
-                <h2 className="pt-4 font-mono text-[20px] leading-tight text-text-primary">
+                <h2 className="pt-4 font-ui text-[20px] font-medium leading-tight tracking-[-0.01em] text-text-primary">
                   {entryHeadline(entry, t, markets[0]?.asset?.symbol)}
                 </h2>
                 <p className={`pt-1.5 ${BODY}`}>{t("ad_entry_note")}</p>
@@ -899,8 +899,8 @@ export function AgentDetailView({
               would read as "all of these at once", which is the single-stage
               strategy this exists to be different from. */}
           {setup ? (
-            <div className="mt-4 overflow-hidden rounded-lg border border-accent/40 bg-surface">
-              <p className="border-b border-accent/25 px-3.5 py-2 font-mono text-[9.5px] tracking-[0.12em] text-accent uppercase">
+            <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+              <p className="border-b border-grid px-3.5 py-2 font-ui text-[11.5px] font-medium text-accent">
                 {t("ad_first_wait")}
               </p>
               <div className="flex flex-wrap gap-2 p-3.5">
@@ -978,7 +978,7 @@ export function AgentDetailView({
             ) : null}
             {/* justify-end because the caption that used to sit here was the
                 flex spacer holding the button to the right. */}
-            <div className="flex items-center justify-end gap-3 border-t border-grid bg-panel px-3.5 py-2.5">
+            <div className="flex items-center justify-end gap-3 border-t border-grid px-3.5 py-2.5">
               {/* Disabled until the strategy has actually loaded: the dialog
                   edits a diff against what was fetched, and opening it against
                   nothing would present an empty recipe as this agent's. */}
@@ -1282,7 +1282,7 @@ function Controls({
           type="button"
           onClick={() => void run("toggle")}
           disabled={busy !== null}
-          className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+          className={SECONDARY}
         >
           {busy === "toggle"
             ? t("ad_busy")
@@ -1297,7 +1297,7 @@ function Controls({
           type="button"
           onClick={() => setConfirmFlatten(true)}
           disabled={busy !== null}
-          className="border border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.08em] text-text-primary uppercase transition-colors hover:border-warning hover:text-warning disabled:opacity-40"
+          className={`${SECONDARY} hover:border-warning hover:text-warning`}
         >
           {busy === "flatten" ? t("ad_busy") : t("ad_close_all")}
         </button>
@@ -1306,13 +1306,13 @@ function Controls({
       <div className="flex-1" />
 
       {notice ? (
-        <span className="font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
+        <span className="font-ui text-[12.5px] text-text-dim">
           {notice}
         </span>
       ) : null}
 
       {error ? (
-        <span className="font-mono text-[10.5px] tracking-[0.06em] text-negative uppercase">
+        <span className="font-ui text-[12.5px] text-negative">
           {error}
         </span>
       ) : null}
@@ -1321,7 +1321,7 @@ function Controls({
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-negative"
+          className={`${QUIET} hover:text-negative`}
         >
           {t("ad_delete_agent")}
         </button>
@@ -1371,7 +1371,7 @@ function Rule({
 }) {
   return (
     <div className="flex items-center gap-4">
-      <span className={`shrink-0 ${LABEL}`}>{label}</span>
+      <span className="shrink-0 font-ui text-[14px] font-medium text-text-primary">{label}</span>
       {line ? <span className="h-px min-w-0 flex-1 bg-grid" /> : null}
       {right ? <span className="shrink-0">{right}</span> : null}
     </div>
@@ -1548,13 +1548,13 @@ function Half({
             ? // An offer rather than the inert half of a filter. Not filled in:
               // it sits inside a switch, and a solid button there would outrank
               // the half that is actually selected.
-              `${base} text-text-secondary hover:bg-accent-wash hover:text-accent`
+              `${base} text-text-secondary hover:bg-surface-2 hover:text-text-primary`
             : `${base} ${SEGMENT_OFF}`
       }
     >
       {label}
       {promotes ? (
-        <span aria-hidden className="font-mono text-[9px] text-text-muted">
+        <span aria-hidden className="font-ui text-[11px] text-text-muted">
           →
         </span>
       ) : null}
@@ -1669,7 +1669,7 @@ function MarketRow({
             // MICRO's size and tracking, but a destructive hover instead of the
             // accent one — the kit's hover colour means "this is the way
             // forward", and this is the opposite.
-            className="shrink-0 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
+            className="shrink-0 font-ui text-[11px] text-text-dim opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
           >
             {t(removing ? "ad_removing" : "ad_remove")}
           </button>
@@ -1901,15 +1901,15 @@ function DeleteAgentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-agent-title"
-        className="w-full max-w-[560px] border border-grid-strong bg-panel"
+        className="w-full max-w-[560px] overflow-hidden rounded-2xl border border-border bg-surface"
       >
         <div className="border-b border-grid px-7 py-5">
-          <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+          <p className="font-ui text-[11.5px] text-text-muted">
             {agent.strategy_name}
           </p>
           <h2
             id="delete-agent-title"
-            className="pt-1.5 font-mono text-[20px] leading-none text-text-primary"
+            className="pt-1.5 font-ui text-[20px] font-medium leading-none tracking-[-0.01em] text-text-primary"
           >
             {t("ad_delete_title")}
           </h2>
@@ -1962,7 +1962,7 @@ function DeleteAgentModal({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+            className={QUIET}
           >
             {t("common_cancel")}
           </button>
@@ -1970,7 +1970,7 @@ function DeleteAgentModal({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className="border border-negative px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-negative uppercase transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
+            className="inline-flex h-9 items-center rounded-full border border-negative px-4 font-ui text-[13px] font-medium text-negative transition-colors hover:bg-negative hover:text-bg disabled:opacity-40"
           >
             {busy
               ? t("ad_closing")
@@ -2024,15 +2024,15 @@ function FlattenAgentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="flatten-agent-title"
-        className="w-full max-w-[560px] border border-grid-strong bg-panel"
+        className="w-full max-w-[560px] overflow-hidden rounded-2xl border border-border bg-surface"
       >
         <div className="border-b border-grid px-7 py-5">
-          <p className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+          <p className="font-ui text-[11.5px] text-text-muted">
             {agent.strategy_name}
           </p>
           <h2
             id="flatten-agent-title"
-            className="pt-1.5 font-mono text-[20px] leading-none text-text-primary"
+            className="pt-1.5 font-ui text-[20px] font-medium leading-none tracking-[-0.01em] text-text-primary"
           >
             {t("ad_flatten_title")}
           </h2>
@@ -2068,7 +2068,7 @@ function FlattenAgentModal({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+            className={QUIET}
           >
             {t("common_cancel")}
           </button>
@@ -2076,7 +2076,7 @@ function FlattenAgentModal({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className="border border-warning px-4 py-2 font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
+            className="inline-flex h-9 items-center rounded-full border border-warning px-4 font-ui text-[13px] font-medium text-warning transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
           >
             {busy ? t("ad_closing") : t("ad_close_all")}
           </button>
@@ -2089,7 +2089,7 @@ function FlattenAgentModal({
 function Step({ n, children }: { n: string; children: React.ReactNode }) {
   return (
     <li className="flex gap-3">
-      <span className="shrink-0 font-mono text-[10px] tracking-[0.12em] text-text-dim">
+      <span className="tnum shrink-0 font-mono text-[12px] text-text-muted">
         {n}
       </span>
       <span className="font-ui text-[13px] leading-relaxed text-text-secondary">

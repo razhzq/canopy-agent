@@ -9,13 +9,7 @@ import { ProfileMobile } from "@/components/profileMobile";
 import { FOCUS } from "@/components/kit";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
-import {
-  AssetLogo,
-  Badge,
-  Breadcrumb,
-  Columns,
-  RailSection,
-} from "@/components/ui";
+import { AssetLogo, Columns, RailSection } from "@/components/ui";
 import {
   getAgent,
   getAllMarkets,
@@ -96,7 +90,6 @@ const RANGES = [
 export function PortfolioOverview() {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
   const { username } = useUsername();
-  const { t, locale } = useLocale();
 
   // Held in a ref for the same reason MyAgents does it: `load` is a dependency
   // of the effect that runs it, and Privy hands back a new closure every
@@ -111,9 +104,6 @@ export function PortfolioOverview() {
     | { phase: "error"; message: string }
     | { phase: "ready"; holdings: Holding[]; universe: UniverseAsset[] }
   >({ phase: "loading" });
-
-  const [tab, setTab] = useState<Tab>("live");
-  const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("30D");
 
   const load = useCallback(async () => {
     if (!ready) return;
@@ -191,10 +181,6 @@ export function PortfolioOverview() {
     };
   }, [load]);
 
-  const holdings = state.phase === "ready" ? state.holdings : [];
-
-  const totals = useMemo(() => summarise(holdings), [holdings]);
-
   if (state.phase === "loading")
     return (
       <SkeletonRows
@@ -206,6 +192,39 @@ export function PortfolioOverview() {
   if (state.phase === "signed-out") return <SignedOutState />;
   if (state.phase === "error")
     return <ErrorState message={state.message} onRetry={() => void load()} />;
+
+  return (
+    <PortfolioView
+      holdings={state.holdings}
+      universe={state.universe}
+      user={user}
+      username={username}
+      reload={() => void load()}
+    />
+  );
+}
+
+/**
+ * The page, given its data. Exported so the dev preview route can draw it
+ * from fixtures; `PortfolioOverview` above is the only production caller.
+ */
+export function PortfolioView({
+  holdings,
+  universe,
+  user,
+  username,
+  reload,
+}: {
+  holdings: Holding[];
+  universe: UniverseAsset[];
+  user: ReturnType<typeof usePrivy>["user"];
+  username: string | null;
+  reload: () => void;
+}) {
+  const { t, locale } = useLocale();
+  const [tab, setTab] = useState<Tab>("live");
+  const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("30D");
+  const totals = useMemo(() => summarise(holdings), [holdings]);
 
   if (holdings.length === 0) {
     return (
@@ -264,16 +283,16 @@ export function PortfolioOverview() {
               <section className="border-b border-grid px-5 py-6 sm:px-8 sm:py-7">
                 <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
                   <div className="space-y-2">
-                    <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
+                    <p className="font-ui text-[12.5px] text-text-dim">
                       {totals.counted === 1
                         ? t("po_curve_label_one")
                         : t("po_curve_label_many", { count: totals.counted })}
                     </p>
-                    <p className="tnum font-mono text-[27px] leading-none text-text-primary sm:text-[32px]">
+                    <p className="tnum font-mono text-[30px] leading-none tracking-[-0.02em] text-text-primary sm:text-[36px]">
                       {money(totals.equityUsd)}
                     </p>
                     <p
-                      className={`tnum font-mono text-[12.5px] ${
+                      className={`tnum font-mono text-[13px] ${
                         totals.pnlUsd >= 0 ? "text-accent" : "text-negative"
                       }`}
                     >
@@ -285,17 +304,17 @@ export function PortfolioOverview() {
                     </p>
                   </div>
 
-                  <div className="flex border border-grid-strong">
+                  <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
                     {RANGES.map((r) => (
                       <button
                         key={r.key}
                         type="button"
                         onClick={() => setRange(r.key)}
                         aria-pressed={range === r.key}
-                        className={`px-3 py-2 font-mono text-[9.5px] tracking-[0.1em] uppercase transition-colors ${
+                        className={`h-7 rounded-full px-3 font-mono text-[11.5px] transition-colors ${FOCUS} ${
                           range === r.key
                             ? "bg-surface-2 text-text-primary"
-                            : "text-text-dim hover:text-text-secondary"
+                            : "text-text-dim hover:text-text-primary"
                         }`}
                       >
                         {r.key}
@@ -310,7 +329,7 @@ export function PortfolioOverview() {
                     baseline={totals.capitalUsd}
                     height={200}
                   />
-                  <div className="flex items-center justify-between pt-3 font-mono text-[9.5px] tracking-[0.08em] text-text-dim uppercase">
+                  <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
                     <span>
                       {drawn.length > 0 ? day(drawn[0].at, locale) : "—"}
                     </span>
@@ -332,7 +351,7 @@ export function PortfolioOverview() {
 
                 {/* The one thing a reader could get wrong about this chart, said
                   plainly rather than left to be inferred from a jump. */}
-                <p className="pt-4 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                <p className="max-w-[70ch] pt-4 font-ui text-[12px] leading-relaxed text-text-muted">
                   {t("po_curve_note")}
                   {windowed ? t("po_curve_windowed") : ""}
                 </p>
@@ -340,8 +359,8 @@ export function PortfolioOverview() {
 
               {/* ------------------------------------------------ agents -- */}
               <section>
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 sm:px-8">
-                  <div className="flex">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-grid px-5 py-4 sm:px-8">
+                  <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
                     {/* `key`, not `t` — the translator owns that name here. */}
                     {(Object.keys(TAB_STATUS) as Tab[]).map((key) => {
                       const n = holdings.filter((h) =>
@@ -354,15 +373,13 @@ export function PortfolioOverview() {
                           type="button"
                           onClick={() => setTab(key)}
                           aria-pressed={on}
-                          className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[10.5px] tracking-[0.1em] uppercase transition-colors ${
-                            on
-                              ? "border-accent text-text-primary"
-                              : "border-transparent text-text-dim hover:text-text-secondary"
+                          className={`flex h-8 items-center gap-2 rounded-full px-4 font-ui text-[13px] font-medium capitalize transition-colors ${FOCUS} ${
+                            on ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
                           }`}
                         >
                           {t(TAB_LABEL_KEY[key])}
                           <span
-                            className={on ? "text-accent" : "text-text-dim"}
+                            className={`tnum font-mono text-[12px] ${on ? "text-accent" : "text-text-muted"}`}
                           >
                             {n}
                           </span>
@@ -372,24 +389,20 @@ export function PortfolioOverview() {
                   </div>
                   <Link
                     href="/portfolio"
-                    className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase transition-colors hover:text-accent"
+                    className="font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary"
                   >
                     {t("po_manage")}
                   </Link>
                 </div>
 
-                <AgentTable rows={rows} tab={tab} onChanged={() => void load()} />
+                <AgentTable rows={rows} tab={tab} onChanged={reload} />
               </section>
             </>
           }
           rail={
             <>
               <Allocation holdings={holdings} totals={totals} />
-              <Exposure
-                holdings={holdings}
-                universe={state.universe}
-                totals={totals}
-              />
+              <Exposure holdings={holdings} universe={universe} totals={totals} />
               <Settlements settlements={settlements} />
             </>
           }
@@ -495,22 +508,20 @@ function PortfolioHeader({
   const title = username ?? identity.name;
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-5 pt-6 pb-6 sm:px-8">
+    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-grid px-5 pt-10 pb-7 sm:px-8">
       <div className="min-w-0 space-y-3">
-        <Breadcrumb parts={[t("po_crumb_portfolio"), t("po_crumb_overview")]} />
-
         <div className="flex items-center gap-3">
-          <h1 className="font-mono text-[28px] leading-none tracking-[-0.02em] text-text-primary">
+          <h1 className="font-ui text-[28px] font-light leading-none tracking-[-0.02em] text-text-primary">
             {title}
           </h1>
-          {/* Says what the money actually is. The badge is not decoration: a
-              paper portfolio and a funded one look identical on this page. */}
-          <Badge tone={totals.allPaper ? "simulated" : "accent"}>
+          {/* Says what the money actually is: a paper portfolio and a funded
+              one look identical on this page. A dot and a word. */}
+          <StatusWord tone={totals.allPaper ? "muted" : "accent"}>
             {t(totals.allPaper ? "po_badge_paper" : "po_badge_live")}
-          </Badge>
+          </StatusWord>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-ui text-[12.5px] text-text-dim">
           <Meta label={t("po_meta_agents")} value={String(totals.counted)} />
           <Meta
             label={t("po_meta_cycles")}
@@ -531,13 +542,13 @@ function PortfolioHeader({
         <button
           type="button"
           onClick={onExport}
-          className="border border-grid-strong px-3 py-2 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent"
+          className={`h-10 rounded-full border border-border px-4 font-ui text-[13px] font-medium text-text-primary transition-colors hover:border-grid-strong ${FOCUS}`}
         >
           {t("po_export")}
         </button>
         <Link
           href="/build/new"
-          className="bg-accent px-3.5 py-2 font-mono text-[10.5px] tracking-[0.08em] text-bg uppercase transition-opacity hover:opacity-90"
+          className={`flex h-10 items-center rounded-full bg-white px-4 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px ${FOCUS}`}
         >
           {t("po_new_agent")}
         </Link>
@@ -550,7 +561,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2">
       <span>{label}</span>
-      <span className="tnum text-text-secondary">{value}</span>
+      <span className="tnum font-mono text-[12.5px] text-text-primary">{value}</span>
     </span>
   );
 }
@@ -592,7 +603,7 @@ function AgentTable({
   return (
     <div>
       <div
-        className={`grid gap-x-4 border-b border-grid px-8 py-3 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase max-lg:hidden ${COLS}`}
+        className={`grid gap-x-4 border-b border-grid px-8 py-3 font-ui text-[11.5px] text-text-muted max-lg:hidden ${COLS}`}
       >
         <span>{t("po_col_agent")}</span>
         <span className="text-right">{t("po_col_deployed")}</span>
@@ -680,13 +691,13 @@ function AgentRowLine({
    * thing on screen that can say which this is.
    */
   const badge = (
-    <Badge tone={failed ? "negative" : STATUS_TONE[agent.status]}>
+    <StatusWord tone={failed ? "negative" : STATUS_TONE[agent.status]}>
       {busy
         ? t("po_status_busy")
         : failed
           ? t("po_status_failed")
           : t(AGENT_STATUS_KEY[agent.status])}
-    </Badge>
+    </StatusWord>
   );
 
   const status = canToggle ? (
@@ -703,7 +714,7 @@ function AgentRowLine({
       // `relative` so it sits above the stretched link below — a button inside
       // an anchor is not legal, and one merely painted over it would still be
       // the anchor's click.
-      className={`relative z-10 rounded-sm transition-opacity hover:opacity-80 disabled:opacity-50 ${FOCUS}`}
+      className={`relative z-10 rounded-full transition-opacity hover:opacity-70 disabled:opacity-50 ${FOCUS}`}
     >
       {badge}
     </button>
@@ -748,7 +759,7 @@ function AgentRowLine({
         height={28}
       />
     ) : (
-      <span className="font-mono text-[10px] text-text-dim">
+      <span className="font-ui text-[11.5px] text-text-muted">
         {t("po_no_readings")}
       </span>
     );
@@ -763,7 +774,7 @@ function AgentRowLine({
     // click anywhere it is not, keyboard order is link-then-button, and neither
     // is nested in the other.
     <div
-      className={`relative border-b border-grid px-5 py-4 transition-colors hover:bg-surface sm:px-8 lg:items-center lg:gap-x-4 ${COLS}`}
+      className={`relative border-b border-grid px-5 py-4 transition-colors hover:bg-surface/60 sm:px-8 lg:items-center lg:gap-x-4 ${COLS}`}
     >
       <Link
         href={`/workspace/${agent.id}`}
@@ -774,10 +785,10 @@ function AgentRowLine({
       <div className="space-y-3 lg:hidden">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-mono text-[14px] text-text-primary">
+            <p className="truncate font-ui text-[14px] font-medium text-text-primary">
               {agent.strategy_name}
             </p>
-            <p className="truncate pt-1 font-mono text-[9.5px] tracking-[0.06em] text-text-dim uppercase">
+            <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
               {sub}
             </p>
           </div>
@@ -791,7 +802,7 @@ function AgentRowLine({
             <p className="tnum font-mono text-[19px] leading-none text-text-primary">
               {equity}
             </p>
-            <p className="pt-1.5 font-mono text-[10px] tracking-[0.06em] text-text-dim uppercase">
+            <p className="pt-1.5 font-ui text-[11.5px] text-text-dim">
               {t("po_deployed_suffix", { amount: deployed })}
             </p>
           </div>
@@ -812,26 +823,26 @@ function AgentRowLine({
 
       {/* --------------------------------------------------------- table -- */}
       <div className="hidden min-w-0 lg:block">
-        <p className="truncate font-mono text-[13px] text-text-primary">
+        <p className="truncate font-ui text-[14px] font-medium text-text-primary">
           {agent.strategy_name}
         </p>
-        <p className="truncate pt-1 font-mono text-[9.5px] tracking-[0.06em] text-text-dim uppercase">
+        <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
           {sub}
         </p>
       </div>
-      <span className="tnum hidden text-right font-mono text-[12.5px] text-text-secondary lg:block">
+      <span className="tnum hidden text-right font-mono text-[13px] text-text-secondary lg:block">
         {deployed}
       </span>
-      <span className="tnum hidden text-right font-mono text-[13px] text-text-primary lg:block">
+      <span className="tnum hidden text-right font-mono text-[13.5px] text-text-primary lg:block">
         {equity}
       </span>
       <span
-        className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${movedTone}`}
+        className={`tnum hidden text-right font-mono text-[13px] lg:block ${movedTone}`}
       >
         {movedText}
       </span>
       <span
-        className={`tnum hidden text-right font-mono text-[12.5px] lg:block ${returnTone}`}
+        className={`tnum hidden text-right font-mono text-[13px] lg:block ${returnTone}`}
       >
         {returnText}
       </span>
@@ -856,6 +867,38 @@ const AGENT_STATUS_KEY: Record<AgentRow["status"], TranslationKey> = {
   draft: "ws_status_draft",
   deleted: "ws_status_stopped",
 };
+
+/** Status is a dot and a word. */
+function StatusWord({
+  tone,
+  children,
+}: {
+  tone: "accent" | "warning" | "negative" | "muted";
+  children: React.ReactNode;
+}) {
+  const text =
+    tone === "accent"
+      ? "text-accent"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "negative"
+          ? "text-negative"
+          : "text-text-secondary";
+  const dot =
+    tone === "accent"
+      ? "bg-accent"
+      : tone === "warning"
+        ? "bg-warning"
+        : tone === "negative"
+          ? "bg-negative"
+          : "bg-text-muted";
+  return (
+    <span className={`inline-flex items-center gap-1.5 font-ui text-[12.5px] font-medium ${text}`}>
+      <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
+      {children}
+    </span>
+  );
+}
 
 const STATUS_TONE: Record<
   AgentRow["status"],
@@ -939,25 +982,25 @@ function Bar({
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate font-mono text-[11.5px] text-text-primary">
+          <span className="truncate font-ui text-[12.5px] font-medium text-text-primary">
             {label}
           </span>
-          <span className="shrink-0 font-mono text-[8.5px] tracking-[0.1em] text-text-dim uppercase">
+          <span className="shrink-0 font-ui text-[11px] text-text-muted">
             {tag}
           </span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2">
-          <span className="tnum font-mono text-[11.5px] text-text-secondary">
+          <span className="tnum font-mono text-[12px] text-text-primary">
             {value}
           </span>
-          <span className="tnum font-mono text-[10px] text-text-dim">
+          <span className="tnum font-mono text-[11px] text-text-muted">
             {pct.toFixed(0)}%
           </span>
         </span>
       </div>
-      <div className="h-1 w-full bg-grid">
+      <div className="h-1 w-full rounded-full bg-grid">
         <div
-          className={`h-1 ${muted ? "bg-text-dim/70" : "bg-accent/75"}`}
+          className={`h-1 rounded-full ${muted ? "bg-text-dim/60" : "bg-accent"}`}
           style={{ width: `${Math.min(Math.max(pct, 0), 100)}%` }}
         />
       </div>
@@ -1049,20 +1092,20 @@ function Exposure({
                     src={asset.get(symbol)?.iconUrl}
                     size={14}
                   />
-                  <span className="truncate font-mono text-[11.5px] text-text-primary">
+                  <span className="truncate font-mono text-[12px] text-text-primary">
                     {symbol}
                   </span>
                 </span>
-                <span className="min-w-0 flex-1 font-mono text-[9px] tracking-[0.1em] text-text-dim uppercase">
+                <span className="min-w-0 flex-1 font-ui text-[11.5px] text-text-muted">
                   {r.agents === 1
                     ? t("po_agents_one")
                     : t("po_agents_many", { count: r.agents })}
                 </span>
-                <span className="tnum w-[64px] shrink-0 text-right font-mono text-[11.5px] text-text-secondary">
+                <span className="tnum w-[64px] shrink-0 text-right font-mono text-[12px] text-text-secondary">
                   {money(r.usd)}
                 </span>
                 <span
-                  className={`tnum w-[70px] shrink-0 text-right font-mono text-[11.5px] ${
+                  className={`tnum w-[70px] shrink-0 text-right font-mono text-[12px] ${
                     r.pnl >= 0 ? "text-accent" : "text-negative"
                   }`}
                 >
@@ -1088,11 +1131,11 @@ function Figure({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="font-mono text-[8.5px] tracking-[0.12em] text-text-dim uppercase">
+      <p className="font-ui text-[11.5px] text-text-muted">
         {label}
       </p>
       <p
-        className={`tnum font-mono text-[14px] ${
+        className={`tnum font-mono text-[15px] ${
           tone === "accent"
             ? "text-accent"
             : tone === "negative"
@@ -1125,13 +1168,13 @@ function Settlements({
             <Link
               key={`${s.agentId}-${s.tickSeq}`}
               href={`/portfolio/${s.agentId}/cycles`}
-              className="flex items-center gap-3 border-b border-grid py-2.5 transition-colors last:border-b-0 hover:bg-surface"
+              className="flex items-center gap-3 border-b border-grid py-2.5 transition-colors last:border-b-0 hover:bg-surface/60"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-[11.5px] text-text-primary">
+                <p className="truncate font-ui text-[12.5px] font-medium text-text-primary">
                   {s.agentName}
                 </p>
-                <p className="truncate pt-0.5 font-mono text-[9px] tracking-[0.08em] text-text-dim uppercase">
+                <p className="truncate pt-0.5 font-ui text-[11.5px] text-text-muted">
                   {t("po_settlement_line", {
                     seq: s.tickSeq,
                     when: relativeTime(s.at, t),

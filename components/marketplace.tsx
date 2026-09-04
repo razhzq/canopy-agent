@@ -2,70 +2,56 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { EquityCurve } from "@/components/charts";
 import { EmptyState, ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonCards } from "@/components/skeleton";
 import { CapabilityNotices } from "@/components/capabilityNotice";
-import { Badge } from "@/components/ui";
 import { ModelBadge } from "@/components/modelBadge";
 import { HomeFeed } from "@/components/homeFeed";
+import { FOCUS } from "@/components/kit";
 import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { useApi, type LoadState } from "@/lib/useApi";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
- * The agent marketplace — wireframe 1a.
+ * The agent marketplace, to DESIGN_PRINCIPLES.md.
  *
- * One grid of identical cards, twelve to a page. It replaced an eleven-column
- * table that read as a spreadsheet of strategies rather than a shelf of agents
- * somebody might deploy.
+ * One page header, one stat rail, one control row, one grid of identical
+ * cards. Each card is the principles' marketplace card: name and tags, the
+ * record agent's own equity curve, then a mono stat grid. The only colour on
+ * the page is the return figure and the curve, which are signals, plus the
+ * Hot and Listed tags.
  *
  * TRACK RECORD ONLY
  *
  * Nothing here exposes how an agent decides — no rules, no universe, no
- * thresholds. That is the wireframe's rule and it is the right one: a
- * marketplace where the strategy is visible is one where the strategy is
- * copyable, and nobody would list a good one.
+ * thresholds. A marketplace where the strategy is visible is one where the
+ * strategy is copyable, and nobody would list a good one.
  *
  * Every figure is measured, and the ones that cannot be are absent rather than
- * invented. The sparkline is the record agent's own equity readings; an earlier
- * version drew it from a hash of the row id, which looked exactly as convincing
- * and meant nothing.
+ * invented. The curve is the record agent's own equity readings.
+ *
+ * `Marketplace` fetches; `MarketplaceView` draws. The split is what lets the
+ * dev preview route render the page with fixture rows and no session.
  */
 
 /**
- * No "delisted" tab, because no delisted strategy reaches this page: the list
- * endpoint returns published, verifying, and drafts with a running agent. A tab
- * of strategies nobody can deploy — the deploy path refuses a delisted one — is
- * a shelf of dead ends, and delisting is precisely the act of taking a listing
- * down.
- *
- * A TAB IS A PREDICATE, NOT A STATUS.
- *
- * It used to compare `r.status === tab`, which silently assumed one tab meant
- * exactly one status. Paper is two: a `draft` with an agent running on it and a
- * `verifying` one are both paper records that cannot be deployed, and the
- * difference between them — whether the author entered it for a listing — is
- * not something a browser can act on. Splitting them into two tabs would ask
- * the reader to care about our lifecycle; matching on status alone would have
- * hidden every draft behind "All" with no tab counting it.
+ * A TAB IS A PREDICATE, NOT A STATUS. Paper is two statuses: a `draft` with an
+ * agent running on it and a `verifying` one are both paper records that
+ * cannot be deployed. No "delisted" tab, because no delisted strategy reaches
+ * this page.
  */
 type Tab = "all" | "published" | "paper";
 type Sort = "return" | "newest" | "capital" | "users";
 
-// Dictionary keys, not labels: these tables are module-level, so a finished
-// string here would be frozen in whichever language loaded first.
 const TABS: {
   key: Tab;
   labelKey: TranslationKey;
   admits: (r: StrategyRow) => boolean;
 }[] = [
   { key: "all", labelKey: "market_tab_all", admits: () => true },
-  {
-    key: "published",
-    labelKey: "market_tab_listed",
-    admits: (r) => r.status === "published",
-  },
+  { key: "published", labelKey: "market_tab_listed", admits: (r) => r.status === "published" },
   {
     key: "paper",
     labelKey: "market_tab_paper",
@@ -83,10 +69,16 @@ const SORTS: { key: Sort; labelKey: TranslationKey }[] = [
 const PER_PAGE = 12;
 
 export function Marketplace() {
+  const state = useApi<{ strategies: StrategyRow[] }>((token) => listStrategies(token));
+  return <MarketplaceView state={state} />;
+}
+
+export function MarketplaceView({
+  state,
+}: {
+  state: LoadState<{ strategies: StrategyRow[] }> & { reload?: () => void };
+}) {
   const t = useT();
-  const state = useApi<{ strategies: StrategyRow[] }>((token) =>
-    listStrategies(token),
-  );
   const [tab, setTab] = useState<Tab>("all");
   const [sort, setSort] = useState<Sort>("return");
   const [query, setQuery] = useState("");
@@ -97,8 +89,7 @@ export function Marketplace() {
   const visible = useMemo(() => {
     if (!rows) return [];
     const q = query.trim().toLowerCase();
-    const admits =
-      TABS.find((entry) => entry.key === tab)?.admits ?? (() => true);
+    const admits = TABS.find((entry) => entry.key === tab)?.admits ?? (() => true);
     const filtered = rows.filter(
       (r) =>
         admits(r) &&
@@ -114,51 +105,21 @@ export function Marketplace() {
           ? Number(r.aum_usd)
           : sort === "users"
             ? Number(r.deployments)
-            : // `created_at` last: a draft has neither of the other two, and
-              // without it every draft dates to the epoch and sorts below
-              // everything under "Newest" — the opposite of the truth.
-              new Date(
-                r.published_at ??
-                  r.verification_started_at ??
-                  r.created_at ??
-                  0,
-              ).getTime();
+            : // `created_at` last: a draft has neither of the other two.
+              new Date(r.published_at ?? r.verification_started_at ?? r.created_at ?? 0).getTime();
     return [...filtered].sort((a, b) => by(b) - by(a));
   }, [rows, tab, sort, query]);
 
-  // Most-deployed carries the HOT mark. Defined rather than decorative: a badge
-  // nobody can explain is a badge nobody should trust.
+  // Most-deployed carries the Hot tag. Defined rather than decorative.
   const hottest = useMemo(() => {
     if (!rows) return null;
-    const ranked = [...rows].sort(
-      (a, b) => Number(b.deployments) - Number(a.deployments),
-    );
+    const ranked = [...rows].sort((a, b) => Number(b.deployments) - Number(a.deployments));
     return Number(ranked[0]?.deployments ?? 0) > 0 ? ranked[0].id : null;
   }, [rows]);
 
   const pages = Math.max(Math.ceil(visible.length / PER_PAGE), 1);
   const current = Math.min(page, pages - 1);
-  const slice = visible.slice(
-    current * PER_PAGE,
-    current * PER_PAGE + PER_PAGE,
-  );
-
-  /*
-   * EVERY AGENT GETS THE SAME CARD.
-   *
-   * Wireframe 1a promoted the first three into richer cards over a denser
-   * grid, and it was dropped because the promotion was never real. `featured`
-   * was `slice.slice(0, 3)` — whichever agents happened to lead the current
-   * sort — so changing the sort dropdown handed the richer card to three
-   * different agents, and because `slice` is already paginated it re-promoted
-   * the top of every page. An agent was drawn one way or the other according
-   * to where the pagination boundary fell.
-   *
-   * Hierarchy has to be earned by a criterion the reader can act on. Position
-   * in the current sort is not one, and nothing on screen claimed it was — so
-   * the difference read as inconsistency rather than as ranking. The one
-   * genuinely defined distinction, most-deployed, survives as the HOT badge.
-   */
+  const slice = visible.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
 
   const reset = (fn: () => void) => {
     fn();
@@ -167,35 +128,29 @@ export function Marketplace() {
 
   return (
     <>
-      {/* Below lg this route is wireframe M01 — the home screen. Explore IS the
-          home: you open the app to see what is worth deploying, which is why
-          the performers strip leads. Your own agents are on the profile, where
-          the wireframe puts them.
-
-          Fed the same `listStrategies` response the grid below uses, so the two
-          cannot disagree and the page still costs one request. */}
+      {/* Below lg this route is the home screen: the feed with the performers
+          strip, fed the same rows so the two cannot disagree. */}
       <HomeFeed strategies={rows ?? []} />
 
       <div className="hidden lg:block">
-        {/* Above the fold and above the heading: it answers a question the reader
-          asked weeks ago and has probably stopped expecting an answer to. It
-          renders nothing at all when there is nothing to say. */}
         <CapabilityNotices />
 
-        {/* The rail alone. The heading and its paragraph were removed: the
-            nav already says where you are, and the copy explained the shelf to
-            a reader who is looking straight at it. The numbers say the same
-            thing and can be acted on. */}
-        {/* The rail carries its own pt-6; this is the air ABOVE it, which the
-            heading used to provide. Without it the first figure sits directly
-            under the nav and the page opens cramped. */}
-        <section className="border-b border-grid px-5 pt-6 pb-6 sm:px-8">
+        {/* Header: one claim, one sentence. */}
+        <section className="px-5 pt-10 sm:px-8">
+          <h1 className="font-ui text-[28px] font-light tracking-[-0.02em] text-text-primary">
+            {t("market_title")}
+          </h1>
+          <p className="pt-1.5 font-ui text-[15px] text-text-secondary">{t("market_sub")}</p>
+        </section>
+
+        {/* Stat rail: type, not boxes. Hairlines between the figures. */}
+        <section className="px-5 pt-8 sm:px-8">
           <StatRail rows={rows} />
         </section>
 
-        <section className="flex flex-wrap items-center justify-between gap-x-6 border-b border-grid px-5 sm:px-8">
-          <div className="flex flex-wrap items-center">
-            {/* `entry`, not `t` — the translator holds that name in this scope. */}
+        {/* Controls: a segmented pill for the tabs, a search pill, a sort pill. */}
+        <section className="flex flex-wrap items-center justify-between gap-4 px-5 pt-7 sm:px-8">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
             {TABS.map((entry) => {
               const active = entry.key === tab;
               const n = rows?.filter(entry.admits).length;
@@ -205,14 +160,12 @@ export function Marketplace() {
                   type="button"
                   onClick={() => reset(() => setTab(entry.key))}
                   aria-pressed={active}
-                  className={`flex items-center gap-2 border-b-2 px-5 py-4 font-mono text-[12px] tracking-[0.1em] uppercase transition-colors ${
-                    active
-                      ? "border-accent text-text-primary"
-                      : "border-transparent text-text-dim hover:text-text-secondary"
+                  className={`flex h-8 items-center gap-2 rounded-full px-4 font-ui text-[13px] font-medium transition-colors ${FOCUS} ${
+                    active ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
                   }`}
                 >
                   {t(entry.labelKey)}
-                  <span className={active ? "text-accent" : "text-text-muted"}>
+                  <span className={`tnum font-mono text-[12px] ${active ? "text-accent" : "text-text-muted"}`}>
                     {n ?? "—"}
                   </span>
                 </button>
@@ -220,21 +173,24 @@ export function Marketplace() {
             })}
           </div>
 
-          <div className="flex items-center gap-5 py-2.5">
-            <input
-              value={query}
-              onChange={(e) => reset(() => setQuery(e.target.value))}
-              placeholder={t("market_search_placeholder")}
-              spellCheck={false}
-              aria-label={t("market_search_aria")}
-              className="h-9 w-[190px] border-b border-grid-strong bg-transparent font-mono text-[12px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-            />
-            <label className="flex items-center gap-2 font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+          <div className="flex items-center gap-3">
+            <label className="flex h-10 w-[240px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 transition-colors focus-within:border-grid-strong">
+              <Search className="size-[15px] shrink-0 text-text-muted" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => reset(() => setQuery(e.target.value))}
+                placeholder={t("market_search_placeholder")}
+                spellCheck={false}
+                aria-label={t("market_search_aria")}
+                className="min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+              />
+            </label>
+            <label className="flex h-10 items-center gap-2 rounded-full border border-border bg-surface pl-4 pr-3 font-ui text-[13px] text-text-dim">
               {t("market_sort")}
               <select
                 value={sort}
                 onChange={(e) => reset(() => setSort(e.target.value as Sort))}
-                className="border-b border-grid-strong bg-transparent py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent"
+                className="bg-transparent font-ui text-[13px] font-medium text-text-primary outline-none"
               >
                 {SORTS.map((s) => (
                   <option key={s.key} value={s.key} className="bg-bg">
@@ -246,7 +202,7 @@ export function Marketplace() {
           </div>
         </section>
 
-        <section className="px-5 sm:px-8 py-7">
+        <section className="px-5 py-7 sm:px-8">
           {state.phase === "loading" ? (
             <SkeletonCards labelKey="loading_marketplace" />
           ) : state.phase === "signed-out" ? (
@@ -260,14 +216,10 @@ export function Marketplace() {
               action={{ label: t("market_empty_action"), href: "/build/new" }}
             />
           ) : visible.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 border border-grid bg-panel px-5 sm:px-8 py-12 text-center">
-              <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                {t("market_nomatch_title")}
-              </p>
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface px-8 py-12 text-center">
+              <p className="font-ui text-[15px] font-medium text-text-primary">{t("market_nomatch_title")}</p>
               <p className="max-w-[44ch] font-ui text-[13px] leading-relaxed text-text-secondary">
-                {rows!.length === 1
-                  ? t("market_nomatch_one")
-                  : t("market_nomatch_many", { count: rows!.length })}
+                {rows!.length === 1 ? t("market_nomatch_one") : t("market_nomatch_many", { count: rows!.length })}
               </p>
               <button
                 type="button"
@@ -277,21 +229,21 @@ export function Marketplace() {
                     setQuery("");
                   })
                 }
-                className="font-mono text-[10.5px] tracking-[0.1em] text-accent uppercase transition-colors hover:text-text-primary"
+                className={`mt-1 h-9 rounded-full border border-border px-4 font-ui text-[13px] text-text-primary transition-colors hover:border-grid-strong ${FOCUS}`}
               >
                 {t("market_show_all")}
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {slice.map((r) => (
                   <AgentCard key={r.id} row={r} hot={r.id === hottest} />
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-3">
-                <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+                <p className="font-ui text-[12.5px] text-text-dim">
                   {t("market_showing", {
                     from: current * PER_PAGE + 1,
                     to: current * PER_PAGE + slice.length,
@@ -299,11 +251,8 @@ export function Marketplace() {
                   })}
                 </p>
                 {pages > 1 ? (
-                  <div className="flex items-center gap-1">
-                    <PageButton
-                      disabled={current === 0}
-                      onClick={() => setPage(current - 1)}
-                    >
+                  <div className="flex items-center gap-1.5">
+                    <PageButton disabled={current === 0} onClick={() => setPage(current - 1)}>
                       {t("market_previous")}
                     </PageButton>
                     {Array.from({ length: pages }).map((_, i) => (
@@ -311,19 +260,17 @@ export function Marketplace() {
                         key={i}
                         type="button"
                         onClick={() => setPage(i)}
-                        className={`h-8 min-w-8 px-2 font-mono text-[11px] transition-colors ${
+                        aria-current={i === current ? "page" : undefined}
+                        className={`tnum h-8 min-w-8 rounded-full px-2 font-mono text-[12px] transition-colors ${FOCUS} ${
                           i === current
-                            ? "border border-accent text-accent"
+                            ? "border border-border bg-surface text-text-primary"
                             : "text-text-dim hover:text-text-primary"
                         }`}
                       >
                         {i + 1}
                       </button>
                     ))}
-                    <PageButton
-                      disabled={current >= pages - 1}
-                      onClick={() => setPage(current + 1)}
-                    >
+                    <PageButton disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>
                       {t("market_next")}
                     </PageButton>
                   </div>
@@ -348,108 +295,54 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
   return (
     <Link
       href={`/agents/${r.id}`}
-      className="group flex flex-col border border-grid p-5 transition-colors hover:border-grid-strong"
+      className={`group flex flex-col rounded-2xl border border-border bg-surface p-5 transition-[border-color,transform] duration-200 hover:-translate-y-px hover:border-grid-strong ${FOCUS}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-mono text-[15px] text-text-primary group-hover:text-accent">
-            {r.name}
-          </span>
-          {hot ? (
-            <Badge tone="warning">{t("market_badge_hot")}</Badge>
-          ) : isNew(r) ? (
-            // Rounded like the model pill, not square like the status chips:
-            // "new" is a fact about the record's age, not a state the agent is
-            // sitting in, and the shape is what keeps the two apart.
-            <Badge tone="accent" className="rounded-full px-2">
-              {t("market_badge_new")}
-            </Badge>
-          ) : null}
-          {/* Beside the name, where the reader is already looking to tell one
-              card from another. `min-w-0` on the wrapper means the NAME is what
-              gives way when the card is narrow — the pill is shrink-0, so it
-              survives the truncation that a 15-character agent name causes. */}
-          <ModelBadge model={r.model} />
-        </span>
-        {r.is_mine ? (
-          <Badge tone="muted">{t("market_badge_yours")}</Badge>
-        ) : null}
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-ui text-[15px] font-semibold tracking-[-0.01em] text-text-primary">
+              {r.name}
+            </span>
+            {hot ? <Tag tone="accent">{t("market_badge_hot")}</Tag> : isNew(r) ? <Tag>{t("market_badge_new")}</Tag> : null}
+            {r.is_mine ? <Tag>{t("market_badge_yours")}</Tag> : null}
+          </div>
+          <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
+            {t("market_card_class_days", { class: r.strategy_class, days: recordDays(r) })}
+          </p>
+        </div>
+        <ModelBadge model={r.model} className="shrink-0" />
       </div>
 
-      <p className="truncate pt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-text-dim uppercase">
-        {t("market_card_class_days", {
-          class: r.strategy_class,
-          days: recordDays(r),
-        })}
-      </p>
-
-      <div className="py-4">
+      <div className="pt-4 pb-3">
         {points.length > 1 ? (
-          <EquityCurve
-            values={points}
-            baseline={capital || undefined}
-            height={56}
-            hoverAnimate
-          />
+          <EquityCurve values={points} baseline={capital || undefined} height={56} hoverAnimate />
         ) : (
           // No curve rather than a flat line pretending to be one.
-          <div className="flex h-[56px] items-center font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+          <div className="flex h-[56px] items-center font-ui text-[12px] text-text-muted">
             {t("market_card_no_curve")}
           </div>
         )}
       </div>
 
-      {/* Two-up until the cards go three-across.
-          The four metrics used to sit in one row of four because this card was
-          full width below lg; it is two-up from sm now, which leaves each
-          column about 63px — narrow enough that "Return 30d" and "Trades 30d"
-          both truncate to an ellipsis. A 2x2 block holds the same four figures
-          without abbreviating any of their labels. */}
-      {/* THREE-UP, NOT FIVE. Volume makes five figures, and five columns in a
-          card that goes three-across leaves ~50px each — narrower than the
-          four-column layout that already truncated "Return 30d". Two rows of
-          three holds all five at full label width, and puts Volume next to
-          Open now, which is the pair a reader compares: what it is holding
-          against how much it has been moving. */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-4 border-t border-grid pt-3.5 lg:grid-cols-3">
-        <Metric
+      {/* Two rows of three: every label at full width. */}
+      <div className="grid grid-cols-3 gap-x-3 gap-y-3.5 border-t border-grid pt-3.5">
+        <Stat
           label={t("market_metric_return_30d")}
           value={ret === null ? "—" : signedPct(ret)}
           tone={ret === null ? "neutral" : ret >= 0 ? "accent" : "negative"}
         />
-        <Metric
-          label={t("market_metric_capital")}
-          value={money(Number(r.aum_usd))}
-        />
-        {/* `?? "—"` rather than `?? "0"`: these are list-only aggregates, so on
-            this page they are always present, and if one ever is not, "0" would
-            be a claim about the agent where "—" is an admission about the data. */}
-        <Metric
-          label={t("market_metric_trades_30d")}
-          value={r.trades_30d ?? "—"}
-        />
-        <Metric
-          label={t("market_metric_open_now")}
-          value={r.open_positions ?? "—"}
-        />
-        {/* Traded value, not exposure — Capital above is the exposure figure.
-            `?? "—"` for the same reason as its neighbours: absent on an older
-            backend, and "$0" would be a claim about the agent. */}
-        <Metric
+        <Stat label={t("market_metric_capital")} value={money(Number(r.aum_usd))} />
+        <Stat label={t("market_metric_trades_30d")} value={r.trades_30d ?? "—"} />
+        <Stat label={t("market_metric_open_now")} value={r.open_positions ?? "—"} />
+        <Stat
           label={t("market_metric_volume_30d")}
-          value={
-            r.volume_30d_usd === undefined
-              ? "—"
-              : money(Number(r.volume_30d_usd))
-          }
+          value={r.volume_30d_usd === undefined ? "—" : money(Number(r.volume_30d_usd))}
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3 pt-3.5">
-        <StatusBadge row={r} />
-        <span className="font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
-          {t("market_non_custodial")}
-        </span>
+      <div className="flex items-center justify-between gap-3 pt-4">
+        <Status row={r} />
+        <span className="font-ui text-[11.5px] text-text-muted">{t("market_non_custodial")}</span>
       </div>
     </Link>
   );
@@ -457,33 +350,72 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
 
 /* ------------------------------------------------------------------- pieces -- */
 
+/** A tag: 11px, sentence case, hairline, full radius. Accent only for Hot. */
+function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "accent" }) {
+  return (
+    <span
+      className={`inline-flex h-[20px] shrink-0 items-center rounded-full border px-2 font-ui text-[11px] font-medium leading-none ${
+        tone === "accent" ? "border-accent/45 text-accent" : "border-border text-text-secondary"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Status is a dot and a word. */
+function Status({ row: r }: { row: StrategyRow }) {
+  const t = useT();
+  const live = r.status === "published";
+  const label = live
+    ? t("market_badge_listed")
+    : r.status === "delisted"
+      ? t("market_badge_delisted")
+      : t("market_badge_paper");
+  return (
+    <span className={`inline-flex items-center gap-1.5 font-ui text-[12px] font-medium ${live ? "text-accent" : "text-text-secondary"}`}>
+      <span className={`size-1.5 rounded-full ${live ? "bg-accent" : "bg-text-muted"}`} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "accent" | "negative" | "neutral";
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate font-ui text-[11px] text-text-dim">{label}</p>
+      <p
+        className={`tnum pt-1 font-mono text-[14px] leading-none whitespace-nowrap ${
+          tone === "accent" ? "text-accent" : tone === "negative" ? "text-negative" : "text-text-primary"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 /**
- * The four figures above the shelf, each a SUM over every strategy on screen.
- *
- * Every one of them shares a name with a per-strategy figure on the cards
- * below — capital, trades, positions — so each carries what it was counted
- * over. Without that, "Capital deployed $120k" sitting above a card reading
- * "Capital $10k" looks like one of the two being wrong, when they are a market
- * total and one agent's mandate.
- *
- * The rail follows the FILTER, not the whole market: these are sums over the
- * rows actually listed, so switching to Paper re-totals rather than continuing
- * to describe everything. That is why the note says "listed" rather than
- * naming the market.
+ * The figures above the shelf, each a SUM over every strategy on screen, and
+ * each says what it was counted over so it cannot be mistaken for the
+ * per-agent figure of the same name on the cards.
  */
 function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   const t = useT();
   const listed = rows?.filter((r) => r.status === "published").length ?? 0;
   const n = rows?.length ?? 0;
-  const over =
-    n === 1
-      ? t("market_rail_over_one")
-      : t("market_rail_over_many", { count: n });
+  const over = n === 1 ? t("market_rail_over_one") : t("market_rail_over_many", { count: n });
 
-  // `num()` rather than `Number()`, because these aggregates are optional on
-  // StrategyRow — they exist on the list route and not the detail one. A bare
-  // Number(undefined) is NaN, and one NaN poisons the whole sum into "$NaN",
-  // which is exactly how the strategy page's capital broke.
+  // `num()` rather than `Number()`: these aggregates are optional, and one
+  // NaN poisons the whole sum.
   const sum = (pick: (r: StrategyRow) => string | undefined): number =>
     rows?.reduce((s, r) => s + (num(pick(r)) ?? 0), 0) ?? 0;
 
@@ -491,119 +423,37 @@ function StatRail({ rows }: { rows: StrategyRow[] | null }) {
   const trades = sum((r) => r.trades_30d);
   const open = sum((r) => r.open_positions);
   const volume = sum((r) => r.volume_30d_usd);
-
-  // Nothing on this shelf is funded until a strategy goes live, and "Capital
-  // deployed" claims real money is at work. Same correction the My Agents band
-  // needed. `all_paper` is the backend's own per-strategy flag.
-  //
-  // `=== true`, so an ABSENT flag falls back to the neutral label rather than
-  // claiming paper. Getting it wrong that way understates what is at stake;
-  // the other way round only costs a word.
   const allPaper = n > 0 && (rows ?? []).every((r) => r.all_paper === true);
 
+  const cells: { label: string; value: string; note?: string }[] = [
+    {
+      label: t("market_rail_listed"),
+      value: String(listed),
+      note: n === listed ? undefined : t("market_rail_listed_note", { total: n }),
+    },
+    {
+      label: t(allPaper ? "market_rail_paper_capital" : "market_rail_capital_deployed"),
+      value: money(capital),
+      note: over,
+    },
+    { label: t("market_rail_trades_30d"), value: trades.toLocaleString("en-US"), note: over },
+    { label: t("market_rail_positions_open"), value: String(open), note: over },
+    { label: t("market_rail_volume_30d"), value: money(volume), note: over },
+  ];
+
   return (
-    <div className="flex flex-wrap gap-x-10 gap-y-4 pt-6">
-      <Metric
-        label={t("market_rail_listed")}
-        value={String(listed)}
-        note={
-          n === listed ? undefined : t("market_rail_listed_note", { total: n })
-        }
-        big
-      />
-      <Metric
-        label={t(
-          allPaper
-            ? "market_rail_paper_capital"
-            : "market_rail_capital_deployed",
-        )}
-        value={money(capital)}
-        note={over}
-        big
-      />
-      <Metric
-        label={t("market_rail_trades_30d")}
-        value={trades.toLocaleString("en-US")}
-        note={over}
-        big
-      />
-      <Metric
-        label={t("market_rail_positions_open")}
-        value={String(open)}
-        note={over}
-        big
-      />
-      <Metric
-        label={t("market_rail_volume_30d")}
-        value={money(volume)}
-        note={over}
-        big
-      />
+    <div className="grid grid-cols-5 divide-x divide-grid border-y border-grid">
+      {cells.map((c, i) => (
+        <div key={c.label} className={`min-w-0 py-5 ${i === 0 ? "pr-6" : "px-6"}`}>
+          <p className="truncate font-ui text-[12px] text-text-dim">{c.label}</p>
+          <p className="tnum pt-2 font-mono text-[22px] leading-none tracking-[-0.02em] text-text-primary">
+            {c.value}
+          </p>
+          {c.note ? <p className="truncate pt-1.5 font-ui text-[11.5px] text-text-muted">{c.note}</p> : null}
+        </div>
+      ))}
     </div>
   );
-}
-
-function Metric({
-  label,
-  value,
-  note,
-  tone = "neutral",
-  big = false,
-}: {
-  label: string;
-  value: string;
-  /**
-   * What the number is counted over.
-   *
-   * Only the rail passes it. A rail figure is a SUM across every strategy on
-   * screen while the identically-named figure on each card below is that one
-   * strategy's — the same trap the My Agents band had, where "$60k" sat one
-   * click above "$10,000" and both were labelled capital.
-   */
-  note?: string;
-  tone?: "accent" | "negative" | "neutral";
-  big?: boolean;
-}) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <p className="truncate font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
-        {label}
-      </p>
-      <p
-        className={`tnum font-mono leading-none whitespace-nowrap ${
-          big ? "text-[20px]" : "text-[13px]"
-        } ${
-          tone === "accent"
-            ? "text-accent"
-            : tone === "negative"
-              ? "text-negative"
-              : "text-text-primary"
-        }`}
-      >
-        {value}
-      </p>
-      {note ? (
-        <p className="truncate font-ui text-[11px] text-text-dim">{note}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBadge({ row: r }: { row: StrategyRow }) {
-  const t = useT();
-  if (r.status === "published")
-    return <Badge tone="accent">{t("market_badge_listed")}</Badge>;
-  // Unreachable while the list endpoint excludes delisted, and kept anyway: the
-  // fallback below says "Paper", so dropping this would label a delisted
-  // strategy as a live paper record if one ever arrived. A branch that cannot
-  // fire costs a line; a badge that lies costs trust.
-  if (r.status === "delisted")
-    return <Badge tone="warning">{t("market_badge_delisted")}</Badge>;
-  // Draft and verifying alike. Both are trading on paper and neither can be
-  // deployed, so one badge tells the reader the one thing that is true of both
-  // — and "Paper" rather than "Paper run" because it is also what the agent
-  // itself is labelled everywhere else in the product.
-  return <Badge tone="muted">{t("market_badge_paper")}</Badge>;
 }
 
 function PageButton({
@@ -620,7 +470,7 @@ function PageButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="h-8 px-3 font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      className={`h-8 rounded-full px-3 font-ui text-[12.5px] text-text-dim transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`}
     >
       {children}
     </button>
@@ -629,20 +479,11 @@ function PageButton({
 
 /* ------------------------------------------------------------------ helpers -- */
 
-/**
- * How long it has been running a record, published or not.
- *
- * `created_at` is the fallback because a DRAFT has no other date, and returning
- * 0 for one made every draft permanently "NEW" — a badge that never expires is
- * not a fact about the strategy, it is noise on every row.
- */
+/** How long it has been running a record, published or not. */
 function recordDays(r: StrategyRow): number {
   const from = r.verification_started_at ?? r.published_at ?? r.created_at;
   if (!from) return 0;
-  return Math.max(
-    Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000),
-    0,
-  );
+  return Math.max(Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000), 0);
 }
 
 /** Under a fortnight of record. Objective, unlike a curated "featured" flag. */
