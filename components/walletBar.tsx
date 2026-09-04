@@ -32,7 +32,7 @@ import { WithdrawModal } from "@/components/walletModals";
 import { AddFundsModal } from "@/components/addFunds";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { SolanaMark } from "@/components/chainMark";
-import { LABEL, PRIMARY, SECONDARY, SURFACE } from "@/components/kit";
+import { LABEL, PRIMARY, SECONDARY } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 
 export function WalletBar({
@@ -71,7 +71,7 @@ export function WalletBar({
     // it is worth saying — real capital with nowhere to sign from is a fault.
     if (isPaper) return null;
     return (
-      <span className="font-ui text-[12px] text-text-dim">
+      <span className="font-ui text-[12.5px] text-text-dim">
         {t("wallet_none_provisioned")}
       </span>
     );
@@ -94,7 +94,7 @@ export function WalletBar({
           border around facts nobody can press. One bordered object survives and
           it is the address — the only thing here you can do something with.
           Rule 3. */}
-      <span className="flex w-[236px] shrink-0 flex-col gap-2">
+      <span className="flex w-[248px] shrink-0 flex-col gap-2.5">
         <Row label={t("wallet_usdc_balance")}>
           <Balance agentId={agentId} />
         </Row>
@@ -110,15 +110,15 @@ export function WalletBar({
           onClick={() => copy(address)}
           title={address}
           aria-label={t("wallet_copy_aria", { address })}
-          className={`group flex items-center gap-2 ${SURFACE} px-2 py-1.5 transition-colors hover:border-accent`}
+          className="group flex h-9 items-center gap-2 rounded-full border border-border bg-surface pr-3 pl-1.5 transition-colors hover:border-grid-strong"
         >
           <ChainDisc />
-          <span className="font-mono text-[12px] text-text-secondary transition-colors group-hover:text-text-primary">
+          <span className="font-mono text-[12.5px] text-text-secondary transition-colors group-hover:text-text-primary">
             {`${address.slice(0, 4)}…${address.slice(-4)}`}
           </span>
           <span
-            className={`ml-auto font-mono text-[9px] tracking-[0.1em] uppercase transition-colors ${
-              copied ? "text-accent" : "text-text-dim group-hover:text-accent"
+            className={`ml-auto font-ui text-[11px] font-medium transition-colors ${
+              copied ? "text-accent" : "text-text-muted group-hover:text-text-primary"
             }`}
           >
             {t(copied ? "common_copied" : "common_copy")}
@@ -128,7 +128,7 @@ export function WalletBar({
         {/* WHAT YOU CAN DO TO IT. Its own row, because an action is not a
           property — and a PAIR, because money goes in and comes back out and
           the way in cannot be the only one on screen. */}
-        <span className="w-[230px] flex items-center gap-1.5">
+        <span className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setMoving("deposit")}
@@ -235,9 +235,9 @@ function ChainDisc() {
   return (
     <span
       title={t("wallet_solana_mainnet")}
-      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-grid bg-bg"
+      className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-bg"
     >
-      <SolanaMark className="size-[9px]" />
+      <SolanaMark className="size-[10px]" />
     </span>
   );
 }
@@ -266,7 +266,7 @@ function ModelCredit({ agentId }: { agentId: number }) {
     <span title={t("wallet_model_credit_title")}>
       <Row label={t("wallet_model_credit")}>
         <span
-          className={`tnum font-mono text-[13px] ${low ? "text-warning" : "text-text-primary"}`}
+          className={`tnum font-mono text-[14px] ${low ? "text-warning" : "text-text-primary"}`}
         >
           $
           {balance.usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -283,7 +283,7 @@ function Balance({ agentId }: { agentId: number }) {
   if (state.phase === "loading") {
     return (
       <span
-        className="h-4 w-16 animate-pulse rounded bg-surface-2"
+        className="h-4 w-16 animate-pulse rounded-md bg-surface-2"
         aria-hidden
       />
     );
@@ -292,7 +292,7 @@ function Balance({ agentId }: { agentId: number }) {
   // the message that tells someone to send money they have already sent.
   if (state.phase !== "ready") {
     return (
-      <span className="font-mono text-[12.5px] text-text-dim">
+      <span className="font-ui text-[12.5px] text-text-dim">
         {t("wallet_balance_unknown")}
       </span>
     );
@@ -303,7 +303,7 @@ function Balance({ agentId }: { agentId: number }) {
   // the word twice on one line.
   return (
     <span
-      className={`tnum font-mono text-[13px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
+      className={`tnum font-mono text-[14px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
     >
       ${usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
     </span>

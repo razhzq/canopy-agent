@@ -15,7 +15,7 @@ import {
 import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
-import { AssetLogo, Badge } from "@/components/ui";
+import { AssetLogo } from "@/components/ui";
 import { Tick } from "@/components/kit";
 import { ClosePositionModal } from "@/components/closePosition";
 import { useLocale } from "@/lib/i18n";
@@ -65,7 +65,7 @@ export function Positions({
 
   return (
     <div>
-      <div className="flex items-center gap-1 pt-4">
+      <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-border bg-surface p-1">
         <TabButton active={tab === "open"} onClick={() => setTab("open")}>
           {positions.length > 0
             ? t("positions_tab_open_count", {
@@ -107,10 +107,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`border-b-2 px-3 py-2 font-mono text-[10.5px] tracking-[0.08em] uppercase transition-colors ${
+      className={`flex h-8 items-center rounded-full px-3.5 font-ui text-[12.5px] font-medium transition-colors ${
         active
-          ? "border-accent text-accent"
-          : "border-transparent text-text-muted hover:text-text-secondary"
+          ? "bg-surface-2 text-text-primary"
+          : "text-text-dim hover:text-text-primary"
       }`}
     >
       {children}
@@ -272,7 +272,7 @@ function OpenTable({
     <div className="pt-4">
       {/* Header and rows are both `flex-1` grid + a fixed trailing column, so
           the data columns line up exactly whatever the × column costs. */}
-      <div className="hidden items-center gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:flex">
+      <div className="hidden items-center gap-3 border-b border-grid pb-2 font-ui text-[11.5px] text-text-muted sm:flex">
         <div className="grid flex-1 grid-cols-[1.4fr_repeat(4,1fr)_auto] gap-3">
           <span>{t("positions_col_asset")}</span>
           <span className="text-right">{t("positions_col_qty")}</span>
@@ -311,7 +311,7 @@ function OpenTable({
                       issuer={h.issuer}
                       src={h.logoSrc}
                     />
-                    <span className="truncate font-mono text-[12.5px] text-text-primary">
+                    <span className="truncate font-mono text-[13px] text-text-primary">
                       {h.symbol}
                     </span>
                   </span>
@@ -413,7 +413,7 @@ function OpenTable({
                       one event — and the percent alone can round to unchanged
                       while the dollars moved. */}
                   <Tick value={h.netPnlUsd}>
-                    <span className="tnum block font-mono text-[12.5px]">
+                    <span className="tnum block font-mono text-[13px]">
                       {h.netPnlUsd === null
                         ? "—"
                         : usd(h.netPnlUsd, { sign: true })}
@@ -426,7 +426,7 @@ function OpenTable({
                     )}
                   </Tick>
                 </span>
-                <span className="w-8 text-right font-mono text-[11px] text-text-dim">
+                <span className="w-8 text-right font-mono text-[12px] text-text-muted">
                   {canExpand ? (expanded ? "−" : "+") : ""}
                 </span>
               </button>
@@ -439,7 +439,7 @@ function OpenTable({
                 // Dim until hovered or focused. It sells something, so it should
                 // not compete for attention with the figures — but it must be
                 // reachable by keyboard, which is why focus-visible lights it too.
-                className="flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:bg-surface hover:text-negative focus-visible:bg-surface focus-visible:text-negative focus-visible:outline-1 focus-visible:outline-accent"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-2 hover:text-negative focus-visible:bg-surface-2 focus-visible:text-negative focus-visible:outline-1 focus-visible:outline-accent"
               >
                 <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden>
                   <path
@@ -455,7 +455,7 @@ function OpenTable({
 
             {expanded ? (
               <div className="pb-3 pl-3">
-                <p className="pb-1.5 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase">
+                <p className="pb-1.5 font-ui text-[11.5px] text-text-muted">
                   {t("positions_entries")}
                 </p>
                 {h.lots.map((l, i) => (
@@ -517,7 +517,7 @@ function Amount({
   return (
     <span className="text-right">
       <span
-        className={`tnum block font-mono text-[12.5px] ${
+        className={`tnum block font-mono text-[13px] ${
           muted ? "text-text-muted" : "text-text-secondary"
         }`}
       >
@@ -537,7 +537,7 @@ function Amount({
 
 function Cell({ children }: { children: React.ReactNode }) {
   return (
-    <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+    <span className="tnum text-right font-mono text-[13px] text-text-secondary">
       {children}
     </span>
   );
@@ -632,7 +632,7 @@ function HistoryTable({
       {/* Same shape as the open book above: the dollar figure leads and the
           price it was struck at sits under it, so the two tabs do not describe
           a trade two different ways. */}
-      <div className="hidden grid-cols-[auto_1.2fr_repeat(3,1fr)] gap-3 border-b border-grid pb-2 font-mono text-[9.5px] tracking-[0.12em] text-text-dim uppercase sm:grid">
+      <div className="hidden grid-cols-[auto_1.2fr_repeat(3,1fr)] gap-3 border-b border-grid pb-2 font-ui text-[11.5px] text-text-muted sm:grid">
         <span>{t("positions_col_side")}</span>
         <span>{t("positions_col_asset")}</span>
         <span className="text-right">{t("positions_col_qty")}</span>
@@ -654,7 +654,7 @@ function HistoryTable({
             type="button"
             onClick={loadMore}
             disabled={loading}
-            className="border border-grid px-3 py-1.5 font-mono text-[10.5px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="inline-flex h-8 items-center rounded-full border border-border px-3.5 font-ui text-[12.5px] font-medium text-text-primary transition-colors hover:border-grid-strong disabled:opacity-40"
           >
             {t(loading ? "positions_loading" : "positions_load_more")}
           </button>
@@ -707,7 +707,7 @@ function FillRow({
   return (
     <div className="grid grid-cols-2 items-center gap-3 border-b border-grid py-3 last:border-b-0 sm:grid-cols-[auto_1.2fr_repeat(3,1fr)]">
       <span
-        className={`font-mono text-[10px] tracking-[0.08em] uppercase ${
+        className={`font-ui text-[12px] font-medium ${
           sell ? "text-negative" : "text-accent"
         }`}
       >
@@ -720,13 +720,15 @@ function FillRow({
             issuer={asset?.issuer}
             src={asset?.iconUrl}
           />
-          <span className="truncate font-mono text-[12.5px] text-text-primary">
+          <span className="truncate font-mono text-[13px] text-text-primary">
             {f.symbol}
           </span>
           {/* Labelled, not hidden. Every agent is paper today, so a history
               that silently implied real fills would mislead every reader. */}
           {f.is_paper ? (
-            <Badge tone="muted">{t("positions_badge_paper")}</Badge>
+            <span className="inline-flex h-[18px] shrink-0 items-center rounded-full border border-border px-1.5 font-ui text-[10.5px] font-medium text-text-secondary">
+              {t("positions_badge_paper")}
+            </span>
           ) : null}
         </span>
         <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
@@ -756,7 +758,7 @@ function FillRow({
               : "text-negative"
         }`}
       >
-        <span className="tnum block font-mono text-[12.5px]">
+        <span className="tnum block font-mono text-[13px]">
           {realised === null ? "—" : usd(realised, { sign: true })}
         </span>
         {realisedPct === null ? null : (

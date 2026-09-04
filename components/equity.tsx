@@ -53,8 +53,8 @@ export function EquityView({
 
   if (series === null) {
     return (
-      <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
-        <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+      <div className="rounded-2xl border border-border bg-surface px-5 sm:px-8 py-10 text-center">
+        <p className="font-ui text-[15px] font-medium text-text-primary">
           {t("equity_unavailable_title")}
         </p>
         <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -69,8 +69,8 @@ export function EquityView({
 
   if (points.length === 0) {
     return (
-      <div className="border border-grid bg-panel px-5 sm:px-8 py-10 text-center">
-        <p className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
+      <div className="rounded-2xl border border-border bg-surface px-5 sm:px-8 py-10 text-center">
+        <p className="font-ui text-[15px] font-medium text-text-primary">
           {t("equity_no_curve_title")}
         </p>
         <p className="mx-auto max-w-[46ch] pt-2 font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -100,7 +100,7 @@ export function EquityView({
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="space-y-1.5">
-          <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
+          <p className="font-ui text-[12.5px] text-text-dim">
             {t(isPaper ? "equity_paper_equity" : "equity_equity")}
           </p>
           {/* Equity is capital plus realised plus unrealised, so it moves on
@@ -108,13 +108,13 @@ export function EquityView({
               not the other would read as the two disagreeing. */}
           <Tick
             value={equity}
-            className="tnum block font-mono text-[32px] leading-none text-text-primary"
+            className="tnum block font-mono text-[34px] leading-none tracking-[-0.02em] text-text-primary"
           >
             {money(equity)}
           </Tick>
           <Tick
             value={pnl}
-            className={`tnum block font-mono text-[12.5px] ${
+            className={`tnum block font-mono text-[13px] ${
               pnl >= 0 ? "text-accent" : "text-negative"
             }`}
           >
@@ -156,7 +156,7 @@ export function EquityView({
         </div>
       </div>
 
-      <div className="border border-grid p-4">
+      <div className="rounded-2xl border border-border bg-surface p-5">
         <ReadableCurve
           points={points}
           capitalUsd={capitalUsd}
@@ -164,7 +164,7 @@ export function EquityView({
           t={t}
           locale={locale}
         />
-        <div className="flex items-center justify-between pt-3 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+        <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
           <span>{t("equity_cycle_n", { seq: points[0].tickSeq })}</span>
           <span>{t("equity_cycle_n", { seq: points[points.length - 1].tickSeq })}</span>
         </div>
@@ -301,7 +301,7 @@ function Readout({
 
   return (
     <div
-      className="pointer-events-none absolute z-10 whitespace-nowrap border border-grid-strong bg-panel px-3 py-2 shadow-lg"
+      className="pointer-events-none absolute z-10 whitespace-nowrap rounded-xl border border-border bg-surface px-3 py-2.5 shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
       style={{
         ...style,
         transform: `translate(${
@@ -309,10 +309,10 @@ function Readout({
         }, ${below ? "12px" : "calc(-100% - 12px)"})`,
       }}
     >
-      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
+      <p className="font-ui text-[11.5px] text-text-muted">
         {t("equity_readout_head", { seq: point.tickSeq, when: when(point.at, locale) })}
       </p>
-      <p className="tnum pt-1 font-mono text-[15px] leading-none text-text-primary">
+      <p className="tnum pt-1 font-mono text-[16px] leading-none text-text-primary">
         {money(point.equityUsd)}
       </p>
       <p
@@ -323,7 +323,7 @@ function Readout({
         {t("equity_readout_pnl", { pnl: signed(pnl), pct: signedPct(pct) })}
       </p>
       {cash === null ? null : (
-        <p className="tnum pt-1 font-mono text-[10px] text-text-muted">
+        <p className="tnum pt-1 font-mono text-[11px] text-text-muted">
           {t("equity_readout_cash", { amount: money(cash) })}
         </p>
       )}
@@ -395,10 +395,10 @@ function Stat({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">{label}</p>
+      <p className="font-ui text-[11.5px] text-text-dim">{label}</p>
       <Tick
         value={watch}
-        className={`tnum block font-mono text-[16px] leading-none whitespace-nowrap ${
+        className={`tnum block font-mono text-[17px] leading-none whitespace-nowrap ${
           tone === "accent"
             ? "text-accent"
             : tone === "negative"
@@ -408,7 +408,7 @@ function Stat({
       >
         {value}
         {note ? (
-          <span className="pl-1.5 font-mono text-[10px] tracking-[0.04em] text-text-muted">
+          <span className="pl-1.5 font-ui text-[11px] text-text-muted">
             {note}
           </span>
         ) : null}
