@@ -307,15 +307,15 @@ export function GoLiveModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="go-live-title"
-        className="w-full max-w-[620px] animate-[log-enter_180ms_ease-out] border border-grid-strong bg-panel shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]"
+        className="w-full max-w-[620px] animate-[menu-enter_180ms_ease-out] overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)]"
       >
         {/* ------------------------------------------------------------- head */}
         <div className="flex items-start justify-between gap-6 border-b border-grid px-7 pt-6 pb-5">
           <div className="min-w-0 space-y-1.5">
-            <p className="truncate font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            <p className="truncate font-ui text-[12px] text-text-muted">
               {t("gl_eyebrow", { name: agent.strategy_name })}
             </p>
-            <h2 id="go-live-title" className="font-mono text-[21px] leading-none text-text-primary">
+            <h2 id="go-live-title" className="font-ui text-[21px] font-medium leading-none tracking-[-0.01em] text-text-primary">
               {t(promoted ? "gl_title_done" : "gl_title")}
             </h2>
           </div>
@@ -324,7 +324,7 @@ export function GoLiveModal({
             onClick={onClose}
             disabled={busy}
             aria-label={t("common_close")}
-            className="shrink-0 border border-border px-2.5 py-1 font-mono text-[11px] text-text-dim transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="inline-flex h-8 shrink-0 items-center rounded-full border border-border px-3 font-ui text-[12px] text-text-dim transition-colors hover:border-grid-strong hover:text-text-primary disabled:opacity-40"
           >
             {t("wallet_esc")}
           </button>
@@ -371,7 +371,7 @@ export function GoLiveModal({
                         type="button"
                         onClick={() => void readEntitlement(true)}
                         disabled={busy || checking}
-                        className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-40"
+                        className="inline-flex h-10 items-center justify-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                       >
                         {t(checking ? "gl_checking" : "gl_check_again")}
                       </button>
@@ -380,7 +380,7 @@ export function GoLiveModal({
                         type="button"
                         onClick={() => void subscribe()}
                         disabled={busy || checking}
-                        className="h-11 border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:opacity-40"
+                        className="inline-flex h-10 items-center justify-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                       >
                         {t(busy ? "gl_opening" : "gl_subscribe")}
                       </button>
@@ -389,7 +389,7 @@ export function GoLiveModal({
                       type="button"
                       onClick={onClose}
                       disabled={busy}
-                      className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+                      className="px-2 font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                     >
                       {t("gl_not_now")}
                     </button>
@@ -470,7 +470,7 @@ export function GoLiveModal({
 
                   {confirming ? (
                     <>
-                      <div className="flex gap-3 border border-warning bg-warning/[0.04] px-5 py-4">
+                      <div className="flex gap-3 rounded-xl border border-warning/45 px-5 py-4">
                         <WarnIcon className="mt-0.5 shrink-0 text-warning" />
                         <p className="font-ui text-[13px] leading-relaxed text-warning">
                           {t("gl_confirm_warning")}
@@ -481,7 +481,7 @@ export function GoLiveModal({
                           type="button"
                           onClick={() => void promote()}
                           disabled={busy}
-                          className="h-11 border border-warning px-6 font-mono text-[11px] tracking-[0.1em] text-warning uppercase transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
+                          className="inline-flex h-10 items-center rounded-full border border-warning px-5 font-ui text-[13px] font-medium text-warning transition-colors hover:bg-warning hover:text-bg disabled:opacity-40"
                         >
                           {t(busy ? "gl_settling" : "gl_confirm")}
                         </button>
@@ -489,7 +489,7 @@ export function GoLiveModal({
                           type="button"
                           onClick={() => setConfirming(false)}
                           disabled={busy}
-                          className="px-2 font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-40"
+                          className="px-2 font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                         >
                           {t("gl_back")}
                         </button>
@@ -499,7 +499,7 @@ export function GoLiveModal({
                     <button
                       type="button"
                       onClick={() => setConfirming(true)}
-                      className="h-11 w-full border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
+                      className="w-full inline-flex h-10 items-center justify-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                     >
                       {t("gl_go_live")}
                     </button>
@@ -533,7 +533,7 @@ function StepRail({ current }: { current: Step }) {
   const t = useT();
 
   return (
-    <ol className="flex items-stretch border-b border-grid" aria-label={t("gl_steps_aria")}>
+    <ol className="flex items-start gap-6 border-b border-grid px-7 py-5" aria-label={t("gl_steps_aria")}>
       {STEPS.map((s, i) => {
         const done = s.n < current;
         const active = s.n === current;
@@ -541,33 +541,33 @@ function StepRail({ current }: { current: Step }) {
           <li
             key={s.n}
             aria-current={active ? "step" : undefined}
-            className={`flex-1 space-y-1.5 border-r border-grid px-5 py-4 transition-colors last:border-r-0 ${
-              active ? "bg-surface" : ""
+            className={`flex-1 space-y-1.5 transition-opacity ${
+              active || done ? "" : "opacity-60"
             }`}
           >
             <div className="flex items-center gap-2">
               <span
-                className={`flex size-[18px] shrink-0 items-center justify-center rounded-full font-mono text-[9.5px] ${
+                className={`tnum flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[10.5px] ${
                   done
                     ? "bg-accent text-bg"
                     : active
-                      ? "border border-accent text-accent"
+                      ? "border border-text-primary text-text-primary"
                       : "border border-grid-strong text-text-muted"
                 }`}
               >
                 {done ? <CheckIcon className="size-2.5" /> : i + 1}
               </span>
               <span
-                className={`font-mono text-[11.5px] tracking-[0.04em] ${
-                  done ? "text-accent" : active ? "text-text-primary" : "text-text-muted"
+                className={`font-ui text-[13px] font-medium ${
+                  done || active ? "text-text-primary" : "text-text-muted"
                 }`}
               >
                 {t(s.labelKey)}
               </span>
             </div>
             <p
-              className={`font-ui text-[11.5px] leading-snug ${
-                active ? "text-text-secondary" : "text-text-dim/70"
+              className={`pl-7 font-ui text-[11.5px] leading-snug ${
+                active ? "text-text-secondary" : "text-text-dim"
               }`}
             >
               {t(s.purposeKey)}
@@ -593,7 +593,7 @@ function Section({
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <h3 className="font-mono text-[14px] text-text-primary">{title}</h3>
+        <h3 className="font-ui text-[15px] font-medium text-text-primary">{title}</h3>
         <p className="font-ui text-[13px] leading-relaxed text-text-secondary">{body}</p>
       </div>
       {children}
@@ -614,7 +614,7 @@ function Checking() {
 
   return (
     <div className="space-y-2">
-      <h3 className="font-mono text-[14px] text-text-primary">{t("gl_checking_title")}</h3>
+      <h3 className="font-ui text-[15px] font-medium text-text-primary">{t("gl_checking_title")}</h3>
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
         {t("gl_checking_body")}
       </p>
@@ -624,14 +624,14 @@ function Checking() {
 
 /** A figure or term inside prose, lifted just enough to be findable. */
 function Figure({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-[12.5px] text-text-primary">{children}</span>;
+  return <span className="tnum font-mono text-[13px] text-text-primary">{children}</span>;
 }
 
 /** The quiet reassurance under an action that looks larger than it is. */
 function Assurance({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-3 border-l border-accent/40 pl-4">
-      <LockIcon className="mt-0.5 size-3.5 shrink-0 text-accent/70" />
+    <div className="flex gap-3 border-l border-grid-strong pl-4">
+      <LockIcon className="mt-0.5 size-3.5 shrink-0 text-text-dim" />
       <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">{children}</p>
     </div>
   );
@@ -640,14 +640,14 @@ function Assurance({ children }: { children: React.ReactNode }) {
 /** What is about to be committed, as facts rather than prose. */
 function Ledger({ rows }: { rows: [string, string][] }) {
   return (
-    <dl className="border border-grid bg-surface">
+    <dl className="overflow-hidden rounded-xl border border-border bg-bg">
       {rows.map(([k, v]) => (
         <div
           key={k}
           className="flex items-center justify-between gap-4 border-b border-grid px-5 py-3 last:border-b-0"
         >
-          <dt className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">{k}</dt>
-          <dd className="tnum font-mono text-[12.5px] text-text-primary">{v}</dd>
+          <dt className="font-ui text-[12.5px] text-text-dim">{k}</dt>
+          <dd className="tnum font-mono text-[13px] text-text-primary">{v}</dd>
         </div>
       ))}
     </dl>
@@ -659,11 +659,11 @@ function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
 
   return (
     <div className="space-y-5 px-7 py-8">
-      <div className="flex size-10 items-center justify-center rounded-full bg-accent-wash">
+      <div className="flex size-10 items-center justify-center rounded-full border border-accent/45">
         <CheckIcon className="size-4 text-accent" />
       </div>
       <div className="space-y-2">
-        <h3 className="font-mono text-[15px] text-text-primary">
+        <h3 className="font-ui text-[17px] font-medium tracking-[-0.01em] text-text-primary">
           {t("gl_promoted_title", { name })}
         </h3>
         <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -673,7 +673,7 @@ function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
       <button
         type="button"
         onClick={onClose}
-        className="h-11 w-full border border-accent bg-accent-wash px-6 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
+        className="w-full inline-flex h-10 items-center justify-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
       >
         {t("gl_done")}
       </button>

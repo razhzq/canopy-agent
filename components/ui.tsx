@@ -101,15 +101,15 @@ export function SectionHead({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 pb-6">
-      <div className="flex items-center gap-6">
-        <span className="w-4 font-mono text-[11px] text-accent">{index}</span>
-        <h2 className="font-mono text-[14px] tracking-[0.06em] text-text-primary">
+      <div className="flex items-baseline gap-4">
+        <span className="tnum font-mono text-[12px] text-text-muted">{index}</span>
+        <h2 className="font-ui text-[17px] font-medium tracking-[-0.01em] text-text-primary">
           {title}
         </h2>
         {children}
       </div>
       {note ? (
-        <div className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+        <div className="font-ui text-[12.5px] text-text-muted">
           {note}
         </div>
       ) : null}
@@ -263,15 +263,15 @@ export function Callout({
 }) {
   const t = CALLOUT_TONE[tone];
   return (
-    <div className={`flex gap-4 ${filled ? "bg-panel" : ""} px-5 py-4`}>
-      <div className={`w-0.5 shrink-0 self-stretch ${t.bar}`} />
+    <div className={`flex gap-4 rounded-xl ${filled ? "border border-border bg-surface" : ""} px-5 py-4`}>
+      <div className={`w-0.5 shrink-0 self-stretch rounded-full ${t.bar}`} />
       <div className="flex gap-3">
         {icon ? (
           <span className={`mt-0.5 shrink-0 ${t.icon}`}>{icon}</span>
         ) : null}
         <div className="space-y-1.5">
           {title ? (
-            <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
+            <p className="font-ui text-[13.5px] font-medium text-text-primary">
               {title}
             </p>
           ) : null}

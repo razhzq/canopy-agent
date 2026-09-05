@@ -16,7 +16,7 @@ export const zhPages: Record<keyof typeof enPages, string> = {
   page_eyebrow_account: "账户",
 
   settings_title: "设置",
-  settings_body: "您的套餐包含哪些权限，以及 Canopy 如何就您的智能体与您联系。",
+  settings_body: "您的智能体，以及 Canopy 如何联系您。",
 
   activity_page_title: "动态",
   activity_page_body: "您的智能体运行过的每一个周期 — 包括那些看过之后什么都没做的周期。",

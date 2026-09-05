@@ -13,10 +13,10 @@ export function SettingsHeader() {
   const t = useT();
   return (
     <div className="space-y-2 pb-12">
-      <h1 className="font-mono text-[20px] tracking-[0.04em] text-text-primary">
+      <h1 className="font-ui text-[28px] font-light leading-none tracking-[-0.02em] text-text-primary">
         {t("settings_title")}
       </h1>
-      <p className="font-ui text-[13px] text-text-secondary">{t("settings_body")}</p>
+      <p className="font-ui text-[15px] text-text-secondary">{t("settings_body")}</p>
     </div>
   );
 }

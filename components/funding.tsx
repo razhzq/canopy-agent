@@ -171,7 +171,7 @@ export function FundingPanel({
   if (state.phase === "loading") {
     return (
       <div
-        className="h-24 animate-pulse border border-grid bg-surface"
+        className="h-24 animate-pulse rounded-xl border border-border bg-surface"
         aria-hidden
       />
     );
@@ -200,7 +200,7 @@ export function FundingPanel({
       return (
         <div className="space-y-3">
           <div
-            className="h-24 animate-pulse border border-grid bg-surface"
+            className="h-24 animate-pulse rounded-xl border border-border bg-surface"
             aria-hidden
           />
           <p className="font-ui text-[12.5px] text-text-dim">
@@ -295,14 +295,14 @@ export function FundingPanel({
           onClick={() => copy(view.address)}
           title={view.address}
           aria-label={t("funding_copy_aria", { address: view.address })}
-          className="group flex shrink-0 items-center gap-2.5 rounded-lg border border-grid bg-surface px-3.5 py-2.5 transition-colors hover:border-accent"
+          className="group flex h-10 shrink-0 items-center gap-2.5 rounded-full border border-border bg-surface px-3.5 transition-colors hover:border-grid-strong"
         >
           <SolanaMark />
           <span className="font-mono text-[13px] text-text-primary">
             {`${view.address.slice(0, 4)}…${view.address.slice(-4)}`}
           </span>
           <span
-            className={`font-mono text-[9px] tracking-[0.1em] uppercase transition-colors ${
+            className={`font-ui text-[11px] font-medium transition-colors ${
               copied ? "text-accent" : "text-text-dim group-hover:text-accent"
             }`}
           >

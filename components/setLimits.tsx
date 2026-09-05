@@ -1242,7 +1242,7 @@ export function ScaleOutLadder({
     <div className="border-b border-grid px-4 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="min-w-0 font-mono text-[12px] text-text-primary">
+          <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
             {t("sl_steps_title")}
           </p>
           <InfoDot label={t("sl_steps_title")}>
@@ -1253,7 +1253,7 @@ export function ScaleOutLadder({
           type="button"
           onClick={add}
           disabled={left <= 0.05}
-          className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary disabled:opacity-30"
+          className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-30"
         >
           {t("sl_add_step")}
         </button>
@@ -1264,7 +1264,7 @@ export function ScaleOutLadder({
           {rungs.map((r, i) => (
             <li
               key={i}
-              className="flex flex-wrap items-center gap-2 font-mono text-[12px]"
+              className="flex flex-wrap items-center gap-2 font-ui text-[12.5px]"
             >
               <span className="text-text-dim">{t("sl_sell")}</span>
               <input
@@ -1280,7 +1280,7 @@ export function ScaleOutLadder({
                     ),
                   })
                 }
-                className="w-16 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+                className="tnum w-16 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] text-text-primary outline-none focus:border-accent/40"
                 aria-label={t("sl_step_size_aria", { n: i + 1 })}
               />
               <span className="text-text-dim">{t("sl_pct_at")}</span>
@@ -1292,14 +1292,14 @@ export function ScaleOutLadder({
                 onChange={(e) =>
                   setRung(i, { atPct: Math.max(1, Number(e.target.value)) })
                 }
-                className="w-20 border border-line bg-transparent px-2 py-1 text-right text-text-primary"
+                className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] text-text-primary outline-none focus:border-accent/40"
                 aria-label={t("sl_step_gain_aria", { n: i + 1 })}
               />
               <span className="text-text-dim">{t("sl_pct_gain")}</span>
               <button
                 type="button"
                 onClick={() => onChange(rungs.filter((_, n) => n !== i))}
-                className="ml-auto text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-negative"
+                className="ml-auto font-ui text-[11.5px] text-text-dim transition-colors hover:text-negative"
               >
                 {t("common_remove")}
               </button>
@@ -1630,17 +1630,17 @@ export function ComposedOnly({
   };
 
   return (
-    <div className="mb-3 border border-grid">
+    <div className="mb-3 overflow-hidden rounded-xl border border-border bg-bg">
       {groups.length > 0 ? (
         <div className="border-b border-grid px-4 py-3 last:border-b-0">
           <div className="flex items-baseline justify-between gap-4">
-            <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
+            <h4 className="font-ui text-[11.5px] text-text-muted">
               {t("sl_anyof_title")}
             </h4>
             <button
               type="button"
               onClick={onClearAnyOf}
-              className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+              className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
             >
               {t("sl_composed_remove")}
             </button>
@@ -1659,13 +1659,13 @@ export function ComposedOnly({
       {setup ? (
         <div className="px-4 py-3">
           <div className="flex items-baseline justify-between gap-4">
-            <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
+            <h4 className="font-ui text-[11.5px] text-text-muted">
               {t("sl_setup_title")}
             </h4>
             <button
               type="button"
               onClick={onClearSetup}
-              className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase transition-colors hover:text-text-primary"
+              className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
             >
               {t("sl_composed_remove")}
             </button>
@@ -1771,7 +1771,7 @@ function ClauseLedger({ clauses }: { clauses: Clause[] }) {
   // they typed, and resorting it by badness breaks that correspondence for the
   // sake of a ranking they did not ask for.
   return (
-    <ul className="mb-3 border border-grid">
+    <ul className="mb-3 overflow-hidden rounded-xl border border-border bg-bg">
       {clauses.map((c, i) => (
         <li
           key={`${i}-${c.phrase}`}
@@ -1783,7 +1783,7 @@ function ClauseLedger({ clauses }: { clauses: Clause[] }) {
           />
           <span className="min-w-0">
             <span className="font-ui text-[12.5px] text-text-primary">{c.phrase}</span>
-            <span className="pl-2 font-mono text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
+            <span className="pl-2 font-ui text-[11px] text-text-muted">
               {t(CLAUSE_LABEL[c.status])}
             </span>
             {c.detail ? (
@@ -1836,13 +1836,13 @@ function Checklist({ reqs }: { reqs: Requirement[] }) {
   const t = useT();
 
   return (
-    <div className="mt-4 border border-grid">
+    <div className="mt-4 overflow-hidden rounded-xl border border-border bg-bg">
       <div className="flex items-center justify-between gap-4 border-b border-grid px-4 py-2.5">
-        <h4 className="font-mono text-[9.5px] tracking-[0.14em] text-text-dim uppercase">
+        <h4 className="font-ui text-[11.5px] text-text-muted">
           {t("sl_before_trade")}
         </h4>
         <span
-          className={`font-mono text-[9.5px] tracking-[0.1em] uppercase ${
+          className={`font-ui text-[11.5px] font-medium ${
             open === 0 ? "text-accent" : "text-text-muted"
           }`}
         >
@@ -1879,7 +1879,7 @@ function Checklist({ reqs }: { reqs: Requirement[] }) {
             >
               {r.detail}
               {r.state === "assumed" ? (
-                <span className="pl-1.5 text-[9.5px] tracking-[0.1em] text-text-muted uppercase">
+                <span className="pl-1.5 font-ui text-[10.5px] text-text-muted">
                   {t("sl_assumed")}
                 </span>
               ) : null}
@@ -1936,7 +1936,7 @@ export function RuleChip({
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
       <div className="flex min-w-0 items-center gap-1.5">
         <p
-          className={`min-w-0 font-mono text-[12px] ${on ? "text-text-primary" : "text-text-muted"}`}
+          className={`min-w-0 font-ui text-[13px] font-medium ${on ? "text-text-primary" : "text-text-muted"}`}
         >
           {label}{" "}
           <span className="text-text-dim">
@@ -1988,10 +1988,10 @@ export function RuleChip({
         type="button"
         onClick={() => onChange({ enabled: !on })}
         aria-pressed={on}
-        className={`h-7 w-[52px] justify-self-start rounded-full border text-center font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors sm:justify-self-end ${
+        className={`h-7 min-w-[52px] justify-self-start rounded-full border px-2.5 text-center font-ui text-[11.5px] font-medium transition-colors sm:justify-self-end ${
           on
-            ? "border-accent text-accent"
-            : "border-grid text-text-muted hover:text-text-secondary"
+            ? "border-border bg-surface-2 text-text-primary"
+            : "border-grid text-text-muted hover:text-text-primary"
         }`}
       >
         {t(on ? "sl_on" : "sl_off")}
@@ -2058,7 +2058,7 @@ export function ExitChip({
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
       <div className="flex min-w-0 items-center gap-1.5">
-        <p className="min-w-0 font-mono text-[12px] text-text-primary">
+        <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
           {label}
         </p>
         <InfoDot label={label}>{copy}</InfoDot>
@@ -2075,7 +2075,7 @@ export function ExitChip({
         className="accent-accent disabled:opacity-30"
       />
       {off ? (
-        <span className="text-right font-mono text-[12px] text-text-dim">
+        <span className="text-right font-ui text-[12.5px] text-text-muted">
           {t("sl_off")}
         </span>
       ) : (
@@ -2097,10 +2097,10 @@ export function ExitChip({
         type="button"
         aria-pressed={!off}
         onClick={() => onChange(off ? resumeAt : 0)}
-        className={`h-7 w-[52px] justify-self-start rounded-full border text-center font-mono text-[9.5px] tracking-[0.08em] uppercase transition-colors sm:justify-self-end ${
+        className={`h-7 min-w-[52px] justify-self-start rounded-full border px-2.5 text-center font-ui text-[11.5px] font-medium transition-colors sm:justify-self-end ${
           off
-            ? "border-grid text-text-muted hover:text-text-secondary"
-            : "border-accent text-accent"
+            ? "border-grid text-text-muted hover:text-text-primary"
+            : "border-border bg-surface-2 text-text-primary"
         }`}
       >
         {t(off ? "sl_on" : "sl_off")}
@@ -2174,9 +2174,9 @@ function NumberEntry({
 
   return (
     <div
-      className={`text-right ${disabled ? "text-text-muted" : "text-accent"}`}
+      className={`text-right ${disabled ? "text-text-muted" : "text-text-primary"}`}
     >
-      <div className="flex items-baseline justify-end gap-px font-mono text-[13px]">
+      <div className="flex items-baseline justify-end gap-px font-mono text-[13.5px]">
         {sign ? <span aria-hidden>{sign}</span> : null}
         {isMoney ? <span aria-hidden>$</span> : null}
         <input
@@ -2208,7 +2208,7 @@ function NumberEntry({
         {isMoney ? null : <span aria-hidden>{unit}</span>}
       </div>
       {clamped === null ? null : (
-        <p className="pt-0.5 font-mono text-[9px] tracking-[0.06em] text-warning uppercase">
+        <p className="pt-0.5 font-ui text-[11px] text-warning">
           {clamped === max
             ? t("sl_max_clamp", { value: fmt(max, unit) })
             : t("sl_min_clamp", { value: fmt(min, unit) })}

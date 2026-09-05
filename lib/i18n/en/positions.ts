@@ -41,4 +41,11 @@ export const enPositions = {
   positions_count_many_partial: "{count} trades so far",
   positions_count_one_all: "1 trade — all of it",
   positions_count_many_all: "{count} trades — all of them",
+
+  // The open book pages LOCALLY, so it says what it is showing rather than
+  // history's "so far" — nothing is in flight, and there is no partial state
+  // to apologise for.
+  positions_open_showing: "Showing {shown} of {total}",
+  positions_open_count_one: "1 position",
+  positions_open_count_many: "{count} positions",
 } as const;

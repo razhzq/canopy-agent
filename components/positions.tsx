@@ -44,6 +44,17 @@ import { useLocale } from "@/lib/i18n";
 
 type Tab = "open" | "history";
 
+/**
+ * How many holdings the open book reveals at a time.
+ *
+ * Ten, not the fifty `getAgentFills` asks the server for. History's page size
+ * is a NETWORK figure — the cost of a round trip, amortised over as many fills
+ * as one response can carry. This one is a READING figure: the open book is
+ * the page's answer to "what do I own right now", and a wall of rows buries
+ * the few that are actually moving.
+ */
+const OPEN_PAGE = 10;
+
 export function Positions({
   agentId,
   positions,
@@ -257,8 +268,17 @@ function OpenTable({
   const [open, setOpen] = useState<string | null>(null);
   /** The holding awaiting confirmation, or null when no dialog is up. */
   const [closing, setClosing] = useState<Holding | null>(null);
+  /** How many holdings are revealed. Grows by OPEN_PAGE per "load more". */
+  const [visible, setVisible] = useState(OPEN_PAGE);
   const { t, locale } = useLocale();
   const holdings = aggregate(positions, universe, swapCost);
+
+  // A different agent is a different book, and the reveal must not carry over
+  // — otherwise opening a second agent shows it already expanded to wherever
+  // the last one was paged to.
+  useEffect(() => {
+    setVisible(OPEN_PAGE);
+  }, [agentId]);
 
   if (holdings.length === 0) {
     return (
@@ -267,6 +287,13 @@ function OpenTable({
       </p>
     );
   }
+
+  // PAGED LOCALLY, unlike history. `positions` is a prop — the whole book is
+  // already in hand and aggregated above — so there is nothing to fetch and
+  // the button reveals rows rather than requesting them. That also means no
+  // loading, error or signed-out state belongs on it.
+  const shown = holdings.slice(0, visible);
+  const hasMore = holdings.length > shown.length;
 
   return (
     <div className="pt-4">
@@ -284,7 +311,7 @@ function OpenTable({
         <span className="w-9" />
       </div>
 
-      {holdings.map((h) => {
+      {shown.map((h) => {
         const expanded = open === h.symbol;
         // One lot is not an accumulation — nothing to expand into.
         const canExpand = h.lots.length > 1;
@@ -478,6 +505,33 @@ function OpenTable({
           </div>
         );
       })}
+
+      {hasMore ? (
+        <div className="flex items-center gap-3 pt-3">
+          <button
+            type="button"
+            onClick={() => setVisible((n) => n + OPEN_PAGE)}
+            className="inline-flex h-8 items-center rounded-full border border-border px-3.5 font-ui text-[12.5px] font-medium text-text-primary transition-colors hover:border-grid-strong"
+          >
+            {t("positions_load_more")}
+          </button>
+          <p className="font-ui text-[11.5px] text-text-dim">
+            {t("positions_open_showing", {
+              shown: shown.length,
+              total: holdings.length,
+            })}
+          </p>
+        </div>
+      ) : holdings.length > OPEN_PAGE ? (
+        // Only once the list has actually been paged. Under ten holdings there
+        // was never a button, and a total under a three-row list is chrome
+        // answering a question nobody asked.
+        <p className="pt-3 font-ui text-[11.5px] text-text-dim">
+          {holdings.length === 1
+            ? t("positions_open_count_one")
+            : t("positions_open_count_many", { count: holdings.length })}
+        </p>
+      ) : null}
 
       {closing ? (
         <ClosePositionModal

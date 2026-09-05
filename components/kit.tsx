@@ -238,7 +238,7 @@ export function Figure({
       >
         {value}
       </span>
-      <span className="font-mono text-[12px] tracking-[0.08em] text-text-dim uppercase">
+      <span className="font-ui text-[13px] text-text-dim">
         {unit}
       </span>
     </div>
@@ -362,7 +362,7 @@ export function NamedValue({
     >
       <span className="font-ui text-[12.5px] text-text-primary">{name}</span>
       {detail ? (
-        <span className="font-mono text-[11.5px] text-text-dim">{detail}</span>
+        <span className="font-mono text-[12px] text-text-dim">{detail}</span>
       ) : null}
     </div>
   );
@@ -387,7 +387,7 @@ export function AmountInput({
 }) {
   return (
     <div
-      className={`flex items-center ${SURFACE} px-3.5 focus-within:border-accent`}
+      className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]`}
     >
       <input
         value={value}
@@ -397,9 +397,9 @@ export function AmountInput({
         autoComplete="off"
         placeholder="0.00"
         aria-label={label}
-        className="tnum w-full bg-transparent py-2.5 font-mono text-[15px] text-text-primary outline-none placeholder:text-text-dim"
+        className="tnum w-full bg-transparent py-2.5 font-mono text-[16px] text-text-primary outline-none placeholder:text-text-muted"
       />
-      <span className="shrink-0 pl-2 font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+      <span className="shrink-0 pl-2 font-ui text-[12px] text-text-dim">
         {unit}
       </span>
       {onMax ? (
@@ -617,7 +617,7 @@ export function InfoDot({
               }}
               // Above the dialog's own z-50, or it opens behind the panel that
               // asked for it.
-              className={`pointer-events-none fixed z-[60] w-[280px] rounded-lg border border-grid-strong bg-panel px-3 py-2.5 font-ui text-[11.5px] leading-relaxed text-text-secondary ${POPOVER_SHADOW}`}
+              className={`pointer-events-none fixed z-[60] w-[280px] rounded-xl border border-border bg-surface px-3 py-2.5 font-ui text-[12px] leading-relaxed text-text-secondary ${POPOVER_SHADOW}`}
             >
               {children}
             </div>,

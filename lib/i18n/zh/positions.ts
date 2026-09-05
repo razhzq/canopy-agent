@@ -36,4 +36,8 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   positions_count_many_partial: "已加载 {count} 笔成交",
   positions_count_one_all: "共 1 笔成交 — 已全部显示",
   positions_count_many_all: "共 {count} 笔成交 — 已全部显示",
+
+  positions_open_showing: "已显示 {shown} / {total}",
+  positions_open_count_one: "共 1 笔持仓",
+  positions_open_count_many: "共 {count} 笔持仓",
 };

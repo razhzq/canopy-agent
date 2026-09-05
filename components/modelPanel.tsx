@@ -738,12 +738,12 @@ function Figure({
   ok: boolean;
 }) {
   return (
-    <div className="space-y-1.5 bg-surface p-5">
-      <span className="block font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
+    <div className="space-y-1.5 rounded-xl bg-surface-2 p-5">
+      <span className="block font-ui text-[11.5px] text-text-muted">
         {label}
       </span>
       <span
-        className={`block font-mono text-[19px] ${ok ? "text-text-primary" : "text-warning"}`}
+        className={`tnum block font-mono text-[22px] tracking-[-0.02em] ${ok ? "text-text-primary" : "text-warning"}`}
       >
         {value}
       </span>

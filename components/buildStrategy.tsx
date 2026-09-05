@@ -1214,8 +1214,8 @@ export function AddPlanCard({
         type="button"
         onClick={() => onChange(on ? undefined : DEFAULT_ADD_PLAN)}
         aria-pressed={on}
-        className={`h-8 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
-          on ? "border-accent text-accent" : "border-grid text-text-muted hover:text-text-secondary"
+        className={`h-8 rounded-full border px-3 font-ui text-[12px] font-medium transition-colors ${
+          on ? "border-border bg-surface-2 text-text-primary" : "border-grid text-text-muted hover:text-text-primary"
         }`}
       >
         {t(on ? "acc_on" : "acc_off")}
@@ -1237,7 +1237,7 @@ export function AddPlanCard({
             </p>
           )}
 
-          <div className="flex items-center justify-between gap-4 border border-grid px-3 py-2.5">
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-3.5 py-3">
             <div>
               <p className="font-ui text-[12.5px] text-text-primary">{t("acc_perlot_title")}</p>
               <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
@@ -1250,10 +1250,10 @@ export function AddPlanCard({
                 plan && onChange({ ...plan, perLotExits: !plan.perLotExits })
               }
               aria-pressed={!!plan?.perLotExits}
-              className={`h-8 shrink-0 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+              className={`h-8 shrink-0 rounded-full border px-3 font-ui text-[12px] font-medium transition-colors ${
                 plan?.perLotExits
-                  ? "border-accent text-accent"
-                  : "border-grid text-text-muted hover:text-text-secondary"
+                  ? "border-border bg-surface-2 text-text-primary"
+                  : "border-grid text-text-muted hover:text-text-primary"
               }`}
             >
               {t(plan?.perLotExits ? "acc_perlot_on" : "acc_perlot_off")}
@@ -1261,7 +1261,7 @@ export function AddPlanCard({
           </div>
 
           <div>
-            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            <p className="pb-2 font-ui text-[11.5px] text-text-muted">
               {t("acc_when")}
             </p>
             <PillRow>
@@ -1375,17 +1375,17 @@ export function AddPlanCard({
           </div>
 
           <div>
-            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            <p className="pb-2 font-ui text-[11.5px] text-text-muted">
               {t("acc_guard_heading")}
             </p>
             <button
               type="button"
               onClick={() => setGuard(!guarded)}
               aria-pressed={guarded}
-              className={`h-8 rounded-full border px-3 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors ${
+              className={`h-8 rounded-full border px-3 font-ui text-[12px] font-medium transition-colors ${
                 guarded
-                  ? "border-accent text-accent"
-                  : "border-grid text-text-muted hover:text-text-secondary"
+                  ? "border-border bg-surface-2 text-text-primary"
+                  : "border-grid text-text-muted hover:text-text-primary"
               }`}
             >
               {t(guarded ? "acc_guard_on" : "acc_guard_off")}
@@ -1396,7 +1396,7 @@ export function AddPlanCard({
           </div>
 
           <div>
-            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            <p className="pb-2 font-ui text-[11.5px] text-text-muted">
               {t("acc_how_much")}
             </p>
             <PillRow>
@@ -1473,7 +1473,7 @@ export function AddPlanCard({
           </div>
 
           <div>
-            <p className="pb-2 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+            <p className="pb-2 font-ui text-[11.5px] text-text-muted">
               {t("acc_where_stops")}
             </p>
             <Slider

@@ -358,17 +358,17 @@ export function Pill({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
-      className={`flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 font-mono text-[12px] tracking-[0.02em] transition-colors ${
+      className={`flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 font-ui text-[13px] font-medium transition-colors ${
         disabled
           ? "cursor-not-allowed border-grid text-text-muted"
           : active
-            ? "border-accent bg-accent-wash text-accent"
+            ? "border-border bg-surface-2 text-text-primary"
             : "border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
       }`}
     >
       {children}
       {suffix ? (
-        <span className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
+        <span className="font-ui text-[11px] text-text-muted">
           {suffix}
         </span>
       ) : null}

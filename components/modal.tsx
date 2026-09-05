@@ -107,23 +107,23 @@ export function Modal({
             ? // Its own height cap, because the body scrolls rather than the
               // backdrop — a dialog whose actions scroll off the bottom of a
               // laptop screen is one people cannot finish.
-              "my-auto flex max-h-[calc(100dvh-64px)] w-full max-w-[760px] flex-col overflow-hidden rounded-xl border border-grid bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+              "my-auto flex max-h-[calc(100dvh-64px)] w-full max-w-[760px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)] outline-none"
             : variant === "sheet"
             ? // `dvh`, not `vh`: on iOS Safari `vh` counts the URL bar's height
               // whether or not it is showing, so a 90vh sheet is taller than the
               // screen and its composer sits under the browser chrome.
-              "flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-grid-strong bg-panel shadow-[0_-16px_48px_-16px_rgba(0,0,0,0.9)] outline-none sm:h-[80dvh] sm:max-w-[520px] sm:rounded-2xl"
+              "flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-surface shadow-[0_-16px_48px_-16px_rgba(0,0,0,0.9)] outline-none sm:h-[80dvh] sm:max-w-[520px] sm:rounded-2xl"
             : // Rounded, matching the deposit dialog and the rest of the wallet
               // surfaces. The square panel was the last place in this flow with
               // hard corners, and two dialogs opened from adjacent buttons
               // reading as different products is exactly the kind of seam a
               // shared shell exists to prevent.
-              "my-auto w-full max-w-[420px] rounded-xl border border-grid bg-panel shadow-[0_24px_64px_-20px_rgba(0,0,0,0.9)] outline-none"
+              "my-auto w-full max-w-[440px] rounded-2xl border border-border bg-surface shadow-[0_36px_90px_-28px_rgba(0,0,0,0.9)] outline-none"
         }
       >
         {headless ? null : (
-          <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-5 pb-1">
-            <h2 className="font-mono text-[20px] leading-none text-text-primary">
+          <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-5 pb-2">
+            <h2 className="font-ui text-[20px] font-medium leading-none tracking-[-0.01em] text-text-primary">
               {title}
             </h2>
             {/* A mark in a hit target, not a bare glyph. 16px of text is a hard
@@ -133,7 +133,7 @@ export function Modal({
               type="button"
               onClick={onClose}
               aria-label={t("common_close")}
-              className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface hover:text-text-primary"
+              className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-text-dim transition-colors hover:border-grid-strong hover:text-text-primary"
             >
               <svg
                 viewBox="0 0 24 24"

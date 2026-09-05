@@ -41,7 +41,7 @@ import { SkeletonPanel } from "./skeleton";
 import { useT, type Translate } from "@/lib/i18n";
 
 const BTN =
-  "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
+  "inline-flex h-9 items-center justify-center gap-2 rounded-full border px-4 font-ui text-[13px] font-medium transition-colors disabled:opacity-40";
 
 /** Entitlement and invite together, so slots and the way to earn more agree. */
 async function loadBilling(token: string): Promise<{
@@ -127,7 +127,7 @@ export function BillingSettings() {
         })}
       />
 
-      <div className="grid grid-cols-2 gap-px border border-grid bg-grid">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-grid">
         <Figure
           label={t("billing_paper_agents")}
           value={`${ent.agentsInUse} / ${ent.agentSlots}`}
@@ -151,15 +151,14 @@ export function BillingSettings() {
         />
       </div>
 
-      {/* The way to more slots is free, so it is stated as a fact rather than
-          dressed as an offer. */}
-      <Callout tone="info" icon={<InfoIcon />} title={t("billing_invite_title")}>
-        {t("billing_invite_body")}
-        {/* The code is quoted inside the sentence rather than wrapped in its
-            own mono span: Chinese puts it in a different position, and a
-            fragment either side of a <span> cannot move with it. */}
-        {invite ? <> {t("billing_invite_yours", { code: invite.code })}</> : null}
-      </Callout>
+      {/* The way to more slots is free, so it is one plain sentence — not a
+          callout dressed as an offer. The code is quoted inside the sentence
+          because Chinese puts it in a different position. */}
+      <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
+        {invite
+          ? t("billing_invite_line", { code: invite.code })
+          : t("billing_invite_line_nocode")}
+      </p>
 
       {ent.agentsInUse > ent.agentSlots && (
         <Callout tone="info" icon={<InfoIcon />} title={t("billing_over_title")}>
@@ -182,14 +181,14 @@ export function BillingSettings() {
       {/* Live subscriptions, one row per agent, because that is how they are
           bought and how they are cancelled. */}
       {ent.liveAgents.length > 0 ? (
-        <div className="space-y-px border border-grid bg-grid">
+        <div className="space-y-px overflow-hidden rounded-xl border border-border bg-grid">
           {ent.liveAgents.map((sub) => (
             <div
               key={sub.subscriptionId}
               className="flex items-center justify-between gap-4 bg-surface px-5 py-4"
             >
               <div className="min-w-0">
-                <p className="font-mono text-[12.5px] text-text-primary">
+                <p className="font-ui text-[13.5px] font-medium text-text-primary">
                   {t("billing_agent_number", { id: sub.agentId })}
                 </p>
                 <p className="pt-0.5 font-ui text-[12px] text-text-dim">
@@ -208,7 +207,7 @@ export function BillingSettings() {
                   type="button"
                   disabled={busy}
                   onClick={() => void cancel(sub.subscriptionId)}
-                  className={`${BTN} shrink-0 border-grid text-text-dim hover:text-negative`}
+                  className={`${BTN} shrink-0 border-border text-text-secondary hover:border-negative hover:text-negative`}
                 >
                   {t("billing_cancel")}
                 </button>
@@ -220,23 +219,20 @@ export function BillingSettings() {
 
       {/* Deliberately NOT an upgrade button. Live is bought for one agent, from
           that agent's own screen, because "which agent" is the first thing the
-          purchase needs and this screen does not know it. */}
-      <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-        {ent.liveAgents.length === 0
-          ? t("billing_paper_default", { amount: money(monthly) })
-          : t("billing_live_price", { amount: money(monthly) })}
-      </p>
-
-      <div className="flex flex-wrap items-center gap-3">
+          purchase needs and this screen does not know it. The re-check sits on
+          the same line as a quiet link: it matters to one person, once, right
+          after paying. */}
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-ui text-[12.5px] leading-relaxed text-text-dim">
+        <span>{t("billing_live_price", { amount: money(monthly) })}</span>
         <button
           type="button"
           disabled={busy}
           onClick={() => void recheck()}
-          className={`${BTN} border-grid-strong text-text-secondary hover:text-text-primary`}
+          className="font-ui text-[12.5px] text-text-secondary underline-offset-4 transition-colors hover:text-text-primary hover:underline disabled:opacity-40"
         >
           {t(busy ? "billing_checking" : "billing_recheck")}
         </button>
-      </div>
+      </p>
 
       {ent.liveAgents.some((s) => s.cancelAtPeriodEnd) && (
         <Callout tone="warning" title={t("billing_ending_title")}>
@@ -265,10 +261,10 @@ function fmtDate(iso: string | null, t: Translate): string {
 function Figure({ label, value, note }: { label: string; value: string; note: string }) {
   return (
     <div className="space-y-1.5 bg-surface p-5">
-      <span className="block font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
+      <span className="block font-ui text-[12px] text-text-dim">
         {label}
       </span>
-      <span className="block font-mono text-[19px] text-text-primary">{value}</span>
+      <span className="tnum block font-mono text-[24px] tracking-[-0.02em] text-text-primary">{value}</span>
       <span className="block font-ui text-[12px] text-text-dim">{note}</span>
     </div>
   );

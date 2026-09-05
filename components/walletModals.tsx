@@ -105,27 +105,27 @@ export function DepositModal({
           {/* White quiet zone, always. A QR rendered dark-on-dark to match the
               theme is one many scanners refuse, and a scanner that fails here
               sends someone back to typing an address by hand. */}
-          <div className="bg-white p-3">
+          <div className="rounded-xl bg-white p-3">
             <QRCodeSVG value={address} size={168} level="M" marginSize={0} />
           </div>
         </div>
 
         <div className="space-y-2">
-          <p className="font-mono text-[9px] tracking-[0.14em] text-text-dim uppercase">
+          <p className="font-ui text-[11.5px] text-text-muted">
             {t("deposit_your_wallet")}
           </p>
           <button
             type="button"
             onClick={copy}
             aria-label={t("deposit_copy_aria", { address })}
-            className="group block w-full border border-grid bg-bg px-3 py-3 text-left transition-colors hover:border-grid-strong"
+            className="group block w-full rounded-xl border border-border bg-bg px-3.5 py-3 text-left transition-colors hover:border-grid-strong"
           >
-            <span className="block font-mono text-[12px] leading-relaxed break-all text-text-primary">
+            <span className="block font-mono text-[12.5px] leading-relaxed break-all text-text-primary">
               {address}
             </span>
             <span
-              className={`block pt-2 font-mono text-[9px] tracking-[0.12em] uppercase ${
-                copied ? "text-accent" : "text-text-dim"
+              className={`block pt-2 font-ui text-[11px] font-medium transition-colors ${
+                copied ? "text-accent" : "text-text-muted group-hover:text-text-primary"
               }`}
             >
               {t(copied ? "common_copied" : "deposit_click_to_copy")}
@@ -133,7 +133,7 @@ export function DepositModal({
           </button>
         </div>
 
-        <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
+        <p className="font-ui text-[12px] leading-relaxed text-text-dim">
           {t("deposit_network_warning")}
         </p>
       </div>
@@ -280,8 +280,8 @@ export function WithdrawModal({
     <Modal title={t("withdraw_title")} onClose={onClose}>
       {step.at === "sent" ? (
         <div className="space-y-4 px-6 py-6">
-          <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-accent uppercase">
-            <span className="size-[5px] rounded-full bg-accent" aria-hidden />
+          <p className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-accent">
+            <span className="size-1.5 rounded-full bg-accent" aria-hidden />
             {t("withdraw_sent")}
           </p>
           <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
@@ -303,8 +303,8 @@ export function WithdrawModal({
         </div>
       ) : step.at === "error" ? (
         <div className="space-y-4 px-6 py-6">
-          <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.08em] text-negative uppercase">
-            <span className="size-[5px] rounded-full bg-negative" aria-hidden />
+          <p className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-negative">
+            <span className="size-1.5 rounded-full bg-negative" aria-hidden />
             {t("withdraw_not_sent")}
           </p>
           <p className="font-ui text-[12.5px] leading-relaxed text-text-primary">
@@ -361,7 +361,7 @@ export function WithdrawModal({
                 spellCheck={false}
                 autoComplete="off"
                 placeholder={t("withdraw_to_placeholder")}
-                className="w-full rounded-lg border border-grid bg-surface px-3.5 py-2.5 font-mono text-[12px] break-all text-text-primary outline-none placeholder:text-text-dim focus:border-accent"
+                className="w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 font-mono text-[12.5px] break-all text-text-primary outline-none transition-[border-color,box-shadow] placeholder:text-text-muted focus:border-accent/40 focus:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
               />
               {to.trim() !== "" && !toValid ? (
                 <Note tone="bad">{t("withdraw_not_an_address")}</Note>
@@ -470,7 +470,7 @@ function Confirm({
             detail={`${plan.to.slice(0, 4)}…${plan.to.slice(-4)}`}
           />
         ) : (
-          <p className="rounded-lg border border-grid bg-surface px-3.5 py-3 font-mono text-[12px] leading-relaxed break-all text-text-primary">
+          <p className="rounded-xl border border-border bg-bg px-3.5 py-3 font-mono text-[12.5px] leading-relaxed break-all text-text-primary">
             {plan.to}
           </p>
         )}
@@ -498,7 +498,7 @@ function Confirm({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`shrink-0 px-3 py-2.5 ${QUIET}`}
+          className={`shrink-0 px-3 ${QUIET}`}
         >
           {t("withdraw_back")}
         </button>

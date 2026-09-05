@@ -34,7 +34,7 @@
 // is never in the set, because nobody has seen it yet.
 
 import Link from "next/link";
-import { FOCUS } from "@/components/kit";
+import { StatusLine, FOCUS } from "@/components/kit";
 import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -885,15 +885,19 @@ function ApproveBar({
 /**
  * Connecting Telegram, in the place where wanting it occurs to you.
  *
- * Deliberately small. The full explanation of what does and does not get sent
- * lives on the settings panel; repeating it here would bury the feed under
- * policy the reader did not open this for.
+ * Deliberately small: the settings page explains what gets sent, and this
+ * strip sits under a feed the reader opened for something else. It speaks the
+ * same language as that page — a dot and a word for the state, one control
+ * that changes it — and, like that page, it watches for the claim after
+ * Connect rather than asking anyone to refresh.
  */
 export function TelegramSection() {
   const { getAccessToken } = usePrivy();
   const t = useT();
   const status = useApi(getTelegramStatus, []);
   const [busy, setBusy] = useState(false);
+  const [watching, setWatching] = useState(false);
+  const watchStarted = useRef(0);
 
   const connect = useCallback(async () => {
     setBusy(true);
@@ -904,23 +908,61 @@ export function TelegramSection() {
       // A new tab: the link is finished inside Telegram, and navigating this
       // one away would lose the panel the user was reading.
       window.open(url, "_blank", "noopener,noreferrer");
+      watchStarted.current = Date.now();
+      setWatching(true);
     } finally {
       setBusy(false);
     }
   }, [getAccessToken]);
 
-  const toggle = useCallback(async () => {
-    if (status.phase !== "ready") return;
-    setBusy(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) return;
-      await setTelegramEnabled(token, !status.data.enabled);
-      status.reload();
-    } finally {
-      setBusy(false);
+  const setEnabled = useCallback(
+    async (enabled: boolean) => {
+      setBusy(true);
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        await setTelegramEnabled(token, enabled);
+        status.reload();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getAccessToken, status],
+  );
+
+  const linkedNow = status.phase === "ready" && status.data.linked;
+
+  // Its own request each tick rather than a reload, which would blank the
+  // strip. Stops when the claim lands or after two minutes.
+  useEffect(() => {
+    if (!watching) return;
+    if (linkedNow) {
+      setWatching(false);
+      return;
     }
-  }, [getAccessToken, status]);
+    let cancelled = false;
+    const id = setInterval(async () => {
+      if (Date.now() - watchStarted.current > 120_000) {
+        setWatching(false);
+        return;
+      }
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const s = await getTelegramStatus(token);
+        if (!cancelled && s.linked) {
+          setWatching(false);
+          status.reload();
+        }
+      } catch {
+        /* a missed poll is nothing */
+      }
+    }, 3_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [watching, linkedNow, getAccessToken, status]);
 
   // Nothing at all when the deployment has no bot: an offer that cannot be
   // fulfilled is worse than no offer.
@@ -930,58 +972,82 @@ export function TelegramSection() {
 
   return (
     <div className="flex items-center gap-3 border-t border-grid px-4 py-3">
-      <TelegramIcon
-        className={linked && enabled ? "text-accent" : "text-text-muted"}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="font-ui text-[12px] text-text-secondary">
-          {!linked
-            ? t("nc_tg_offer")
-            : enabled
-              ? username
-                ? t("nc_tg_sending_to", { username })
-                : t("nc_tg_sending_generic")
-              : t("nc_tg_muted")}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={() => void (linked ? toggle() : connect())}
-        disabled={busy}
-        className={`h-8 shrink-0 rounded-full px-3.5 font-ui text-[12px] font-medium transition-colors disabled:opacity-40 ${
-          linked
-            ? "border border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
-            : "bg-white text-bg hover:-translate-y-px"
-        } ${FOCUS}`}
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-text-secondary"
+        aria-hidden
       >
-        {t(
-          busy
-            ? "nc_tg_busy"
-            : !linked
-              ? "nc_tg_connect"
-              : enabled
-                ? "nc_tg_mute"
-                : "nc_tg_unmute",
+        <TelegramIcon className="size-[15px]" />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        {linked ? (
+          <>
+            <StatusLine tone={enabled ? "good" : "pending"}>
+              {t(enabled ? "tg_delivering" : "tg_muted_body")}
+            </StatusLine>
+            {username ? (
+              <p className="truncate pt-0.5 font-mono text-[11px] text-text-dim">@{username}</p>
+            ) : null}
+          </>
+        ) : watching ? (
+          <StatusLine tone="pending" live>
+            {t("tg_waiting")}
+          </StatusLine>
+        ) : (
+          <p className="font-ui text-[12.5px] text-text-secondary">{t("nc_tg_offer")}</p>
         )}
-      </button>
-      {/* Mute was the ONLY control here, so a strip that said "Sending to
-          @you" while nothing arrived offered no way out at all — not even the
-          Disconnect → Connect detour the settings panel had. Shown only when
-          linked, because the button beside it already says Connect otherwise.
-          Titled rather than labelled at length: this strip sits inside a
-          dropdown and a second full-width word would push the status text out
-          of its line. */}
+      </div>
+
       {linked ? (
+        <>
+          <div
+            role="group"
+            aria-label={t("tg_delivery_aria")}
+            className="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-bg p-0.5"
+          >
+            {(["on", "off"] as const).map((k) => {
+              const active = k === "on" ? enabled : !enabled;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={active}
+                  onClick={() => (active ? undefined : void setEnabled(k === "on"))}
+                  className={`h-7 rounded-full px-3 font-ui text-[12px] font-medium transition-colors disabled:opacity-50 ${FOCUS} ${
+                    active ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {t(k === "on" ? "tg_toggle_delivering" : "tg_toggle_muted")}
+                </button>
+              );
+            })}
+          </div>
+          {/* Quiet and last: for the person whose alerts went silent. */}
+          <button
+            type="button"
+            onClick={() => void connect()}
+            disabled={busy}
+            title={t("nc_tg_reconnect_title")}
+            className={`shrink-0 font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
+          >
+            {t("nc_tg_reconnect")}
+          </button>
+        </>
+      ) : (
         <button
           type="button"
           onClick={() => void connect()}
           disabled={busy}
-          title={t("nc_tg_reconnect_title")}
-          className={`h-8 shrink-0 rounded-full border border-border px-3 font-ui text-[12px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
+          className={`h-8 shrink-0 rounded-full px-3.5 font-ui text-[12px] font-medium transition-[transform,background-color,color] disabled:opacity-40 ${FOCUS} ${
+            watching
+              ? "border border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
+              : "bg-white text-bg hover:-translate-y-px"
+          }`}
         >
-          {t("nc_tg_reconnect")}
+          {t(busy ? "nc_tg_busy" : watching ? "tg_open_again" : "nc_tg_connect")}
         </button>
-      ) : null}
+      )}
     </div>
   );
 }

@@ -23,7 +23,7 @@ export const enPages = {
 
   // ── Settings ───────────────────────────────────────────────────
   settings_title: "Settings",
-  settings_body: "What your plan allows, and how Canopy reaches you about your agents.",
+  settings_body: "Your agents, and how Canopy reaches you.",
 
   // ── Activity ───────────────────────────────────────────────────
   activity_page_title: "Activity",

@@ -40,12 +40,7 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   nc_session_expired: "您的登录状态已过期 — 请重新登录后再试",
 
   nc_tg_offer: "在 Telegram 上接收这些通知",
-  nc_tg_sending_to: "正在推送至 @{username}",
-  nc_tg_sending_generic: "正在推送至您的 Telegram",
-  nc_tg_muted: "Telegram 已静音",
   nc_tg_connect: "连接",
-  nc_tg_mute: "静音",
-  nc_tg_unmute: "取消静音",
   nc_tg_busy: "…",
   nc_tg_reconnect: "重新连接",
   nc_tg_reconnect_title:

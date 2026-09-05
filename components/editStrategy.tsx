@@ -23,13 +23,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import {
-  FieldNote,
-  InfoDot,
-  LABEL,
-  PRIMARY,
-  SECONDARY,
-} from "@/components/kit";
+import { FieldNote, InfoDot, PRIMARY, SECONDARY } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 import {
   updateAgentStrategy,
@@ -266,7 +260,7 @@ export function EditStrategyModal({
   return (
     <Modal title={t("es_title")} variant="wide" onClose={onClose}>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-3 pb-5">
-        <p className="max-w-[70ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
+        <p className="max-w-[70ch] font-ui text-[13px] leading-relaxed text-text-secondary">
           {t("es_intro")}
         </p>
 
@@ -284,7 +278,7 @@ export function EditStrategyModal({
           onClearSetup={() => setSetup(undefined)}
         />
 
-        <div className="overflow-hidden rounded-lg border border-grid">
+        <div className="overflow-hidden rounded-xl border border-border bg-bg">
           {rules.map((r) => (
             <RuleChip
               key={r.key}
@@ -318,7 +312,7 @@ export function EditStrategyModal({
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-lg border border-grid">
+        <div className="overflow-hidden rounded-xl border border-border bg-bg">
           <ExitChip
             labelKey="sl_take_profit"
             value={exits.takeProfitPct}
@@ -412,7 +406,7 @@ export function EditStrategyModal({
 
       {/* Pinned: the body scrolls, and a Save that scrolls off the bottom of a
           laptop screen is one people cannot reach. */}
-      <div className="shrink-0 border-t border-grid bg-panel px-6 py-3.5">
+      <div className="shrink-0 border-t border-grid px-6 py-3.5">
         {error ? (
           <div className="pb-2.5" role="alert">
             <FieldNote tone="bad">{error}</FieldNote>
@@ -453,7 +447,7 @@ export function EditStrategyModal({
 function Section({ title, help }: { title: string; help: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5 pt-6 pb-2.5">
-      <h3 className={LABEL}>{title}</h3>
+      <h3 className="font-ui text-[14px] font-medium text-text-primary">{title}</h3>
       <InfoDot label={title}>{help}</InfoDot>
     </div>
   );

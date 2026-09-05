@@ -2,21 +2,27 @@
 
 // Connecting Telegram.
 //
-// The whole screen is one decision — connected or not — so it is one panel
-// rather than a settings page with a section in it. Everything else here is in
-// service of making that decision honestly:
+// ONE CARD, ONE DECISION. The header says what this is and whether it is
+// connected; the one action that changes that sits beside it. The body says
+// what you will get, in three lines, before you are asked to accept it.
 //
-// - It says WHAT will be sent before asking for the connection, because
-//   "connect Telegram" without that is asking someone to accept an unknown
-//   volume of messages from a trading system.
-// - It says what will NOT be sent. Most cycles do nothing, and an owner who
-//   expects a message every hour will read silence as a broken agent.
-// - Approving a trade from the chat is deliberately absent, and the panel says
-//   so, because the obvious question on seeing a proposal alert is "can I just
-//   reply yes?" — and the answer has a reason.
+// WHAT HAPPENS AFTER YOU PRESS CONNECT
+//
+// The link is finished inside Telegram — a chat opens with a one-time code,
+// you send it, and the bot claims the link. Nothing on this page can observe
+// that moment directly, so this used to say "come back and refresh". Now it
+// watches for you: while the Telegram window is open it re-reads the status
+// every few seconds, quietly, and flips to Connected the moment the claim
+// lands. The polling is its own request rather than a reload of the panel's
+// data, because a reload blanks the panel to a skeleton, and a card that
+// flashes every three seconds reads as broken.
+//
+// Approving a trade from the chat is deliberately absent: Telegram identifies a
+// chat, not a person. The card says so in one clause.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { Send } from "lucide-react";
 import { useApi } from "@/lib/useApi";
 import {
   getTelegramStatus,
@@ -27,10 +33,12 @@ import {
 import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
 import { SkeletonPanel } from "./skeleton";
+import { StatusLine, FOCUS } from "./kit";
 import { useT } from "@/lib/i18n";
 
-const BTN =
-  "flex h-11 items-center justify-center gap-2.5 border px-6 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors disabled:opacity-40";
+/** How often to look for the claim while Telegram is open, and for how long. */
+const WATCH_MS = 3_000;
+const WATCH_FOR_MS = 120_000;
 
 export function NotificationSettings() {
   const { getAccessToken } = usePrivy();
@@ -38,16 +46,10 @@ export function NotificationSettings() {
   const state = useApi(getTelegramStatus, []);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // Set when Connect was pressed and the claim has not landed yet.
+  const [watching, setWatching] = useState(false);
+  const watchStarted = useRef(0);
 
-  /**
-   * Runs one mutation, then reloads.
-   *
-   * The reload is what makes the panel truthful: linking finishes in TELEGRAM,
-   * not here — the user leaves, sends `/start`, and comes back. Nothing this
-   * component does can observe that moment, so the state is re-read rather than
-   * assumed, and the panel below tells the user to come back and refresh rather
-   * than pretending it will update itself.
-   */
   const run = useCallback(
     async (fn: (token: string) => Promise<unknown>) => {
       setBusy(true);
@@ -77,12 +79,49 @@ export function NotificationSettings() {
       // token is single-use and minted by the call that just returned, so the
       // shortest possible path from mint to use is also the safest one.
       window.open(url, "_blank", "noopener,noreferrer");
+      watchStarted.current = Date.now();
+      setWatching(true);
     } catch (err) {
       setFailure(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }, [getAccessToken, t]);
+
+  const linkedNow = state.phase === "ready" && state.data.linked;
+
+  // Watch for the claim. Stops when it lands, when two minutes pass, or when
+  // the tab is hidden — Telegram is a separate window, so this keeps going in
+  // the background, which is the whole point.
+  useEffect(() => {
+    if (!watching) return;
+    if (linkedNow) {
+      setWatching(false);
+      return;
+    }
+    let cancelled = false;
+    const id = setInterval(async () => {
+      if (Date.now() - watchStarted.current > WATCH_FOR_MS) {
+        setWatching(false);
+        return;
+      }
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const s = await getTelegramStatus(token);
+        if (!cancelled && s.linked) {
+          setWatching(false);
+          state.reload();
+        }
+      } catch {
+        /* a missed poll is nothing; the next one will look again */
+      }
+    }, WATCH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [watching, linkedNow, getAccessToken, state]);
 
   if (state.phase === "loading") return <SkeletonPanel labelKey="loading_telegram" lines={5} />;
   if (state.phase === "signed-out") {
@@ -95,7 +134,7 @@ export function NotificationSettings() {
   const { configured, linked, username, enabled } = state.data;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SectionHead
         index="02"
         title={t("tg_section")}
@@ -109,113 +148,139 @@ export function NotificationSettings() {
           {t("tg_unavailable_body")}
         </Callout>
       ) : (
-        <>
-          <div className="space-y-6 border border-grid px-6 py-6">
-            <div className="space-y-3">
-              <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                {t("tg_will_send_title")}
-              </p>
-              <ul className="space-y-2 font-ui text-[13px] leading-relaxed text-text-secondary">
-                <li>{t("tg_will_send_1")}</li>
-                <li>{t("tg_will_send_2")}</li>
-                <li>{t("tg_will_send_3")}</li>
-                <li>{t("tg_will_send_4")}</li>
-              </ul>
-            </div>
-
-            <div className="space-y-3 border-t border-grid pt-5">
-              <p className="font-mono text-[12px] tracking-[0.06em] text-text-dim uppercase">
-                {t("tg_wont_send_title")}
-              </p>
-              <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                {t("tg_wont_send_body")}
-              </p>
-            </div>
-
-            <div className="space-y-3 border-t border-grid pt-5">
-              <p className="font-mono text-[12px] tracking-[0.06em] text-text-dim uppercase">
-                {t("tg_approving_title")}
-              </p>
-              <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
-                {t("tg_approving_body")}
-              </p>
-            </div>
-          </div>
-
-          {linked ? (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between border border-grid px-6 py-5">
-                <div className="space-y-1">
-                  <p className="font-mono text-[12px] tracking-[0.06em] text-text-primary uppercase">
-                    {username ? t("tg_connected_as", { username }) : t("tg_connected")}
-                  </p>
-                  <p className="font-ui text-[13px] text-text-secondary">
-                    {t(enabled ? "tg_delivering" : "tg_muted_body")}
-                  </p>
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          {/* ------------------------------------------------------ header */}
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-text-secondary"
+                aria-hidden
+              >
+                <Send className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-ui text-[14px] font-medium text-text-primary">
+                  {linked
+                    ? username
+                      ? t("tg_connected_as", { username })
+                      : t("tg_connected")
+                    : t("tg_section")}
+                </p>
+                <div className="pt-0.5">
+                  {linked ? (
+                    <StatusLine tone={enabled ? "good" : "pending"}>
+                      {t(enabled ? "tg_delivering" : "tg_muted_body")}
+                    </StatusLine>
+                  ) : watching ? (
+                    <StatusLine tone="pending" live>
+                      {t("tg_waiting")}
+                    </StatusLine>
+                  ) : (
+                    <span className="font-ui text-[12.5px] text-text-dim">
+                      {t("tg_not_connected_body")}
+                    </span>
+                  )}
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void run((token) => setTelegramEnabled(token, !enabled))}
-                  className={`${BTN} border-border text-text-secondary hover:bg-surface`}
-                >
-                  {t(enabled ? "tg_mute" : "tg_unmute")}
-                </button>
-                {/* RECONNECT, FOR THE PERSON WHO KNOWS BEFORE WE DO.
-                    A link dies for reasons this panel cannot see — the chat was
-                    blocked, the account deactivated, or the bot itself was
-                    replaced, which invalidates every chat it ever had. We only
-                    learn on the first send that fails, and the user learns by
-                    not being told something that mattered.
-                    Without this the only way back was Disconnect → Connect, and
-                    nobody whose alerts have gone quiet reaches for the button
-                    that says it will forget the chat. Minting is safe while
-                    connected: `offerLink` leaves the existing link working until
-                    the new code is actually claimed, so pressing this and
-                    changing your mind costs nothing. */}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void connect()}
-                  className={`${BTN} border-border text-text-secondary hover:border-accent hover:text-accent`}
-                >
-                  {t(busy ? "tg_opening" : "tg_reconnect")}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void run(unlinkTelegram)}
-                  className={`${BTN} border-border text-text-dim hover:border-negative hover:text-negative`}
-                >
-                  {t("tg_disconnect")}
-                </button>
-              </div>
-
-              {/* Muting and disconnecting are not the same promise, and the
-                  difference matters to someone acting on a lost phone. */}
-              <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-                {t("tg_mute_vs_disconnect")}
-              </p>
             </div>
-          ) : (
-            <div className="space-y-5">
+
+            {linked ? (
+              // Delivering | Muted, as the state of one control rather than a
+              // button whose label flips. Selecting is not committing, so the
+              // active half is a surface fill, not green.
+              <div
+                role="group"
+                aria-label={t("tg_delivery_aria")}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-bg p-1"
+              >
+                {(["on", "off"] as const).map((k) => {
+                  const active = k === "on" ? enabled : !enabled;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={active}
+                      onClick={() =>
+                        active
+                          ? undefined
+                          : void run((token) => setTelegramEnabled(token, k === "on"))
+                      }
+                      className={`h-8 rounded-full px-3.5 font-ui text-[12.5px] font-medium transition-colors disabled:opacity-50 ${FOCUS} ${
+                        active
+                          ? "bg-surface-2 text-text-primary"
+                          : "text-text-dim hover:text-text-primary"
+                      }`}
+                    >
+                      {t(k === "on" ? "tg_toggle_delivering" : "tg_toggle_muted")}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void connect()}
-                className={`${BTN} w-full border-accent text-accent hover:bg-accent-wash sm:w-auto`}
+                className={`inline-flex h-10 shrink-0 items-center justify-center rounded-full px-5 font-ui text-[13px] font-medium transition-[transform,background-color,color] disabled:opacity-40 ${FOCUS} ${
+                  watching
+                    ? "border border-border text-text-primary hover:border-grid-strong"
+                    : "bg-white text-bg hover:-translate-y-px"
+                }`}
               >
-                {t(busy ? "tg_opening" : "tg_connect")}
+                {t(busy ? "tg_opening" : watching ? "tg_open_again" : "tg_connect")}
               </button>
+            )}
+          </div>
+
+          {/* -------------------------------------------------------- body */}
+          <div className="border-t border-grid px-5 py-4">
+            <p className="font-ui text-[12.5px] text-text-muted">{t("tg_will_send_title")}</p>
+            <ul className="mt-2 space-y-1.5 font-ui text-[13px] leading-relaxed text-text-secondary">
+              {(["tg_will_send_1", "tg_will_send_2", "tg_will_send_3"] as const).map((k) => (
+                <li key={k} className="flex gap-2.5">
+                  <span className="mt-[9px] size-1 shrink-0 rounded-full bg-text-muted" aria-hidden />
+                  {t(k)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 font-ui text-[12.5px] text-text-dim">{t("tg_wont_line")}</p>
+          </div>
+
+          {/* ------------------------------------------------------ footer */}
+          {linked ? (
+            // Utilities: quiet, last, and the destructive one turns red only
+            // when pointed at. Reconnect is for the person whose alerts went
+            // quiet — it mints a fresh code without dropping this link until
+            // the new chat is confirmed.
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-grid px-5 py-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void connect()}
+                title={t("tg_reconnect_title")}
+                className={`font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
+              >
+                {t(busy ? "tg_opening" : "tg_reconnect")}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void run(unlinkTelegram)}
+                title={t("tg_disconnect_title")}
+                className={`font-ui text-[12.5px] text-text-secondary transition-colors hover:text-negative disabled:opacity-40 ${FOCUS}`}
+              >
+                {t("tg_disconnect")}
+              </button>
+            </div>
+          ) : watching ? (
+            <div className="border-t border-grid px-5 py-3">
               <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
-                {t("tg_connect_help")}
+                {t("tg_waiting_help")}
               </p>
             </div>
-          )}
-        </>
+          ) : null}
+        </div>
       )}
 
       {failure ? (

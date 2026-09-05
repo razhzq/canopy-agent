@@ -45,12 +45,7 @@ export const enNotifs = {
 
   // ── Telegram strip ─────────────────────────────────────────────
   nc_tg_offer: "Get these on Telegram",
-  nc_tg_sending_to: "Sending to @{username}",
-  nc_tg_sending_generic: "Sending to your Telegram",
-  nc_tg_muted: "Telegram muted",
   nc_tg_connect: "Connect",
-  nc_tg_mute: "Mute",
-  nc_tg_unmute: "Unmute",
   nc_tg_busy: "…",
   nc_tg_reconnect: "Reconnect",
   nc_tg_reconnect_title:
