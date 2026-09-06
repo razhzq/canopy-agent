@@ -40,6 +40,7 @@ import {
   PRIMARY,
   QUIET,
   BODY,
+  TxLink,
 } from "@/components/kit";
 import {
   planTransfer,
@@ -202,14 +203,7 @@ export function DepositForm({
           usually seconds.
         </p>
         <div className="flex items-center gap-4">
-          <a
-            href={`https://solscan.io/tx/${step.signature}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={QUIET}
-          >
-            View transaction
-          </a>
+          <TxLink signature={step.signature} label="View transaction" />
           <button
             type="button"
             onClick={() => setStep({ at: "form" })}

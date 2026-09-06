@@ -10,6 +10,7 @@ export const zhCommon: Record<keyof typeof enCommon, string> = {
 
   common_cancel: "取消",
   common_close: "关闭",
+  common_view_transaction: "查看交易",
   common_back: "返回",
   common_next: "下一步",
   common_continue: "继续",

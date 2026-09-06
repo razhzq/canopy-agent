@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Modal } from "@/components/modal";
 import {
+  TxLink,
   Field,
   AmountInput,
   StatusLine,
@@ -330,14 +331,7 @@ export function WithdrawModal({
             {t("withdraw_sent_body")}
           </p>
           <div className="flex items-center gap-4">
-            <a
-              href={`https://solscan.io/tx/${step.signature}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={QUIET}
-            >
-              {t("withdraw_view_transaction")}
-            </a>
+            <TxLink signature={step.signature} label={t("withdraw_view_transaction")} />
             <button type="button" onClick={onClose} className={QUIET}>
               {t("withdraw_done")}
             </button>

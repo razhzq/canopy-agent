@@ -25,6 +25,14 @@ export const enEquity = {
   close_title: "Close {symbol}?",
   close_subtitle: "The whole position, sold at the market now.",
   close_size: "Size",
+  close_selling: "Selling",
+  close_checking_wallet: "Checking the wallet",
+  close_wallet_matches: "Wallet balance confirmed",
+  close_wallet_short: "Wallet holds {held}; the book recorded {book}",
+  close_wallet_short_note: "What the wallet holds is what will be sold, and the figures below are for that amount.",
+  close_wallet_empty: "Wallet holds no {symbol}",
+  close_wallet_empty_note:
+    "There is nothing to sell. If it was moved out by hand, the position can be cleared from the book instead.",
   close_avg_cost: "Average cost",
   close_price_now: "Price now",
   close_total_value: "Total value",
@@ -39,5 +47,8 @@ export const enEquity = {
   close_keep: "No, keep it",
   close_confirm: "Yes, close it",
   close_closing: "Closing…",
+  close_sold: "Sold on-chain",
+  close_sold_body: "The position is closed and the proceeds are back in the agent's wallet as USDC.",
+  close_done: "Done",
   close_sign_in: "Sign in to close this position.",
 } as const;

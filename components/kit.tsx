@@ -294,6 +294,51 @@ export function Metric({
  * Always paired with a label change ("Checking…", "Sending…"): the ring says
  * something is happening, the word says what.
  */
+/**
+ * The chain's receipt, as a quiet link.
+ *
+ * One component for every place a transaction is named — the trade history,
+ * the cycle transcript, the close and withdraw dialogs — so the product
+ * points at the explorer the same way everywhere. Quiet by rule 3: the link
+ * is a utility beside a fact, never the fact. `size` steps it down to caption
+ * scale inside dense rows.
+ */
+export function TxLink({
+  signature,
+  label,
+  size = "body",
+}: {
+  signature: string;
+  label: string;
+  size?: "body" | "caption";
+}) {
+  return (
+    <a
+      href={`https://solscan.io/tx/${signature}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1 ${QUIET} ${
+        size === "caption" ? "text-[11px]" : ""
+      }`}
+    >
+      {label}
+      <svg
+        viewBox="0 0 24 24"
+        className={size === "caption" ? "size-[10px]" : "size-[11px]"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        focusable="false"
+      >
+        <path d="M7 17 17 7M9 7h8v8" />
+      </svg>
+    </a>
+  );
+}
+
 export function Spinner({ className = "" }: { className?: string }) {
   return (
     <span

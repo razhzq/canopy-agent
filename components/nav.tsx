@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { FOCUS, POPOVER } from "@/components/kit";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { UsernameModal } from "@/components/usernameModal";
@@ -23,6 +22,7 @@ import {
 } from "@/lib/api";
 import { usd } from "@/lib/format";
 import { LanguageSwitcher } from "@/components/languageSwitcher";
+import { Wordmark } from "@/components/brand";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 const NAV = [
@@ -1341,11 +1341,8 @@ export function TopNav() {
     >
       <div className="relative flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4 lg:gap-6">
-          {/* The brand wordmark, not set type: it is a specific blocky face with
-              its own mint fill and offset shadow, taken from canopy-fe's
-              /canopy.png. That source is 2000x1555 and ~83% transparent padding,
-              which is why canopy-fe has to render it at h-[120px]; this copy is
-              cropped to the ink so it sits correctly at navbar height. */}
+          {/* The brand lockup, drawn live so it takes the bar's colour — see
+              components/brand.tsx. */}
           <Link
             href="/agents"
             aria-label={t("nav_home_aria")}
@@ -1356,14 +1353,7 @@ export function TopNav() {
             // the room — and left the mobile bar with no brand on it at all.
             className={`flex shrink-0 items-center rounded-sm ${FOCUS}`}
           >
-            <Image
-              src="/canopy-wordmark.png"
-              alt="Canopy"
-              width={1298}
-              height={303}
-              priority
-              className="h-[24px] w-auto"
-            />
+            <Wordmark height={22} className="text-text-primary" />
           </Link>
           {/* Desktop only. Below lg the bottom tab bar owns navigation, and
               these links were a second set of destinations competing with it

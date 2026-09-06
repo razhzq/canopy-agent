@@ -16,7 +16,7 @@ import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
-import { Tick } from "@/components/kit";
+import { Tick, TxLink } from "@/components/kit";
 import { ClosePositionModal } from "@/components/closePosition";
 import { useLocale } from "@/lib/i18n";
 
@@ -785,13 +785,23 @@ function FillRow({
             </span>
           ) : null}
         </span>
-        <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
+        <span className="flex flex-wrap items-baseline gap-x-2 pt-0.5 font-ui text-[11px] text-text-dim">
           {f.tick_seq
             ? t("positions_fill_cycle", {
                 date: shortDate(f.executed_at, locale),
                 cycle: f.tick_seq,
               })
             : shortDate(f.executed_at, locale)}
+          {/* The receipt beside the date, caption-sized: a live fill is a
+              claim about the chain, and the row is where it gets checked.
+              Paper rows have none and show nothing. */}
+          {f.tx_signature ? (
+            <TxLink
+              signature={f.tx_signature}
+              label={t("common_view_transaction")}
+              size="caption"
+            />
+          ) : null}
         </span>
       </span>
       <Cell>{tokenQty(Number(f.qty), Number(f.price_usd))}</Cell>

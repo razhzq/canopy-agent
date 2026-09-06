@@ -8,6 +8,7 @@ import {
   type Seat,
 } from "@/lib/narrate";
 import { AssetLogo, SourceMark } from "@/components/ui";
+import { TxLink } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -74,6 +75,7 @@ export function OutcomeMark({ outcome }: { outcome: NarratedLine["outcome"] }) {
 
 /** One narrated line: the asset it concerns, what happened, and who said so. */
 export function NarratedLineBody({ line }: { line: NarratedLine }) {
+  const t = useT();
   return (
     <span className="min-w-0">
       <span className="font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -85,6 +87,17 @@ export function NarratedLineBody({ line }: { line: NarratedLine }) {
         {line.detail}
       </span>
       {line.source ? <SourceMark source={line.source} /> : null}
+      {/* The receipt, after the source. A live fill is a claim about the
+          chain, and this is where the reader checks it. */}
+      {line.txSignature ? (
+        <span className="ml-2 inline-flex align-baseline">
+          <TxLink
+            signature={line.txSignature}
+            label={t("common_view_transaction")}
+            size="caption"
+          />
+        </span>
+      ) : null}
     </span>
   );
 }

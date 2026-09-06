@@ -1,6 +1,7 @@
 "use client";
 
 import { LanguageSwitcher } from "@/components/languageSwitcher";
+import { Wordmark } from "@/components/brand";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -18,9 +19,7 @@ export function Nav({ onLogin }: Props) {
     <nav className="top">
       <div className="wrap nav-in">
         <a href="#top" className="logo" aria-label="Canopy">
-          {/* eslint-disable-next-line @next/next/no-img-element -- static
-              wordmark, sized by CSS; no need for next/image here */}
-          <img src="/canopy-wordmark.png" alt="canopy" />
+          <Wordmark height={24} className="text-[#201e1d]" />
         </a>
         <div className="links">
           <a href="#market">{t("ld_nav_marketplace")}</a>

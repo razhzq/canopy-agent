@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
+import { Archivo, IBM_Plex_Mono, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { ReferralCapture } from "@/components/referralCapture";
 import { getServerT } from "@/lib/i18n/server";
@@ -9,6 +9,14 @@ const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-plex-mono",
+});
+
+// The wordmark's face. Loaded for one word — "canopy", set in the brand
+// component — and nothing else, which is why only the one weight is fetched.
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["800"],
+  variable: "--font-archivo",
 });
 
 const inter = Inter({
@@ -24,6 +32,16 @@ export async function generateMetadata(): Promise<Metadata> {
     title: t("page_title_root"),
     description: t("page_desc_root"),
     metadataBase: new URL("https://agent.canopy.finance"),
+    icons: {
+      icon: [
+        // The mark's ink squares are dark on the light favicon and white on
+        // the dark one; the browser picks by its own chrome, not the page's.
+        { url: "/brand/favicon.svg", type: "image/svg+xml", media: "(prefers-color-scheme: light)" },
+        { url: "/brand/favicon-dark.svg", type: "image/svg+xml", media: "(prefers-color-scheme: dark)" },
+        { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+      ],
+      apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180" }],
+    },
   };
 }
 
@@ -58,7 +76,7 @@ export default function RootLayout({
     // nodes we do not control, and nothing else.
     <html
       lang="en"
-      className={`${plexMono.variable} ${inter.variable}`}
+      className={`${plexMono.variable} ${inter.variable} ${archivo.variable}`}
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>

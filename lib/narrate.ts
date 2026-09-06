@@ -66,6 +66,12 @@ export interface NarratedLine {
    * not omission: the note is one caret away, and still in the raw JSON beneath.
    */
   secondary?: boolean;
+  /**
+   * The chain's receipt for a live fill, when the trader row recorded one.
+   * Rendered as a quiet link to the explorer: the transcript's claim that a
+   * swap happened, made checkable without leaving the sentence.
+   */
+  txSignature?: string;
 }
 
 /** The subset of a decision row the narrator needs. */
@@ -510,6 +516,7 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
             dedupe: o.deduped ? t("narrate_dedupe_closed") : "",
           }),
           source: venue(o.venue, t),
+          txSignature: str(o.txSignature) || undefined,
         });
       }
       return lines;
@@ -556,6 +563,7 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
           dedupe: o.deduped ? t("narrate_dedupe_filled") : "",
         }),
         source: venue(o.venue, t),
+        txSignature: str(o.txSignature) || undefined,
       });
     }
     return lines;

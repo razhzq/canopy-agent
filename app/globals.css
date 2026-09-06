@@ -66,6 +66,8 @@
     var(--font-plex-mono), ui-monospace, SFMono-Regular, var(--font-cjk),
     monospace;
   --font-ui: var(--font-inter), ui-sans-serif, system-ui, var(--font-cjk), sans-serif;
+  /* The wordmark only. Never for UI type. */
+  --font-brand: var(--font-archivo), "Archivo", Helvetica, Arial, sans-serif;
 }
 
 @layer base {

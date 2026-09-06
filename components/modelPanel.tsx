@@ -44,6 +44,7 @@ import {
   BODY,
   LABEL,
   NUM,
+  TxLink,
 } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 
@@ -555,14 +556,7 @@ export function ModelTopUpForm({
           <p className={BODY}>
             The balance updates as soon as the network confirms it.
           </p>
-          <a
-            href={`https://solscan.io/tx/${step.signature}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={QUIET}
-          >
-            View transaction
-          </a>
+          <TxLink signature={step.signature} label="View transaction" />
         </div>
       ) : (
         <>

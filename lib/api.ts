@@ -2664,6 +2664,8 @@ export interface AgentFill {
   tick_seq: string | null;
   /** Set on sells only — an open position has no realised result. */
   realized_pnl_usd: string | null;
+  /** The chain's receipt. Null on paper, and on a backend older than this field. */
+  tx_signature?: string | null;
 }
 
 /**
@@ -3412,8 +3414,33 @@ export const unlinkTelegram = (token: string) =>
  * "the agent is mid-cycle, try again" and "that asset has no readable price
  * right now", both of which are temporary and neither of which is a bug.
  */
+/**
+ * What a close would actually sell. `heldQty` is the wallet's balance for a
+ * live agent and null on paper (no wallet) or when the chain could not be
+ * read; `sellQty` is what the sale will offer, which is the smaller of the
+ * book and the wallet.
+ */
+export interface ClosePreview {
+  isPaper: boolean;
+  bookQty: number;
+  heldQty: number | null;
+  sellQty: number;
+}
+
+export const closePreview = (token: string, agentId: number, mint: string) =>
+  request<ClosePreview>(`/agents/${agentId}/positions/close-preview`, token, {
+    method: "POST",
+    body: JSON.stringify({ mint }),
+  });
+
 export const closePosition = (token: string, agentId: number, mint: string) =>
-  request<{ closed: number; symbol: string; realizedPnlUsd: number | null }>(
+  request<{
+    closed: number;
+    symbol: string;
+    realizedPnlUsd: number | null;
+    /** The sale's transaction, for a live agent. Null on paper. */
+    txSignature?: string | null;
+  }>(
     `/agents/${agentId}/positions/close`,
     token,
     { method: "POST", body: JSON.stringify({ mint }) },

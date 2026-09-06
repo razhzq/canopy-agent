@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
+import { Wordmark } from "@/components/brand";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -20,9 +21,9 @@ export function Footer({ onLogin }: Props) {
     <>
       <section className="end">
         <div className="wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element -- static
-              wordmark, sized by CSS */}
-          <img className="mark" src="/canopy-wordmark.png" alt="canopy" />
+          <div className="mark">
+            <Wordmark height={44} className="text-[#201e1d]" />
+          </div>
           <h2 className="h2">
             {t("lp_end_h1")}
             <span>{t("lp_end_h2")}</span>
@@ -44,8 +45,7 @@ export function Footer({ onLogin }: Props) {
         <div className="wrap">
           <div className="foot-row">
             <a href="#top" className="logo" aria-label="Canopy">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/canopy-wordmark.png" alt="canopy" />
+              <Wordmark height={20} className="text-[#201e1d]" />
             </a>
             <nav className="foot-links" aria-label="Footer">
               <a href="#market">{t("ld_nav_marketplace")}</a>

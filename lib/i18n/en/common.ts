@@ -18,6 +18,7 @@ export const enCommon = {
   // ── Generic verbs and controls ─────────────────────────────────
   common_cancel: "Cancel",
   common_close: "Close",
+  common_view_transaction: "View transaction",
   common_back: "Back",
   common_next: "Next",
   common_continue: "Continue",
