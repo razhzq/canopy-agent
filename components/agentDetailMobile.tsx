@@ -561,7 +561,7 @@ export function AgentDetailMobile({
           </span>
         </button>
         <Link
-          href={`/deploy/fund?agent=${agent.id}`}
+          href={`/workspace/${agent.id}?tab=overview&fund=model`}
           className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-accent"
         >
           <Plus className="size-4 text-bg" aria-hidden />

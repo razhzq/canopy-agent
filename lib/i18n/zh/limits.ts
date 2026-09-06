@@ -1,7 +1,7 @@
 import type { enLimits } from "../en/limits";
 
 export const zhLimits: Record<keyof typeof enLimits, string> = {
-  sl_step: "第 2 步，共 2 步 · 设定",
+  sl_step: "第 2 步，共 3 步 · 限制",
   sl_title: "设置您的限额",
   sl_markets_one: "{symbol}/USDC",
   sl_markets_many: "{count} 个市场",
@@ -11,9 +11,6 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_change: "— 更改",
 
   sl_strategy_for: "策略 · {markets}",
-  sl_mode_write: "自己写",
-  sl_mode_preset: "预设",
-  sl_reading_it: "正在理解…",
   sl_compose_placeholder:
     "例如：当 {symbol} 当日跌幅达到 4% 或以上、且池子足够深时买入，止盈 3%，止损 2%",
   sl_compose_placeholder_discovery:
@@ -36,11 +33,23 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
 
   sl_rules_appear: "编译之后，规则会显示在这里 — 在正式运行之前每一条都可以修改。或者",
   sl_set_by_hand: "手动设置",
-  sl_read_as: "读作 — 可修改任意规则",
-  sl_nothing_runs_one:
-    "在您确认之前不会运行任何东西。关闭某条规则即可让它失效，或者重写上面的句子再编译一次。当前有 1 条规则生效。",
-  sl_nothing_runs_many:
-    "在您确认之前不会运行任何东西。关闭某条规则即可让它失效，或者重写上面的句子再编译一次。当前有 {count} 条规则生效。",
+  sl_stage_reading: "正在理解句子",
+  sl_stage_drafting: "正在起草规则",
+  sl_stage_checking: "正在检查缺失项",
+  sl_try_one: "试试：",
+  sl_group_rules: "规则",
+  sl_group_exits: "退出",
+  sl_show_off_rules: "显示另外 {count} 条规则",
+  sl_hide_off_rules: "隐藏未开启的规则",
+  sl_fine_tune: "微调规则",
+  sl_rules_on: "{total} 条中 {on} 条开启",
+  sl_card_eyebrow: "{symbol} · 读作",
+  sl_card_eyebrow_plain: "读作",
+  sl_card_position: "每仓",
+  sl_card_bars: "K 线",
+  sl_card_hand_none: "尚未开启任何规则。在下方开启一条，或在上方写一句话。",
+  sl_card_hand_one: "已开启 1 条规则。打开“微调规则”查看。",
+  sl_card_hand_many: "已开启 {count} 条规则。打开“微调规则”查看。",
   sl_window: " 窗口：{span}。",
   sl_on: "开",
   sl_off: "关",
@@ -76,18 +85,26 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_leaves_running: "剩余 {pct}% 继续持有，由上面的出场规则管理。",
   sl_sells_everything: "这些档位会把整个仓位卖光。请留一部分，或者改用「止盈」。",
 
-  sl_chart_timeframe: "K 线周期",
   sl_not_served: "不支持",
   sl_timeframe_help:
     "这会改变规则的含义，而不只是运行频率。上面每条规则都会重新标注、以真实时间说明其窗口，并随 K 线级别调整阈值 — 日线上 3% 的趋势下限在这里会变成 0.3%，因为那是同一个要求。只有一个例外，并且它自己会标注出来：当日涨跌幅始终按 24 小时计算。若想按您自己的 K 线衡量涨跌幅，请用「最低动量」。",
+  sl_timeframe: "时间框架",
+  sl_wakes_every: "每 {cadence} 唤醒一次",
+  sl_cycle_change: "用不同的周期唤醒",
+  sl_cycle_match: "与 K 线一致",
+  sl_position_info: "智能体在一个市场单笔投入的上限。绝不超过，也绝不拆单绕过。",
   sl_cycle: "运行周期",
 
   sl_budget: "该市场的预算",
   sl_position_limit: "单笔仓位上限",
-  sl_position_help: "每个市场、每笔交易的上限，绝不会被突破。相当于 {book} 模拟盘资金的 {pct}%。",
   sl_trades_per_cycle: "每周期最多交易数",
   sl_unit_trades: "笔",
   sl_trades_help: "每次唤醒的建仓次数。智能体不会拆单来绕过这个限制。",
+  sl_budget_note: "基于 {book} 模拟盘资金",
+  sl_position_consequence: "占资金的 {pct}% · 最多同时持有 {positions} 个仓位",
+  sl_unit_trade: "笔",
+  sl_step_down: "减少{label}",
+  sl_step_up: "增加{label}",
 
   sl_how_many: "最多持有几个",
   sl_all_of_them: "全部",
@@ -115,15 +132,17 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
     "筛查会缩小智能体可持有的范围。它在分析师看到任何标的之前就已应用，因此被过滤掉的标的永远不会出现在某个周期里。",
 
   sl_ask_reinterpreted:
-    "\u201c{phrase}\u201d 问的是变动了多少，而我能读取的都是当前所处的水平。我已设置了最接近的一项——告诉我您的本意，我就改成那个。",
+    "\u201c{phrase}\u201d问的是变动了多少，而我的读数衡量的是当前水平。我设置了最接近的一项。您指的是哪个？",
   sl_ask_reint_chip_1: "按最近 20 根 K 线的变动来衡量",
   sl_ask_reint_chip_2: "我指的就是水平值，保持不变",
   sl_ask_reint_chip_3: "去掉这个条件",
   sl_ask_unsupported:
-    "我无法把\u201c{phrase}\u201d转成可衡量的指标，因此它没有进入策略。有没有我支持的读数可以替代它？",
+    "我没有\u201c{phrase}\u201d对应的读数，所以它还不在您的规则里。要换一个相近的吗？",
   sl_ask_unsup_chip_1: "去掉它，其余的没问题",
   sl_ask_unsup_chip_2: "你有哪些相近的读数？",
-  sl_ask_unclear: "我无法把\u201c{phrase}\u201d对应到智能体的任何行为上。它应该改变什么？",
+  sl_ask_unclear: "\u201c{phrase}\u201d没有变成任何规则。告诉我它应该检查什么，或者去掉它。",
+  sl_ask_unclear_chip_1: "要求池子流动性至少 $50,000",
+  sl_ask_unclear_chip_2: "去掉它，其余的没问题",
   sl_clause_honoured: "已执行",
   sl_clause_adjusted: "已调整",
   sl_clause_reinterpreted: "理解有出入",
@@ -140,10 +159,6 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_exit_adjusted: "{label}：您要求 {asked}%，而我能设置的最接近值是 {became}%，因此现已设为该值。",
   sl_rule_unattributed: "我设置了{rule}，但您的描述中并没有直接要求它——请确认它符合您的本意。",
 
-  sl_before_trade: "开始交易前还需要",
-  sl_all_set: "全部就绪",
-  sl_still_assumed: "还有 {count} 项是默认值",
-  sl_assumed: "默认值",
   sl_you: "您",
   sl_desk: "策略台",
 

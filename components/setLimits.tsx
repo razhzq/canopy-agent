@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   classFor,
@@ -33,8 +33,9 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot, NUM, SURFACE } from "@/components/kit";
+import { FieldNote, InfoDot, StatusLine } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
+import { ChevronDown } from "lucide-react";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 /**
@@ -197,7 +198,21 @@ export function SetLimits({
   // already follow.
   const servedTimeframes = timeframesForClass(klass);
   const { getAccessToken } = usePrivy();
-  const [mode, setMode] = useState<"write" | "preset">("write");
+  /** The box the sentence is written in; a suggestion lands the caret here. */
+  const composer = useRef<HTMLTextAreaElement | null>(null);
+  /**
+   * Fine-tune opens on the rules that are ON. The rest — usually a dozen
+   * switched Off — sit behind one line, because sixteen rows of sliders is
+   * the wall this step used to be.
+   */
+  const [showOff, setShowOff] = useState(false);
+  /**
+   * ONE TIMING CONTROL. Bar size and cycle are two axes, but picking 5-minute
+   * bars already sets a 5-minute cycle, so two rows of identical pills read
+   * as the same control twice. The cycle is stated as a consequence under the
+   * timeframe, and opens for editing only when someone asks for a different one.
+   */
+  const [customCycle, setCustomCycle] = useState(false);
   const [sentence, setSentence] = useState("");
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
@@ -252,7 +267,37 @@ export function SetLimits({
    * values, which is a question you cannot answer without seeing them.
    */
   const [manualRules, setManualRules] = useState(false);
-  const showRules = active.length > 0 || manualRules || mode === "preset";
+  // Preset no longer forces the editor open: a preset is a first sentence, and
+  // what it compiles to arrives as the card like anything typed.
+  const showRules = active.length > 0 || manualRules;
+  /**
+   * THE RESULT IS A CARD, THE RULES ARE UNDER IT. What a compile produces is
+   * read back as one sentence plus four figures; the eleven rule rows, exits,
+   * ladder and timing that used to land all at once are the fine-tuning of
+   * that, and open on request. Setting rules by hand, or picking a preset,
+   * opens them straight away because there the rows ARE the way in.
+   */
+  const [fineTune, setFineTune] = useState(false);
+  /** Bumped when a compile lands, so the reveal replays for each result. */
+  const [revealKey, setRevealKey] = useState(0);
+  /**
+   * A 5–15s model call with one static line reads as a hang. The compose call
+   * is single-shot, so the stages here are paced, not reported — named for
+   * what the pipeline is doing in that stretch of time.
+   */
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!busy) {
+      setStage(0);
+      return;
+    }
+    const a = setTimeout(() => setStage(1), 2_500);
+    const b = setTimeout(() => setStage(2), 7_000);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+  }, [busy]);
 
   // Recomputed on every render rather than stored: the author can edit a rule
   // or a budget field by hand at any time, and a checklist that only refreshed
@@ -292,6 +337,14 @@ export function SetLimits({
     try {
       const token = await getAccessToken();
       if (!token) throw new Error(t("sl_sign_in"));
+      // The prefix is ours, not the author's — so its clauses are dropped
+      // from the ledger below. Read back, "Trading PAXG (XAU), <mint>" is a
+      // line nobody typed, judged against a sentence nobody wrote.
+      const prefix = t("sl_trading_prefix", {
+        markets: markets
+          .map((m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`)
+          .join(", "),
+      });
       const { draft, notes: refused, provenance } = await composeAgent(
         token,
         // The market is named for it, so the sentence does not have to be. The
@@ -300,13 +353,10 @@ export function SetLimits({
         // Every market named, not just the first. The rules apply to all of
         // them, and a composer that believes it is writing for one asset will
         // reach for facts only that asset has.
-        t("sl_trading_prefix", {
-          markets: markets
-            .map(
-              (m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`,
-            )
-            .join(", "),
-        }) + nextSpec.join(" "),
+        prefix + nextSpec.join(" "),
+      );
+      const ownClauses = (provenance?.clauses ?? []).filter(
+        (c) => !prefix.includes(c.phrase),
       );
       // A bar size this class cannot be screened at is refused HERE, where the
       // author is still in the sentence that asked for it. Left to travel, it
@@ -378,7 +428,7 @@ export function SetLimits({
         sizeStated: settled.sizeStated || sized !== null,
       };
       setSettled(nextSettled);
-      setClauses(provenance?.clauses ?? []);
+      setClauses(ownClauses);
 
       if (!draft) {
         const why = refused[0] ?? t("sl_not_rules");
@@ -452,12 +502,15 @@ export function SetLimits({
         exits: draft.exits,
       };
       onChange(next);
+      setFineTune(false);
+      setShowOff(false);
+      setRevealKey((k) => k + 1);
 
       // Read the gaps off what we just built, not off `value` — the parent's
       // state has not come back down yet, and asking about the previous draft
       // is how a chat ends up requesting something you just gave it.
       const reqs = requirements(next, nextSettled, t);
-      const q = nextQuestion(provenance?.clauses ?? [], reqs, t);
+      const q = nextQuestion(ownClauses, reqs, t);
 
       setTurns((prev) => [
         ...prev,
@@ -495,13 +548,11 @@ export function SetLimits({
   return (
     <div className="space-y-7">
       <div className="space-y-2">
-        <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-          {t("sl_step")}
-        </p>
-        <h2 className="font-mono text-[22px] leading-none text-text-primary">
+        <p className="font-ui text-[12.5px] text-text-muted">{t("sl_step")}</p>
+        <h2 className="font-ui text-[22px] leading-tight tracking-[-0.01em] text-text-primary">
           {t("sl_title")}
         </h2>
-        <p className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-text-secondary">
+        <p className="flex flex-wrap items-center gap-2 font-ui text-[13px] text-text-secondary">
           {markets.length === 0
             ? t("dsc_title")
             : markets.length === 1 && market
@@ -518,7 +569,7 @@ export function SetLimits({
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10.5px] tracking-[0.08em] text-text-dim uppercase transition-colors hover:text-accent"
+            className="font-ui text-[12.5px] text-text-dim transition-colors hover:text-text-primary"
           >
             {t("sl_change")}
           </button>
@@ -528,7 +579,7 @@ export function SetLimits({
       {/* ------------------------------------------------------- write it */}
       <section>
         <div className="flex items-center justify-between pb-3">
-          <h3 className="font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
+          <h3 className="font-ui text-[12.5px] text-text-muted">
             {t("sl_strategy_for", {
               markets:
                 markets.length === 0
@@ -538,43 +589,41 @@ export function SetLimits({
                     : t("sl_markets_many", { count: markets.length }),
             })}
           </h3>
-          <div className="flex items-center gap-0.5 rounded-full border border-grid p-1">
-            {(["write", "preset"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`h-7 rounded-full px-3.5 font-mono text-[11px] transition-colors ${
-                  mode === m
-                    ? "bg-accent-wash text-accent"
-                    : "text-text-dim hover:text-text-primary"
-                }`}
-              >
-                {t(m === "write" ? "sl_mode_write" : "sl_mode_preset")}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {mode === "write" ? (
-          <>
-            <div className="border border-grid-strong">
+        <>
+            <div
+              className={`overflow-hidden rounded-xl border bg-surface transition-colors ${
+                busy ? "border-grid-strong" : "border-border focus-within:border-grid-strong"
+              }`}
+            >
               {turns.length > 0 ? (
                 <ol className="max-h-[300px] overflow-y-auto border-b border-grid">
                   {turns.map((t, i) => (
                     <TurnRow key={i} turn={t} />
                   ))}
                   {busy ? (
-                    <li className="px-4 py-2.5">
-                      <p className="font-mono text-[9.5px] tracking-[0.12em] text-text-muted uppercase">
-                        {t("sl_reading_it")}
-                      </p>
+                    // The wait has a shape: the sentence stays as the last
+                    // bubble, and under it the stage the compiler is in.
+                    <li className="px-4 py-3" key={stage}>
+                      <div className="reveal-in">
+                        <StatusLine tone="pending" live>
+                          {t(
+                            stage === 0
+                              ? "sl_stage_reading"
+                              : stage === 1
+                                ? "sl_stage_drafting"
+                                : "sl_stage_checking",
+                          )}
+                        </StatusLine>
+                      </div>
                     </li>
                   ) : null}
                 </ol>
               ) : null}
 
               <textarea
+                ref={composer}
                 value={sentence}
                 onChange={(e) => setSentence(e.target.value)}
                 onKeyDown={(e) => {
@@ -597,9 +646,7 @@ export function SetLimits({
               />
               <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
-                    {t(busy ? "sl_compiling" : "sl_send_hint")}
-                  </span>
+                  <span className="font-ui text-[11.5px] text-text-muted">{t("sl_send_hint")}</span>
                   {/* WHO is reading the sentence, stated where it is read.
                       Step 3 lets an agent be given a different model to reason
                       with, and the obvious wrong assumption is that the choice
@@ -611,9 +658,15 @@ export function SetLimits({
                   type="button"
                   onClick={() => void send(sentence)}
                   disabled={busy || sentence.trim().length === 0}
-                  className="flex h-8 items-center border border-accent bg-accent-wash px-5 font-mono text-[10px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
+                  className="inline-flex h-8 items-center gap-2 rounded-full bg-white px-4 font-ui text-[12.5px] font-medium text-bg transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                 >
-                  {t(turns.length === 0 ? "sl_compile" : "sl_send")}
+                  {busy ? (
+                    <span
+                      aria-hidden
+                      className="size-3 animate-spin rounded-full border-[1.5px] border-bg/30 border-t-bg"
+                    />
+                  ) : null}
+                  {t(busy ? "sl_compiling" : turns.length === 0 ? "sl_compile" : "sl_send")}
                 </button>
               </div>
             </div>
@@ -623,14 +676,17 @@ export function SetLimits({
                 compiled the same way anything typed here would be — a chip
                 that set a field directly would be a different mechanism
                 wearing the same clothes. */}
-            {question && question.chips.length > 0 && !busy ? (
-              <div className="flex flex-wrap gap-2 pt-3">
-                {question.chips.map((c) => (
+            {/* Only once something has been said: before the first turn the
+                chips would be answers to a question nobody has seen. */}
+            {turns.length > 0 && question && question.chips.length > 0 && !busy ? (
+              <div key={`q-${revealKey}`} className="flex flex-wrap gap-2 pt-3">
+                {question.chips.map((c, i) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => void send(c)}
-                    className="h-8 rounded-full border border-border px-3.5 font-ui text-[12px] text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                    style={{ animationDelay: `${520 + i * 50}ms` }}
+                    className="reveal-in h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary"
                   >
                     {c}
                   </button>
@@ -638,32 +694,36 @@ export function SetLimits({
               </div>
             ) : null}
 
-            {/* What the executor needs, and where each of those stands. Shown
-                from the first turn onwards: before that it is a list of things
-                nobody has been asked for yet, which reads as a form. */}
-            {turns.length > 0 ? <Checklist reqs={reqs} /> : null}
+            {/* Starting points, offered while the box is still empty of
+                history. A suggestion is placed INTO the box rather than sent:
+                it is a sentence to make your own — change the numbers, add a
+                clause — and Compile is still yours to press. */}
+            {turns.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-2 pt-3">
+                <span className="font-ui text-[12px] text-text-muted">{t("sl_try_one")}</span>
+                {PRESETS.map((p, i) => (
+                  <button
+                    key={p.labelKey}
+                    type="button"
+                    onClick={() => {
+                      const line = t(p.promptKey);
+                      setSentence((cur) => (cur.trim() ? `${cur.trim()} ${line}` : line));
+                      requestAnimationFrame(() => {
+                        const el = composer.current;
+                        if (!el) return;
+                        el.focus();
+                        el.setSelectionRange(el.value.length, el.value.length);
+                      });
+                    }}
+                    style={{ animationDelay: `${i * 50}ms` }}
+                    className="reveal-in h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary"
+                  >
+                    {t(p.labelKey)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.labelKey}
-                type="button"
-                // Sent, not typed into the box: a preset IS a first message,
-                // and dropping the author back at a full input with a Compile
-                // button still to press made picking one feel like it had not
-                // worked.
-                onClick={() => {
-                  setMode("write");
-                  void send(t(p.promptKey));
-                }}
-                className="h-9 rounded-full border border-border px-4 font-mono text-[11.5px] text-text-secondary transition-colors hover:border-accent hover:text-accent"
-              >
-                {t(p.labelKey)}
-              </button>
-            ))}
-          </div>
-        )}
 
         {error ? (
           <p className="pt-2.5 font-ui text-[12.5px] leading-relaxed text-negative">
@@ -684,8 +744,11 @@ export function SetLimits({
             {t("sl_rules_appear")}{" "}
             <button
               type="button"
-              onClick={() => setManualRules(true)}
-              className="text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
+              onClick={() => {
+                setManualRules(true);
+                setFineTune(true);
+              }}
+              className="text-text-primary underline underline-offset-4 transition-opacity hover:opacity-80"
             >
               {t("sl_set_by_hand")}
             </button>
@@ -696,37 +759,102 @@ export function SetLimits({
 
       {/* ---------------------------------------------------- read as */}
       {showRules ? (
-        <section>
-          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sl_read_as")}
-          </h3>
+        <section key={`s-${revealKey}`}>
+          <div className="reveal-in">
+            <StrategyCard
+              reading={reading}
+              value={value}
+              active={active.length}
+              symbol={markets.length === 1 && market ? market.symbol : null}
+            />
+          </div>
 
-          {reading ? (
-            <p className="max-w-[70ch] pb-3 font-ui text-[13px] leading-relaxed text-text-secondary">
-              {reading}
-            </p>
-          ) : null}
+          <div className="reveal-in" style={{ animationDelay: "140ms" }}>
+            <ClauseLedger clauses={clauses} />
 
-          <ClauseLedger clauses={clauses} />
+            <ComposedOnly
+              anyOf={value.anyOf}
+              setup={value.setup}
+              catalogue={value.rules}
+              timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+              onClearAnyOf={() => onChange({ ...value, anyOf: undefined })}
+              onClearSetup={() => onChange({ ...value, setup: undefined })}
+            />
+          </div>
 
-          <ComposedOnly
-            anyOf={value.anyOf}
-            setup={value.setup}
-            catalogue={value.rules}
-            timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
-            onClearAnyOf={() => onChange({ ...value, anyOf: undefined })}
-            onClearSetup={() => onChange({ ...value, setup: undefined })}
-          />
-
-          <div className="border border-grid">
-            {value.rules.map((r) => (
-              <RuleChip
-                key={r.key}
-                rule={r}
-                timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
-                onChange={(p) => setRule(r.key, p)}
+          <button
+            type="button"
+            aria-expanded={fineTune}
+            onClick={() => setFineTune((v) => !v)}
+            className="reveal-in mt-1 flex w-full items-center justify-between gap-4 py-2.5 text-left"
+            style={{ animationDelay: "240ms" }}
+          >
+            <span className="font-ui text-[13px] font-medium text-text-primary">{t("sl_fine_tune")}</span>
+            <span className="flex items-center gap-3">
+              <span className="font-ui text-[12px] text-text-muted">
+                {t("sl_rules_on", { on: active.length, total: value.rules.length })}
+              </span>
+              <ChevronDown
+                aria-hidden
+                className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                  fineTune ? "rotate-180" : ""
+                }`}
               />
-            ))}
+            </span>
+          </button>
+
+          {fineTune ? (
+          <>
+          <div className="space-y-6 pt-2">
+          <div>
+            <SectionLabel title={t("sl_group_rules")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(() => {
+                const on = value.rules.filter((r) => r.enabled !== false);
+                const off = value.rules.filter((r) => r.enabled === false);
+                // The off rules hide only when there are on rules to look at
+                // instead. With nothing on, hiding them leaves "Nothing on
+                // yet" and a second chevron — a wall, not a summary.
+                const foldable = on.length > 0;
+                const shown = !foldable || showOff ? [...on, ...off] : on;
+                return (
+                  <>
+                    {shown.map((r, i) => (
+                      <div key={r.key} className="reveal-in" style={{ animationDelay: `${i * 45}ms` }}>
+                        <RuleChip
+                          rule={r}
+                          timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+                          onChange={(p) => setRule(r.key, p)}
+                        />
+                      </div>
+                    ))}
+                    {foldable && off.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-expanded={showOff}
+                        onClick={() => setShowOff((v) => !v)}
+                        className="flex w-full items-center justify-between gap-4 border-t border-grid px-4 py-2.5 text-left font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        <span>
+                          {t(showOff ? "sl_hide_off_rules" : "sl_show_off_rules", { count: off.length })}
+                        </span>
+                        <ChevronDown
+                          aria-hidden
+                          className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                            showOff ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel title={t("sl_group_exits")} />
+            <div className="overflow-hidden rounded-xl border border-border">
             {/* The ceiling is the strategy route's, not the composer's.
                 /agents/compose clamps a target to 200% (compose.ts's
                 takeProfitPct range), but that is a bound on what a SENTENCE may
@@ -809,6 +937,8 @@ export function SetLimits({
                 })
               }
             />
+            </div>
+          </div>
           </div>
 
           {notes.length > 0 ? (
@@ -824,11 +954,8 @@ export function SetLimits({
             </ul>
           ) : null}
 
-          <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {active.length === 1
-              ? t("sl_nothing_runs_one")
-              : t("sl_nothing_runs_many", { count: active.length })}
-          </p>
+          </>
+          ) : null}
         </section>
       ) : null}
 
@@ -836,7 +963,7 @@ export function SetLimits({
       {/* Held back for the same reason: how a position accumulates is a
           refinement of an entry, and it changes what the exits MEASURE. Both
           are meaningless beside a strategy that has not been written yet. */}
-      {showRules ? (
+      {showRules && fineTune ? (
         <AddPlanCard
           plan={value.addPlan}
           exits={value.exits}
@@ -861,119 +988,173 @@ export function SetLimits({
         Held behind `showRules` like accumulation: a bar size is a property of
         rules, and there is nothing to measure before one exists.
       */}
-      {showRules ? (
+      {showRules && fineTune ? (
         <section>
-          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sl_chart_timeframe")}
-          </h3>
-          <PillRow>
-            {/* `tf`, not `t` — the translator owns that name in this file. */}
-            {TIMEFRAMES.map((tf) => {
-              // Served for THIS class, not in general. A crypto strategy on 30m
-              // deploys, wakes and buys nothing — the venue cannot build the
-              // bar — so the pill is disabled rather than offered and refused
-              // later by a screening trace nobody opens.
-              const served = servedTimeframes.includes(tf.tf);
-              return (
-                <Pill
-                  key={tf.tf}
-                  active={(value.timeframe ?? DEFAULT_TIMEFRAME) === tf.tf}
-                  disabled={!served}
-                  suffix={served ? undefined : t("sl_not_served")}
-                  onClick={() => onChange(retimeframe(value, tf.tf))}
-                >
-                  {t(tf.labelKey)}
-                </Pill>
-              );
-            })}
-          </PillRow>
-          <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {(() => {
-              const hit = TIMEFRAMES.find(
-                (tf) => tf.tf === (value.timeframe ?? DEFAULT_TIMEFRAME),
-              );
-              return hit ? t(hit.detailKey) : null;
-            })()}{" "}
-            <span className="text-text-dim">{t("sl_timeframe_help")}</span>
-          </p>
-
-          <h3 className="pt-6 pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sl_cycle")}
-          </h3>
-          <PillRow>
-            {CADENCES.map((c) => (
-              <Pill
-                key={c.sec}
-                active={
-                  (value.cadenceSec ??
-                    CADENCE_FOR_TIMEFRAME[
-                      value.timeframe ?? DEFAULT_TIMEFRAME
-                    ]) === c.sec
-                }
-                onClick={() => onChange({ ...value, cadenceSec: c.sec })}
-              >
-                {t(c.labelKey)}
-              </Pill>
-            ))}
-          </PillRow>
-          <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-            {(() => {
-              const tf = value.timeframe ?? DEFAULT_TIMEFRAME;
-              const sec = value.cadenceSec ?? CADENCE_FOR_TIMEFRAME[tf];
-              const paired = CADENCE_FOR_TIMEFRAME[tf];
-              return (
-                <>
-                  {(() => {
-                    const hit = CADENCES.find((c) => c.sec === sec);
-                    return hit ? t(hit.detailKey) : null;
-                  })()}{" "}
-                  <span className="text-text-dim">
-                    {t(
-                      sec === paired
-                        ? "bs_cadence_matched"
-                        : sec < paired
-                          ? "bs_cadence_faster"
-                          : "bs_cadence_slower",
+          {(() => {
+            const tf = value.timeframe ?? DEFAULT_TIMEFRAME;
+            const tfHit = TIMEFRAMES.find((x) => x.tf === tf);
+            const paired = CADENCE_FOR_TIMEFRAME[tf];
+            const sec = value.cadenceSec ?? paired;
+            const cad = CADENCES.find((c) => c.sec === sec);
+            const editing = customCycle || sec !== paired;
+            return (
+              <>
+                <SectionLabel
+                  title={t("sl_timeframe")}
+                  info={
+                    <>
+                      {tfHit ? t(tfHit.detailKey) : null}
+                      <span className="block pt-1.5 text-text-dim">{t("sl_timeframe_help")}</span>
+                    </>
+                  }
+                />
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <div className="px-4 py-3">
+                    <PillRow>
+                      {/* `x`, not `t` — the translator owns that name in this file. */}
+                      {TIMEFRAMES.map((x) => {
+                        // Served for THIS class, not in general. A crypto
+                        // strategy on 30m deploys, wakes and buys nothing — the
+                        // venue cannot build the bar — so the pill is disabled
+                        // rather than offered and refused later.
+                        const served = servedTimeframes.includes(x.tf);
+                        return (
+                          <Pill
+                            key={x.tf}
+                            active={tf === x.tf}
+                            disabled={!served}
+                            suffix={served ? undefined : t("sl_not_served")}
+                            onClick={() => {
+                              onChange(retimeframe(value, x.tf));
+                              setCustomCycle(false);
+                            }}
+                          >
+                            {t(x.labelKey)}
+                          </Pill>
+                        );
+                      })}
+                    </PillRow>
+                  </div>
+                  {/* The cycle, as a consequence of the bar: "Wakes every 5m".
+                      Editable on request, and then it stays open while it
+                      differs from the bar. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-grid px-4 py-2.5">
+                    <p className="flex items-center gap-1.5 font-ui text-[12.5px] text-text-secondary">
+                      <span key={sec} className="reveal-in">
+                        {t("sl_wakes_every", { cadence: cad ? t(cad.labelKey) : `${sec}s` })}
+                      </span>
+                      <InfoDot label={t("sl_cycle")}>
+                        {cad ? t(cad.detailKey) : null}
+                        <span className="block pt-1.5 text-text-dim">
+                          {t(
+                            sec === paired
+                              ? "bs_cadence_matched"
+                              : sec < paired
+                                ? "bs_cadence_faster"
+                                : "bs_cadence_slower",
+                          )}
+                        </span>
+                      </InfoDot>
+                    </p>
+                    {editing ? (
+                      <div className="reveal-in flex flex-wrap items-center gap-2">
+                        <Segmented
+                          ariaLabel={t("sl_cycle")}
+                          options={CADENCES.map((c) => ({ id: String(c.sec), label: t(c.labelKey) }))}
+                          value={String(sec)}
+                          onChange={(id) => onChange({ ...value, cadenceSec: Number(id) })}
+                        />
+                        {sec !== paired ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onChange({ ...value, cadenceSec: paired });
+                              setCustomCycle(false);
+                            }}
+                            className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                          >
+                            {t("sl_cycle_match")}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCustomCycle(true)}
+                        className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        {t("sl_cycle_change")}
+                      </button>
                     )}
-                  </span>
-                </>
-              );
-            })()}
-          </p>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </section>
       ) : null}
 
       {/* ------------------------------------------------------- budget */}
+      {/* Two numbers in one card, each with its consequence stated live
+          beside it: a size is only meaningful as a share of the book and a
+          count of positions, and a trade cap only as what it lets one cycle
+          do. Entries commit on blur or Enter — clamping every keystroke made
+          typing "1" on the way to "1000" snap to the floor. */}
       <section>
-        <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-          {t("sl_budget")}
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
+        <SectionLabel title={t("sl_budget")} note={t("sl_budget_note", { book: money(CAPITAL_USD) })} />
+        <div className="overflow-hidden rounded-xl border border-border">
+          <BudgetRow
             label={t("sl_position_limit")}
-            value={value.positionUsd}
-            unit="USDC"
-            min={MIN_POSITION_USD}
-            max={CAPITAL_USD}
-            step={MIN_POSITION_USD}
-            help={t("sl_position_help", {
+            info={t("sl_position_info")}
+            help={t("sl_position_consequence", {
               pct: ((value.positionUsd / CAPITAL_USD) * 100).toFixed(0),
-              book: money(CAPITAL_USD),
+              positions: Math.max(1, Math.floor(CAPITAL_USD / value.positionUsd)),
             })}
-            onChange={(n) => onChange({ ...value, positionUsd: n })}
-          />
-          <Field
+          >
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              <div className="flex items-center gap-1">
+                {QUICK_SIZES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={value.positionUsd === n}
+                    onClick={() => onChange({ ...value, positionUsd: n })}
+                    className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                      value.positionUsd === n
+                        ? "bg-surface-2 text-text-primary"
+                        : "text-text-dim hover:text-text-primary"
+                    }`}
+                  >
+                    {money(n)}
+                  </button>
+                ))}
+              </div>
+              <NumberEntry
+                value={value.positionUsd}
+                min={MIN_POSITION_USD}
+                max={CAPITAL_USD}
+                step={MIN_POSITION_USD}
+                unit="$"
+                label={t("sl_position_limit")}
+                onChange={(n) => onChange({ ...value, positionUsd: n })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
             label={t("sl_trades_per_cycle")}
-            value={value.tradesPerCycle}
-            unit={t("sl_unit_trades")}
-            min={1}
-            max={10}
-            step={1}
             // Deliberately not "per day": the ceiling the engine enforces is
             // per cycle, and relabelling it would misstate what it does.
-            help={t("sl_trades_help")}
-            onChange={(n) => onChange({ ...value, tradesPerCycle: n })}
-          />
+            info={t("sl_trades_help")}
+          >
+            <Stepper
+              value={value.tradesPerCycle}
+              min={1}
+              max={10}
+              label={t("sl_trades_per_cycle")}
+              unit={t(value.tradesPerCycle === 1 ? "sl_unit_trade" : "sl_unit_trades")}
+              onChange={(n) => onChange({ ...value, tradesPerCycle: n })}
+            />
+          </BudgetRow>
         </div>
       </section>
 
@@ -995,9 +1176,7 @@ export function SetLimits({
       */}
       {markets.length > 1 || discovery ? (
         <section>
-          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sl_how_many")}
-          </h3>
+          <SectionLabel title={t("sl_how_many")} info={t("sl_ranking_note")} />
           <RankingControl
             // With a screen the universe is whatever it matches, which is not a
             // number this step knows. The cap is the honest ceiling on how many
@@ -1021,44 +1200,32 @@ export function SetLimits({
       */}
       {!isCrypto ? (
         <section>
-          <h3 className="pb-3 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("sl_compliance")}
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {COMPLIANCE_CHOICES.map((choice) => {
-              const active = (value.complianceProfile ?? "none") === choice.id;
-              return (
-                <button
-                  key={choice.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() =>
-                    onChange({ ...value, complianceProfile: choice.id })
-                  }
-                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                    active
-                      ? "border-accent bg-accent/10 text-text"
-                      : "border-line text-text-dim hover:border-line-bright hover:text-text"
-                  }`}
-                >
-                  <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-                    {t(choice.labelKey)}
-                  </span>
-                  <span className="mt-1 block text-[11px] leading-snug text-text-dim">
+          <SectionLabel title={t("sl_compliance")} info={t("sl_compliance_note")} />
+          {(() => {
+            const current = value.complianceProfile ?? "none";
+            const choice = COMPLIANCE_CHOICES.find((c) => c.id === current) ?? COMPLIANCE_CHOICES[0];
+            return (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+                  <Segmented
+                    ariaLabel={t("sl_compliance")}
+                    options={COMPLIANCE_CHOICES.map((c) => ({ id: c.id, label: t(c.labelKey) }))}
+                    value={current}
+                    onChange={(id) =>
+                      onChange({ ...value, complianceProfile: id as ComplianceProfile })
+                    }
+                  />
+                  {/* The chosen screen's meaning, swapping with the choice. */}
+                  <p
+                    key={choice.id}
+                    className="reveal-in min-w-0 flex-1 font-ui text-[12.5px] leading-relaxed text-text-secondary sm:text-right"
+                  >
                     {t(choice.helpKey)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="pt-2 text-[11px] leading-snug text-text-dim">
-            {/*
-              Stated plainly because it is a universe change, not a preference.
-              Someone who picks a screen and then cannot find an asset they
-              expected deserves to have been told why in advance.
-            */}
-            {t("sl_compliance_note")}
-          </p>
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
         </section>
       ) : null}
     </div>
@@ -1085,74 +1252,44 @@ function RankingControl({
   const t = useT();
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          aria-pressed={!on}
-          onClick={() => onChange(undefined)}
-          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-            !on
-              ? "border-accent bg-accent-wash text-text-primary"
-              : "border-grid text-text-dim hover:border-grid-strong hover:text-text-primary"
-          }`}
-        >
-          <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-            {t("sl_all_of_them")}
-          </span>
-          <span className="mt-1 block text-[11px] text-text-dim">
-            {t("sl_all_of_them_help")}
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={on}
-          onClick={() =>
+    <div className="overflow-hidden rounded-xl border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+        <Segmented
+          ariaLabel={t("sl_how_many_aria")}
+          options={[
+            { id: "all", label: t("sl_all_of_them") },
+            { id: "best", label: t("sl_only_best") },
+          ]}
+          value={on ? "best" : "all"}
+          onChange={(id) =>
             onChange(
-              value ?? {
-                by: "momentum20dPct",
-                take: Math.min(3, markets),
-                prefer: "highest",
-              },
+              id === "all"
+                ? undefined
+                : (value ?? { by: "momentum20dPct", take: Math.min(3, markets), prefer: "highest" }),
             )
           }
-          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-            on
-              ? "border-accent bg-accent-wash text-text-primary"
-              : "border-grid text-text-dim hover:border-grid-strong hover:text-text-primary"
-          }`}
+        />
+        <p
+          key={on ? "best" : "all"}
+          className="reveal-in min-w-0 flex-1 font-ui text-[12.5px] leading-relaxed text-text-secondary sm:text-right"
         >
-          <span className="block font-mono text-[11px] tracking-[0.08em] uppercase">
-            {t("sl_only_best")}
-          </span>
-          <span className="mt-1 block text-[11px] text-text-dim">
-            {t("sl_only_best_help")}
-          </span>
-        </button>
+          {t(on ? "sl_only_best_help" : "sl_all_of_them_help")}
+        </p>
       </div>
 
       {value ? (
-        <div
-          className={`flex flex-wrap items-center gap-x-2.5 gap-y-2 ${SURFACE} px-3.5 py-3 font-mono text-[12px]`}
-        >
-          <span className="text-text-dim">{t("sl_hold_best")}</span>
-          <input
-            type="number"
+        // The choice as a sentence: "Hold the best [3] of 5, by [deepest pool]".
+        // Arrives when the segment flips, under the control that asked for it.
+        <div className="reveal-in flex flex-wrap items-center gap-x-2.5 gap-y-2 border-t border-grid px-4 py-3 font-ui text-[13px] text-text-secondary">
+          <span>{t("sl_hold_best")}</span>
+          <Stepper
+            value={value.take}
             min={1}
             max={Math.max(1, markets)}
-            value={value.take}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                take: Math.max(1, Math.min(markets, Number(e.target.value))),
-              })
-            }
-            className={`w-11 rounded-md bg-surface-2 px-1.5 py-1 text-center outline-none focus-visible:ring-1 focus-visible:ring-accent ${NUM}`}
-            aria-label={t("sl_how_many_aria")}
+            label={t("sl_how_many_aria")}
+            onChange={(take) => onChange({ ...value, take })}
           />
-          <span className="text-text-dim">
-            {t("sl_of_by", { count: markets })}
-          </span>
+          <span>{t("sl_of_by", { count: markets })}</span>
           <select
             value={`${value.by}:${value.prefer}`}
             onChange={(e) => {
@@ -1163,7 +1300,7 @@ function RankingControl({
                 prefer: prefer as "highest" | "lowest",
               });
             }}
-            className="rounded-md bg-surface-2 py-1 pr-6 pl-2 text-text-primary outline-none focus-visible:ring-1 focus-visible:ring-accent"
+            className="h-8 rounded-full border border-border bg-transparent pr-7 pl-3 font-ui text-[12.5px] text-text-primary outline-none transition-colors hover:border-grid-strong focus-visible:border-grid-strong"
             aria-label={t("sl_rank_by_aria")}
           >
             {/* Each option names the DIRECTION as well as the measure, because
@@ -1183,9 +1320,156 @@ function RankingControl({
         </div>
       ) : null}
 
-      <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">
-        {t("sl_ranking_note")}
-      </p>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------- primitives -- */
+
+/** Amounts people actually type. The entry beside them takes anything else. */
+const QUICK_SIZES = [250, 500, 1_000, 2_500];
+
+/** A section's name in the running register: a title, and a quiet fact beside it. */
+function SectionLabel({
+  title,
+  note,
+  info,
+}: {
+  title: string;
+  note?: string;
+  /** The explanation, behind a dot. Never a paragraph under the title. */
+  info?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3">
+      <h3 className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-text-primary">
+        {title}
+        {info ? <InfoDot label={title}>{info}</InfoDot> : null}
+      </h3>
+      {note ? <span className="font-ui text-[12px] text-text-muted">{note}</span> : null}
+    </div>
+  );
+}
+
+/** One row of the budget card: the name and its consequence left, the control right. */
+function BudgetRow({
+  label,
+  help,
+  info,
+  children,
+}: {
+  label: string;
+  /** A live consequence of the current value — a fact, not an explanation. */
+  help?: string;
+  /** The explanation, behind a dot. */
+  info?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-text-primary">
+          {label}
+          {info ? <InfoDot label={label}>{info}</InfoDot> : null}
+        </p>
+        {help ? (
+          // Re-keyed on the text so a changed consequence fades in rather than
+          // flickering: the number the reader just typed, said back.
+          <p key={help} className="reveal-in pt-0.5 font-ui text-[12px] leading-relaxed text-text-dim">
+            {help}
+          </p>
+        ) : null}
+      </div>
+      <div className="sm:justify-self-end">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Two halves and a surface fill. Selecting is not committing, so the active
+ * half is a surface, not green — the same control the mode toggle and the
+ * step pill use.
+ */
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1">
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => (active ? undefined : onChange(o.id))}
+            className={`h-7 rounded-full px-3.5 font-ui text-[12.5px] font-medium transition-colors ${
+              active ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A small integer, stepped. The number ticks when it changes. */
+function Stepper({
+  value,
+  min,
+  max,
+  label,
+  unit,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  label: string;
+  unit?: string;
+  onChange: (n: number) => void;
+}) {
+  const t = useT();
+  const btn =
+    "flex size-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent";
+  return (
+    <div className="inline-flex items-center gap-1 rounded-full border border-border p-0.5">
+      <button
+        type="button"
+        aria-label={t("sl_step_down", { label })}
+        disabled={value <= min}
+        onClick={() => onChange(Math.max(min, value - 1))}
+        className={btn}
+      >
+        −
+      </button>
+      <span
+        key={value}
+        className="tnum reveal-in min-w-[2ch] text-center font-mono text-[13.5px] text-text-primary"
+        aria-live="polite"
+      >
+        {value}
+        {unit ? <span className="pl-1 font-ui text-[12px] text-text-dim">{unit}</span> : null}
+      </span>
+      <button
+        type="button"
+        aria-label={t("sl_step_up", { label })}
+        disabled={value >= max}
+        onClick={() => onChange(Math.min(max, value + 1))}
+        className={btn}
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -1552,20 +1836,70 @@ function readSizing(text: string, limits: Limits): Limits | null {
 }
 
 /** One line of the exchange. */
+/**
+ * The strategy, read back as one sentence and four figures.
+ *
+ * This is the object the step produces. The composer's own reading is the
+ * sentence — it is already the plain-language account of the rules it set —
+ * and beneath it the numbers a trade cannot happen without. When there is no
+ * reading (rules set by hand), the figures stand alone.
+ */
+function StrategyCard({
+  reading,
+  value,
+  active,
+  symbol,
+}: {
+  reading: string | null;
+  value: Limits;
+  active: number;
+  symbol: string | null;
+}) {
+  const t = useT();
+  const tf = TIMEFRAMES.find((x) => x.tf === (value.timeframe ?? DEFAULT_TIMEFRAME));
+  const facts: { label: string; value: string }[] = [
+    { label: t("sl_card_position"), value: money(value.positionUsd) },
+    { label: t("sl_take_profit"), value: `+${value.exits.takeProfitPct}%` },
+    { label: t("sl_stop_loss"), value: `−${value.exits.stopLossPct}%` },
+    { label: t("sl_card_bars"), value: tf ? t(tf.labelKey) : "—" },
+  ];
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-ui text-[12.5px] text-text-muted">
+          {symbol ? t("sl_card_eyebrow", { symbol }) : t("sl_card_eyebrow_plain")}
+        </p>
+        <p className="mt-1.5 max-w-[60ch] font-ui text-[16px] leading-relaxed text-text-primary">
+          {reading ??
+            (active === 0
+              ? t("sl_card_hand_none")
+              : active === 1
+                ? t("sl_card_hand_one")
+                : t("sl_card_hand_many", { count: active }))}
+        </p>
+      </div>
+      <dl className="grid grid-cols-2 divide-x divide-grid border-t border-grid sm:grid-cols-4">
+        {facts.map((f) => (
+          <div key={f.label} className="px-5 py-3">
+            <dt className="font-ui text-[11.5px] text-text-muted">{f.label}</dt>
+            <dd className="tnum mt-0.5 font-mono text-[14px] text-text-primary">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function TurnRow({ turn }: { turn: Turn }) {
   const you = turn.role === "you";
   const t = useT();
   return (
     <li
-      className={`border-b border-grid px-4 py-2.5 last:border-b-0 ${
-        turn.tone === "ask" ? "bg-surface" : ""
+      className={`reveal-in border-b border-grid px-4 py-2.5 last:border-b-0 ${
+        turn.tone === "ask" ? "bg-surface-2/60" : ""
       }`}
     >
-      <p
-        className={`pb-0.5 font-mono text-[9px] tracking-[0.14em] uppercase ${
-          you ? "text-text-muted" : "text-accent"
-        }`}
-      >
+      <p className={`pb-0.5 font-ui text-[11px] ${you ? "text-text-muted" : "text-text-secondary"}`}>
         {t(you ? "sl_you" : "sl_desk")}
       </p>
       <p
@@ -1742,9 +2076,15 @@ function nextQuestion(clauses: Clause[], reqs: Requirement[], t: Translate): Ask
   }
 
   const lost = clauses.find((c) => c.status === "unclear");
-  // No chips: the answer is whatever that phrase was supposed to mean, and
-  // three guesses at it would be putting words in someone's mouth.
-  if (lost) return { text: t("sl_ask_unclear", { phrase: lost.phrase }), chips: [] };
+  // Two chips, not three guesses: the one rule people usually mean by a
+  // phrase like "when the pool is deep" (a liquidity floor), and the exit.
+  // Both are sent as the author's own words and compiled like anything typed.
+  if (lost) {
+    return {
+      text: t("sl_ask_unclear", { phrase: lost.phrase }),
+      chips: [t("sl_ask_unclear_chip_1"), t("sl_ask_unclear_chip_2")],
+    };
+  }
 
   const gap = reqs.find((r) => r.state !== "met");
   return gap?.ask ? { text: gap.ask, chips: gap.chips ?? [] } : null;
@@ -1822,74 +2162,6 @@ const CLAUSE_LABEL: Record<Clause["status"], TranslationKey> = {
   unsupported: "sl_clause_unsupported",
   unclear: "sl_clause_unclear",
 };
-
-/**
- * The executor's own requirements, and where each stands.
- *
- * An `assumed` row is not a warning: those defaults are live values that will
- * really be traded on. It is marked so the author can tell the difference
- * between a number they chose and one that chose itself, which is exactly the
- * distinction a track record later depends on.
- */
-function Checklist({ reqs }: { reqs: Requirement[] }) {
-  const open = reqs.filter((r) => r.state !== "met").length;
-  const t = useT();
-
-  return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-border bg-bg">
-      <div className="flex items-center justify-between gap-4 border-b border-grid px-4 py-2.5">
-        <h4 className="font-ui text-[11.5px] text-text-muted">
-          {t("sl_before_trade")}
-        </h4>
-        <span
-          className={`font-ui text-[11.5px] font-medium ${
-            open === 0 ? "text-accent" : "text-text-muted"
-          }`}
-        >
-          {open === 0
-            ? t("sl_all_set")
-            : t("sl_still_assumed", { count: open })}
-        </span>
-      </div>
-      <ul>
-        {reqs.map((r) => (
-          <li
-            key={r.key}
-            className="flex items-baseline justify-between gap-4 border-b border-grid px-4 py-2 last:border-b-0"
-          >
-            <span className="flex min-w-0 items-baseline gap-2.5">
-              <span
-                aria-hidden
-                className={`inline-block size-1.5 shrink-0 rounded-full ${
-                  r.state === "met"
-                    ? "bg-accent"
-                    : r.state === "assumed"
-                      ? "bg-warning"
-                      : "bg-negative"
-                }`}
-              />
-              <span className="truncate font-ui text-[12.5px] text-text-primary">
-                {r.label}
-              </span>
-            </span>
-            <span
-              className={`shrink-0 text-right font-mono text-[11.5px] ${
-                r.state === "missing" ? "text-negative" : "text-text-secondary"
-              }`}
-            >
-              {r.detail}
-              {r.state === "assumed" ? (
-                <span className="pl-1.5 font-ui text-[10.5px] text-text-muted">
-                  {t("sl_assumed")}
-                </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 /* -------------------------------------------------------------------- bits -- */
 
@@ -2203,7 +2475,10 @@ function NumberEntry({
           }}
           aria-label={t("sl_value_aria", { label })}
           size={1}
-          className="tnum w-[7ch] border-b border-transparent bg-transparent text-right outline-none transition-colors hover:border-grid-strong focus:border-accent disabled:cursor-not-allowed"
+          // As wide as its digits, so a leading "$" sits against the number
+          // rather than across a gap of unused width.
+          style={{ width: `${Math.max(2, (draft ?? String(value)).length) + 0.5}ch` }}
+          className="tnum border-b border-transparent bg-transparent text-right outline-none transition-colors hover:border-grid-strong focus:border-accent disabled:cursor-not-allowed"
         />
         {isMoney ? null : <span aria-hidden>{unit}</span>}
       </div>
@@ -2214,56 +2489,6 @@ function NumberEntry({
             : t("sl_min_clamp", { value: fmt(min, unit) })}
         </p>
       )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  unit,
-  min,
-  max,
-  step,
-  help,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
-  help: string;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <div className="border border-grid p-4">
-      <p className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-        {label}
-      </p>
-      <div className="flex items-baseline gap-2 pt-2">
-        <input
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            // Clamped on the way in: a budget above the book is not a budget.
-            if (Number.isFinite(n)) onChange(Math.min(Math.max(n, min), max));
-          }}
-          aria-label={label}
-          className="tnum w-[120px] border-b border-grid-strong bg-transparent pb-1 font-mono text-[19px] text-text-primary outline-none focus:border-accent"
-        />
-        <span className="font-mono text-[11px] tracking-[0.08em] text-text-dim uppercase">
-          {unit}
-        </span>
-      </div>
-      <p className="pt-2.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
-        {help}
-      </p>
     </div>
   );
 }

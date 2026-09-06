@@ -12,12 +12,14 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   mk_venue_all: "全部",
   mk_venue_clob: "订单簿 DEX",
 
-  mk_step: "第 1 步，共 2 步 · 设定",
+  mk_step: "第 1 步，共 3 步 · 市场",
   mk_title: "选择要交易的市场",
   mk_intro:
     "可以选一个，也可以选多个。智能体每个周期都会用你的规则检查每一个，买入符合条件的标的。",
-  mk_search_placeholder: "搜索市场…  /",
+  mk_search_placeholder: "搜索市场…",
   mk_search_aria: "搜索市场",
+  mk_chosen: "已选",
+  mk_remove: "移除 {symbol}",
   mk_count_one: "1 个市场",
   mk_count_many: "{count} 个市场",
 

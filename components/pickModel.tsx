@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getModels, peekModels, type ModelOption } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { RemoteIcon } from "@/components/remoteIcon";
 import { PrepaidBundles } from "@/components/prepaidBundles";
 import { bundlesFor } from "@/lib/modelBundles";
-import { QUIET } from "@/components/kit";
+import { InfoDot, QUIET } from "@/components/kit";
+import { Check, Search } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
  * Step 3 — choose the model. The council's, not the compiler's.
@@ -111,15 +113,30 @@ export function PickModel({
   cadenceSec?: number;
   /** Paper agents have no wallet of their own — the owner funds them. */
   isPaper: boolean;
-  onBack: () => void;
+  /** Omitted when the wizard owns Back (desktop footer). */
+  onBack?: () => void;
   context?: "builder" | "panel";
 }) {
   const inBuilder = context === "builder";
+  const t = useT();
   // Seeded from the cache so paging back into this step does not flash a
   // spinner over a list that has not changed — the same treatment the market
   // picker gets. useApi still revalidates behind it.
   const catalogue = useApi((t) => getModels(t), [], peekModels() ?? undefined);
   const [query, setQuery] = useState("");
+  /**
+   * "BUY A MODEL" OPENS THE CATALOGUE; IT DOES NOT PICK ONE. The card used to
+   * select the first Pod row on click, silently — a purchase decision made by
+   * a button that looked like a category. Now it reveals the list and puts the
+   * caret in its search; the choice is the row you press. The list stays
+   * hidden while the included model is chosen and nobody has asked to browse,
+   * because forty rows of prices under a decision already made is noise.
+   */
+  const [browsing, setBrowsing] = useState(false);
+  const searchBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (browsing) requestAnimationFrame(() => searchBox.current?.focus());
+  }, [browsing]);
 
   const models = catalogue.phase === "ready" ? catalogue.data.models : [];
   const suggested = catalogue.phase === "ready" ? catalogue.data.suggestedTopUpUsd : 10;
@@ -188,99 +205,95 @@ export function PickModel({
       <div className="space-y-2">
         {inBuilder ? (
           <>
-            <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-              Step 3 of 3 · Model
-            </p>
-            <h2 className="font-mono text-[22px] leading-none text-text-primary">
-              Choose what it thinks with
+            <p className="font-ui text-[12.5px] text-text-muted">{t("pm_step")}</p>
+            <h2 className="font-ui text-[22px] leading-tight tracking-[-0.01em] text-text-primary">
+              {t("pm_title")}
             </h2>
           </>
         ) : null}
-        <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
-          Every cycle, the analyst seat reads what passed your rules and decides what is worth
-          proposing. This is the model it thinks with — the rest of the council is deterministic
-          and costs nothing.{" "}
-          {inBuilder
-            ? "Your strategy was compiled by Canopy's own model and stays that way — picking here changes how the agent reasons from now on, not how your rules were read."
-            : "Changing it changes every cycle from here on. It does not re-read the rules this agent already has."}
+        <p className="flex max-w-[68ch] items-center gap-1.5 font-ui text-[13.5px] leading-relaxed text-text-secondary">
+          {t("pm_lede")}
+          <InfoDot label={t("pm_title")}>
+            {t("pm_lede_more")}
+            <span className="block pt-1.5 text-text-dim">
+              {t(inBuilder ? "pm_lede_builder" : "pm_lede_panel")}
+            </span>
+          </InfoDot>
         </p>
       </div>
 
       {catalogue.phase === "loading" ? (
-        <Note>Loading models…</Note>
+        <Note>{t("pm_loading")}</Note>
       ) : catalogue.phase === "signed-out" ? (
-        <Note>Sign in to choose a model.</Note>
+        <Note>{t("pm_signed_out")}</Note>
       ) : catalogue.phase === "error" ? (
-        <Note tone="negative">Could not load the model list — {catalogue.message}</Note>
+        <Note tone="negative">{t("pm_load_failed", { message: catalogue.message })}</Note>
       ) : !catalogue.data.podEnabled ? (
         // The kill switch, and it is not an error state. Canopy's model is what
         // every agent ran before Pod existed, so this is a working screen with
         // one option rather than a broken one with none.
-        <Note>
-          {canopy?.label ?? DEFAULT_MODEL.label} is the only model available right now. Your agent
-          will reason with it, included in your plan.
-        </Note>
+        <Note>{t("pm_only_included", { label: canopy?.label ?? DEFAULT_MODEL.label })}</Note>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <ModeCard
               title={canopy?.label ?? DEFAULT_MODEL.label}
-              badge="Included"
-              body="Hosted by Canopy. Nothing to fund, nothing to run out of."
-              active={!onPod}
-              onClick={() =>
-                canopy ? choose(canopy) : onChange(DEFAULT_MODEL)
-              }
+              badge={t("pm_included")}
+              body={t("pm_included_body")}
+              active={!onPod && !browsing}
+              onClick={() => {
+                setBrowsing(false);
+                if (canopy) choose(canopy);
+                else onChange(DEFAULT_MODEL);
+              }}
             />
             <ModeCard
-              title="Buy a model"
-              body={`Bought through Pod and paid for in USDC by ${
-                isPaper ? "you" : "this agent"
-              }, per cycle.`}
-              active={onPod}
-              onClick={() => {
-                const first = pod.find((m) => m.selectable);
-                if (first) choose(first);
-              }}
+              title={t("pm_buy_title")}
+              body={t(isPaper ? "pm_buy_body_paper" : "pm_buy_body_live")}
+              active={onPod || browsing}
+              onClick={() => setBrowsing(true)}
             />
           </div>
 
-          <div className="space-y-3">
+          {onPod || browsing ? (
+          <div className="reveal-in space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-                Models on Pod
-              </p>
+              <p className="font-ui text-[13px] font-medium text-text-primary">{t("pm_on_pod")}</p>
               <div className="flex items-center gap-3">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search models…"
-                  spellCheck={false}
-                  aria-label="Search models"
-                  className="h-9 w-[190px] border-b border-grid-strong bg-transparent font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-                />
+                <label className="flex h-9 w-[220px] items-center gap-2 rounded-full border border-border px-3.5 transition-colors focus-within:border-grid-strong hover:border-grid-strong">
+                  <Search className="size-3.5 shrink-0 text-text-muted" aria-hidden />
+                  <input
+                    ref={searchBox}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("pm_search_placeholder")}
+                    spellCheck={false}
+                    aria-label={t("pm_search_aria")}
+                    className="min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+                  />
+                </label>
                 {/* What is on screen versus what matched. The list is capped at
                     forty rows, and a cap nobody is told about reads as "that is
                     all there is". */}
-                <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+                <span className="tnum font-ui text-[12px] text-text-muted">
                   {matchedCount > pod.length
-                    ? `${pod.length} of ${matchedCount}`
-                    : `${matchedCount} ${matchedCount === 1 ? "model" : "models"}`}
+                    ? t("pm_count_of", { shown: pod.length, total: matchedCount })
+                    : t(matchedCount === 1 ? "pm_count_one" : "pm_count_many", { count: matchedCount })}
                 </span>
               </div>
             </div>
 
-            <div className="border border-grid">
-              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_130px_120px_110px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
-                <span>Model</span>
-                <span className="text-right">Per cycle</span>
-                <span className="text-right">Per million</span>
-                <span className="text-right">Providers</span>
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_130px_120px_110px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted">
+                <span>{t("pm_col_model")}</span>
+                <span className="text-right">{t("pm_col_per_cycle")}</span>
+                <span className="text-right">{t("pm_col_per_million")}</span>
+                <span className="text-right">{t("pm_col_providers")}</span>
               </div>
 
               {pod.length === 0 ? (
                 <p className="px-4 py-3 font-ui text-[12.5px] text-text-muted">
-                  {emptyReason(catalogue.data.podStatus, query.trim() !== "")}
+                  {t(emptyReason(catalogue.data.podStatus, query.trim() !== ""))}
                 </p>
               ) : (
                 pod.map((m) => {
@@ -288,21 +301,25 @@ export function PickModel({
                   const row = (
                     <>
                       <span className="flex min-w-0 items-center gap-2.5">
-                        {m.logo ? <RemoteIcon src={m.logo} size={15} fallback={null} /> : null}
+                        <span className="flex size-[15px] shrink-0 items-center justify-center">
+                          {picked ? (
+                            <span key="on" className="reveal-in flex size-[15px] items-center justify-center rounded-full bg-accent text-bg">
+                              <Check className="size-2.5" strokeWidth={2.5} aria-hidden />
+                            </span>
+                          ) : m.logo ? (
+                            <RemoteIcon src={m.logo} size={15} fallback={null} />
+                          ) : null}
+                        </span>
                         <span
                           className={`truncate font-mono text-[13px] ${
-                            picked
-                              ? "text-accent"
-                              : m.selectable
-                                ? "text-text-primary"
-                                : "text-text-muted"
+                            m.selectable ? "text-text-primary" : "text-text-muted"
                           }`}
                         >
                           {m.label}
                         </span>
                         {m.contextTokens ? (
                           <span className="shrink-0 font-ui text-[11px] text-text-dim">
-                            {Math.round(m.contextTokens / 1000)}k context
+                            {t("pm_context", { k: Math.round(m.contextTokens / 1000) })}
                           </span>
                         ) : null}
                       </span>
@@ -334,7 +351,7 @@ export function PickModel({
                                 to — and they are not the same number. */}
                             {m.maxPriceInputUsd !== null ? (
                               <span className="text-[10px] text-text-muted">
-                                max ${fine(m.maxPriceInputUsd)} / ${fine(m.maxPriceOutputUsd ?? 0)}
+                                {t("pm_max_price", { in_: fine(m.maxPriceInputUsd), out: fine(m.maxPriceOutputUsd ?? 0) })}
                               </span>
                             ) : null}
                           </>
@@ -346,16 +363,16 @@ export function PickModel({
                             Say which it is rather than letting it be picked and
                             fail on the first cycle. */}
                         {!m.selectable
-                          ? "Unavailable"
+                          ? t("pm_unavailable")
                           : m.providersOnline === null
                             ? "—"
-                            : `${m.providersOnline} online`}
+                            : t("pm_online", { count: m.providersOnline })}
                       </span>
                     </>
                   );
 
                   const className = `grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_130px_120px_110px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left last:border-b-0 ${
-                    picked ? "bg-accent-wash" : ""
+                    picked ? "bg-surface-2/60" : ""
                   }`;
 
                   return m.selectable ? (
@@ -364,7 +381,7 @@ export function PickModel({
                       type="button"
                       aria-pressed={picked}
                       onClick={() => choose(m)}
-                      className={`${className} transition-colors hover:bg-panel`}
+                      className={`${className} transition-colors hover:bg-surface-2/40`}
                     >
                       {row}
                     </button>
@@ -392,16 +409,15 @@ export function PickModel({
               />
             ) : null}
           </div>
+          ) : null}
         </>
       )}
 
-      <button
-        type="button"
-        onClick={onBack}
-        className={QUIET}
-      >
-        {inBuilder ? "← Back to limits" : "← Keep the current model"}
-      </button>
+      {onBack ? (
+        <button type="button" onClick={onBack} className={QUIET}>
+          {inBuilder ? t("pm_back_limits") : t("pm_keep_model")}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -425,36 +441,39 @@ function PodTerms({
   cadenceSec?: number;
   isPaper: boolean;
 }) {
+  const t = useT();
+  // Three facts as three lines, each with its explanation behind a dot rather
+  // than as a paragraph: prepaid, never self-funding, capped.
+  const lines: { text: string; more: string }[] = [
+    {
+      text: t("pm_terms_prepaid", { label: value.label }),
+      more: t(isPaper ? "pm_terms_prepaid_paper" : "pm_terms_prepaid_live"),
+    },
+    { text: t("pm_terms_pauses"), more: t("pm_terms_pauses_more") },
+    ...(value.maxPriceInputUsd !== undefined
+      ? [
+          {
+            text: t("pm_terms_cap", { in_: value.maxPriceInputUsd, out: value.maxPriceOutputUsd ?? 0 }),
+            more: t("pm_terms_cap_more"),
+          },
+        ]
+      : []),
+  ];
   return (
-    <div className="flex gap-4 border border-grid bg-panel px-5 py-4">
-      <span className="mt-0.5 w-0.5 shrink-0 self-stretch bg-accent" />
-      <div className="space-y-2 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-        <p>
-          {value.label} is prepaid.{" "}
-          {isPaper
-            ? "You fund it from your own wallet — a paper agent has no wallet of its own until you grant delegation."
-            : "It is funded from this agent's wallet, in USDC."}{" "}
-          Nothing is charged now: the agent does not exist yet. You top it up on its page, right
-          after this.
-        </p>
-        <p>
-          It never tops itself up. When the balance runs out the agent pauses and asks you, rather
-          than spending anything you did not put there.
-        </p>
-        {value.maxPriceInputUsd !== undefined ? (
-          <p>
-            You&apos;ll pay at most ${value.maxPriceInputUsd} per million tokens in and $
-            {value.maxPriceOutputUsd} out — Pod&apos;s own cap for this model, which its providers
-            are held to. Most cycles cost less; if the price ever rises past it, the agent holds
-            instead of paying more.
-          </p>
-        ) : null}
+    <div className="reveal-in overflow-hidden rounded-xl border border-border">
+      <ul className="divide-y divide-grid">
+        {lines.map((l) => (
+          <li key={l.text} className="flex items-center gap-1.5 px-4 py-2.5 font-ui text-[12.5px] text-text-secondary">
+            {l.text}
+            <InfoDot label={l.text}>{l.more}</InfoDot>
+          </li>
+        ))}
         {cadenceSec ? (
-          <p className="text-text-dim">
-            At {cadence(cadenceSec)} cycles that is {perDay(cadenceSec)} cycles a day.
-          </p>
+          <li className="px-4 py-2.5 font-ui text-[12px] text-text-dim">
+            {t("pm_terms_cadence", { cadence: cadence(cadenceSec), perDay: perDay(cadenceSec) })}
+          </li>
         ) : null}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -488,6 +507,7 @@ function StartingBalance({
   cadenceSec?: number;
   onChange: (usdc: number) => void;
 }) {
+  const t = useT();
   const bundles = bundlesFor(value.maxPriceInputUsd, value.maxPriceOutputUsd);
   if (!bundles || value.maxPriceInputUsd === undefined || value.maxPriceOutputUsd === undefined) {
     return null;
@@ -514,16 +534,11 @@ function StartingBalance({
         current={chosen === null ? "" : String(chosen)}
         onPick={onChange}
       />
-      <p className="font-ui text-[12px] leading-relaxed text-text-secondary">
-        {days !== null ? (
-          <>
-            About <span className="tnum font-mono text-text-primary">{days}</span>{" "}
-            {days === 1 ? "day" : "days"} of thinking at{" "}
-            {cadence(cadenceSec!)} cycles, on what this model has cost so far.{" "}
-          </>
-        ) : null}
-        Nothing is charged now — you sign for it once the agent exists, from a
-        wallet you pick then.
+      <p className="flex items-center gap-1.5 font-ui text-[12px] leading-relaxed text-text-secondary">
+        {days !== null
+          ? t(days === 1 ? "pm_runway_one" : "pm_runway_many", { days, cadence: cadence(cadenceSec!) })
+          : t("pm_nothing_charged")}
+        <InfoDot label={t("pm_buy_title")}>{t("pm_nothing_charged_more")}</InfoDot>
       </p>
     </div>
   );
@@ -547,20 +562,15 @@ function ModeCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-full flex-col gap-2.5 rounded-lg border p-5 text-left transition-colors ${
-        active ? "border-accent bg-accent-wash" : "border-grid hover:border-grid-strong"
+      // Selecting is not committing: the chosen card is a surface, not green.
+      className={`flex h-full flex-col gap-2 rounded-xl border p-5 text-left transition-colors ${
+        active ? "border-border bg-surface-2" : "border-border hover:border-grid-strong"
       }`}
     >
       <span className="flex items-start justify-between gap-3">
-        <span
-          className={`font-mono text-[11.5px] tracking-[0.1em] uppercase ${
-            active ? "text-accent" : "text-text-primary"
-          }`}
-        >
-          {title}
-        </span>
+        <span className="font-ui text-[14px] font-medium text-text-primary">{title}</span>
         {badge ? (
-          <span className="shrink-0 font-mono text-[9px] tracking-[0.12em] text-accent uppercase">
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 font-ui text-[11px] text-text-secondary">
             {badge}
           </span>
         ) : null}
@@ -573,8 +583,8 @@ function ModeCard({
 function Note({ children, tone }: { children: React.ReactNode; tone?: "negative" }) {
   return (
     <p
-      className={`rounded-lg border px-4 py-3 font-ui text-[12.5px] ${
-        tone === "negative" ? "border-negative text-negative" : "border-grid text-text-secondary"
+      className={`rounded-xl border px-4 py-3 font-ui text-[12.5px] ${
+        tone === "negative" ? "border-negative text-negative" : "border-border text-text-secondary"
       }`}
     >
       {children}
@@ -591,16 +601,16 @@ function Note({ children, tone }: { children: React.ReactNode; tone?: "negative"
  * of waiting fixes that. Each sentence below names something a reader can
  * either act on or stop worrying about.
  */
-function emptyReason(status?: string, searching?: boolean): string {
+function emptyReason(status?: string, searching?: boolean): TranslationKey {
   // "stale" never lands here: it carries a real list, so the empty branch is
   // not reached. It is named anyway, because a status this function does not
   // know would otherwise fall through to "Pod is listing no models", which
   // would be a lie about a list that exists.
   if (status === "unreachable" || status === "stale") {
-    return "Pod could not be reached just now. Your agent can still run on the included model.";
+    return "pm_empty_unreachable";
   }
-  if (searching) return "No model matches that.";
-  return "Pod is listing no models we can run right now.";
+  if (searching) return "pm_empty_search";
+  return "pm_empty_none";
 }
 
 /* ----------------------------------------------------------------- helpers -- */

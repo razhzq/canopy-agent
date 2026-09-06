@@ -25,6 +25,7 @@ import {
 } from "@/components/kit";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { Check, Search, X } from "lucide-react";
 
 /**
  * Step 1 — pick the market. Wireframe 1d.
@@ -187,7 +188,8 @@ export function PickMarket({
    */
   discovery?: DiscoverySpec;
   onDiscoveryChange: (next: DiscoverySpec | undefined) => void;
-  onNext: () => void;
+  /** Omitted when the wizard owns the primary action (desktop footer). */
+  onNext?: () => void;
 }) {
   const { authenticated } = usePrivy();
   const t = useT();
@@ -446,10 +448,8 @@ export function PickMarket({
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="font-mono text-[10px] tracking-[0.12em] text-text-dim uppercase">
-          {t("mk_step")}
-        </p>
-        <h2 className="font-mono text-[22px] leading-none text-text-primary">
+        <p className="font-ui text-[12.5px] text-text-muted">{t("mk_step")}</p>
+        <h2 className="font-ui text-[22px] leading-tight tracking-[-0.01em] text-text-primary">
           {t("mk_title")}
         </h2>
         <p className="max-w-[68ch] font-ui text-[13.5px] leading-relaxed text-text-secondary">
@@ -532,10 +532,10 @@ export function PickMarket({
                   setKlass(c.key);
                   setCursor(0);
                 }}
-                className={`h-8 rounded-full border px-3.5 font-mono text-[11px] transition-colors ${
+                className={`h-8 rounded-full border px-3.5 font-ui text-[12.5px] font-medium transition-colors ${
                   klass === c.key
-                    ? "border-accent bg-accent-wash text-accent"
-                    : "border-border text-text-secondary hover:border-grid-strong"
+                    ? "border-border bg-surface-2 text-text-primary"
+                    : "border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
                 }`}
               >
                 {t(c.labelKey)}
@@ -570,7 +570,7 @@ export function PickMarket({
                   setCursor(0);
                 }}
                 aria-label={t("mk_venue")}
-                className={`${SURFACE} px-2 py-1 font-mono text-[11px] text-text-primary outline-none focus:border-accent`}
+                className="h-8 rounded-full border border-border bg-transparent pr-6 pl-3 font-ui text-[12.5px] text-text-primary outline-none transition-colors hover:border-grid-strong focus-visible:border-grid-strong"
               >
                 <option value="all" className="bg-bg">
                   {t("mk_venue_all")}
@@ -585,25 +585,68 @@ export function PickMarket({
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          <input
-            ref={search}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setCursor(0);
-            }}
-            placeholder={t("mk_search_placeholder")}
-            spellCheck={false}
-            aria-label={t("mk_search_aria")}
-            className="h-9 w-[210px] border-b border-grid-strong bg-transparent font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-          />
-          <span className="font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase">
+          {/* The shortcut is IN the field, where the hand is, as a key cap that
+              disappears the moment the field has focus. */}
+          <label className="flex h-9 w-[240px] items-center gap-2 rounded-full border border-border px-3.5 transition-colors focus-within:border-grid-strong hover:border-grid-strong">
+            <Search className="size-3.5 shrink-0 text-text-muted" aria-hidden />
+            <input
+              ref={search}
+              data-market-search=""
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setCursor(0);
+              }}
+              placeholder={t("mk_search_placeholder")}
+              spellCheck={false}
+              aria-label={t("mk_search_aria")}
+              className="peer min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+            />
+            <kbd
+              aria-hidden
+              className="rounded-md border border-border px-1.5 font-mono text-[10.5px] leading-[18px] text-text-muted transition-opacity peer-focus:opacity-0"
+            >
+              /
+            </kbd>
+          </label>
+          <span className="tnum font-ui text-[12px] text-text-muted">
             {rows.length === 1
               ? t("mk_count_one")
               : t("mk_count_many", { count: rows.length })}
           </span>
         </div>
       </div>
+
+      {/* THE SELECTION, WHERE THE HAND IS. Picking a row used to change a row
+          state and a line in the rail 800px away. Now the chosen markets stand
+          above the list as chips, each removable, each arriving with a small
+          rise — so the decision is visible next to the thing that made it. */}
+      {value.length > 0 || discovery ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-ui text-[12px] text-text-muted">{t("mk_chosen")}</span>
+          {value.map((a) => (
+            <span
+              key={idOf(a)}
+              className="reveal-in inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface-2 pl-3 pr-1.5 font-ui text-[12.5px] font-medium text-text-primary"
+            >
+              {a.symbol}
+              <button
+                type="button"
+                aria-label={t("mk_remove", { symbol: a.symbol })}
+                onClick={() => onChange(value.filter((v) => idOf(v) !== idOf(a)))}
+                className="flex size-5 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface hover:text-text-primary"
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </span>
+          ))}
+          {discovery ? (
+            <span className="reveal-in inline-flex h-8 items-center rounded-full border border-border bg-surface-2 px-3 font-ui text-[12.5px] font-medium text-text-primary">
+              {t("dsc_title")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {universe.phase === "loading" ? (
         <Note>{t("mk_resolving")}</Note>
@@ -620,8 +663,8 @@ export function PickMarket({
               : t("mk_no_filter_match")}
         </Note>
       ) : (
-        <div ref={listRef} className="border border-grid">
-          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-mono text-[9px] tracking-[0.12em] text-text-dim uppercase">
+        <div ref={listRef} className="overflow-hidden rounded-xl border border-border">
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted">
             <span>{t("mk_col_market")}</span>
             <span className="text-right">{t("mk_col_price")}</span>
             <span className="text-right">{t("mk_col_24h")}</span>
@@ -642,15 +685,33 @@ export function PickMarket({
               data-row={i}
               onMouseEnter={() => setCursor(i)}
               onClick={() => toggle(a)}
-              className={`grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
-                i === cursor ? "bg-panel" : ""
-              } ${chosen(a) ? "bg-accent-wash" : ""}`}
+              aria-pressed={chosen(a)}
+              // The cursor row is a surface; a chosen row is a tick. Two facts,
+              // two marks — the wash used to stand for both, so a hovered pick
+              // and a pick you had made looked the same.
+              className={`relative grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
+                i === cursor ? "bg-surface-2/70" : ""
+              }`}
             >
+              {i === cursor ? (
+                <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-text-primary/60" />
+              ) : null}
               <span className="flex min-w-0 items-center gap-2.5">
-                <AssetLogo symbol={a.underlying ?? a.symbol} issuer={a.issuer} src={a.iconUrl} size={18} />
+                <span className="flex size-[18px] shrink-0 items-center justify-center">
+                  {chosen(a) ? (
+                    <span
+                      key="on"
+                      className="reveal-in flex size-[18px] items-center justify-center rounded-full bg-accent text-bg"
+                    >
+                      <Check className="size-3" strokeWidth={2.5} aria-hidden />
+                    </span>
+                  ) : (
+                    <AssetLogo symbol={a.underlying ?? a.symbol} issuer={a.issuer} src={a.iconUrl} size={18} />
+                  )}
+                </span>
                 <span
                   className={`truncate font-mono text-[13px] ${
-                    chosen(a) ? "text-accent" : "text-text-primary"
+                    chosen(a) ? "text-text-primary" : "text-text-primary"
                   }`}
                 >
                   {a.symbol}/USDC
@@ -761,7 +822,7 @@ export function PickMarket({
         {/* Keyboard hints describe the TABLE. On the discovery tab they would
             name controls that are not on screen. */}
         <div
-          className={`flex flex-wrap items-center gap-5 font-mono text-[10px] tracking-[0.08em] text-text-muted uppercase ${
+          className={`flex flex-wrap items-center gap-5 font-ui text-[12px] text-text-muted ${
             view === "markets" ? "" : "invisible"
           }`}
         >
@@ -775,24 +836,9 @@ export function PickMarket({
         </div>
 
         <div className="flex items-center gap-4">
-          {value.length > 0 || discovery ? (
-            <span className="font-ui text-[12.5px] text-text-secondary">
-              {/* Named, not just counted, while the list is short enough to read.
-                  "3 markets" is a number; "AAPLx, NVDAx, MSFTx" is the decision.
-                  A screen is named too, because "3 markets" beside a strategy
-                  that also screens two hundred is the wrong summary. */}
-              {[
-                value.length === 0
-                  ? null
-                  : value.length <= 4
-                    ? value.map((a) => a.symbol).join(", ")
-                    : t("mk_count_many", { count: value.length }),
-                discovery ? t("dsc_title") : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          ) : null}
+          {/* The selection is named in the chip row above the list now, where
+              the hand is; a second summary here said it twice. */}
+          {onNext ? (
           <button
             type="button"
             onClick={onNext}
@@ -805,6 +851,7 @@ export function PickMarket({
           >
             {t(value.length === 0 && !discovery ? "mk_pick_a_market" : "mk_continue")}
           </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@
 
 export const enLimits = {
   // ── Header ─────────────────────────────────────────────────────
-  sl_step: "Step 2 of 2 · Assign",
+  sl_step: "Step 2 of 3 · Limits",
   sl_title: "Set your limits",
   sl_markets_one: "{symbol}/USDC",
   sl_markets_many: "{count} markets",
@@ -14,9 +14,6 @@ export const enLimits = {
 
   // ── Compose ────────────────────────────────────────────────────
   sl_strategy_for: "Strategy · {markets}",
-  sl_mode_write: "Write it",
-  sl_mode_preset: "Preset",
-  sl_reading_it: "Reading it…",
   // The composer is a model and answers in the language it was prompted in, so
   // the sentence a user types decides what comes back. This placeholder is the
   // only nudge, and it is written in the reader's language for that reason.
@@ -47,11 +44,23 @@ export const enLimits = {
   sl_rules_appear:
     "The rules appear here once you compile — every one of them editable before anything runs. Or",
   sl_set_by_hand: "set them by hand",
-  sl_read_as: "Read as — edit any rule",
-  sl_nothing_runs_one:
-    "Nothing runs until you confirm these. Switch a rule off to stop it applying, or rewrite the sentence above and compile again. 1 rule is active.",
-  sl_nothing_runs_many:
-    "Nothing runs until you confirm these. Switch a rule off to stop it applying, or rewrite the sentence above and compile again. {count} rules are active.",
+  sl_stage_reading: "Reading the sentence",
+  sl_stage_drafting: "Drafting the rules",
+  sl_stage_checking: "Checking what's missing",
+  sl_try_one: "Try one:",
+  sl_group_rules: "Rules",
+  sl_group_exits: "Exits",
+  sl_show_off_rules: "Show {count} more rules",
+  sl_hide_off_rules: "Hide the rules that are off",
+  sl_fine_tune: "Fine-tune the rules",
+  sl_rules_on: "{on} of {total} on",
+  sl_card_eyebrow: "{symbol} · read as",
+  sl_card_eyebrow_plain: "Read as",
+  sl_card_position: "Per position",
+  sl_card_bars: "Bars",
+  sl_card_hand_none: "Nothing on yet. Turn on a rule below, or write a sentence above.",
+  sl_card_hand_one: "One rule is on. Open Fine-tune to see it.",
+  sl_card_hand_many: "{count} rules are on. Open Fine-tune to see them.",
   sl_window: " Window: {span}.",
   sl_on: "On",
   sl_off: "Off",
@@ -93,20 +102,27 @@ export const enLimits = {
     "These steps sell the whole position. Leave something behind, or use Take profit.",
 
   // ── Timing ─────────────────────────────────────────────────────
-  sl_chart_timeframe: "Chart timeframe",
   sl_not_served: "not served",
   sl_timeframe_help:
     "This changes what your rules mean, not just how often they run. Every rule above relabels, states its window in real time, and moves its threshold with the bar — a trend floor of 3% on daily becomes 0.3% here, because that is the same ask. One exception, and it says so on the chip: change on the day is always 24 hours. Use Min momentum for a change measured on your own bars.",
+  sl_timeframe: "Timeframe",
+  sl_wakes_every: "Wakes every {cadence}",
+  sl_cycle_change: "Wake on a different cycle",
+  sl_cycle_match: "Match the bars",
+  sl_position_info: "The most the agent may put into one market in one trade. Never exceeded, never split to get around.",
   sl_cycle: "Cycle",
 
   // ── Budget ─────────────────────────────────────────────────────
   sl_budget: "Budget for this market",
   sl_position_limit: "Position size limit",
-  sl_position_help:
-    "Most per trade, per market. Never exceeded. {pct}% of the {book} paper book.",
   sl_trades_per_cycle: "Max trades per cycle",
   sl_unit_trades: "trades",
   sl_trades_help: "Entries per wake-up. The agent never splits an order to get around it.",
+  sl_budget_note: "Against a {book} paper book",
+  sl_position_consequence: "{pct}% of the book · up to {positions} open at once",
+  sl_unit_trade: "trade",
+  sl_step_down: "Fewer {label}",
+  sl_step_up: "More {label}",
 
   // ── Ranking ────────────────────────────────────────────────────
   sl_how_many: "How many to hold",
@@ -138,16 +154,18 @@ export const enLimits = {
 
   // ── Checklist ──────────────────────────────────────────────────
   sl_ask_reinterpreted:
-    "\u201c{phrase}\u201d asks how much something MOVED, and every reading I have measures where it IS. I set the closest one — tell me which you meant and I will set that instead.",
+    "\u201c{phrase}\u201d asks how much something moved, and my readings measure where it is now. I set the closest one. Which did you mean?",
   sl_ask_reint_chip_1: "measure the change over the last 20 bars",
   sl_ask_reint_chip_2: "the level is what I meant, leave it",
   sl_ask_reint_chip_3: "drop that condition",
   sl_ask_unsupported:
-    "I could not turn \u201c{phrase}\u201d into anything I measure, so it is not in the strategy. Is there a reading I do have that should stand in its place?",
+    "I don't have a reading for \u201c{phrase}\u201d, so it isn't in your rules yet. Want something close in its place?",
   sl_ask_unsup_chip_1: "leave it out, the rest is right",
   sl_ask_unsup_chip_2: "what readings do you have that are close?",
   sl_ask_unclear:
-    "I could not trace \u201c{phrase}\u201d to anything the agent does. What should it change?",
+    "\u201c{phrase}\u201d didn't turn into a rule. Tell me what it should check, or leave it out.",
+  sl_ask_unclear_chip_1: "require at least $50,000 of liquidity in the pool",
+  sl_ask_unclear_chip_2: "leave it out, the rest is right",
   sl_clause_honoured: "done",
   sl_clause_adjusted: "adjusted",
   sl_clause_reinterpreted: "read differently",
@@ -172,10 +190,6 @@ export const enLimits = {
   sl_rule_unattributed:
     "I set {rule}, and nothing you wrote asks for it directly — check it says what you meant.",
 
-  sl_before_trade: "Before it can trade",
-  sl_all_set: "All set",
-  sl_still_assumed: "{count} still assumed",
-  sl_assumed: "assumed",
   sl_you: "You",
   sl_desk: "Strategy desk",
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pill, PillRow, PillTag, StepHead } from "@/components/wizard";
+import { InfoDot } from "@/components/kit";
 import type {
   AddPlan,
   AddSizing,
@@ -1035,13 +1036,14 @@ function Slider({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="grid gap-3 border-b border-grid py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_220px_76px] lg:items-center lg:gap-5">
-      <div className="min-w-0">
-        <p className="font-mono text-[12px] text-text-primary">
+    <div className="grid gap-3 border-b border-grid py-3.5 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_220px_76px] lg:items-center lg:gap-5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <p className="font-ui text-[13px] font-medium text-text-primary">
           {label}
-          {qualifier ? <span className="text-text-dim"> {qualifier}</span> : null}
+          {qualifier ? <span className="font-normal text-text-dim"> {qualifier}</span> : null}
         </p>
-        <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">{help}</p>
+        {/* The explanation is a hover away, not a second line under every row. */}
+        <InfoDot label={label}>{help}</InfoDot>
       </div>
       <input
         type="range"
@@ -1053,7 +1055,7 @@ function Slider({
         aria-label={label}
         className="accent-accent"
       />
-      <span className="tnum text-right font-mono text-[13px] text-accent">{display}</span>
+      <span className="tnum text-right font-mono text-[13px] text-text-primary">{display}</span>
     </div>
   );
 }
@@ -1207,7 +1209,12 @@ export function AddPlanCard({
       <StepHead
         index="04"
         title={t("acc_title")}
-        note={t("acc_note")}
+        info={
+          <>
+            {t("acc_note")} {t("acc_off_body")}
+            <span className="block pt-1.5 text-text-dim">{t("acc_all_checks")}</span>
+          </>
+        }
       />
 
       <button
@@ -1221,28 +1228,19 @@ export function AddPlanCard({
         {t(on ? "acc_on" : "acc_off")}
       </button>
 
-      {!on ? (
-        <p className="max-w-[64ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          {t("acc_off_body")}
-        </p>
-      ) : (
+      {!on ? null : (
         <div className="mt-4 space-y-5">
-          {plan?.perLotExits ? (
-            <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              {t("acc_perlot_note")}
-            </p>
-          ) : (
-            <p className="max-w-[64ch] font-ui text-[12.5px] leading-relaxed text-warning">
-              {t("acc_blend_warning")}
-            </p>
-          )}
-
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-3.5 py-3">
-            <div>
+            <div className="flex items-center gap-1.5">
               <p className="font-ui text-[12.5px] text-text-primary">{t("acc_perlot_title")}</p>
-              <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+              {/* What each half means, and what the current one does to the
+                  exits — one dot instead of two paragraphs above the row. */}
+              <InfoDot label={t("acc_perlot_title")}>
                 {t("acc_perlot_body")}
-              </p>
+                <span className="block pt-1.5 text-text-dim">
+                  {t(plan?.perLotExits ? "acc_perlot_note" : "acc_blend_warning")}
+                </span>
+              </InfoDot>
             </div>
             <button
               type="button"
@@ -1375,8 +1373,11 @@ export function AddPlanCard({
           </div>
 
           <div>
-            <p className="pb-2 font-ui text-[11.5px] text-text-muted">
+            <p className="flex items-center gap-1.5 pb-2 font-ui text-[11.5px] text-text-muted">
               {t("acc_guard_heading")}
+              <InfoDot label={t("acc_guard_heading")}>
+                {t(guarded ? "acc_guard_on_body" : "acc_guard_off_body")}
+              </InfoDot>
             </p>
             <button
               type="button"
@@ -1390,9 +1391,6 @@ export function AddPlanCard({
             >
               {t(guarded ? "acc_guard_on" : "acc_guard_off")}
             </button>
-            <p className="max-w-[64ch] pt-2.5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              {t(guarded ? "acc_guard_on_body" : "acc_guard_off_body")}
-            </p>
           </div>
 
           <div>
@@ -1515,9 +1513,6 @@ export function AddPlanCard({
             </ul>
           ) : null}
 
-          <p className="max-w-[64ch] font-ui text-[12px] leading-relaxed text-text-dim">
-            {t("acc_all_checks")}
-          </p>
         </div>
       )}
     </section>

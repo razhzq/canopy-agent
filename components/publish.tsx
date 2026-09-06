@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { DayBlocks } from "@/components/charts";
-import { BUILD_STAGES } from "@/lib/data";
 import {
   Badge,
   CheckIcon,
@@ -14,7 +13,6 @@ import {
   SectionHead,
   WarnIcon,
 } from "@/components/ui";
-import { StepBar } from "@/components/wizard";
 import { useT } from "@/lib/i18n";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonPanel } from "@/components/skeleton";
@@ -81,7 +79,6 @@ export function PublishScreen() {
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <main>
-      <StepBar steps={BUILD_STAGES} current={1} />
       {children}
     </main>
   );
@@ -208,7 +205,7 @@ function Body({
                 </Link>
                 {live ? (
                   <Link
-                    href={`/deploy/describe?strategy=${strategy.id}`}
+                    href={`/agents/${strategy.id}`}
                     className="flex h-11 w-full items-center border border-border px-4 font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
                   >
                     {t("pub_view_marketplace")}

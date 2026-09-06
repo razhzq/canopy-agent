@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Callout, Columns, WarnIcon } from "@/components/ui";
+import { Callout, CheckIcon, Columns, WarnIcon } from "@/components/ui";
+import { PRIMARY, QUIET } from "@/components/kit";
 import {
   classFor,
   createStrategy,
@@ -20,7 +21,6 @@ import {
   BuildFrame,
   BuildCta,
 } from "@/components/buildAgentMobile";
-import { NameAgentModal } from "@/components/nameAgent";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
@@ -113,6 +113,20 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
  * wallet or a balance exists.
  */
 
+const DRAFT_KEY = "canopy_build_draft_v1";
+
+interface Draft {
+  v: 1;
+  savedAt: number;
+  name: string;
+  named: boolean;
+  step: number;
+  markets: UniverseAsset[];
+  discovery: DiscoverySpec | undefined;
+  limits: Limits;
+  model: ModelChoice;
+}
+
 const STEPS: { index: string; labelKey: TranslationKey }[] = [
   { index: "01", labelKey: "build_step_market" },
   { index: "02", labelKey: "build_step_limits" },
@@ -148,7 +162,17 @@ export function BuildAgent() {
   const t = useT();
 
   const [name, setName] = useState("");
-  const [named, setNamed] = useState(false);
+  /**
+   * WHY THE NAME IS NOT ASKED FIRST. People name things after they know what
+   * they are. The builder used to open on a modal with one empty field, before
+   * a market or a rule had been seen — a wall, and Cancel threw you back to
+   * wherever you came from. Now it opens on step 1 with the name editable in
+   * the header, and when the model step is reached with the field still empty,
+   * a name is suggested from the choice ("SOL agent"), where changing it costs
+   * one edit rather than a decision. `named` only remains for the mobile
+   * "edit name" screen.
+   */
+  const [named, setNamed] = useState(true);
   const [step, setStep] = useState(0);
   /**
    * Every market the agent may trade, in the order they were picked.
@@ -193,6 +217,19 @@ export function BuildAgent() {
   // markets, so there is nothing to keep in sync and nothing to strand.
   const venues = describeVenues(markets, t);
   const [busy, setBusy] = useState(false);
+  /**
+   * THE RUN HAS STAGES, AND THE BUTTON SAYS WHICH. "Starting…" used to cover
+   * two requests and a possible warnings round-trip. Now: saving the strategy,
+   * then starting the run, then a short frame that says the agent is on paper
+   * before the workspace (or the funding steps) take over.
+   */
+  const [stage, setStage] = useState<"saving" | "starting" | null>(null);
+  const [launched, setLaunched] = useState<{ name: string; next: () => void; funding: boolean } | null>(null);
+  useEffect(() => {
+    if (!launched) return;
+    const id = setTimeout(launched.next, 1_300);
+    return () => clearTimeout(id);
+  }, [launched]);
   const [error, setError] = useState<string | null>(null);
   // A created-but-not-yet-started strategy, held back because its plan drew
   // warnings. The id is kept so confirming starts THAT strategy rather than
@@ -215,6 +252,150 @@ export function BuildAgent() {
 
   const activeRules = limits.rules.filter((r) => r.enabled !== false);
 
+  /* ------------------------------------------------------------- drafts --
+     Everything above is component state, which is to say it lived exactly as
+     long as the tab. A refresh at step 3 threw away ten minutes of work and
+     the header said "New draft" over a page that never saved one.
+
+     The draft is a snapshot in localStorage, written a beat after any change
+     and read back once on mount. Restoring is silent and complete — the page
+     opens where it was left, with one quiet line saying so and a way to start
+     over — because asking "resume?" is a question with only one sensible
+     answer. Cleared the moment a run actually starts, so a finished agent
+     never comes back as an unfinished draft. */
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  /**
+   * THE NAMING MOMENT. A fresh builder opens on one large field with the caret
+   * already in it, and the market step sits beneath, dimmed. Pressing Enter
+   * hands the name up to the header and brings the picker into focus — so the
+   * first thing asked is the name, without a modal between the reader and the
+   * page. "open" is the field; "leaving" is its 200ms exit; "done" is the
+   * ordinary builder. `null` until the draft has been read, so a resumed draft
+   * never flashes the field.
+   */
+  const [naming, setNaming] = useState<"open" | "leaving" | "done" | null>(null);
+  const [saved, setSaved] = useState(false);
+  const hydrated = useRef(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        if (d && d.v === 1) {
+          setName(d.name ?? "");
+          setNamed(!!d.named);
+          setStep(d.step ?? 0);
+          setMarkets(d.markets ?? []);
+          setDiscovery(d.discovery);
+          setLimits(d.limits ?? DEFAULT_LIMITS);
+          setModel(d.model ?? DEFAULT_MODEL);
+          if ((d.name ?? "").trim() !== "" || (d.markets ?? []).length > 0 || d.discovery) {
+            setRestoredAt(d.savedAt);
+            setNaming("done");
+          }
+        }
+      }
+    } catch {
+      /* a corrupt draft is dropped, not fatal */
+    }
+    hydrated.current = true;
+    setNaming((n) => n ?? "open");
+  }, []);
+
+  /**
+   * MOVING BETWEEN STEPS. Pressing Continue used to swap one form for another
+   * in the same frame, with the reader left wherever a long limits step had
+   * scrolled them. Now the direction is remembered, the new step slides in
+   * 12px from the side it came from (see `.step-enter-*`), and the column
+   * starts at the top.
+   */
+  const dir = useRef<"fwd" | "back">("fwd");
+  function goTo(next: number): void {
+    if (next === step) return;
+    dir.current = next > step ? "fwd" : "back";
+    setStep(next);
+    if (typeof window !== "undefined" && window.scrollY > 0) window.scrollTo({ top: 0 });
+  }
+
+  /** The field hands over: it slides up and out, then the picker takes focus. */
+  function commitName(): void {
+    if (naming !== "open") return;
+    setNaming("leaving");
+    setTimeout(() => {
+      setNaming("done");
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLInputElement>("[data-market-search]")?.focus(),
+      );
+    }, 220);
+  }
+
+  const dirty = name.trim() !== "" || markets.length > 0 || !!discovery;
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    if (!dirty) return;
+    const id = setTimeout(() => {
+      try {
+        const d: Draft = { v: 1, savedAt: Date.now(), name, named, step, markets, discovery, limits, model };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+        setSaved(true);
+        if (savedTimer.current) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setSaved(false), 1500);
+      } catch {
+        /* storage full or blocked — the page still works, it just forgets */
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [dirty, name, named, step, markets, discovery, limits, model]);
+
+  // Leaving with an unfinished draft asks first. The draft is saved
+  // either way; this is for the tab closed by accident mid-sentence.
+  useEffect(() => {
+    const onLeave = (e: BeforeUnloadEvent) => {
+      if (!dirty || funding) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [dirty, funding]);
+
+  // The name, suggested once the agent is a thing: on reaching the model step
+  // with the field still empty, from the market picked (or the screen).
+  useEffect(() => {
+    if (step !== 2 || name.trim() !== "") return;
+    if (markets.length === 1) setName(t("build_name_suggest_one", { symbol: markets[0].symbol }));
+    else if (markets.length > 1) {
+      setName(t("build_name_suggest_many", { symbol: markets[0].symbol, count: markets.length - 1 }));
+    } else if (discovery) setName(t("build_name_suggest_screen"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  function clearDraft(): void {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+  }
+
+  function startFresh(): void {
+    clearDraft();
+    setRestoredAt(null);
+    setName("");
+    setNamed(false);
+    setStep(0);
+    setMarkets([]);
+    setDiscovery(undefined);
+    setLimits(DEFAULT_LIMITS);
+    setModel(DEFAULT_MODEL);
+    setPending(null);
+    setError(null);
+    setNaming("open");
+  }
+
   /**
    * Starts the paper run and leaves the builder.
    *
@@ -227,7 +408,12 @@ export function BuildAgent() {
     // Creating leaves it a draft. Starting the paper run freezes the rules and
     // deploys the agent, so the button does what it says rather than leaving a
     // half-made thing behind.
+    setStage("starting");
     const { agentId } = await startPaperRun(token, strategyId);
+    // The agent exists. Whatever happens next, this draft is done.
+    clearDraft();
+    setStage(null);
+    const agentName = name.trim() || t("build_untitled");
 
     // A Pod agent funds itself HERE, before leaving the builder.
     //
@@ -255,11 +441,16 @@ export function BuildAgent() {
         // Not worth failing the run over: the agent is created and deployed,
         // and the panel's own state is fetched from the agent id regardless.
       }
-      setFunding({ agentId, wallet });
+      // The confirmation frame first, then the funding steps slide in.
+      setLaunched({ name: agentName, funding: true, next: () => setFunding({ agentId, wallet }) });
       return;
     }
 
-    router.push(`/workspace/${agentId}?tab=overview`);
+    setLaunched({
+      name: agentName,
+      funding: false,
+      next: () => router.push(`/workspace/${agentId}?tab=overview`),
+    });
   }
 
   /**
@@ -299,6 +490,7 @@ export function BuildAgent() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      setStage(null);
     }
   }
 
@@ -315,8 +507,9 @@ export function BuildAgent() {
         throw new Error(t("build_pick_market_error"));
       }
 
+      setStage("saving");
       const { strategy, warnings } = await createStrategy(token, {
-        name: name.trim(),
+        name: name.trim() || t("build_untitled"),
         // Still ONE value, because the column is one value — but it is no
         // longer what decides the specialist. The tick reads the UNIVERSE and
         // runs a specialist per class present (MultiSme), so this is the
@@ -400,6 +593,7 @@ export function BuildAgent() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+      setStage(null);
     }
   }
 
@@ -570,6 +764,26 @@ export function BuildAgent() {
      just finished building an agent that it was broken. FundNewAgent says the
      two things that are actually true here instead, and shows both of them at
      once rather than revealing the second after the first is signed. */
+  if (launched) {
+    // The moment between "pressed" and "somewhere else": the agent named, a
+    // tick, and where it is going next. Long enough to read, not to wait for.
+    return (
+      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center px-6">
+        <div className="reveal-in flex flex-col items-center text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-accent text-bg">
+            <CheckIcon className="size-5" />
+          </span>
+          <h1 className="mt-5 font-ui text-[24px] font-medium tracking-[-0.01em] text-text-primary">
+            {t("build_launched", { name: launched.name })}
+          </h1>
+          <p className="mt-2 font-ui text-[13px] text-text-secondary">
+            {t(launched.funding ? "build_launched_fund" : "build_launched_next")}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (funding) {
     return (
       <FundNewAgent
@@ -603,7 +817,7 @@ export function BuildAgent() {
           value={name}
           onChange={setName}
           onConfirm={() => name.trim() && setNamed(true)}
-          onCancel={() => router.replace(lastRoute())}
+          onCancel={() => setNamed(true)}
         />
       );
     }
@@ -655,7 +869,7 @@ export function BuildAgent() {
         step={step + 1}
         steps={STEPS.length}
         title={t("build_title")}
-        onBack={() => (step === 0 ? setNamed(false) : setStep(step - 1))}
+        onBack={() => (step === 0 ? router.replace(lastRoute()) : setStep(step - 1))}
         cta={<BuildCta {...stepCta} />}
       >
         <div className="px-[18px] pb-6">
@@ -693,21 +907,6 @@ export function BuildAgent() {
     );
   }
 
-  if (!named) {
-    return (
-      <NameAgentModal
-        onConfirm={(n) => {
-          setName(n);
-          setNamed(true);
-        }}
-        // Back where they were, not to a page they never asked for. `replace`
-        // rather than `push` so the builder does not sit in history — pressing
-        // Back after cancelling must not reopen the naming modal.
-        onCancel={() => router.replace(lastRoute())}
-      />
-    );
-  }
-
   return (
     <main>
       {/* WHAT USED TO BE HERE: the lifecycle bar — 01 Draft · configure,
@@ -724,69 +923,112 @@ export function BuildAgent() {
           in a real sequence. */}
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-grid px-5 sm:px-8 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="shrink-0 font-mono text-[10px] tracking-[0.14em] text-text-dim uppercase">
-            {t("build_new_draft")}
-          </span>
+          <span className="shrink-0 font-ui text-[12.5px] text-text-muted">{t("build_new_draft")}</span>
+          {/* Arrives from the naming field below; until then the header has
+              no second field competing with it. */}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onBlur={() => {
-              if (!name.trim()) setName(t("build_untitled"));
-            }}
+            placeholder={t("build_name_placeholder")}
             spellCheck={false}
             aria-label={t("build_name_aria")}
-            className="w-[220px] border-b border-transparent bg-transparent pb-0.5 font-mono text-[14px] text-text-primary outline-none transition-colors hover:border-grid-strong focus:border-accent"
+            tabIndex={naming === "done" ? undefined : -1}
+            className={`w-[240px] border-b border-transparent bg-transparent pb-0.5 font-ui text-[14px] font-medium text-text-primary outline-none transition-[opacity,border-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] placeholder:font-normal placeholder:text-text-dim hover:border-grid-strong focus:border-accent ${
+              naming === "done" ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
           />
+          {/* Appears for a beat after each snapshot, then goes. A standing
+              "Saved" is furniture; one that arrives when it is true is a fact. */}
+          <span
+            aria-live="polite"
+            className={`font-ui text-[11.5px] text-text-muted transition-opacity duration-300 ${
+              saved ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {t("build_saved")}
+          </span>
         </div>
 
-        <nav
-          aria-label={t("build_steps_aria")}
-          className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
-        >
-          {STEPS.map((s, i) => (
-            <button
-              key={s.index}
-              type="button"
-              aria-current={i === step ? "step" : undefined}
-              onClick={() => i < step && setStep(i)}
-              disabled={i > step}
-              className={`flex h-7 items-center gap-2 rounded-full px-3.5 transition-colors ${
-                i === step
-                  ? "bg-accent-wash text-accent"
-                  : i < step
-                    ? "text-text-secondary hover:text-text-primary"
-                    : "cursor-default text-text-muted"
-              }`}
-            >
-              <span className="tnum font-mono text-[9.5px] opacity-70">
-                {s.index}
-              </span>
-              <span className="font-mono text-[11.5px] tracking-[0.04em]">
-                {t(s.labelKey)}
-              </span>
-            </button>
-          ))}
-        </nav>
+        <StepPill
+          step={step}
+          labels={STEPS.map((s) => ({ index: s.index, label: t(s.labelKey) }))}
+          onSelect={goTo}
+          ariaLabel={t("build_steps_aria")}
+        />
       </section>
+
+      {restoredAt !== null ? (
+        <div className="flex items-center gap-4 border-b border-grid px-5 py-2.5 sm:px-8">
+          <p className="font-ui text-[12.5px] text-text-secondary">{t("build_resumed")}</p>
+          <button
+            type="button"
+            onClick={startFresh}
+            className="font-ui text-[12.5px] text-text-secondary underline-offset-4 transition-colors hover:text-text-primary hover:underline"
+          >
+            {t("build_start_fresh")}
+          </button>
+        </div>
+      ) : null}
 
       <Columns
         main={
-          <div className="px-5 sm:px-8 py-8">
+          <div className="flex min-h-[calc(100vh-64px-53px)] flex-col">
+          <div className="flex-1 px-5 sm:px-8 py-8">
+          <div
+            key={step}
+            className={dir.current === "back" ? "step-enter-back" : "step-enter-fwd"}
+          >
+            {step === 0 && naming !== null && naming !== "done" ? (
+              <div
+                className={`mb-10 transition-[opacity,transform] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
+                  naming === "leaving" ? "-translate-y-2 opacity-0" : ""
+                }`}
+              >
+                <p className="font-ui text-[12.5px] text-text-muted">{t("build_name_eyebrow")}</p>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitName();
+                    }
+                  }}
+                  placeholder={t("build_name_placeholder")}
+                  spellCheck={false}
+                  aria-label={t("build_name_aria")}
+                  className="mt-2 w-full max-w-[26ch] border-b border-grid-strong bg-transparent pb-2 font-ui text-[32px] font-light leading-tight tracking-[-0.02em] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+                  <span className="font-ui text-[12.5px] text-text-muted">{t("build_name_help")}</span>
+                  <button type="button" onClick={commitName} className={QUIET}>
+                    {t("build_name_later")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {step === 0 || (!asset && !discovery) ? (
-              <PickMarket
-                value={markets}
-                onChange={onMarketsChange}
-                discovery={discovery}
-                onDiscoveryChange={onDiscoveryChange}
-                onNext={() => setStep(1)}
-              />
+              <div
+                aria-hidden={naming !== "done"}
+                className={`transition-[opacity,transform] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
+                  naming === "done" ? "" : "pointer-events-none translate-y-3 select-none opacity-30"
+                }`}
+              >
+                <PickMarket
+                  value={markets}
+                  onChange={onMarketsChange}
+                  discovery={discovery}
+                  onDiscoveryChange={onDiscoveryChange}
+                />
+              </div>
             ) : step === 1 ? (
               <SetLimits
                 markets={markets}
                 discovery={discovery}
                 value={limits}
                 onChange={setLimits}
-                onBack={() => setStep(0)}
+                onBack={() => goTo(0)}
               />
             ) : (
               // `isPaper` is unconditionally true: this wizard only ever ends in
@@ -797,19 +1039,176 @@ export function BuildAgent() {
                 onChange={setModel}
                 cadenceSec={limits.cadenceSec}
                 isPaper
-                onBack={() => setStep(1)}
               />
             )}
+          </div>
+          </div>
+
+          {/* Anything in the way of the next press sits right above it. */}
+          {error || pending ? (
+            <div className="space-y-3 px-5 pb-5 sm:px-8">
+              {error ? (
+                <Callout tone="negative" icon={<WarnIcon />}>
+                  {error}
+                </Callout>
+              ) : null}
+              {pending ? (
+                // Advice, not an error: the amber tone. "Go back" is the
+                // primary because the warnings exist to be read; starting
+                // anyway is the quiet way past them.
+                <Callout tone="warning" icon={<WarnIcon />} title={t("build_check_plan")}>
+                  <ul className="space-y-1">
+                    {pending.warnings.map((w) => (
+                      <li key={w} className="font-ui text-[12.5px] leading-relaxed">
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="block pt-2 font-ui text-[12px] leading-relaxed opacity-80">
+                    {t("build_draft_saved")}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-4 pt-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        // Back to the limits step with the plan intact. The
+                        // draft stays on the server; editing and submitting
+                        // again creates a new one, which is the same thing
+                        // every other abandoned draft in this flow does.
+                        setPending(null);
+                        goTo(1);
+                      }}
+                      className={`${PRIMARY} px-4`}
+                    >
+                      {t("build_go_back_edit")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={confirmPending}
+                      className={QUIET}
+                    >
+                      {t("build_start_anyway")}
+                    </button>
+                  </div>
+                </Callout>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* THE PRIMARY ACTION, UNDER THE CONTENT. It used to live in the
+              right rail, 800px from the list it acts on, with the gate spelled
+              out in amber uppercase beneath it — a hint styled as a warning, so
+              the page opened looking like something had already gone wrong.
+              Now: a footer that stays in view, Back quiet on the left, one
+              white pill on the right, and the gate is the pill's own label. */}
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-grid bg-bg/85 px-5 py-3.5 backdrop-blur-md sm:px-8">
+            <div className="flex items-center gap-5">
+              {step > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPending(null);
+                    goTo(step - 1);
+                  }}
+                  className={QUIET}
+                >
+                  ← {t("build_back_to", { step: t(STEPS[step - 1].labelKey) })}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  // Back where they were, not to a page they never asked for.
+                  // `replace` so the builder does not sit in history.
+                  onClick={() => router.replace(lastRoute())}
+                  className={QUIET}
+                >
+                  ← {t("common_cancel")}
+                </button>
+              )}
+              <span className="font-ui text-[12.5px] text-text-muted">
+                {t("wiz_step_of", { step: step + 1, total: STEPS.length })}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {step === 2 ? (
+                <span className="hidden font-ui text-[12.5px] text-text-muted md:inline">
+                  {t("build_paper_note_short")}
+                </span>
+              ) : null}
+              {step === 0 && naming !== "done" ? (
+                // The one pill commits the name while the field is the page.
+                <button
+                  type="button"
+                  onClick={commitName}
+                  disabled={name.trim() === "" || naming !== "open"}
+                  className={`${PRIMARY} px-5`}
+                >
+                  {t(name.trim() === "" ? "build_name_first" : "build_name_continue")}
+                </button>
+              ) : step === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => goTo(1)}
+                  disabled={markets.length === 0 && !discovery}
+                  className={`${PRIMARY} px-5`}
+                >
+                  {t(markets.length === 0 && !discovery ? "build_pick_market_first" : "build_continue_limits")}
+                </button>
+              ) : step === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => goTo(2)}
+                  // A strategy with no active rule buys nothing, ever — so the
+                  // gate sits here, one step before the run it would make
+                  // pointless.
+                  disabled={activeRules.length === 0}
+                  className={`${PRIMARY} px-5`}
+                >
+                  {t(activeRules.length === 0 ? "build_turn_on_rule" : "build_continue_model")}
+                </button>
+              ) : ready && !authenticated ? (
+                <button type="button" onClick={login} className={`${PRIMARY} px-5`}>
+                  {t("build_sign_in_to_start")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={busy || !ready || !!pending || activeRules.length === 0}
+                  className={`${PRIMARY} px-5`}
+                >
+                  {busy ? (
+                    <span
+                      aria-hidden
+                      className="mr-2 inline-block size-3 animate-spin rounded-full border-[1.5px] border-bg/30 border-t-bg"
+                    />
+                  ) : null}
+                  {t(
+                    stage === "saving"
+                      ? "build_stage_saving"
+                      : stage === "starting"
+                        ? "build_stage_starting"
+                        : busy
+                          ? "build_starting"
+                          : activeRules.length === 0
+                            ? "build_turn_on_rule"
+                            : "build_run_paper",
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
           </div>
         }
         rail={
           <>
             {/* "Your agent so far", per the wireframe: what has been decided
                 stays visible while the next thing is being decided. */}
-            <div className="border-b border-grid px-5 sm:px-8 py-7">
-              <h3 className="pb-4 font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                {t("build_so_far")}
-              </h3>
+            <div className="px-5 sm:px-8 py-7">
+              <h3 className="pb-4 font-ui text-[13px] font-medium text-text-primary">{t("build_so_far")}</h3>
               <Trail
                 // A screen answers this step as completely as a pick does, so
                 // the rail must count it as answered — otherwise a
@@ -859,19 +1258,9 @@ export function BuildAgent() {
                       : model.label
                 }
               />
-              <Trail
-                done={false}
-                label={t("build_trail_paper")}
-                value={t("build_trail_paper_value")}
-              />
-              <Trail
-                done={false}
-                label={t("build_trail_publish")}
-                value={t("build_trail_publish_value")}
-              />
 
               {step >= 1 ? (
-                <div className="mt-5 space-y-1.5 border-t border-grid pt-4">
+                <div className="mt-5 space-y-2 border-t border-grid pt-4">
                   <Row
                     label={t("build_row_position_cap")}
                     value={money(limits.positionUsd)}
@@ -907,150 +1296,6 @@ export function BuildAgent() {
               ) : null}
             </div>
 
-            <div className="px-5 sm:px-8 py-7">
-              <div className="flex items-center justify-between pb-4">
-                <h3 className="font-mono text-[12px] tracking-[0.08em] text-text-primary uppercase">
-                  {t("wiz_proceed")}
-                </h3>
-                <span className="font-mono text-[10px] tracking-[0.1em] text-text-dim uppercase">
-                  {t("wiz_step_of", { step: step + 1, total: STEPS.length })}
-                </span>
-              </div>
-
-              {error ? (
-                <div className="mb-4">
-                  <Callout tone="negative" icon={<WarnIcon />}>
-                    {error}
-                  </Callout>
-                </div>
-              ) : null}
-
-              {pending ? (
-                <div className="mb-4 space-y-3">
-                  <Callout tone="negative" icon={<WarnIcon />}>
-                    <span className="block pb-1.5 font-mono text-[10px] tracking-[0.14em] uppercase">
-                      {t("build_check_plan")}
-                    </span>
-                    <ul className="space-y-1">
-                      {pending.warnings.map((w) => (
-                        <li
-                          key={w}
-                          className="font-ui text-[12.5px] leading-relaxed"
-                        >
-                          {w}
-                        </li>
-                      ))}
-                    </ul>
-                    <span className="block pt-2 font-ui text-[12px] leading-relaxed opacity-80">
-                      {t("build_draft_saved")}
-                    </span>
-                  </Callout>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={confirmPending}
-                      className="h-9 rounded-full border border-grid px-4 font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary disabled:opacity-40"
-                    >
-                      {t("build_start_anyway")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        // Back to the limits step with the plan intact. The
-                        // draft stays on the server; editing and submitting
-                        // again creates a new one, which is the same thing
-                        // every other abandoned draft in this flow does.
-                        setPending(null);
-                        setStep(1);
-                      }}
-                      className="h-9 rounded-full border border-accent px-4 font-mono text-[10px] tracking-[0.08em] text-accent uppercase transition-colors disabled:opacity-40"
-                    >
-                      {t("build_go_back_edit")}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {step === 0 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    disabled={markets.length === 0}
-                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-                  >
-                    {t("build_continue_limits")}
-                  </button>
-                  {markets.length === 0 ? (
-                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      {t("build_pick_market_first")}
-                    </p>
-                  ) : null}
-                </>
-              ) : step === 1 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    disabled={activeRules.length === 0}
-                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-                  >
-                    Continue to model
-                  </button>
-                  {activeRules.length === 0 ? (
-                    // A strategy with no active rule buys nothing, ever — so the
-                    // gate sits here, one step before the run it would have made
-                    // pointless.
-                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      Turn on at least one rule
-                    </p>
-                  ) : null}
-                </>
-              ) : ready && !authenticated ? (
-                <button
-                  type="button"
-                  onClick={login}
-                  className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg"
-                >
-                  {t("build_sign_in_to_start")}
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={submit}
-                    disabled={busy || !ready || activeRules.length === 0}
-                    className="flex h-14 w-full items-center justify-center border border-accent bg-accent-wash font-mono text-[12px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent hover:text-bg disabled:cursor-not-allowed disabled:border-grid disabled:bg-panel disabled:text-text-dim"
-                  >
-                    {t(busy ? "build_starting" : "build_run_paper")}
-                  </button>
-                  {activeRules.length === 0 ? (
-                    // A strategy with no active rule buys nothing, ever — and
-                    // this is the last place to say so before the run that
-                    // would have proved it.
-                    <p className="pt-3 text-center font-mono text-[10.5px] tracking-[0.08em] text-warning uppercase">
-                      {t("build_turn_on_rule")}
-                    </p>
-                  ) : null}
-                </>
-              )}
-
-              {step > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setStep(step - 1)}
-                  className="mt-3 flex h-11 w-full items-center justify-center border border-border font-mono text-[11px] tracking-[0.08em] text-text-secondary uppercase transition-colors hover:text-text-primary"
-                >
-                  {t("build_back_to", { step: t(STEPS[step - 1].labelKey) })}
-                </button>
-              ) : null}
-
-              <p className="pt-5 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-                {t("build_paper_note")}
-              </p>
-            </div>
           </>
         }
       />
@@ -1059,6 +1304,79 @@ export function BuildAgent() {
 }
 
 /* -------------------------------------------------------------------- bits -- */
+
+/**
+ * The step pill. One fill, gliding.
+ *
+ * Three segments and one active fill that MOVES between them rather than
+ * appearing on the next one — the same fill the reader just saw, arriving
+ * where they are going. Measured from the buttons so a longer label in the
+ * other language is simply a wider fill. Selecting a step is not committing to
+ * anything, so the fill is a surface, not green.
+ */
+function StepPill({
+  step,
+  labels,
+  onSelect,
+  ariaLabel,
+}: {
+  step: number;
+  labels: { index: string; label: string }[];
+  onSelect: (i: number) => void;
+  ariaLabel: string;
+}) {
+  const nav = useRef<HTMLElement | null>(null);
+  const [fill, setFill] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const root = nav.current;
+      const btn = root?.querySelectorAll<HTMLButtonElement>("button")[step];
+      if (!root || !btn) return;
+      const r = root.getBoundingClientRect();
+      const b = btn.getBoundingClientRect();
+      setFill({ left: b.left - r.left, width: b.width });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [step, labels]);
+
+  return (
+    <nav
+      ref={nav}
+      aria-label={ariaLabel}
+      className="relative flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1"
+    >
+      {fill ? (
+        <span
+          aria-hidden
+          className="absolute top-1 h-7 rounded-full bg-surface-2 transition-[left,width] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none"
+          style={{ left: fill.left, width: fill.width }}
+        />
+      ) : null}
+      {labels.map((s, i) => (
+        <button
+          key={s.index}
+          type="button"
+          aria-current={i === step ? "step" : undefined}
+          onClick={() => i < step && onSelect(i)}
+          disabled={i > step}
+          className={`relative z-10 flex h-7 items-center gap-2 rounded-full px-3.5 transition-colors duration-300 ${
+            i === step
+              ? "text-text-primary"
+              : i < step
+                ? "text-text-secondary hover:text-text-primary"
+                : "cursor-default text-text-muted"
+          }`}
+        >
+          <span className="tnum font-mono text-[10px] opacity-70">{s.index}</span>
+          <span className="font-ui text-[12.5px] font-medium">{s.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 function Trail({
   done,
@@ -1071,24 +1389,27 @@ function Trail({
   label: string;
   value: string;
 }) {
+  // The line pulses once when its text changes: a wash that rises and fades
+  // over 600ms, so a pick made 800px away registers here without a glance.
+
   return (
-    <div className="flex items-baseline gap-3 border-b border-grid py-2.5 last:border-b-0">
+    <div className="flex items-baseline gap-3 border-b border-grid py-3 last:border-b-0">
       <span
         className={`w-3 shrink-0 text-center font-mono text-[11px] ${
-          done || here ? "text-accent" : "text-text-muted"
+          done ? "text-accent" : here ? "text-text-primary" : "text-text-muted"
         }`}
       >
         {done ? "✓" : here ? "→" : "○"}
       </span>
       <span className="min-w-0 flex-1">
         <span
-          className={`block truncate font-mono text-[11.5px] ${
+          className={`block truncate font-ui text-[13px] ${
             here || done ? "text-text-primary" : "text-text-dim"
           }`}
         >
           {label}
         </span>
-        <span className="block truncate font-ui text-[11px] text-text-dim">
+        <span key={value} className="trail-pulse -mx-1.5 block truncate rounded-md px-1.5 font-ui text-[12px] text-text-dim">
           {value}
         </span>
       </span>
@@ -1107,14 +1428,8 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-        {label}
-      </span>
-      <span
-        className={`truncate font-mono text-[12px] ${
-          tone === "accent" ? "text-accent" : "text-text-primary"
-        }`}
-      >
+      <span className="font-ui text-[12.5px] text-text-muted">{label}</span>
+      <span className={`tnum truncate font-mono text-[12.5px] ${tone === "accent" ? "font-medium" : ""} text-text-primary`}>
         {value}
       </span>
     </div>

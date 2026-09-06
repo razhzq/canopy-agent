@@ -15,7 +15,7 @@ import type { Step } from "@/components/wizard";
  * dead code: it reads as a hundred strings somebody forgot to translate, and
  * every future sweep re-finds them.
  *
- * The mandate wireframe's copy moved to `lib/deployCopy.ts`, where it lives in
+ * The mandate wireframe and its copy are gone; the builder is the one flow. It lives in
  * both languages beside the pages that render it.
  *
  * The labels below are dictionary keys rather than words: both tables are
@@ -23,26 +23,4 @@ import type { Step } from "@/components/wizard";
  * whichever language happened to load first.
  */
 
-export const DEPLOY_STEPS: Step[] = [
-  { index: "01", labelKey: "deploy_step_describe", href: "/deploy/describe" },
-  { index: "02", labelKey: "deploy_step_constraints", href: "/deploy/constraints" },
-  { index: "03", labelKey: "deploy_step_autonomy", href: "/deploy/autonomy" },
-  { index: "04", labelKey: "deploy_step_wallet", href: "/deploy/wallet" },
-  { index: "05", labelKey: "deploy_step_fund", href: "/deploy/fund" },
-];
 
-/**
- * The build flow's stages.
- *
- * These are LIFECYCLE STATES a strategy moves through, mirroring the database
- * (draft → paper run → published), not steps in a wizard. Configuration is one
- * page; the paper run is the agent actually trading; publishing is the gate at
- * the end.
- *
- * No hrefs: you cannot click into a state, you transition into it.
- */
-export const BUILD_STAGES: Step[] = [
-  { index: "01", labelKey: "stage_draft" },
-  { index: "02", labelKey: "stage_paper" },
-  { index: "03", labelKey: "stage_published" },
-];

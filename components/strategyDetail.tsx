@@ -7,6 +7,7 @@ import { EquityCurve } from "@/components/charts";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
+import { DeployModal } from "@/components/deployModal";
 import {
   FOCUS,
   SEGMENT_ITEM,
@@ -170,6 +171,7 @@ export function StrategyDetail({
     [universeMarks, liveMarks],
   );
   const [view, setView] = useState<View>("positions");
+  const [deploying, setDeploying] = useState(false);
 
   /**
    * Which page of the open book is showing.
@@ -388,13 +390,15 @@ export function StrategyDetail({
               read. Nothing takes its place: an unlisted strategy simply has no
               call to action yet. */}
           {live ? (
-            <Link
-              href={`/deploy/describe?strategy=${strategy.id}`}
+            <button
+              type="button"
+              onClick={() => setDeploying(true)}
               className={`flex h-10 items-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px ${FOCUS}`}
             >
               {t("sd_deploy_this")}
-            </Link>
+            </button>
           ) : null}
+          {deploying ? <DeployModal strategy={strategy} onClose={() => setDeploying(false)} /> : null}
         </div>
       </section>
 

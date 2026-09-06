@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CheckIcon, LockIcon, RailRow, RailSection } from "@/components/ui";
+import { InfoDot } from "@/components/kit";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
@@ -385,20 +386,24 @@ export function StepHead({
   index,
   title,
   note,
+  info,
 }: {
   index: string;
   title: string;
   note?: string;
+  /** The explanation, one hover away rather than a paragraph under the title. */
+  info?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 pb-3">
+      {/* The index is a quiet mono mark, not an accent: it orders, it does not
+          call. The title carries the weight, in the running register. */}
       <h2 className="flex items-baseline gap-2.5">
-        <span className="font-mono text-[10px] text-accent">{index}</span>
-        <span className="font-mono text-[11.5px] tracking-[0.12em] text-text-primary uppercase">
-          {title}
-        </span>
+        <span className="tnum font-mono text-[10.5px] text-text-muted">{index}</span>
+        <span className="font-ui text-[13px] font-medium text-text-primary">{title}</span>
+        {info ? <InfoDot label={title}>{info}</InfoDot> : null}
       </h2>
-      {note ? <p className="font-ui text-[12px] text-text-dim">{note}</p> : null}
+      {note ? <p className="font-ui text-[12px] text-text-muted">{note}</p> : null}
     </div>
   );
 }

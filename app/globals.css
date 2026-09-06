@@ -200,6 +200,45 @@
   }
 }
 
+/* The wizard's step content arriving. Forward comes from the right, back
+   from the left; 12px is enough to read as a direction and not as a slide. */
+@keyframes step-enter-fwd {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes step-enter-back {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.step-enter-fwd { animation: step-enter-fwd 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.step-enter-back { animation: step-enter-back 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .step-enter-fwd, .step-enter-back { animation-name: step-fade; }
+}
+@keyframes step-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Something arriving in sequence: a compile result, a chat turn. `both` holds
+   the hidden frame through an animation-delay so staggered items do not flash
+   before their turn. */
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reveal-in { animation: reveal-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal-in { animation: step-fade 200ms both; }
+}
+
+/* A line in the rail acknowledging a change made elsewhere: a wash that
+   rises and fades once. Keyed on the text, so it runs only when it changes. */
+@keyframes trail-pulse {
+  0% { background-color: transparent; color: var(--color-text-dim); }
+  25% { background-color: var(--color-accent-wash); color: var(--color-text-primary); }
+  100% { background-color: transparent; color: var(--color-text-dim); }
+}
+.trail-pulse { animation: trail-pulse 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .trail-pulse { animation: none; } }
+
 /* ------------------------------------------------- equity curve hover ---- */
 
 /*

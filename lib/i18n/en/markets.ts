@@ -18,7 +18,7 @@ export const enMarkets = {
   mk_venue_clob: "CLOB DEX",
 
   // ── Picker ─────────────────────────────────────────────────────
-  mk_step: "Step 1 of 2 · Assign",
+  mk_step: "Step 1 of 3 · Market",
   mk_title: "Pick what you're trading",
   // SHORT, AND NO LONGER WRONG.
   //
@@ -29,8 +29,10 @@ export const enMarkets = {
   // with it: true, and not a fact anybody needs while deciding what to pick.
   mk_intro:
     "Pick one or several. The agent checks each one against your rules every cycle and buys whichever qualify.",
-  mk_search_placeholder: "Search markets…  /",
+  mk_search_placeholder: "Search markets…",
   mk_search_aria: "Search markets",
+  mk_chosen: "Chosen",
+  mk_remove: "Remove {symbol}",
   mk_count_one: "1 market",
   mk_count_many: "{count} markets",
 

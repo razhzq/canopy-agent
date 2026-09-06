@@ -141,4 +141,14 @@ export const enPublish = {
   sd_span_hour: "under an hour",
   sd_span_hours: "{n}h",
   sd_span_days: "{n}d",
+  // ── Deploy dialog ──────────────────────────────────────────────
+  dp_title: "Deploy {name}",
+  dp_body: "It runs on paper with the capital you set, using the author's rules. Take it live later from its own page.",
+  dp_capital: "Paper capital",
+  dp_capital_range: "$100 to $10,000",
+  dp_capital_note: "The record above was earned on $10,000. Fees and slippage scale with size.",
+  dp_capital_invalid: "Enter an amount between $100 and $10,000.",
+  dp_start: "Start on paper",
+  dp_starting: "Starting…",
+  dp_not_now: "Not now",
 } as const;

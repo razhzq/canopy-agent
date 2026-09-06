@@ -133,4 +133,13 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   sd_span_hour: "不到 1 小时",
   sd_span_hours: "{n} 小时",
   sd_span_days: "{n} 天",
+  dp_title: "部署 {name}",
+  dp_body: "按作者的规则，用您设定的资金在模拟盘运行。之后可在它自己的页面转为实盘。",
+  dp_capital: "模拟盘资金",
+  dp_capital_range: "$100 至 $10,000",
+  dp_capital_note: "上方的业绩是在 $10,000 上取得的。手续费和滑点随规模变化。",
+  dp_capital_invalid: "请输入 $100 至 $10,000 之间的金额。",
+  dp_start: "开始模拟",
+  dp_starting: "启动中…",
+  dp_not_now: "暂不",
 };
