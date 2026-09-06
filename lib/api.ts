@@ -2192,12 +2192,52 @@ export const setAgentModel = (
  * that has no wallet yet.
  */
 export interface TopUpTx {
-  /** Base64 UNSIGNED transaction. Sign with Privy, submit, then confirm below. */
+  /**
+   * Base64 transaction. Unsigned when the payer pays its own fee; already
+   * carrying Canopy's payer signature when `sponsored`.
+   */
   transactionBase64: string;
   /** When the blockhash dies. Past this, ask for a new one rather than submit. */
   expiresAt: string;
   amountUsdc: number;
+  /**
+   * Who pays the network fee: the payer's own address, or Canopy's sponsor.
+   * Absent from an older backend, which means the payer pays.
+   */
+  feePayer?: string;
+  sponsored?: boolean;
 }
+
+/* ---------------------------------------------------------- gas sponsor -- */
+
+/** Whether Canopy is paying network fees. See lib/gasSponsor.ts. */
+export const getGasSponsorship = (token: string) =>
+  request<{ enabled: boolean }>("/gas/sponsor", token);
+
+export type SponsorResult =
+  | {
+      sponsored: true;
+      /** The same transaction, with Canopy's fee payer swapped in and signed. */
+      serializedTransaction: string;
+      feePayer: string;
+      estimatedFeeLamports: number | null;
+      estimatedRentLamports: number | null;
+    }
+  | { sponsored: false; reason: string };
+
+/**
+ * Asks Canopy to pay for a transaction the browser built with a placeholder
+ * fee payer. `signer` is the wallet that will sign it — it must be a required
+ * signer of the transaction, which is what stops this paying for anyone else's.
+ */
+export const sponsorTransaction = (
+  token: string,
+  body: { serializedTransaction: string; signer: string },
+) =>
+  request<SponsorResult>("/gas/sponsor", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
 export const buildModelTopUp = (
   token: string,

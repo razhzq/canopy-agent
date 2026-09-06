@@ -25,6 +25,7 @@ import {
   type Instruction,
   compileTransaction,
   createNoopSigner,
+  generateKeyPairSigner,
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -161,6 +162,12 @@ export interface TransferPlan {
   amount: bigint;
   /** True when the destination has no USDC account and one must be created. */
   createsRecipientAccount: boolean;
+  /**
+   * Whether Canopy intends to pay the fee (and the rent above). Decided at
+   * planning so the confirm step can say so; the send still falls back to
+   * the wallet paying if the sponsor declines at that moment.
+   */
+  sponsored: boolean;
 }
 
 /**
@@ -171,12 +178,15 @@ export interface TransferPlan {
  * rent for the token account being opened in their name. Discovering that at
  * signing time is how a transfer fails for a reason nobody was shown.
  */
-export async function planTransfer(args: {
-  asset: Asset;
-  from: string;
-  to: string;
-  amount: string;
-}): Promise<TransferPlan> {
+export async function planTransfer(
+  args: {
+    asset: Asset;
+    from: string;
+    to: string;
+    amount: string;
+  },
+  opts: { sponsored?: boolean } = {},
+): Promise<TransferPlan> {
   const to = address(args.to.trim());
   const from = address(args.from);
   const amount = toBaseUnits(args.amount, args.asset === "SOL" ? 9 : USDC_DECIMALS);
@@ -196,7 +206,14 @@ export async function planTransfer(args: {
     createsRecipientAccount = info.value === null;
   }
 
-  return { asset: args.asset, from: String(from), to: String(to), amount, createsRecipientAccount };
+  return {
+    asset: args.asset,
+    from: String(from),
+    to: String(to),
+    amount,
+    createsRecipientAccount,
+    sponsored: opts.sponsored === true,
+  };
 }
 
 /**
@@ -213,12 +230,18 @@ export async function planTransfer(args: {
 export async function sendTransfer(
   plan: TransferPlan,
   sign: (wire: Uint8Array) => Promise<string>,
+  /**
+   * Asks Canopy to pay the fee. See lib/gasSponsor.ts. When given and the
+   * plan says `sponsored`, the transaction is first built with a placeholder
+   * payer and offered; null means build again with the wallet paying.
+   */
+  sponsor?: (wire: Uint8Array, signer: string) => Promise<Uint8Array | null>,
 ): Promise<string> {
   const rpc = createSolanaRpc(rpcUrl());
   const from = address(plan.from);
   const to = address(plan.to);
 
-  // A noop signer: it declares the fee payer as the authority on each
+  // A noop signer: it declares the wallet as the authority on each
   // instruction without holding a key. Privy fills the signature in — this
   // module never sees one.
   const signer = createNoopSigner(from);
@@ -266,16 +289,32 @@ export async function sendTransfer(
 
   const { value: blockhash } = await rpc.getLatestBlockhash().send();
 
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(signer, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
-    (m) => appendTransactionMessageInstructions(instructions, m),
-  );
+  const compile = (payer: ReturnType<typeof createNoopSigner>) =>
+    getTransactionEncoder().encode(
+      compileTransaction(
+        pipe(
+          createTransactionMessage({ version: 0 }),
+          (m) => setTransactionMessageFeePayerSigner(payer, m),
+          (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
+          (m) => appendTransactionMessageInstructions(instructions, m),
+        ),
+      ),
+    ) as Uint8Array;
+
+  // CANOPY PAYS WHEN IT CAN. The transaction is compiled with a placeholder
+  // payer — a fresh key that appears nowhere else — and offered to the
+  // sponsor. If it comes back sponsored, that is what the wallet signs: it
+  // signs as the token authority only and needs no SOL. If not, the same
+  // instructions are compiled with the wallet paying, exactly as before.
+  if (plan.sponsored && sponsor) {
+    const placeholder = createNoopSigner((await generateKeyPairSigner()).address);
+    const sponsored = await sponsor(compile(placeholder), plan.from);
+    if (sponsored) return sign(sponsored);
+  }
 
   // Wire bytes, unsigned. Privy's signer fills the signature in and broadcasts;
   // no key material is ever in this module's reach.
-  return sign(getTransactionEncoder().encode(compileTransaction(message)) as Uint8Array);
+  return sign(compile(signer));
 }
 
 export { formatUnits };

@@ -24,6 +24,9 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
+import { usePrivy } from "@privy-io/react-auth";
+import { sponsorWith } from "@/lib/gasSponsor";
+import { useGasSponsorship } from "@/lib/useGasSponsorship";
 
 import {
   readChainFunding,
@@ -180,6 +183,11 @@ export function WithdrawModal({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
+  const { getAccessToken } = usePrivy();
+  // Whether Canopy pays the network fee and any rent. Decided at planning so
+  // the confirm step can say so; the send still falls back to the wallet
+  // paying if the sponsor declines at that moment.
+  const gas = useGasSponsorship();
   const t = useT();
   // Matched by ADDRESS, never by index — the account holds several wallets and
   // picking the wrong one here would spend an agent's money. Everything in the
@@ -243,7 +251,7 @@ export function WithdrawModal({
     try {
       setStep({
         at: "confirm",
-        plan: await planTransfer({ asset, from, to, amount }),
+        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
       setStep({
@@ -257,16 +265,21 @@ export function WithdrawModal({
     setStep({ at: "sending", plan });
     try {
       if (!wallet) throw new Error(t("withdraw_wallet_not_connected"));
-      const signature = await sendTransfer(plan, async (wire) => {
-        const { signature: bytes } = await signAndSendTransaction({
-          transaction: wire,
-          wallet,
-          // Explicit, never inferred: this app is mainnet-only, and a devnet
-          // send would look identical here and simply never arrive.
-          chain: "solana:mainnet",
-        });
-        return getBase58Decoder().decode(bytes);
-      });
+      const token = plan.sponsored ? await getAccessToken() : null;
+      const signature = await sendTransfer(
+        plan,
+        async (wire) => {
+          const { signature: bytes } = await signAndSendTransaction({
+            transaction: wire,
+            wallet,
+            // Explicit, never inferred: this app is mainnet-only, and a devnet
+            // send would look identical here and simply never arrive.
+            chain: "solana:mainnet",
+          });
+          return getBase58Decoder().decode(bytes);
+        },
+        token ? sponsorWith(token) : undefined,
+      );
       setStep({ at: "sent", signature });
     } catch (err) {
       setStep({
@@ -477,7 +490,13 @@ function Confirm({
       </div>
 
       <div className="space-y-1.5">
-        {plan.createsRecipientAccount ? (
+        {/* Who pays the fee is a fact, and a dot-and-word is what a fact
+            gets. The rent line only stays a warning when the sender pays it. */}
+        {plan.sponsored ? (
+          <StatusLine tone="good">
+            {t(plan.createsRecipientAccount ? "withdraw_rent_covered" : "withdraw_fee_covered")}
+          </StatusLine>
+        ) : plan.createsRecipientAccount ? (
           <Note tone="warn">{t("withdraw_rent_warning")}</Note>
         ) : null}
         <Note tone="dim">{t("withdraw_final")}</Note>

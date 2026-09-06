@@ -72,12 +72,29 @@ export function verifyPreparedTopUp(prepared: TopUpTx, expectedPayer: string): v
 
   const message = decodeMessage(prepared.transactionBase64);
 
-  // The fee payer is the first static account, by definition of the format.
+  // WHO PAYS THE FEE, AND WHO PAYS THE USDC. The first static account is the
+  // fee payer. Unsponsored, that is the wallet you chose. Sponsored, it is
+  // Canopy's payer — the backend names it in `feePayer` — and the wallet you
+  // chose must still be a signer, because it is the one moving the USDC. A
+  // sponsored transaction that does not need your signature is somebody
+  // else's deposit wearing yours.
+  const chosen = String(address(expectedPayer));
   const payer = message.staticAccounts[0];
-  if (!payer || String(payer) !== String(address(expectedPayer))) {
+  const expectedFeePayer = prepared.sponsored && prepared.feePayer ? prepared.feePayer : chosen;
+  if (!payer || String(payer) !== String(address(expectedFeePayer))) {
     throw new Error(
       "That transaction pays from a different wallet than the one you chose. Nothing has been signed.",
     );
+  }
+  if (prepared.sponsored) {
+    const signers = message.staticAccounts
+      .slice(0, message.header.numSignerAccounts)
+      .map(String);
+    if (String(payer) === chosen || !signers.includes(chosen)) {
+      throw new Error(
+        "That sponsored transaction is not signed by the wallet you chose. Nothing has been signed.",
+      );
+    }
   }
 
   const programs = new Set(

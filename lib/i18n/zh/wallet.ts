@@ -55,6 +55,8 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_to: "收款方",
   withdraw_rent_warning:
     "该地址还没有 USDC 账户，系统会为它开一个。这需要您额外支付约 0.002 SOL 的租金，另计网络手续费。",
+  withdraw_rent_covered: "该地址还没有 USDC 账户，系统会为它开一个。租金和网络手续费由 Canopy 承担。",
+  withdraw_fee_covered: "网络手续费由 Canopy 承担。",
   withdraw_final:
     "转账不可逆。一旦提交，就无法撤销；地址填错的话资金也无法找回。",
   withdraw_send: "发送",

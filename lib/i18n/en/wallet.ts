@@ -61,6 +61,9 @@ export const enWallet = {
   withdraw_to: "To",
   withdraw_rent_warning:
     "This address holds no USDC account yet, so one is opened for it. That costs you about 0.002 SOL in rent, on top of the network fee.",
+  withdraw_rent_covered:
+    "This address holds no USDC account yet, so one is opened for it. Canopy covers the rent and the network fee.",
+  withdraw_fee_covered: "Network fee covered by Canopy.",
   withdraw_final:
     "Transfers are final. Once submitted there is no way to reverse this or recover the funds if the address is wrong.",
   withdraw_send: "Send",

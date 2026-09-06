@@ -7,6 +7,7 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
+import { useGasSponsorship } from "@/lib/useGasSponsorship";
 
 import {
   buildModelTopUp,
@@ -416,6 +417,9 @@ export function ModelTopUpForm({
   const { getAccessToken } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
+  // Canopy pays the network fee when it can; the backend decides per top-up
+  // and names the payer, and lib/modelTopup.ts checks it before signing.
+  const gas = useGasSponsorship();
 
   const payers = [
     agentWallet ? { address: agentWallet, label: "This agent's wallet" } : null,
@@ -665,6 +669,9 @@ export function ModelTopUpForm({
             Prepaid and spend-only: it pays for this agent&apos;s reasoning and
             cannot be withdrawn.
           </FieldNote>
+          {gas.enabled ? (
+            <StatusLine tone="good">Network fee covered by Canopy.</StatusLine>
+          ) : null}
 
           <button
             type="button"

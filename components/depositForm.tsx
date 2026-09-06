@@ -26,6 +26,9 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
+import { usePrivy } from "@privy-io/react-auth";
+import { sponsorWith } from "@/lib/gasSponsor";
+import { useGasSponsorship } from "@/lib/useGasSponsorship";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
 import {
   Field,
@@ -67,6 +70,8 @@ export function DepositForm({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
+  const { getAccessToken } = usePrivy();
+  const gas = useGasSponsorship();
   // Matched by ADDRESS, never by index. The account holds several Solana
   // wallets — the agent's is one of them — and picking by position here would
   // sign from whichever happened to be first.
@@ -112,7 +117,7 @@ export function DepositForm({
     try {
       setStep({
         at: "confirm",
-        plan: await planTransfer({ asset: "USDC", from, to, amount }),
+        plan: await planTransfer({ asset: "USDC", from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
       setStep({
@@ -120,7 +125,7 @@ export function DepositForm({
         message: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [from, to, amount]);
+  }, [from, to, amount, gas.enabled]);
 
   const send = useCallback(
     async (plan: TransferPlan) => {
@@ -128,16 +133,21 @@ export function DepositForm({
       try {
         if (!wallet)
           throw new Error("that wallet is not connected in this session");
-        const signature = await sendTransfer(plan, async (wire) => {
-          const { signature: bytes } = await signAndSendTransaction({
-            transaction: wire,
-            wallet,
-            // Explicit, never inferred: this app is mainnet-only, and a devnet
-            // send would look identical here and simply never arrive.
-            chain: "solana:mainnet",
-          });
-          return getBase58Decoder().decode(bytes);
-        });
+        const token = plan.sponsored ? await getAccessToken() : null;
+        const signature = await sendTransfer(
+          plan,
+          async (wire) => {
+            const { signature: bytes } = await signAndSendTransaction({
+              transaction: wire,
+              wallet,
+              // Explicit, never inferred: this app is mainnet-only, and a devnet
+              // send would look identical here and simply never arrive.
+              chain: "solana:mainnet",
+            });
+            return getBase58Decoder().decode(bytes);
+          },
+          token ? sponsorWith(token) : undefined,
+        );
         setStep({ at: "sent", signature });
         setAmount("");
         onDone();
@@ -148,7 +158,7 @@ export function DepositForm({
         });
       }
     },
-    [wallet, signAndSendTransaction, onDone],
+    [wallet, signAndSendTransaction, onDone, getAccessToken],
   );
 
   if (!from) {
@@ -206,7 +216,13 @@ export function DepositForm({
         {/* The rent surprise, stated before signing rather than discovered by a
             failure. The agent's wallet is new, so its USDC account usually does
             not exist yet — and the SENDER pays to open it. */}
-        {plan?.createsRecipientAccount ? (
+        {plan?.sponsored ? (
+          <StatusLine tone="good">
+            {plan.createsRecipientAccount
+              ? "This wallet has never held USDC, so this transfer also opens its account. Canopy covers the rent and the network fee."
+              : "Network fee covered by Canopy."}
+          </StatusLine>
+        ) : plan?.createsRecipientAccount ? (
           <FieldNote tone="warn">
             This wallet has never held USDC, so this transfer also opens its
             USDC account. That costs you about 0.002 SOL in rent, paid from the
