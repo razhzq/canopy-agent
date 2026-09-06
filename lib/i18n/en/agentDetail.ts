@@ -88,6 +88,20 @@ export const enAgentDetail = {
   es_exits: "Exits",
   es_accumulation: "Accumulation",
   es_timeframe: "Chart timeframe",
+  es_budget: "Budget",
+  es_budget_help:
+    "How much one buy may be, as a share of what the agent has to trade with, and how many buys one cycle may make. A live agent measures the share against the USDC in its wallet each cycle; a paper agent against its paper book.",
+  es_position_limit: "Per position",
+  es_position_of_wallet: "About {usd} right now, of the {base} USDC in its wallet plus open positions",
+  es_position_of_wallet_unknown: "Of what it holds, USDC plus open positions, read each cycle",
+  es_position_of_book: "About {usd} right now, of its {base} equity",
+  es_position_of_book_unknown: "Of its current equity, read each cycle",
+  es_trades_per_cycle: "Trades per cycle",
+  es_trades_help: "Entries per wake-up. The agent never splits an order to get around it.",
+  es_unit_trade: "trade",
+  es_unit_trades: "trades",
+  es_fewer: "Fewer trades per cycle",
+  es_more: "More trades per cycle",
   es_entry_help:
     "Every rule switched on must hold before the agent buys. A rule switched off is not evaluated at all — it is not a loosened condition, it is no condition.",
   es_exits_help:

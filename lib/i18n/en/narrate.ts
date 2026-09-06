@@ -183,6 +183,8 @@ export const enNarrate = {
     "I marked the book: {value} in value against {cost} in cost, {unrealised} unrealised.",
   narrate_pm_exits_one: "1 exit triggered — I'm closing it this cycle.",
   narrate_pm_exits_many: "{count} exits triggered — I'm closing them this cycle.",
+  narrate_pm_holds_one: "1 position is inside its stop and target — holding it.",
+  narrate_pm_holds_many: "All {count} positions are inside their stop and target — holding them.",
 
   // ── The cycle itself ───────────────────────────────────────────
   narrate_cycle_failed: "My cycle failed — {error}",

@@ -1176,6 +1176,9 @@ export function AgentDetailView({
         <EditStrategyModal
           agentId={agentId}
           strategy={strategy}
+          mandate={agent.mandate}
+          isPaper={agent.is_paper}
+          equityUsd={equity?.points.at(-1)?.equityUsd ?? null}
           // Reloads behind the dialog on the way out, so the rule chips, the
           // exit cards and the accumulation note in the rail all restate the
           // strategy that was just saved rather than the one that was loaded.

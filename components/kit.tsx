@@ -393,12 +393,19 @@ export function AmountInput({
   value,
   onChange,
   unit,
+  unitControl,
   onMax,
   label,
 }: {
   value: string;
   onChange: (next: string) => void;
   unit: string;
+  /**
+   * A control in the unit's place — a select between assets, say. The unit
+   * text is then the accessible name only. Sits where the label sat so the
+   * field keeps one shape whether the asset is fixed or a choice.
+   */
+  unitControl?: ReactNode;
   onMax?: () => void;
   label: string;
 }) {
@@ -416,9 +423,9 @@ export function AmountInput({
         aria-label={label}
         className="tnum w-full bg-transparent py-2.5 font-mono text-[16px] text-text-primary outline-none placeholder:text-text-muted"
       />
-      <span className="shrink-0 pl-2 font-ui text-[12px] text-text-dim">
-        {unit}
-      </span>
+      {unitControl ?? (
+        <span className="shrink-0 pl-2 font-ui text-[12px] text-text-dim">{unit}</span>
+      )}
       {onMax ? (
         <button
           type="button"

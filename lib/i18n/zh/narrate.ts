@@ -115,6 +115,8 @@ export const zhNarrate: Record<keyof typeof enNarrate, string> = {
   narrate_pm_marked: "我为持仓估了值：市值 {value}，成本 {cost}，未实现盈亏 {unrealised}。",
   narrate_pm_exits_one: "触发了 1 笔平仓 — 我这个周期就把它平掉。",
   narrate_pm_exits_many: "触发了 {count} 笔平仓 — 我这个周期就把它们平掉。",
+  narrate_pm_holds_one: "1 个持仓仍在止损和止盈之间 — 继续持有。",
+  narrate_pm_holds_many: "全部 {count} 个持仓仍在止损和止盈之间 — 继续持有。",
 
   narrate_cycle_failed: "我这个周期执行失败了 — {error}",
 };

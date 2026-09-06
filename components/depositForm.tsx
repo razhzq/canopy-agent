@@ -46,9 +46,14 @@ import {
   sendTransfer,
   toBaseUnits,
   formatUnits,
-  USDC_DECIMALS,
+  formatAmountInput,
+  SOL_RESERVE,
+  type Asset,
   type TransferPlan,
 } from "@/lib/transfer";
+
+/** Decimals per asset: lamports are the ninth place, USDC the sixth. */
+const DECIMALS: Record<Asset, number> = { SOL: 9, USDC: 6 };
 
 type Step =
   | { at: "form" }
@@ -78,6 +83,13 @@ export function DepositForm({
   const wallet = wallets.find((w) => w.address === from);
 
   const [amount, setAmount] = useState("");
+  /**
+   * WHICH ASSET. An agent wallet needs both: USDC to trade with, and, while
+   * Canopy is not paying fees, a little SOL to pay them. The choice sits in
+   * the amount field's unit slot as a select rather than as a second field,
+   * because it is one send of one thing.
+   */
+  const [asset, setAsset] = useState<Asset>("USDC");
   const [step, setStep] = useState<Step>({ at: "form" });
   const [reviewing, setReviewing] = useState(false);
   const [held, setHeld] = useState<ChainFunding | null>(null);
@@ -93,18 +105,25 @@ export function DepositForm({
     };
   }, [from, step.at]);
 
-  const available = held?.usdc ?? null;
+  // SOL keeps a reserve back for the sender's own fees; USDC is all sendable.
+  const available =
+    held === null
+      ? null
+      : asset === "USDC"
+        ? held.usdc
+        : Math.max(0, held.sol - SOL_RESERVE);
+  const decimals = DECIMALS[asset];
 
   let amountError: string | null = null;
   if (amount.trim() !== "") {
     try {
-      const units = toBaseUnits(amount, USDC_DECIMALS);
+      const units = toBaseUnits(amount, decimals);
       if (units <= 0n) amountError = "Enter an amount above zero.";
-      else if (
-        available !== null &&
-        Number(formatUnits(units, USDC_DECIMALS)) > available
-      ) {
-        amountError = "More than this wallet holds.";
+      else if (available !== null && Number(formatUnits(units, decimals)) > available) {
+        amountError =
+          asset === "SOL"
+            ? `More than you can send. ${SOL_RESERVE} SOL is held back for fees.`
+            : "More than this wallet holds.";
       }
     } catch (err) {
       amountError = err instanceof Error ? err.message : "Not a valid amount.";
@@ -119,7 +138,7 @@ export function DepositForm({
     try {
       setStep({
         at: "confirm",
-        plan: await planTransfer({ asset: "USDC", from, to, amount }, { sponsored: gas.enabled }),
+        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
       console.error("[deposit] failed", err);
@@ -130,7 +149,7 @@ export function DepositForm({
     } finally {
       setReviewing(false);
     }
-  }, [from, to, amount, gas.enabled, reviewing]);
+  }, [from, to, amount, asset, gas.enabled, reviewing]);
 
   const send = useCallback(
     async (plan: TransferPlan) => {
@@ -211,9 +230,9 @@ export function DepositForm({
         <p className="font-ui text-[13px] leading-relaxed text-text-primary">
           Send{" "}
           <span className="tnum font-mono">
-            {plan ? formatUnits(plan.amount, USDC_DECIMALS) : amount}
+            {plan ? formatUnits(plan.amount, DECIMALS[plan.asset]) : amount}
           </span>{" "}
-          USDC to{" "}
+          {plan?.asset ?? asset} to{" "}
           <span className="font-mono">{`${to.slice(0, 4)}…${to.slice(-4)}`}</span>
           .
         </p>
@@ -231,6 +250,11 @@ export function DepositForm({
             This wallet has never held USDC, so this transfer also opens its
             USDC account. That costs you about 0.002 SOL in rent, paid from the
             sending wallet.
+          </FieldNote>
+        ) : plan?.asset === "SOL" ? (
+          <FieldNote>
+            SOL on the agent&apos;s wallet pays its network fees and the rent on
+            new token accounts. It is never traded.
           </FieldNote>
         ) : null}
         <div className="flex items-center gap-2">
@@ -267,10 +291,10 @@ export function DepositForm({
               <>
                 <span className="tnum font-mono">
                   {available.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
+                    maximumFractionDigits: asset === "SOL" ? 4 : 2,
                   })}
                 </span>{" "}
-                USDC available
+                {asset} available
               </>
             )}
           </span>
@@ -281,11 +305,35 @@ export function DepositForm({
             <AmountInput
               value={amount}
               onChange={setAmount}
-              unit="USDC"
-              label="Amount in USDC"
+              unit={asset}
+              label={`Amount in ${asset}`}
+              unitControl={
+                // The asset, chosen where the unit is read. A native select
+                // styled as a quiet pill: two options do not warrant a menu of
+                // our own, and the platform's picker is the one keyboards and
+                // screen readers already know.
+                <select
+                  value={asset}
+                  onChange={(e) => {
+                    setAsset(e.target.value as Asset);
+                    setAmount("");
+                  }}
+                  aria-label="Asset to send"
+                  className="ml-2 h-7 shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-transparent pr-6 pl-2.5 font-ui text-[12px] font-medium text-text-primary outline-none transition-colors hover:border-grid-strong focus-visible:border-grid-strong"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%238A948E' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                  }}
+                >
+                  <option value="USDC" className="bg-bg">USDC</option>
+                  <option value="SOL" className="bg-bg">SOL</option>
+                </select>
+              }
               onMax={
                 available !== null && available > 0
-                  ? () => setAmount(String(available))
+                  ? () => setAmount(formatAmountInput(available, decimals))
                   : undefined
               }
             />

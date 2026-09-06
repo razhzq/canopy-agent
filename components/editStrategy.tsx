@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Modal } from "@/components/modal";
 import {
@@ -26,12 +26,14 @@ import { Pill, PillRow } from "@/components/wizard";
 import { FieldNote, InfoDot, PRIMARY, SECONDARY } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 import {
+  getAgentFunding,
   updateAgentStrategy,
   type AddPlan,
   type DetectionRule,
   type ExitRules,
   type SetupSpec,
   type StrategyRow,
+  type AgentMandate,
 } from "@/lib/api";
 
 /**
@@ -64,12 +66,29 @@ import {
 export function EditStrategyModal({
   agentId,
   strategy,
+  mandate,
+  isPaper = true,
+  equityUsd = null,
   onClose,
   onSaved,
 }: {
   agentId: number;
   /** The strategy as `getStrategy` returned it — s.*, so the recipe is whole. */
   strategy: StrategyRow;
+  /**
+   * The agent's own caps and capital. Sizing is read from HERE rather than
+   * from the strategy row because the tick reads it from here: the mandate
+   * holds a snapshot of the strategy's caps taken at creation, and it is the
+   * snapshot that sizes every buy.
+   */
+  mandate?: AgentMandate;
+  /**
+   * Live agents size against the USDC in their wallet; paper agents against
+   * the paper book. Decides which balance the percent is shown in dollars of.
+   */
+  isPaper?: boolean;
+  /** The paper book's latest equity, for restating the percent in dollars. */
+  equityUsd?: number | null;
   onClose: () => void;
   /** Called after a successful save, so the page behind reloads. */
   onSaved: () => void;
@@ -166,6 +185,53 @@ export function EditStrategyModal({
   );
   const [setup, setSetup] = useState<SetupSpec | undefined>(strategy.setup);
 
+  /**
+   * BUDGET. The cap is a PERCENT, and that is what the field takes. What it
+   * is a percent of depends on the book: a live agent sizes every buy against
+   * the USDC in its wallet at that moment, a paper agent against its paper
+   * book. The line under the field says the dollars that works out to right
+   * now, so the number means something before it is saved. Committed on blur
+   * or Enter, so typing "1" on the way to "10" is not clamped to something
+   * else.
+   */
+  const initialPct = mandate?.constraints?.maxPositionPct ?? 15;
+  const initialTrades = mandate?.constraints?.maxTradesPerTick ?? 10;
+  const [positionPct, setPositionPct] = useState<number>(initialPct);
+  const [tradesPerTick, setTradesPerTick] = useState<number>(initialTrades);
+  const [positionDraft, setPositionDraft] = useState<string | null>(null);
+  // The live wallet's USDC, read once when the dialog opens for a live agent.
+  const [walletUsdc, setWalletUsdc] = useState<number | null>(null);
+  useEffect(() => {
+    if (isPaper) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const f = await getAgentFunding(token, agentId);
+        if (!cancelled) setWalletUsdc(f.usdc);
+      } catch {
+        /* the percent still saves; only the dollar restatement is missing */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPaper, agentId, getAccessToken]);
+  // Paper: the book's current equity (falling back to its capital before the
+  // first cycle). Live: the wallet's USDC; open positions count too, at the
+  // cycle, but the restatement here is the cash that is visible to read.
+  const baseUsd = isPaper ? (equityUsd ?? mandate?.capitalUsd ?? null) : walletUsdc;
+  const positionUsd = baseUsd === null ? null : (baseUsd * positionPct) / 100;
+
+  function commitPosition() {
+    if (positionDraft === null) return;
+    const raw = Number(positionDraft.replace(/[^\d.]/g, ""));
+    setPositionDraft(null);
+    if (!Number.isFinite(raw) || raw <= 0) return;
+    setPositionPct(Math.min(100, Math.max(0.001, Math.round(raw * 1000) / 1000)));
+  }
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,9 +285,14 @@ export function EditStrategyModal({
       exits?: ExitRules;
       timeframe?: Timeframe;
       addPlan?: AddPlan | null;
+      maxPositionPct?: number;
+      maxTradesPerTick?: number;
     } = {};
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+    if (positionPct !== initialPct) p.maxPositionPct = positionPct;
+    if (tradesPerTick !== initialTrades) p.maxTradesPerTick = tradesPerTick;
 
     if (!same(nextRules, strategy.rules ?? [])) p.rules = nextRules;
     // Groups and setups are only ever REMOVED here — there is no control to
@@ -371,6 +442,91 @@ export function EditStrategyModal({
           onChange={setAddPlan}
           strategyClass={klass}
         />
+
+        {/* ------------------------------------------------------ budget */}
+        <Section title={t("es_budget")} help={t("es_budget_help")} />
+        <div className="overflow-hidden rounded-xl border border-border">
+          <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+            <div className="min-w-0">
+              <p className="font-ui text-[13px] font-medium text-text-primary">{t("es_position_limit")}</p>
+              {/* Re-keyed so the restated number fades in rather than flickers. */}
+              <p
+                key={`${positionPct}-${baseUsd ?? "?"}`}
+                className="reveal-in pt-0.5 font-ui text-[12px] leading-relaxed text-text-dim"
+              >
+                {positionUsd !== null && baseUsd !== null
+                  ? t(isPaper ? "es_position_of_book" : "es_position_of_wallet", {
+                      usd: `$${positionUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+                      base: `$${baseUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+                    })
+                  : t(isPaper ? "es_position_of_book_unknown" : "es_position_of_wallet_unknown")}
+              </p>
+            </div>
+            <div className="flex items-baseline justify-end gap-px font-mono text-[13.5px] text-text-primary">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={positionDraft ?? String(positionPct)}
+                onChange={(e) => setPositionDraft(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={commitPosition}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitPosition();
+                    e.currentTarget.blur();
+                  }
+                  if (e.key === "Escape") {
+                    setPositionDraft(null);
+                    e.currentTarget.blur();
+                  }
+                }}
+                aria-label={t("es_position_limit")}
+                style={{
+                  width: `${Math.max(2, (positionDraft ?? String(positionPct)).length) + 0.5}ch`,
+                }}
+                className="tnum border-b border-transparent bg-transparent text-right outline-none transition-colors hover:border-grid-strong focus:border-accent"
+              />
+              <span aria-hidden>%</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="font-ui text-[13px] font-medium text-text-primary">{t("es_trades_per_cycle")}</p>
+              <InfoDot label={t("es_trades_per_cycle")}>{t("es_trades_help")}</InfoDot>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full border border-border p-0.5 sm:justify-self-end">
+              <button
+                type="button"
+                aria-label={t("es_fewer")}
+                disabled={tradesPerTick <= 1}
+                onClick={() => setTradesPerTick((n) => Math.max(1, n - 1))}
+                className="flex size-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                −
+              </button>
+              <span
+                key={tradesPerTick}
+                className="tnum reveal-in min-w-[2ch] text-center font-mono text-[13.5px] text-text-primary"
+                aria-live="polite"
+              >
+                {tradesPerTick}
+                <span className="pl-1 font-ui text-[12px] text-text-dim">
+                  {t(tradesPerTick === 1 ? "es_unit_trade" : "es_unit_trades")}
+                </span>
+              </span>
+              <button
+                type="button"
+                aria-label={t("es_more")}
+                disabled={tradesPerTick >= 10}
+                onClick={() => setTradesPerTick((n) => Math.min(10, n + 1))}
+                className="flex size-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* --------------------------------------------------- timeframe */}
         <Section

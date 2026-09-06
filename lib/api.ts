@@ -2761,6 +2761,10 @@ export const updateAgentStrategy = (
     exits?: ExitRules;
     timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
     addPlan?: AddPlan | null;
+    /** Ceiling on one position as a percent of the mandate's capital. */
+    maxPositionPct?: number;
+    /** Entries per cycle, 1–10. */
+    maxTradesPerTick?: number;
   },
 ) =>
   request<{ agentId: number; changed: string[] }>(

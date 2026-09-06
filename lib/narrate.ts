@@ -635,7 +635,16 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
       }),
     });
     const directives = Array.isArray(o.directives) ? o.directives : [];
-    if (directives.length > 0) {
+    // A HOLD IS NOT AN EXIT. The manager writes one directive per position it
+    // judged, and "inside its stop and target" is recorded as `kind: "hold"`
+    // alongside the exits and reduces. Counting the whole list once read three
+    // untouched positions as "3 exits triggered — I'm closing them this
+    // cycle", which the fills then contradicted.
+    const closing = directives.filter(
+      (d) => d && typeof d === "object" && (d as Record<string, unknown>).kind !== "hold",
+    );
+    const holding = directives.length - closing.length;
+    if (closing.length > 0) {
       // Closed NOW. The old line read "queued for the next cycle's risk gate",
       // which was wrong twice over: closeExits runs immediately after this row
       // is written, and an exit passes the gate as a witness rather than being
@@ -643,9 +652,17 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
       lines.push({
         outcome: "info",
         detail:
-          directives.length === 1
+          closing.length === 1
             ? t("narrate_pm_exits_one")
-            : t("narrate_pm_exits_many", { count: directives.length }),
+            : t("narrate_pm_exits_many", { count: closing.length }),
+      });
+    } else if (holding > 0) {
+      lines.push({
+        outcome: "info",
+        detail:
+          holding === 1
+            ? t("narrate_pm_holds_one")
+            : t("narrate_pm_holds_many", { count: holding }),
       });
     }
   }
