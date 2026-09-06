@@ -1,5 +1,7 @@
 "use client";
 
+import { describeError } from "@/lib/errors";
+
 // Moving USDC from the owner's wallet into the agent's, in the app.
 //
 // WHY THIS EXISTS ALONGSIDE THE ADDRESS.
@@ -26,14 +28,13 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
-import { usePrivy } from "@privy-io/react-auth";
-import { sponsorWith } from "@/lib/gasSponsor";
 import { useGasSponsorship } from "@/lib/useGasSponsorship";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
 import {
   Field,
   AmountInput,
   StatusLine,
+  Spinner,
   FieldNote,
   SectionLabel,
   PRIMARY,
@@ -70,7 +71,6 @@ export function DepositForm({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
-  const { getAccessToken } = usePrivy();
   const gas = useGasSponsorship();
   // Matched by ADDRESS, never by index. The account holds several Solana
   // wallets — the agent's is one of them — and picking by position here would
@@ -79,6 +79,7 @@ export function DepositForm({
 
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<Step>({ at: "form" });
+  const [reviewing, setReviewing] = useState(false);
   const [held, setHeld] = useState<ChainFunding | null>(null);
 
   useEffect(() => {
@@ -113,19 +114,23 @@ export function DepositForm({
   const ready = Boolean(from) && amount.trim() !== "" && !amountError;
 
   const review = useCallback(async () => {
-    if (!from) return;
+    if (!from || reviewing) return;
+    setReviewing(true);
     try {
       setStep({
         at: "confirm",
         plan: await planTransfer({ asset: "USDC", from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
+      console.error("[deposit] failed", err);
       setStep({
         at: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message: describeError(err),
       });
+    } finally {
+      setReviewing(false);
     }
-  }, [from, to, amount, gas.enabled]);
+  }, [from, to, amount, gas.enabled, reviewing]);
 
   const send = useCallback(
     async (plan: TransferPlan) => {
@@ -133,32 +138,31 @@ export function DepositForm({
       try {
         if (!wallet)
           throw new Error("that wallet is not connected in this session");
-        const token = plan.sponsored ? await getAccessToken() : null;
-        const signature = await sendTransfer(
-          plan,
-          async (wire) => {
-            const { signature: bytes } = await signAndSendTransaction({
-              transaction: wire,
-              wallet,
-              // Explicit, never inferred: this app is mainnet-only, and a devnet
-              // send would look identical here and simply never arrive.
-              chain: "solana:mainnet",
-            });
-            return getBase58Decoder().decode(bytes);
-          },
-          token ? sponsorWith(token) : undefined,
-        );
+        const signature = await sendTransfer(plan, async (wire) => {
+          const { signature: bytes } = await signAndSendTransaction({
+            transaction: wire,
+            wallet,
+            // Explicit, never inferred: this app is mainnet-only, and a devnet
+            // send would look identical here and simply never arrive.
+            chain: "solana:mainnet",
+            // See walletModals: Canopy pays via Privy's sponsor flag, and
+            // confirmation is ours, over HTTP, not Privy's websocket wait.
+            options: { sponsor: plan.sponsored, optimisticBroadcast: true },
+          });
+          return getBase58Decoder().decode(bytes);
+        });
         setStep({ at: "sent", signature });
         setAmount("");
         onDone();
       } catch (err) {
+        console.error("[deposit] failed", err);
         setStep({
           at: "error",
-          message: err instanceof Error ? err.message : String(err),
+          message: describeError(err),
         });
       }
     },
-    [wallet, signAndSendTransaction, onDone, getAccessToken],
+    [wallet, signAndSendTransaction, onDone],
   );
 
   if (!from) {
@@ -288,11 +292,13 @@ export function DepositForm({
           </div>
           <button
             type="button"
-            disabled={!ready}
+            disabled={!ready || reviewing}
+            aria-busy={reviewing}
             onClick={() => void review()}
-            className={`shrink-0 ${PRIMARY}`}
+            className={`shrink-0 gap-2 ${PRIMARY}`}
           >
-            Deposit
+            {reviewing ? <Spinner /> : null}
+            {reviewing ? "Checking…" : "Deposit"}
           </button>
         </div>
       </Field>

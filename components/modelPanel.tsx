@@ -1,5 +1,7 @@
 "use client";
 
+import { describeError } from "@/lib/errors";
+
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
@@ -510,6 +512,10 @@ export function ModelTopUpForm({
           // Explicit, never inferred: this app is mainnet-only, and a devnet
           // deposit would look identical here and simply never arrive.
           chain: "solana:mainnet",
+          // Canopy pays the fee via Privy's sponsor flag. The backend's confirm
+          // step checks the signature itself; Privy's websocket wait would only
+          // add a way to fail after the money moved.
+          options: { sponsor: gas.enabled, optimisticBroadcast: true },
         });
         return getBase58Decoder().decode(bytes);
       });
@@ -519,9 +525,10 @@ export function ModelTopUpForm({
       onDone(next);
       setStep({ at: "done", signature });
     } catch (err) {
+      console.error("[top-up] failed", err);
       setStep({
         at: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message: describeError(err),
       });
     }
   }, [

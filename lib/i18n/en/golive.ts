@@ -34,6 +34,19 @@ export const enGoLive = {
   gl_opening: "Opening…",
   gl_subscribe: "Subscribe",
   gl_not_now: "Not now",
+  // Discount codes. "Activate" rather than "Subscribe" at 100% off: nothing
+  // is bought, and the word should not imply a card.
+  gl_have_code: "Have a code?",
+  gl_code_placeholder: "Discount code",
+  gl_code_apply: "Apply",
+  gl_code_applying: "Checking…",
+  gl_code_applied: "{code}: {percent}% off, {price}/month",
+  gl_code_free: "{code}: free for {days} days",
+  gl_code_remove: "Remove",
+  gl_activate: "Activate",
+  gl_activating: "Activating…",
+  gl_assurance_free:
+    "Nothing to pay. Live execution switches on for this agent now, and this dialog moves straight to the delegation step.",
   gl_assurance_abandoned:
     "If you closed BoomFi without paying, close this and press Live again to start over. Nothing has been charged.",
   gl_assurance_checkout:

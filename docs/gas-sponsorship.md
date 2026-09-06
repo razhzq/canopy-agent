@@ -1,8 +1,10 @@
-# Gas sponsorship (Alchemy Gas Manager, Solana)
+# Gas sponsorship (Solana)
 
 Canopy pays the network fee and rent on agent swaps, user withdrawals and
 deposits, and Pod model top-ups. Built 2026-09-06 across canopy-be and
-canopy-agent.
+canopy-agent. **Provider: Privy native sponsorship** (default). Alchemy Gas
+Manager remains as an alternative provider but needs an enterprise allowlist
+for Solana mainnet, which is why it is not the default.
 
 ## Why only Solana
 
@@ -10,71 +12,83 @@ Base trading is KalqiX, an off-chain order book signed with Schnorr and EIP-191
 messages. No EVM transaction is broadcast anywhere, so there is no gas to
 sponsor. Every on-chain fee Canopy's users pay is Solana.
 
-## How it works
+## How the Privy path works
 
-Alchemy's `alchemy_requestFeePayer` takes a serialized v0 transaction whose
-fee payer is a **placeholder** key that appears nowhere else in the message,
-swaps its own payer in, signs as that payer, and returns the bytes. The real
-signer (agent wallet or user wallet) then adds its signature and the
-transaction is broadcast normally.
+Nothing about how a transaction is built changes. The wallet is the fee payer
+in the message exactly as before. The signing call carries `sponsor: true`, and
+Privy's signer swaps its own fee payer in and refreshes the blockhash before
+signing and broadcasting. Privy bills the fee to the app.
 
-| Surface | Where it is built | Sponsored how |
+| Surface | Where it is built | How it is sent |
 |---|---|---|
-| Agent swap | canopy-be `agentStack/wallet/executor.ts` | Jupiter `/swap-instructions` → compiled with placeholder payer → sponsored → Privy signs → signatures merged → sent |
-| Pod top-up | canopy-be `services/pod/deposit.ts` | Anchor instruction compiled with placeholder → sponsored → returned to browser with `feePayer` + `sponsored` |
-| Withdraw / deposit | canopy-agent `lib/transfer.ts` | Built with placeholder → `POST /api/gas/sponsor` → sponsored bytes → Privy signs and sends |
+| Agent swap | canopy-be `agentStack/wallet/executor.ts` (Jupiter `/swap`) | `wallets().solana().signAndSendTransaction(walletId, { transaction, caip2, sponsor: true })` → returns the signature; executor confirms it |
+| Pod top-up | canopy-be `services/pod/deposit.ts` (payer = chosen wallet) | Browser: `useSignAndSendTransaction` with `options.sponsor: true` |
+| Withdraw / deposit | canopy-agent `lib/transfer.ts` (payer = user wallet) | Browser: same, `options.sponsor: plan.sponsored` |
 
-Fallback is always self-pay. Off, unreachable, or refused → the same
-instructions are rebuilt with the wallet as payer, with a warn log. A
-paymaster outage never blocks a trade or a withdrawal.
+The browser also passes `optimisticBroadcast: true` and confirms over HTTP
+itself (`waitForLanding` in `lib/transfer.ts`), because Privy's own
+confirmation waits on a websocket with a ten-second timeout that reports a
+failure for a transfer that landed.
 
 ## Configuration (canopy-be)
 
 ```
 GAS_SPONSOR_ENABLED=true
-ALCHEMY_SOLANA_RPC_URL=https://solana-mainnet.g.alchemy.com/v2/<KEY>
-ALCHEMY_GAS_POLICY_ID=<policy uuid from the Gas Manager dashboard>
+GAS_SPONSOR_PROVIDER=privy
 ```
 
-All three are required. Spending caps (per transaction, per day) live on the
-policy in Alchemy's dashboard; the code trusts them.
+And in the Privy dashboard, under Gas Sponsorship: **App pays**, enable
+**Solana mainnet**, and allow **transactions from the client**. Privy requires
+**TEE execution** for native sponsorship; check the app's wallet execution
+setting. Set spending caps there.
 
-## Security of the public route
+`GET /api/gas/sponsor` returns `{ enabled, provider }`; the app reads it once
+per session and shows "Network fee covered by Canopy" on the confirm steps.
 
-`POST /api/gas/sponsor` is the only place the treasury is exposed to a
-browser-built transaction. `vetUserTransaction` refuses unless:
+### Alchemy alternative
 
-- the caller's wallet is a required signer,
-- the fee payer is a placeholder (not the caller, not referenced by any
-  instruction, so nothing can debit it),
-- every program is statically resolvable and on the short list (System,
-  Token, ATA, Compute Budget, Pod deposit program),
-- there are at most two signers.
+```
+GAS_SPONSOR_PROVIDER=alchemy
+ALCHEMY_SOLANA_RPC_URL=https://solana-mainnet.g.alchemy.com/v2/<KEY>
+ALCHEMY_GAS_POLICY_ID=<policy uuid>
+```
 
-A per-user rate limit of 20 per minute sits in front. Tests:
-`npm run test:gas-sponsor` in `packages/canopy-be`.
+Builds with a placeholder fee payer and calls `alchemy_requestFeePayer`
+(`services/gasSponsor.ts`); the executor uses Jupiter `/swap-instructions` for
+this. The browser side of the Alchemy path (`POST /api/gas/sponsor`) still
+exists on the backend but the app no longer calls it. On 2026-09-06 Alchemy
+refused mainnet with "Gas sponsorship on SOLANA_MAINNET is not enabled for your
+team", which requires contacting Alchemy.
 
-The browser (`lib/gasSponsor.ts`) also checks the sponsored bytes against what
-it sent before signing: same instructions, same programs, same data; only the
-first account may differ and it must not be the user's wallet.
+## Fallback
+
+Self-pay, always. With sponsorship off the wallet pays its own fee, as before.
+Under Privy, a refused sponsorship surfaces as a Privy error on the signing
+call rather than a silent fallback; the dialog shows the message.
+
+## Security notes
+
+- Privy's guidance: on Solana, sponsored transactions that include
+  `CloseAccount` let a user pocket the rent refund while the app paid to open
+  the account. The app's withdraw/deposit builds never close accounts; the
+  agent executor's Jupiter routes can (cleanup instruction). Keep the Privy
+  spending caps tight and watch the sponsorship spend.
+- The agent-wallet Privy policy (`canopy-agent-jupiter-only`) is evaluated on
+  `signAndSendTransaction` as well as `signTransaction`, so sponsored agent
+  swaps stay inside the same program allow-list.
+
+## Related fix: stale wallet-level policies
+
+Two of one user's wallets carried the agent policy at wallet level, which
+denies the owner's own transfers. Only Privy can clear that on a user-owned
+wallet. `wallets:scan-policies` lists affected wallets; `wallets:retire`
+(CANOPY_095) sets a wallet aside so the app picks or creates another main
+wallet.
 
 ## What still needs a live check
 
-Nothing here was run against a real Gas Manager policy. Before enabling in
-production, on devnet with a devnet policy:
-
-1. **Privy preserves or drops the sponsor signature.** The executor merges
-   signatures from both copies so either behaviour works, but confirm a
-   sponsored swap lands on chain.
-2. **The Privy Solana policy accepts a foreign fee payer.** The agent-wallet
-   policy allows Jupiter, Compute Budget, ATA and Token instructions. It does
-   not condition on the fee payer today, but confirm a sponsored transaction
-   is not refused by the enclave.
-3. **Browser signing with a partially signed transaction.** Privy's
-   `signAndSendTransaction` receives bytes that already carry the sponsor's
-   signature. Confirm it adds the user's and broadcasts.
-4. **Alchemy accepts Jupiter's compute-budget and cleanup instructions** on
-   the policy, and that rent for a recipient's new USDC account is covered.
-
-If 1 or 3 fail, the fix is to sign first and sponsor second only if Alchemy
-supports a pre-signed payload, which the docs do not state.
+1. A sponsored withdrawal from a wallet holding only USDC: fee payer on
+   Solscan should be Privy's, not the user's.
+2. A sponsored agent swap: `[executor] submitted` with the signature returned
+   by Privy, and confirmation.
+3. A Pod top-up with `sponsor: true` from a wallet with no SOL.

@@ -23,6 +23,10 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
 
   withdraw_title: "提现",
   withdraw_sent: "已发送",
+  withdraw_confirming: "链上确认中",
+  withdraw_confirmed: "已确认",
+  withdraw_failed_chain: "链上失败。资金未移动。",
+  withdraw_confirm_slow: "仍在确认。请查看下方交易。",
   withdraw_sent_body: "转账已提交，数秒内即可确认。",
   withdraw_done: "完成",
   withdraw_not_sent: "未发送",
@@ -38,6 +42,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_amount_label: "金额 · {asset}",
   withdraw_max: "最大 {amount}",
   withdraw_review: "确认信息",
+  withdraw_reviewing: "检查中…",
   withdraw_your_wallet: "您的钱包",
   withdraw_send_elsewhere: "转到其他地址",
   withdraw_back_to_your_wallet: "转回您的钱包",

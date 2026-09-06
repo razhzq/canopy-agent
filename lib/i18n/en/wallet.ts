@@ -27,6 +27,10 @@ export const enWallet = {
   // ── Withdraw ───────────────────────────────────────────────────
   withdraw_title: "Withdraw",
   withdraw_sent: "Sent",
+  withdraw_confirming: "Confirming on chain",
+  withdraw_confirmed: "Confirmed",
+  withdraw_failed_chain: "Failed on chain. Nothing moved.",
+  withdraw_confirm_slow: "Still confirming. Check the transaction below.",
   withdraw_sent_body:
     "The transfer was submitted. It settles in a few seconds.",
   withdraw_done: "Done",
@@ -43,6 +47,7 @@ export const enWallet = {
   withdraw_amount_label: "Amount · {asset}",
   withdraw_max: "Max {amount}",
   withdraw_review: "Review",
+  withdraw_reviewing: "Checking…",
   withdraw_your_wallet: "Your wallet",
   withdraw_send_elsewhere: "Send somewhere else",
   withdraw_back_to_your_wallet: "Back to your wallet",

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Callout, CheckIcon, Columns, WarnIcon } from "@/components/ui";
-import { PRIMARY, QUIET } from "@/components/kit";
+import { PRIMARY, QUIET, Spinner } from "@/components/kit";
 import {
   classFor,
   createStrategy,
@@ -1180,12 +1180,7 @@ export function BuildAgent() {
                   disabled={busy || !ready || !!pending || activeRules.length === 0}
                   className={`${PRIMARY} px-5`}
                 >
-                  {busy ? (
-                    <span
-                      aria-hidden
-                      className="mr-2 inline-block size-3 animate-spin rounded-full border-[1.5px] border-bg/30 border-t-bg"
-                    />
-                  ) : null}
+                  {busy ? <Spinner className="mr-2" /> : null}
                   {t(
                     stage === "saving"
                       ? "build_stage_saving"

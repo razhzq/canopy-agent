@@ -10,7 +10,8 @@ import { personalWallet } from "@/lib/wallets";
 import { NotificationCentre } from "@/components/notificationCentre";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useUser } from "@privy-io/react-auth";
+import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getClaimedWallets,
@@ -385,6 +386,13 @@ function MenuRow({
 function AccountMenu() {
   const { ready, authenticated, user, login, logout, getAccessToken } =
     usePrivy();
+  const { refreshUser } = useUser();
+  const { createWallet } = useCreateWallet();
+  // Creating a main wallet, when the account has none left. Every embedded
+  // Solana wallet on the account is either an agent's or retired, so the rule
+  // that picks the main one comes up empty — a fresh wallet is undelegated and
+  // unclaimed, and becomes the main one the moment Privy reports it.
+  const [creatingWallet, setCreatingWallet] = useState(false);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [invite, setInvite] = useState<PersonalInvite | null>(null);
@@ -988,6 +996,36 @@ function AccountMenu() {
                   {t("account_withdraw")}
                 </button>
               </div>
+            </div>
+          ) : null}
+
+          {/* Signed in, but no main wallet: every embedded wallet is an agent's
+              or has been retired. One quiet action, because the only way
+              forward is a new wallet and the reader should not have to know
+              that. */}
+          {email && !mine ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-grid px-4 py-3.5">
+              <p className="font-ui text-[13px] text-text-dim">{t("account_no_wallet")}</p>
+              <button
+                type="button"
+                disabled={creatingWallet}
+                onClick={async () => {
+                  setCreatingWallet(true);
+                  try {
+                    await createWallet({ createAdditional: true });
+                    await refreshUser();
+                  } catch (err) {
+                    if (process.env.NODE_ENV !== "production") {
+                      console.warn("[nav] create wallet failed", err);
+                    }
+                  } finally {
+                    setCreatingWallet(false);
+                  }
+                }}
+                className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+              >
+                {t(creatingWallet ? "account_creating_wallet" : "account_create_wallet")}
+              </button>
             </div>
           ) : null}
 

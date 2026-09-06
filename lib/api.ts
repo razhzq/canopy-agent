@@ -1721,11 +1721,23 @@ export interface RegisteredWallet {
  * anything that does not match.
  */
 export interface ClaimedWallets {
-  /** Every address already registered to one of this user's agents. */
+  /**
+   * Every address the app must not treat as the user's main wallet or offer
+   * to an agent: registered agent wallets, plus any the user has retired.
+   */
   addresses: string[];
   /** agentId → address, for the agent that already has one. */
   byAgent: Record<string, string>;
+  /** The retired subset of `addresses`. Absent from an older backend. */
+  retired?: string[];
 }
+
+/** Sets one of the caller's wallets aside; the app then picks or creates another. */
+export const retireWallet = (token: string, body: { address: string; reason?: string }) =>
+  request<{ retired: string }>(`/agents/wallets/retire`, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
 /**
  * Which of this user's wallets are already spoken for.
@@ -2210,9 +2222,13 @@ export interface TopUpTx {
 
 /* ---------------------------------------------------------- gas sponsor -- */
 
-/** Whether Canopy is paying network fees. See lib/gasSponsor.ts. */
+/**
+ * Whether Canopy is paying network fees, and through whom. "privy" means the
+ * dialogs pass `sponsor: true` to Privy's own signing call and build nothing
+ * special; that is the only provider this app drives today.
+ */
 export const getGasSponsorship = (token: string) =>
-  request<{ enabled: boolean }>("/gas/sponsor", token);
+  request<{ enabled: boolean; provider?: "privy" | "alchemy" }>("/gas/sponsor", token);
 
 export type SponsorResult =
   | {
@@ -2379,10 +2395,42 @@ export const startCheckout = (
   agentId: number,
   planCode = "live_agent",
   returnPath?: string,
+  /** A discount code. At 100% off the answer is `comped` and there is no URL. */
+  discountCode?: string,
 ) =>
-  request<{ url: string }>("/billing/checkout", token, {
+  request<CheckoutResult>("/billing/checkout", token, {
     method: "POST",
-    body: JSON.stringify({ planCode, agentId, returnPath }),
+    body: JSON.stringify({ planCode, agentId, returnPath, discountCode }),
+  });
+
+export type CheckoutResult =
+  | { url: string; comped?: false }
+  | {
+      /** Nothing to pay: the subscription was written directly. Stay put. */
+      url: null;
+      comped: true;
+      periodEnd: string;
+      entitlement: Entitlement;
+    };
+
+/** What a discount code does to the price. No side effects. */
+export interface DiscountQuote {
+  code: string;
+  percentOff: number;
+  priceUsd: number;
+  finalUsd: number;
+  /** How long a free subscription lasts. Meaningful only when `free`. */
+  durationDays: number;
+  free: boolean;
+}
+
+export const previewDiscount = (
+  token: string,
+  body: { discountCode: string; planCode?: string; agentId?: number },
+) =>
+  request<DiscountQuote>("/billing/discount/preview", token, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 
 export const cancelSubscription = (token: string, subscriptionId: string) =>

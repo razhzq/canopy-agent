@@ -1,5 +1,7 @@
 "use client";
 
+import { describeError } from "@/lib/errors";
+
 import { useEffect, useRef, useState } from "react";
 
 import { Modal } from "@/components/modal";
@@ -11,6 +13,7 @@ import {
   NamedValue,
   SectionLabel,
   Figure,
+  Spinner,
   PRIMARY,
   SECONDARY,
   QUIET,
@@ -24,8 +27,6 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
-import { usePrivy } from "@privy-io/react-auth";
-import { sponsorWith } from "@/lib/gasSponsor";
 import { useGasSponsorship } from "@/lib/useGasSponsorship";
 
 import {
@@ -40,6 +41,8 @@ import {
   isValidAddress,
   planTransfer,
   sendTransfer,
+  waitForLanding,
+  type Landing,
   toBaseUnits,
   type Asset,
   type TransferPlan,
@@ -150,7 +153,7 @@ type Step =
   | { at: "form" }
   | { at: "confirm"; plan: TransferPlan }
   | { at: "sending"; plan: TransferPlan }
-  | { at: "sent"; signature: string }
+  | { at: "sent"; signature: string; landing: Landing }
   | { at: "error"; message: string };
 
 /**
@@ -183,10 +186,8 @@ export function WithdrawModal({
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
-  const { getAccessToken } = usePrivy();
   // Whether Canopy pays the network fee and any rent. Decided at planning so
-  // the confirm step can say so; the send still falls back to the wallet
-  // paying if the sponsor declines at that moment.
+  // the confirm step can say so, then passed to Privy as `sponsor: true`.
   const gas = useGasSponsorship();
   const t = useT();
   // Matched by ADDRESS, never by index — the account holds several wallets and
@@ -212,6 +213,10 @@ export function WithdrawModal({
   const [custom, setCustom] = useState(false);
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<Step>({ at: "form" });
+  // Review reads the chain (does the recipient hold a USDC account?) before
+  // the confirm step can say what the send will do. The button carries the
+  // wait, so a slow RPC reads as checking rather than as a dead press.
+  const [reviewing, setReviewing] = useState(false);
   const [balance, setBalance] = useState<ChainFunding | null>(null);
 
   useEffect(() => {
@@ -248,16 +253,21 @@ export function WithdrawModal({
     toValid && !sendingToSelf && amount.trim() !== "" && !amountError;
 
   async function review() {
+    if (reviewing) return;
+    setReviewing(true);
     try {
       setStep({
         at: "confirm",
         plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
+      console.error("[withdraw] failed", err);
       setStep({
         at: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message: describeError(err),
       });
+    } finally {
+      setReviewing(false);
     }
   }
 
@@ -265,26 +275,32 @@ export function WithdrawModal({
     setStep({ at: "sending", plan });
     try {
       if (!wallet) throw new Error(t("withdraw_wallet_not_connected"));
-      const token = plan.sponsored ? await getAccessToken() : null;
-      const signature = await sendTransfer(
-        plan,
-        async (wire) => {
-          const { signature: bytes } = await signAndSendTransaction({
-            transaction: wire,
-            wallet,
-            // Explicit, never inferred: this app is mainnet-only, and a devnet
-            // send would look identical here and simply never arrive.
-            chain: "solana:mainnet",
-          });
-          return getBase58Decoder().decode(bytes);
-        },
-        token ? sponsorWith(token) : undefined,
-      );
-      setStep({ at: "sent", signature });
+      const signature = await sendTransfer(plan, async (wire) => {
+        const { signature: bytes } = await signAndSendTransaction({
+          transaction: wire,
+          wallet,
+          // Explicit, never inferred: this app is mainnet-only, and a devnet
+          // send would look identical here and simply never arrive.
+          chain: "solana:mainnet",
+          options: {
+            // Canopy pays the fee: Privy swaps its fee payer in at signing.
+            sponsor: plan.sponsored,
+            // Return once broadcast. Privy's own confirmation rides a
+            // websocket with a ten-second timeout, which reports a failure for
+            // a transfer that landed; the dialog confirms over HTTP instead.
+            optimisticBroadcast: true,
+          },
+        });
+        return getBase58Decoder().decode(bytes);
+      });
+      setStep({ at: "sent", signature, landing: "pending" });
+      const landing = await waitForLanding(signature);
+      setStep((s) => (s.at === "sent" && s.signature === signature ? { ...s, landing } : s));
     } catch (err) {
+      console.error("[withdraw] failed", err);
       setStep({
         at: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message: describeError(err),
       });
     }
   }
@@ -293,10 +309,23 @@ export function WithdrawModal({
     <Modal title={t("withdraw_title")} onClose={onClose}>
       {step.at === "sent" ? (
         <div className="space-y-4 px-6 py-6">
-          <p className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-accent">
-            <span className="size-1.5 rounded-full bg-accent" aria-hidden />
-            {t("withdraw_sent")}
-          </p>
+          {/* Sent is a fact the moment the broadcast returns; landed is a
+              second fact that arrives a few seconds later. Two lines, so
+              neither is overstated. */}
+          <div className="space-y-1.5">
+            <StatusLine tone="good">{t("withdraw_sent")}</StatusLine>
+            {step.landing === "pending" ? (
+              <StatusLine tone="pending" live>
+                {t("withdraw_confirming")}
+              </StatusLine>
+            ) : step.landing === "confirmed" ? (
+              <StatusLine tone="good">{t("withdraw_confirmed")}</StatusLine>
+            ) : step.landing === "failed" ? (
+              <StatusLine tone="bad">{t("withdraw_failed_chain")}</StatusLine>
+            ) : (
+              <StatusLine tone="pending">{t("withdraw_confirm_slow")}</StatusLine>
+            )}
+          </div>
           <p className="font-ui text-[12.5px] leading-relaxed text-text-dim">
             {t("withdraw_sent_body")}
           </p>
@@ -429,11 +458,13 @@ export function WithdrawModal({
 
           <button
             type="button"
-            disabled={!ready || !wallet}
+            disabled={!ready || !wallet || reviewing}
+            aria-busy={reviewing}
             onClick={() => void review()}
-            className={`w-full ${PRIMARY}`}
+            className={`w-full gap-2 ${PRIMARY}`}
           >
-            {t("withdraw_review")}
+            {reviewing ? <Spinner /> : null}
+            {t(reviewing ? "withdraw_reviewing" : "withdraw_review")}
           </button>
         </div>
       )}
@@ -507,8 +538,10 @@ function Confirm({
           type="button"
           onClick={onSend}
           disabled={busy}
-          className={`flex-1 ${PRIMARY}`}
+          aria-busy={busy}
+          className={`flex-1 gap-2 ${PRIMARY}`}
         >
+          {busy ? <Spinner /> : null}
           {t(busy ? "withdraw_sending_busy" : "withdraw_send")}
         </button>
         {/* Quiet, and second. Back is the safe direction and does not need to

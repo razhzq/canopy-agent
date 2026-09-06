@@ -25,7 +25,6 @@ import {
   type Instruction,
   compileTransaction,
   createNoopSigner,
-  generateKeyPairSigner,
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -163,9 +162,9 @@ export interface TransferPlan {
   /** True when the destination has no USDC account and one must be created. */
   createsRecipientAccount: boolean;
   /**
-   * Whether Canopy intends to pay the fee (and the rent above). Decided at
-   * planning so the confirm step can say so; the send still falls back to
-   * the wallet paying if the sponsor declines at that moment.
+   * Whether Canopy pays the fee (and the rent above). Decided at planning so
+   * the confirm step can say so. The dialog passes it to Privy as
+   * `sponsor: true` on the signing call; Privy swaps its own fee payer in.
    */
   sponsored: boolean;
 }
@@ -216,6 +215,47 @@ export async function planTransfer(
   };
 }
 
+/** Where a broadcast stands: not yet seen, landed, rejected, or not seen in time. */
+export type Landing = "pending" | "confirmed" | "failed" | "unknown";
+
+/**
+ * Whether a broadcast transaction landed, asked over HTTP.
+ *
+ * Privy's send hook confirms over a websocket subscription with a ten-second
+ * timeout, and on the public cluster socket that wait fails or times out
+ * while the transfer itself sits confirmed — the modal then reports a failure
+ * for money that has moved. So the send is optimistic (see the dialogs) and
+ * this polls `getSignatureStatuses` through the app's own RPC instead.
+ * "unknown" after the deadline is a slow chain, not a failure: the Solscan
+ * link beside it is the honest next step.
+ */
+export async function waitForLanding(
+  signature: string,
+  opts: { timeoutMs?: number; everyMs?: number } = {},
+): Promise<Landing> {
+  const rpc = createSolanaRpc(rpcUrl());
+  const deadline = Date.now() + (opts.timeoutMs ?? 45_000);
+  const every = opts.everyMs ?? 1_500;
+  while (Date.now() < deadline) {
+    try {
+      const { value } = await rpc
+        .getSignatureStatuses([signature as Parameters<typeof rpc.getSignatureStatuses>[0][number]])
+        .send();
+      const status = value[0];
+      if (status) {
+        if (status.err) return "failed";
+        if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
+          return "confirmed";
+        }
+      }
+    } catch {
+      /* a missed poll is nothing; the next one asks again */
+    }
+    await new Promise((r) => setTimeout(r, every));
+  }
+  return "unknown";
+}
+
 /**
  * Builds the transfer and hands it to `sign`, which is Privy's signer.
  *
@@ -230,12 +270,6 @@ export async function planTransfer(
 export async function sendTransfer(
   plan: TransferPlan,
   sign: (wire: Uint8Array) => Promise<string>,
-  /**
-   * Asks Canopy to pay the fee. See lib/gasSponsor.ts. When given and the
-   * plan says `sponsored`, the transaction is first built with a placeholder
-   * payer and offered; null means build again with the wallet paying.
-   */
-  sponsor?: (wire: Uint8Array, signer: string) => Promise<Uint8Array | null>,
 ): Promise<string> {
   const rpc = createSolanaRpc(rpcUrl());
   const from = address(plan.from);
@@ -289,32 +323,18 @@ export async function sendTransfer(
 
   const { value: blockhash } = await rpc.getLatestBlockhash().send();
 
-  const compile = (payer: ReturnType<typeof createNoopSigner>) =>
-    getTransactionEncoder().encode(
-      compileTransaction(
-        pipe(
-          createTransactionMessage({ version: 0 }),
-          (m) => setTransactionMessageFeePayerSigner(payer, m),
-          (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
-          (m) => appendTransactionMessageInstructions(instructions, m),
-        ),
-      ),
-    ) as Uint8Array;
+  const message = pipe(
+    createTransactionMessage({ version: 0 }),
+    (m) => setTransactionMessageFeePayerSigner(signer, m),
+    (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
+    (m) => appendTransactionMessageInstructions(instructions, m),
+  );
 
-  // CANOPY PAYS WHEN IT CAN. The transaction is compiled with a placeholder
-  // payer — a fresh key that appears nowhere else — and offered to the
-  // sponsor. If it comes back sponsored, that is what the wallet signs: it
-  // signs as the token authority only and needs no SOL. If not, the same
-  // instructions are compiled with the wallet paying, exactly as before.
-  if (plan.sponsored && sponsor) {
-    const placeholder = createNoopSigner((await generateKeyPairSigner()).address);
-    const sponsored = await sponsor(compile(placeholder), plan.from);
-    if (sponsored) return sign(sponsored);
-  }
-
-  // Wire bytes, unsigned. Privy's signer fills the signature in and broadcasts;
-  // no key material is ever in this module's reach.
-  return sign(compile(signer));
+  // Wire bytes, unsigned, with the wallet as fee payer — even when Canopy is
+  // paying. Privy's sponsorship swaps its own payer in and refreshes the
+  // blockhash inside the signer, so the message built here is the same either
+  // way; the dialog says `sponsor: true` when it hands these over.
+  return sign(getTransactionEncoder().encode(compileTransaction(message)) as Uint8Array);
 }
 
 export { formatUnits };

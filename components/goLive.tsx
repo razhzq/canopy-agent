@@ -58,9 +58,11 @@ import {
   getEntitlement,
   goLive,
   isPaywallError,
+  previewDiscount,
   refreshBilling,
   startCheckout,
   type AgentDetail,
+  type DiscountQuote,
 } from "@/lib/api";
 
 type Step = 1 | 2 | 3;
@@ -148,6 +150,34 @@ export function GoLiveModal({
    * still null — which is exactly the window the user spends on that step.
    */
   const [grantedAddress, setGrantedAddress] = useState<string | null>(null);
+  /**
+   * A DISCOUNT CODE. Hidden behind one quiet line until asked for, because
+   * most people have none and a code field on a price screen reads as "you
+   * are overpaying". Applying only previews — nothing is used up until
+   * Subscribe (or Activate, at 100% off) is pressed with it.
+   */
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [quote, setQuote] = useState<DiscountQuote | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+
+  async function applyCode() {
+    const trimmed = code.trim();
+    if (!trimmed || applying) return;
+    setApplying(true);
+    setCodeError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error(t("error_not_signed_in"));
+      setQuote(await previewDiscount(token, { discountCode: trimmed, agentId: agent.id }));
+    } catch (err) {
+      setQuote(null);
+      setCodeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApplying(false);
+    }
+  }
 
   const delegated = wallet?.status === "active" || justGranted;
   const walletAddress = wallet?.address ?? grantedAddress;
@@ -280,13 +310,24 @@ export function GoLiveModal({
       // Names where to come back to. BoomFi returns the customer to this exact
       // agent and `?checkout=return` reopens this dialog on the step after the
       // one they just cleared, so paying does not cost them the thread.
-      const { url } = await startCheckout(
+      const result = await startCheckout(
         token,
         agent.id,
         "live_agent",
         `/workspace/${agent.id}?checkout=return`,
+        quote?.code,
       );
-      window.location.href = url;
+      if (result.comped) {
+        // Nothing was charged and nobody left the page: the subscription is
+        // already written. Step 2 follows from the entitlement, as it would
+        // after a paid return.
+        setSubscribed(true);
+        setAwaitingPayment(false);
+        setBusy(false);
+        onChanged();
+        return;
+      }
+      window.location.href = result.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
@@ -358,6 +399,86 @@ export function GoLiveModal({
                         }))
                   }
                 >
+                  {/* ------------------------------------------ discount code */}
+                  {!awaitingPayment ? (
+                    <div className="space-y-2.5">
+                      {!codeOpen && !quote ? (
+                        <button
+                          type="button"
+                          onClick={() => setCodeOpen(true)}
+                          className="font-ui text-[12.5px] text-text-secondary underline-offset-4 transition-colors hover:text-text-primary hover:underline"
+                        >
+                          {t("gl_have_code")}
+                        </button>
+                      ) : null}
+                      {codeOpen && !quote ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            value={code}
+                            onChange={(e) => {
+                              setCode(e.target.value.toUpperCase());
+                              setCodeError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void applyCode();
+                              }
+                            }}
+                            autoFocus
+                            spellCheck={false}
+                            placeholder={t("gl_code_placeholder")}
+                            aria-label={t("gl_code_placeholder")}
+                            className="h-9 w-[200px] rounded-full border border-border bg-transparent px-3.5 font-mono text-[12.5px] uppercase tracking-[0.06em] text-text-primary outline-none transition-colors placeholder:font-ui placeholder:normal-case placeholder:tracking-normal placeholder:text-text-muted focus:border-grid-strong"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void applyCode()}
+                            disabled={applying || code.trim() === ""}
+                            className="inline-flex h-9 items-center rounded-full border border-border px-4 font-ui text-[12.5px] font-medium text-text-primary transition-colors hover:border-grid-strong disabled:opacity-40"
+                          >
+                            {t(applying ? "gl_code_applying" : "gl_code_apply")}
+                          </button>
+                          {codeError ? (
+                            <span className="font-ui text-[12.5px] text-negative" role="alert">
+                              {codeError}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {quote ? (
+                        // The result is a fact, so it gets the dot-and-word
+                        // treatment, with the list price struck beside it.
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="flex items-center gap-1.5 font-ui text-[12.5px] font-medium text-accent">
+                            <span className="size-1.5 rounded-full bg-accent" aria-hidden />
+                            {quote.free
+                              ? t("gl_code_free", { code: quote.code, days: quote.durationDays })
+                              : t("gl_code_applied", {
+                                  code: quote.code,
+                                  percent: quote.percentOff,
+                                  price: money(quote.finalUsd),
+                                })}
+                          </span>
+                          <span className="tnum font-mono text-[12px] text-text-muted line-through">
+                            {money(quote.priceUsd)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuote(null);
+                              setCode("");
+                              setCodeOpen(false);
+                            }}
+                            className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+                          >
+                            {t("gl_code_remove")}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap items-center gap-3">
                     {/* WHY THERE IS NO SECOND SUBSCRIBE BUTTON WHILE WAITING.
                         In this window we do not know whether a payment was made,
@@ -382,7 +503,15 @@ export function GoLiveModal({
                         disabled={busy || checking}
                         className="inline-flex h-10 items-center justify-center rounded-full bg-white px-5 font-ui text-[13px] font-medium text-bg transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                       >
-                        {t(busy ? "gl_opening" : "gl_subscribe")}
+                        {t(
+                          busy
+                            ? quote?.free
+                              ? "gl_activating"
+                              : "gl_opening"
+                            : quote?.free
+                              ? "gl_activate"
+                              : "gl_subscribe",
+                        )}
                       </button>
                     )}
                     <button
@@ -397,7 +526,13 @@ export function GoLiveModal({
                   {/* Said plainly, because the journey leaves the app: they pay on
                       BoomFi's page and are brought back to this agent. */}
                   <Assurance>
-                    {t(awaitingPayment ? "gl_assurance_abandoned" : "gl_assurance_checkout")}
+                    {t(
+                      awaitingPayment
+                        ? "gl_assurance_abandoned"
+                        : quote?.free
+                          ? "gl_assurance_free"
+                          : "gl_assurance_checkout",
+                    )}
                   </Assurance>
                 </Section>
               ) : step === 2 ? (

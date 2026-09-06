@@ -24,20 +24,36 @@ const UPSTREAM =
   "https://api.mainnet-beta.solana.com";
 
 /**
- * What this proxy will forward — reads, and nothing else.
+ * What this proxy will forward.
  *
  * An open JSON-RPC proxy is an open relay: anyone could point it at any method,
- * and it would spend our upstream's quota doing it. Signing and broadcasting go
- * through Privy from the browser and never come here, so nothing that changes
- * chain state needs to be on this list.
+ * and it would spend our upstream's quota doing it. So the list is the reads
+ * the balance panels make, plus what Privy's send hook needs once it is handed
+ * this endpoint as the app's Solana RPC: broadcast a signed transaction,
+ * simulate it, and poll its status. None of those spend anything of ours —
+ * a broadcast is a signed payload anyone could relay to any node — and
+ * without them a withdrawal cannot leave the browser.
  */
 const ALLOWED = new Set([
+  // reads
   "getBalance",
   "getTokenAccountsByOwner",
   "getAccountInfo",
   "getLatestBlockhash",
   "getMultipleAccounts",
   "getMinimumBalanceForRentExemption",
+  // the send path
+  "sendTransaction",
+  "simulateTransaction",
+  "getSignatureStatuses",
+  "getFeeForMessage",
+  "getRecentPrioritizationFees",
+  "getSlot",
+  "getBlockHeight",
+  "getTransaction",
+  "getEpochInfo",
+  "getVersion",
+  "getHealth",
 ]);
 
 export async function POST(req: Request) {

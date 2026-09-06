@@ -29,6 +29,16 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
   gl_opening: "正在打开…",
   gl_subscribe: "订阅",
   gl_not_now: "暂不订阅",
+  gl_have_code: "有优惠码？",
+  gl_code_placeholder: "优惠码",
+  gl_code_apply: "使用",
+  gl_code_applying: "检查中…",
+  gl_code_applied: "{code}：减 {percent}%，{price}/月",
+  gl_code_free: "{code}：免费 {days} 天",
+  gl_code_remove: "移除",
+  gl_activate: "启用",
+  gl_activating: "启用中…",
+  gl_assurance_free: "无需付款。这个智能体的实盘执行现在就会开启，本对话框会直接进入授权那一步。",
   gl_assurance_abandoned:
     "如果您关闭了 BoomFi 而没有付款，请关掉这里并重新点击「实盘」重新开始。目前没有产生任何扣费。",
   gl_assurance_checkout:

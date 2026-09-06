@@ -13,6 +13,20 @@ import { getGasSponsorship } from "@/lib/api";
 
 let cached: boolean | null = null;
 
+/**
+ * A browser-side kill switch for diagnosis: `localStorage.canopy_gas_sponsor =
+ * "off"` makes every dialog build self-paid, whatever the backend says. Lets a
+ * failing send be split into "the sponsored bytes" versus "the send itself"
+ * without a redeploy. Not a setting; not surfaced anywhere.
+ */
+function forcedOff(): boolean {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem("canopy_gas_sponsor") === "off";
+  } catch {
+    return false;
+  }
+}
+
 export function useGasSponsorship(): { enabled: boolean; known: boolean } {
   const { getAccessToken, authenticated } = usePrivy();
   const [enabled, setEnabled] = useState<boolean | null>(cached);
@@ -36,5 +50,5 @@ export function useGasSponsorship(): { enabled: boolean; known: boolean } {
     };
   }, [authenticated, getAccessToken]);
 
-  return { enabled: enabled === true, known: enabled !== null };
+  return { enabled: enabled === true && !forcedOff(), known: enabled !== null };
 }

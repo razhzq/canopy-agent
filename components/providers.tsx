@@ -1,7 +1,10 @@
 "use client";
 
-import { PrivyProvider } from "@privy-io/react-auth";
+import { useMemo } from "react";
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { PRIVY_APP_ID, privyConfig } from "@/lib/privy";
+import { rpcUrl, wsUrl } from "@/lib/chainBalance";
 import { LocaleProvider } from "@/lib/i18n";
 
 /**
@@ -19,8 +22,33 @@ import { LocaleProvider } from "@/lib/i18n";
  * moment they sign in and the tree below Privy remounts.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
+  /**
+   * THE RPC PRIVY SENDS THROUGH. Privy 3.x's `useSignAndSendTransaction`
+   * broadcasts over an RPC the app must hand it under `solana.rpcs`, keyed by
+   * chain; without one it throws "No RPC configuration found for chain
+   * solana:mainnet" the moment a withdrawal is signed. Built here, in the
+   * browser, rather than in lib/privy.ts: the default endpoint is the app's
+   * own proxy at a relative path, which only resolves against an origin.
+   */
+  const config = useMemo<PrivyClientConfig>(() => {
+    if (typeof window === "undefined") return privyConfig;
+    return {
+      ...privyConfig,
+      solana: {
+        ...privyConfig.solana,
+        rpcs: {
+          "solana:mainnet": {
+            rpc: createSolanaRpc(rpcUrl()),
+            rpcSubscriptions: createSolanaRpcSubscriptions(wsUrl()),
+            blockExplorerUrl: "https://solscan.io",
+          },
+        },
+      },
+    };
+  }, []);
+
   const inner = PRIVY_APP_ID ? (
-    <PrivyProvider appId={PRIVY_APP_ID} config={privyConfig}>
+    <PrivyProvider appId={PRIVY_APP_ID} config={config}>
       {children}
     </PrivyProvider>
   ) : (

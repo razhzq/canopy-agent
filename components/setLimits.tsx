@@ -33,7 +33,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot, StatusLine } from "@/components/kit";
+import { FieldNote, InfoDot, Spinner, StatusLine } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { ChevronDown } from "lucide-react";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
@@ -660,12 +660,7 @@ export function SetLimits({
                   disabled={busy || sentence.trim().length === 0}
                   className="inline-flex h-8 items-center gap-2 rounded-full bg-white px-4 font-ui text-[12.5px] font-medium text-bg transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                 >
-                  {busy ? (
-                    <span
-                      aria-hidden
-                      className="size-3 animate-spin rounded-full border-[1.5px] border-bg/30 border-t-bg"
-                    />
-                  ) : null}
+                  {busy ? <Spinner /> : null}
                   {t(busy ? "sl_compiling" : turns.length === 0 ? "sl_compile" : "sl_send")}
                 </button>
               </div>

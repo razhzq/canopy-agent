@@ -67,6 +67,23 @@ export function rpcUrl(): string {
   return FALLBACK_RPC_URL;
 }
 
+/**
+ * The websocket endpoint Privy's send hook wants beside the HTTP one.
+ *
+ * NEXT_PUBLIC_SOLANA_WS_URL when set; otherwise the HTTP endpoint with its
+ * scheme swapped, which is how every hosted provider pairs them. The proxy
+ * cannot carry websockets, so when the app is on the proxy this falls back to
+ * the public cluster socket — Privy only uses it for confirmation, and a
+ * confirmation that fails to arrive is a slow dialog, not a lost transfer.
+ */
+export function wsUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_SOLANA_WS_URL;
+  if (explicit) return explicit;
+  const http = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+  if (http && /^https?:\/\//.test(http)) return http.replace(/^http/, "ws");
+  return "wss://api.mainnet-beta.solana.com";
+}
+
 export interface ChainFunding {
   usdc: number;
   sol: number;

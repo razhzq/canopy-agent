@@ -286,6 +286,23 @@ export function Metric({
 }
 
 /** Status: a dot and a word. See rule 4 — this replaces a callout. */
+/**
+ * A wait, inside a button.
+ *
+ * Sized to the button's text and coloured from it, so the same mark works on
+ * the white primary (dark ring) and on outlined or quiet buttons (light ring).
+ * Always paired with a label change ("Checking…", "Sending…"): the ring says
+ * something is happening, the word says what.
+ */
+export function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-current/30 border-t-current ${className}`}
+    />
+  );
+}
+
 export function StatusLine({
   tone,
   live = false,
