@@ -600,7 +600,7 @@ export function PickMarket({
               placeholder={t("mk_search_placeholder")}
               spellCheck={false}
               aria-label={t("mk_search_aria")}
-              className="peer min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+              className="peer min-w-0 flex-1 bg-transparent font-ui text-[13px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-muted"
             />
             <kbd
               aria-hidden

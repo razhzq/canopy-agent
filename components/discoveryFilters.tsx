@@ -367,7 +367,7 @@ function NumberInput({
         onChange={(e) => commit(e.target.value)}
         placeholder={t("dsc_any")}
         aria-label={t("dsc_any")}
-        className={`h-8 w-[5.5rem] rounded-md border border-grid bg-transparent px-2 text-right font-mono text-[12px] tnum text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent ${FOCUS}`}
+        className={`h-8 w-[5.5rem] rounded-md border border-grid bg-transparent px-2 text-right font-mono text-[12px] pointer-coarse:text-[16px] tnum text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent ${FOCUS}`}
       />
       {unit === "pct" ? <span className="font-mono text-[11px] text-text-dim">%</span> : null}
       {asDays ? <span className={LABEL}>{t("dsc_unit_days")}</span> : null}

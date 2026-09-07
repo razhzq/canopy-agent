@@ -642,7 +642,7 @@ export function SetLimits({
                     : t("sl_compose_followup")
                 }
                 aria-label={t("sl_compose_aria")}
-                className="w-full resize-none bg-transparent px-4 py-3 font-ui text-[14px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
+                className="w-full resize-none bg-transparent px-4 py-3 font-ui text-[14px] pointer-coarse:text-[16px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
               />
               <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
                 <span className="flex min-w-0 items-center gap-2.5">
@@ -1559,7 +1559,7 @@ export function ScaleOutLadder({
                     ),
                   })
                 }
-                className="tnum w-16 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] text-text-primary outline-none focus:border-accent/40"
+                className="tnum w-16 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
                 aria-label={t("sl_step_size_aria", { n: i + 1 })}
               />
               <span className="text-text-dim">{t("sl_pct_at")}</span>
@@ -1571,7 +1571,7 @@ export function ScaleOutLadder({
                 onChange={(e) =>
                   setRung(i, { atPct: Math.max(1, Number(e.target.value)) })
                 }
-                className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] text-text-primary outline-none focus:border-accent/40"
+                className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
                 aria-label={t("sl_step_gain_aria", { n: i + 1 })}
               />
               <span className="text-text-dim">{t("sl_pct_gain")}</span>

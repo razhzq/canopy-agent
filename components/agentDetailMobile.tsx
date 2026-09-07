@@ -278,7 +278,7 @@ export function AgentDetailMobile({
 
       {/* --------------------------------------------------------- NAV --- */}
       <div className="border-y border-grid bg-panel">
-        <div className="flex items-start justify-between px-[18px] pt-4 pb-2.5">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5 px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
             <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
               {points.length

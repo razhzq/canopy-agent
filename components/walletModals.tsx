@@ -397,7 +397,7 @@ export function WithdrawModal({
                 spellCheck={false}
                 autoComplete="off"
                 placeholder={t("withdraw_to_placeholder")}
-                className="w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 font-mono text-[12.5px] break-all text-text-primary outline-none transition-[border-color,box-shadow] placeholder:text-text-muted focus:border-accent/40 focus:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
+                className="w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 font-mono text-[12.5px] pointer-coarse:text-[16px] break-all text-text-primary outline-none transition-[border-color,box-shadow] placeholder:text-text-muted focus:border-accent/40 focus:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
               />
               {to.trim() !== "" && !toValid ? (
                 <Note tone="bad">{t("withdraw_not_an_address")}</Note>

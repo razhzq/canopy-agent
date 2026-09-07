@@ -182,7 +182,7 @@ export function MarketplaceView({
                 placeholder={t("market_search_placeholder")}
                 spellCheck={false}
                 aria-label={t("market_search_aria")}
-                className="min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+                className="min-w-0 flex-1 bg-transparent font-ui text-[13px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-muted"
               />
             </label>
             <label className="flex h-10 items-center gap-2 rounded-full border border-border bg-surface pl-4 pr-3 font-ui text-[13px] text-text-dim">

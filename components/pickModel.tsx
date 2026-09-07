@@ -269,7 +269,7 @@ export function PickModel({
                     placeholder={t("pm_search_placeholder")}
                     spellCheck={false}
                     aria-label={t("pm_search_aria")}
-                    className="min-w-0 flex-1 bg-transparent font-ui text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+                    className="min-w-0 flex-1 bg-transparent font-ui text-[13px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-muted"
                   />
                 </label>
                 {/* What is on screen versus what matched. The list is capped at

@@ -429,7 +429,7 @@ export function GoLiveModal({
                             spellCheck={false}
                             placeholder={t("gl_code_placeholder")}
                             aria-label={t("gl_code_placeholder")}
-                            className="h-9 w-[200px] rounded-full border border-border bg-transparent px-3.5 font-mono text-[12.5px] uppercase tracking-[0.06em] text-text-primary outline-none transition-colors placeholder:font-ui placeholder:normal-case placeholder:tracking-normal placeholder:text-text-muted focus:border-grid-strong"
+                            className="h-9 w-[200px] rounded-full border border-border bg-transparent px-3.5 font-mono text-[12.5px] pointer-coarse:text-[16px] uppercase tracking-[0.06em] text-text-primary outline-none transition-colors placeholder:font-ui placeholder:normal-case placeholder:tracking-normal placeholder:text-text-muted focus:border-grid-strong"
                           />
                           <button
                             type="button"

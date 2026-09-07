@@ -169,8 +169,16 @@
 
 /* ---- two ways ---- */
 .lp .ways{padding:120px 0 96px}
+/* `min-width:0` on the halves, and it is load-bearing rather than tidy-up.
+   A grid item's automatic minimum size is its MIN-CONTENT width, so a `1fr`
+   track cannot shrink below whatever the widest unbreakable thing inside it
+   is — here the four-column stat row and the pill rows in the mocks below.
+   On a 390px phone that pinned each half at 417px inside a 334px container
+   and pushed the DOCUMENT to 446px, which scrolled every other section of the
+   page sideways with it. The mocks are decoration and are allowed to be
+   clipped by their well; the page is not allowed to overflow. */
 .lp .split{display:grid;grid-template-columns:1fr 1fr;max-width:1060px;margin:72px auto 0;border:1px solid var(--line);border-radius:4px}
-.lp .half{padding:48px 32px 56px}
+.lp .half{padding:48px 32px 56px;min-width:0}
 .lp .half + .half{border-left:1px solid var(--line)}
 .lp .half h3{margin:0;font-size:30px;font-weight:400;letter-spacing:-.01em;color:var(--ink)}
 .lp .half > p{margin:32px 0 0;font-size:17px;line-height:1.5;color:var(--body)}
@@ -178,7 +186,7 @@
 .lp .well::after{content:"";position:absolute;left:0;right:0;bottom:0;height:40%;background:linear-gradient(transparent,#FCFDFC);pointer-events:none}
 
 /* prompt mock */
-.lp .seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12.5px;color:var(--body)}
+.lp .seg{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:3px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12.5px;color:var(--body)}
 .lp .seg span{padding:6px 12px;border-radius:999px}
 .lp .seg span.on{background:var(--chip);color:var(--ink);font-weight:500}
 .lp .ask{display:flex;align-items:center;gap:12px;width:min(100%,300px);height:56px;padding:0 8px 0 18px;border-radius:999px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px -22px rgba(11,20,16,.35),0 0 0 6px rgba(94,211,179,.10)}
@@ -187,7 +195,7 @@
 .lp .ask i svg{width:15px;height:15px}
 
 /* marketplace mock */
-.lp .cats{display:flex;gap:4px;padding:4px;border-radius:8px;background:#fff;border:1px solid var(--line);font-size:11.5px;color:var(--body)}
+.lp .cats{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:4px;border-radius:8px;background:#fff;border:1px solid var(--line);font-size:11.5px;color:var(--body)}
 .lp .cats span{padding:6px 10px;border-radius:6px}
 .lp .cats span.on{background:var(--chip);color:var(--ink);font-weight:500}
 .lp .stack{position:relative;width:min(100%,400px);height:224px}
@@ -197,6 +205,7 @@
 .lp .mcard b{display:block;font-size:14px;font-weight:600;color:var(--ink)}
 .lp .mspark{display:block;width:100%;height:44px;margin-top:10px}
 .lp .mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.lp .mstats > div{min-width:0}
 .lp .mstats small{display:block;font-size:10px;color:var(--muted);letter-spacing:.02em}
 .lp .mstats span{display:block;margin-top:2px;font-family:var(--mono);font-size:14px;color:var(--ink)}
 .lp .mstats span.up{color:var(--green-deep)}
@@ -232,7 +241,7 @@
 
 /* one gap, one radius, one border; two cell sizes, one feature */
 .lp .bento{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(200px,auto);gap:14px;margin-top:72px}
-.lp .cell{background:#151A17;border:1px solid #262D29;border-radius:16px;padding:28px;display:flex;flex-direction:column}
+.lp .cell{background:#151A17;border:1px solid #262D29;border-radius:16px;padding:28px;display:flex;flex-direction:column;min-width:0}
 .lp .cell.feature{grid-column:span 2;grid-row:span 2;align-items:center;justify-content:center;padding:40px}
 .lp .cell h3{margin:0;font-size:18px;font-weight:500;letter-spacing:-.01em;color:#fff}
 .lp .cell p{margin:10px 0 0;font-size:15px;line-height:1.5;color:rgba(255,255,255,.62)}
@@ -388,7 +397,8 @@
 /* ---- anywhere: the product in a phone, beside three feature rows ---- */
 .lp .anywhere{padding:120px 0}
 .lp .any{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;max-width:1060px;margin:72px auto 0}
-.lp .phone{position:relative;width:300px;height:600px;margin:0 auto;border-radius:46px;background:var(--ink);padding:10px;box-shadow:0 40px 80px -40px rgba(11,20,16,.5)}
+.lp .any > *{min-width:0}
+.lp .phone{position:relative;width:min(100%,300px);height:600px;margin:0 auto;border-radius:46px;background:var(--ink);padding:10px;box-shadow:0 40px 80px -40px rgba(11,20,16,.5)}
 .lp .screen{position:relative;height:100%;border-radius:38px;background:#fff;overflow:hidden;padding:56px 22px 0}
 .lp .island{position:absolute;top:14px;left:50%;width:96px;height:28px;border-radius:999px;background:var(--ink);transform:translateX(-50%)}
 .lp .stime{position:absolute;top:18px;left:28px;font-size:13px;font-weight:600;color:var(--ink)}
@@ -414,4 +424,34 @@
 @media(max-width:860px){
   .lp .anywhere{padding:88px 0}
   .lp .any{grid-template-columns:1fr;gap:40px}
+}
+
+/* ---- phones ------------------------------------------------------------ */
+/*
+ * Below 560px the two-up layouts that survive a tablet stop fitting: a bento
+ * cell holding a 30px mono figure cannot sit in half of a 320px screen, and
+ * the nav's two pills plus the language switcher overrun the wordmark.
+ *
+ * The 860px block above is deliberately left alone — it is the TABLET step,
+ * and the halves it collapses are still comfortable at 600px. This is the
+ * step below it, not a replacement for it.
+ */
+@media(max-width:560px){
+  .lp .wrap{padding:0 20px}
+  .lp .bento{grid-template-columns:1fr;gap:12px}
+  .lp .cell.feature{grid-column:auto;padding:24px 20px}
+  .lp .cell{padding:22px 20px}
+  .lp .fig{font-size:26px}
+  /* Four stat columns in a phone-width mock wrap their labels onto two lines
+     and drop the figures out of line with each other. Two columns fit. */
+  .lp .mstats{grid-template-columns:repeat(2,1fr);gap:10px 12px}
+  /* Two rows of stats make the top card ~55px taller, which buried the two
+     ghost cards it is meant to sit in front of. They are positioned off the
+     stack's top edge, so the stack and its well have to grow with it. */
+  .lp .stack{height:279px}
+  .lp .mcard.g1{top:223px}
+  .lp .mcard.g2{top:247px}
+  .lp .well{height:335px}
+  .lp .pill{height:38px;padding:0 14px;font-size:13px}
+  .lp .nav-right{gap:6px}
 }

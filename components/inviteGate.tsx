@@ -257,7 +257,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
           aria-invalid={error !== null}
           aria-describedby={error ? "invite-error" : undefined}
           disabled={busy}
-          className="h-12 w-full border border-grid-strong bg-transparent px-3.5 font-mono text-[14px] tracking-[0.08em] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent disabled:opacity-60"
+          className="h-12 w-full border border-grid-strong bg-transparent px-3.5 font-mono text-[14px] pointer-coarse:text-[16px] tracking-[0.08em] text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent disabled:opacity-60"
         />
 
         {error ? (

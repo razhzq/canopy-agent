@@ -340,7 +340,7 @@ export function AgentThread({
           // floor is the visible change: this rested at a single row, so the
           // composer read as a search field rather than somewhere to write a
           // paragraph to your agent.
-          className="max-h-48 min-h-14 w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 font-ui text-[14px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
+          className="max-h-48 min-h-14 w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 font-ui text-[14px] pointer-coarse:text-[16px] leading-[1.6] text-text-primary outline-none placeholder:text-text-muted disabled:opacity-60"
         />
         <div className="flex items-center justify-between gap-4 px-3 pb-2.5 pl-4">
           <span className="font-ui text-[11.5px] text-text-muted">

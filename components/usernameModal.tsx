@@ -115,7 +115,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
                 if (e.key === "Enter" && ready) void submit();
               }}
               placeholder={t("username_placeholder")}
-              className="w-full bg-transparent px-2 py-2.5 font-mono text-[15px] text-text-primary outline-none placeholder:text-text-dim"
+              className="w-full bg-transparent px-2 py-2.5 font-mono text-[15px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-dim"
             />
             <span className="pr-3 font-mono text-[10px] text-text-dim">
               {name.length}/{MAX}

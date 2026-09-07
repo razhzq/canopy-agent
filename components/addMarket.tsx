@@ -594,7 +594,7 @@ export function AddMarketModal({
               placeholder={t("am_search_placeholder")}
               spellCheck={false}
               aria-label={t("mk_search_aria")}
-              className={`h-9 w-[220px] ${SURFACE} px-3 font-mono text-[12.5px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent`}
+              className={`h-9 w-[220px] ${SURFACE} px-3 font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent`}
             />
             <span className={LABEL}>
               {rows.length === 1

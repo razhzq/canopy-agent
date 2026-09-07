@@ -933,7 +933,7 @@ export function BuildAgent() {
             spellCheck={false}
             aria-label={t("build_name_aria")}
             tabIndex={naming === "done" ? undefined : -1}
-            className={`w-[240px] border-b border-transparent bg-transparent pb-0.5 font-ui text-[14px] font-medium text-text-primary outline-none transition-[opacity,border-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] placeholder:font-normal placeholder:text-text-dim hover:border-grid-strong focus:border-accent ${
+            className={`w-[240px] border-b border-transparent bg-transparent pb-0.5 font-ui text-[14px] pointer-coarse:text-[16px] font-medium text-text-primary outline-none transition-[opacity,border-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] placeholder:font-normal placeholder:text-text-dim hover:border-grid-strong focus:border-accent ${
               naming === "done" ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
           />
