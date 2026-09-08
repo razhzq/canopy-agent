@@ -92,6 +92,9 @@ export const enPublish = {
   sd_open_positions: "Open positions",
   // The record's three readings, as tab labels.
   sd_record_tabs: "Record",
+  sd_book_aria: "Paper or live record",
+  sd_book_paper: "Paper",
+  sd_book_live: "Live",
   sd_tab_performance: "Performance",
   sd_tab_positions: "Positions",
   sd_tab_history: "History",

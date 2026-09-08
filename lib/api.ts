@@ -2988,8 +2988,23 @@ export interface RecordPosition {
 
 export interface StrategyRecord {
   agentId: number | null;
+  /**
+   * What the book being shown started with.
+   *
+   * PER BOOK, not per agent. Going live rebases the agent's stored capital to
+   * the wallet, so the figure on the row describes only the book the agent is
+   * in now; the server measures the other one from its first reading, which is
+   * what that book was deployed with. Reading one book's baseline under the
+   * other's curve is how a $10,000 paper record came to sit above a $98
+   * baseline and report itself as a +10,000% return.
+   */
   capitalUsd: number;
+  /** The book these figures describe — the one SHOWN, not the agent's mode. */
   isPaper?: boolean;
+  /** Whether a paper half exists at all. Absent on an older backend. */
+  hasPaper?: boolean;
+  /** Whether a live half exists at all. Absent on an older backend. */
+  hasLive?: boolean;
   points: EquityPoint[];
   openPositions: number;
   closedPositions: number;
@@ -3022,8 +3037,25 @@ export interface StrategyRecord {
   positions?: RecordPosition[];
 }
 
-export const getStrategyRecord = (token: string, strategyId: number) =>
-  request<StrategyRecord>(`/agents/strategies/${strategyId}/record`, token);
+/**
+ * A strategy's public record, for ONE book.
+ *
+ * `book` matters for the same reason it does on `getEquity`: an author's agent
+ * can go live, and an unfiltered record drew its 2,105 paper cycles around
+ * $10,000 and its live cycles around $98 as one line — a 99% drawdown that is
+ * a change of book, not a loss — with both books' trades merged into one win
+ * rate. Omitted means the live book when there is one, which is what a fresh
+ * page load should show.
+ */
+export const getStrategyRecord = (
+  token: string,
+  strategyId: number,
+  book?: "paper" | "live",
+) =>
+  request<StrategyRecord>(
+    `/agents/strategies/${strategyId}/record${book ? `?book=${book}` : ""}`,
+    token,
+  );
 
 /**
  * One closed trade on a public record — a round trip, not a fill.
@@ -3071,9 +3103,16 @@ export const getStrategyTrades = (
   strategyId: number,
   page: number,
   pageSize: number,
+  /**
+   * The book to list. Pass the one the record answered with — this table sits
+   * under that record's curve, and a live curve above two hundred paper round
+   * trips is the disagreement the parameter exists to prevent.
+   */
+  book?: "paper" | "live",
 ) =>
   request<TradePage>(
-    `/agents/strategies/${strategyId}/trades?page=${page}&pageSize=${pageSize}`,
+    `/agents/strategies/${strategyId}/trades?page=${page}&pageSize=${pageSize}` +
+      (book ? `&book=${book}` : ""),
     token,
   );
 

@@ -106,9 +106,22 @@ export function StrategyDetail({
   // its fixture over the result. Signed out, the real calls settle to
   // `signed-out` and cost nothing.
   const metaLive = useApi((token) => getStrategy(token, strategyId), [strategyId]);
+  /**
+   * Which book the record is being read in. Null means "whichever the server
+   * opens on", which is the live one when the author's agent has traded live.
+   *
+   * A RECORD IS PER BOOK, and it was not always. Every figure on this page —
+   * the curve, the capital it is measured against, the win rate, the day
+   * table, the open book — used to be computed over both at once. That was
+   * invisible while every record agent was on paper and wrong the moment one
+   * went live: volatility-play drew 2,105 paper cycles around $10,000 and then
+   * its live cycles around $98 as one continuous line, and reported the change
+   * of book as a 99% drawdown.
+   */
+  const [book, setBook] = useState<"paper" | "live" | null>(null);
   const recordLive = useApi<StrategyRecord>(
-    (token) => getStrategyRecord(token, strategyId),
-    [strategyId],
+    (token) => getStrategyRecord(token, strategyId, book ?? undefined),
+    [strategyId, book],
   );
   const meta = preview
     ? ({ phase: "ready", data: preview.meta, reload: () => {} } as const)
@@ -308,6 +321,17 @@ export function StrategyDetail({
   const daily = Array.isArray(ready?.daily) ? ready.daily : null;
   const capital = ready?.capitalUsd ?? 0;
 
+  // Which book is on screen, and whether there is another one to offer.
+  //
+  // Read off the RECORD rather than off `book`, so the control follows what
+  // actually came back: the server picks the default, and a request for a book
+  // that turns out to be empty is answered with the one that is not. Undefined
+  // on a backend that predates the split, where there is exactly one book by
+  // construction and no switch to draw.
+  const showing: "paper" | "live" | null =
+    ready?.isPaper === undefined ? null : ready.isPaper ? "paper" : "live";
+  const showBooks = ready?.hasPaper === true && ready?.hasLive === true;
+
   const equity = points.length > 0 ? points[points.length - 1].equityUsd : null;
   const ret =
     equity === null || capital === 0
@@ -347,6 +371,16 @@ export function StrategyDetail({
                 once an agent is running on it, so "Paper" is a statement
                 about a real record rather than about an empty shell. */}
             {onPaper ? <StatusWord tone="muted">{t("sd_badge_paper")}</StatusWord> : null}
+            {/* A published strategy whose author went live: the head says which
+                book the figures below belong to, because "Listed" alone no
+                longer tells a reader whether they are looking at real money.
+                Suppressed while `onPaper` already says Paper — two badges
+                saying the same word reads as a rendering fault. */}
+            {!onPaper && showBooks && showing !== null ? (
+              <StatusWord tone={showing === "live" ? "accent" : "muted"}>
+                {t(showing === "paper" ? "sd_book_paper" : "sd_book_live")}
+              </StatusWord>
+            ) : null}
             {strategy.status === "delisted" ? (
               <StatusWord tone="warning">{t("sd_badge_delisted")}</StatusWord>
             ) : null}
@@ -444,20 +478,49 @@ export function StrategyDetail({
           <h2 className="font-ui text-[15px] font-medium text-text-primary">
             {t("sd_tab_performance")}
           </h2>
-          <div className={SEGMENT_TRACK}>
-            {(["30d", "90d", "all"] as Range[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                aria-pressed={range === r}
-                className={`${SEGMENT_ITEM} ${FOCUS} ${
-                  range === r ? SEGMENT_ON : SEGMENT_OFF
-                }`}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* THE BOOK, ahead of the window — it decides which record is being
+                read, where the range only decides how much of it.
+
+                Rendered only when both halves exist. One book is not a choice,
+                and a switch with a dead half would raise a question about a
+                record that has nothing to switch to. */}
+            {showBooks ? (
+              <div
+                className={SEGMENT_TRACK}
+                role="group"
+                aria-label={t("sd_book_aria")}
               >
-                {r}
-              </button>
-            ))}
+                {(["paper", "live"] as const).map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setBook(b)}
+                    aria-pressed={showing === b}
+                    className={`${SEGMENT_ITEM} ${FOCUS} ${
+                      showing === b ? SEGMENT_ON : SEGMENT_OFF
+                    }`}
+                  >
+                    {t(b === "paper" ? "sd_book_paper" : "sd_book_live")}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className={SEGMENT_TRACK}>
+              {(["30d", "90d", "all"] as Range[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  aria-pressed={range === r}
+                  className={`${SEGMENT_ITEM} ${FOCUS} ${
+                    range === r ? SEGMENT_ON : SEGMENT_OFF
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -694,7 +757,7 @@ export function StrategyDetail({
                   a visitor who never opens History never asks the API for it,
                   and the page it was left on is not state the whole page has
                   to carry. */}
-              <TradeHistory strategyId={strategyId} marks={marks} />
+              <TradeHistory strategyId={strategyId} marks={marks} book={showing} />
             </div>
           ) : null}
 
@@ -1077,15 +1140,21 @@ const DAY_COLS =
 function TradeHistory({
   strategyId,
   marks,
+  book,
 }: {
   strategyId: number;
   marks: UniverseAsset[];
+  /**
+   * The book the record above answered with. Null on a backend that predates
+   * the split, where the server's own default is the only book there is.
+   */
+  book: "paper" | "live" | null;
 }) {
   const { t } = useLocale();
   const [page, setPage] = useState(0);
   const trades = useApi(
-    (token) => getStrategyTrades(token, strategyId, page, ROWS_PER_PAGE),
-    [strategyId, page],
+    (token) => getStrategyTrades(token, strategyId, page, ROWS_PER_PAGE, book ?? undefined),
+    [strategyId, page, book],
   );
 
   /**
