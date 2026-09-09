@@ -2,7 +2,9 @@
 
 // Referral capture: remembering who sent you, across a login you leave for.
 //
-// The link is `agent.canopy.finance/?ref=CNPY-XXXX-XXXX`. Between landing on it
+// The link is `agent.canopy.finance/?ref=<code>`, where the code is either a
+// user's own `CNPY-XXXX-XXXX` invite or an admin-minted campaign code such as
+// `STMYBORNEO`. Between landing on it
 // and having an account there is a Privy login — which may be a redirect to an
 // email provider, a wallet extension handoff, or a popup — and any of those can
 // lose the query string. So the code is lifted out of the URL the moment the
@@ -41,13 +43,29 @@ interface Stored {
 }
 
 /**
- * Codes are `CNPY-XXXX-XXXX` over an unambiguous alphabet (no O/0, I/1/L).
+ * The shape a referral code can take.
+ *
+ * TWO KINDS OF CODE REACH THIS, AND ONLY ONE IS GENERATED.
+ *
+ * A personal invite is minted by the backend as `CNPY-XXXX-XXXX` over an
+ * unambiguous alphabet (no O/0, I/1/L). A campaign code is typed by an admin —
+ * `STMYBORNEO` on a conference QR, say — and is whatever string they chose.
+ * Both are rows in the same `access_codes` table and redeem down the same path,
+ * so a regex that admits only the generated shape silently drops every campaign
+ * link: `captureReferral` strips `?ref=` from the URL BEFORE validating, so the
+ * code is gone from the address bar and never stored, and the visitor lands on
+ * the invite gate the link was supposed to spare them.
+ *
+ * So this mirrors the rule the backend actually enforces when a code is minted
+ * (`POST /admin/access-codes`: `/^[A-Za-z0-9-]{4,64}$/`) rather than describing
+ * one generator's output. Deliberately the same bounds, because a third opinion
+ * about what a code looks like is how the two halves drift apart again.
  *
  * Validated before storing so a malformed or hostile `?ref=` never reaches
  * localStorage or the API. The backend validates again — this is about not
  * carrying obvious junk around, not about trust.
  */
-const CODE_RE = /^CNPY-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
+const CODE_RE = /^[A-Z0-9-]{4,64}$/;
 
 export function isValidCodeShape(code: string): boolean {
   return CODE_RE.test(code.trim().toUpperCase());
