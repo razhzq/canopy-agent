@@ -5,8 +5,11 @@
 export const enActivity = {
   // ── Empty and polling ──────────────────────────────────────────
   activity_empty_title: "Nothing yet",
+  // The cycle's row is opened before its market preparation, so it appears
+  // here within a poll of the agent being created rather than once all the
+  // upstream work has finished — which used to take up to two minutes.
   activity_empty_body:
-    "The first cycle is starting now and appears here within a minute or two — it runs whether or not the agent finds anything to buy. After that it wakes once an hour.",
+    "The first cycle starts the moment the agent is created and appears here within a few seconds — it runs whether or not the agent finds anything to buy. After that it wakes once an hour.",
   activity_checking: "Checking every 15s",
   activity_signed_out_note: "Sign in to see this agent.",
 

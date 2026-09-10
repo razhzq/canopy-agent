@@ -81,6 +81,9 @@ export const enNarrate = {
 
   // ── The Desk ───────────────────────────────────────────────────
   narrate_desk_not_active: "I didn't run this cycle — I'm {status}.",
+  // A pass-through: the backend's sentence is already written for the owner,
+  // and framing it twice would say the same thing in two voices.
+  narrate_desk_skipped: "{reason}",
   narrate_desk_expired: "I didn't run — my mandate has reached its time limit.",
   narrate_desk_drawdown: "{reason} I'm closing every position I can get a price for.",
   narrate_desk_drawdown_reason: "I've breached my drawdown limit.",

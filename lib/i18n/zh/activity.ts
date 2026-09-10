@@ -3,7 +3,7 @@ import type { enActivity } from "../en/activity";
 export const zhActivity: Record<keyof typeof enActivity, string> = {
   activity_empty_title: "暂无记录",
   activity_empty_body:
-    "第一个周期正在启动，一两分钟内会显示在这里 — 无论智能体是否找到可买入的标的，它都会运行。之后它每小时唤醒一次。",
+    "第一个周期在智能体创建的那一刻就开始，几秒内会显示在这里 — 无论智能体是否找到可买入的标的，它都会运行。之后它每小时唤醒一次。",
   activity_checking: "每 15 秒检查一次",
   activity_signed_out_note: "登录后可查看该智能体。",
 

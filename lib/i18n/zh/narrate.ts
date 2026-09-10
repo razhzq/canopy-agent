@@ -36,6 +36,7 @@ export const zhNarrate: Record<keyof typeof enNarrate, string> = {
   narrate_positions_many: "{count} 笔持仓",
 
   narrate_desk_not_active: "这个周期我没有运行 — 我现在的状态是{status}。",
+  narrate_desk_skipped: "{reason}",
   narrate_desk_expired: "我没有运行 — 我的授权已经到期了。",
   narrate_desk_drawdown: "{reason}我正在平掉所有能定价的持仓。",
   narrate_desk_drawdown_reason: "我触发了自己的回撤上限。",

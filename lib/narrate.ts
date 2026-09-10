@@ -197,6 +197,16 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
           reason: str(o.reason) || t("narrate_desk_drawdown_reason"),
         }),
       });
+    } else if (typeof o.skipped === "string" && str(o.reason)) {
+      // EVERY OTHER REFUSAL, in the backend's own words.
+      //
+      // The preflight — a missing wallet, a universe with nothing tradable in
+      // it, a screen that matched nothing, a model still waiting to be funded —
+      // now records a cycle instead of returning silently, and each of those
+      // writes one finished sentence meant for the owner. Branching per skip
+      // reason here would mean a second wording of each, kept in step by hand;
+      // the one that already exists is shown as it stands.
+      lines.push({ outcome: "drop", detail: t("narrate_desk_skipped", { reason: str(o.reason) }) });
     } else if (o.opened) {
       const open = num(o.openPositions);
       const realized = num(o.realizedPnlUsd);
