@@ -73,6 +73,40 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_max_clamp: "上限 {value}",
   sl_min_clamp: "下限 {value}",
 
+  // ── 卖出信号 ───────────────────────────────────────────────────
+  sl_sell_signal: "卖出信号",
+  sl_sell_join: "，并且 ",
+  sl_sell_signal_off:
+    "已关闭 — 代理只按上面的价位卖出。添加一个条件，就能按行情本身卖出，例如价格回到布林带中轨。",
+  sl_sell_signal_on:
+    "条件成立时，代理会平掉这个仓位，无论当时盈亏如何。您的止损仍然在下面兜底。",
+  sl_add_condition: "+ 添加条件",
+  sl_sell_all_hold: "这些条件必须全部成立，才会卖出。",
+  sl_sell_on_close:
+    "每个周期读取一次，且只看已收盘的 K 线 — 它会在第一根「收盘」越过该水平的 K 线上卖出，而不是价格触碰的瞬间。",
+
+  sell_band_up: "价格回到布林带",
+  sell_band_up_help:
+    "价格在 20 周期布林带中的位置：0 是下轨，50 是中轨，100 是上轨。50 是经典的均值回归出场 — 在区间底部买入，回到中轨时卖出。",
+  sell_band_down: "价格跌破布林带",
+  sell_band_down_help:
+    "同一把尺子，向下：价格跌到下轨或更低时卖出。这是形态走坏而不是走完 — 适合那种还没触及止损、方向却已经错了的仓位。",
+  sell_rsi: "RSI 跌到",
+  sell_rsi_high: "RSI 回升到",
+  sell_rsi_high_help:
+    "这是「涨够了」而不是「走坏了」。70 以上通常视为超买 — 适合在超卖时买入的反弹单，趁行情还在走的时候离场。",
+  sell_stoch_high: "随机指标 %K 回升到",
+  sell_stoch_high_help:
+    "收盘价在近期高低区间中的位置：0 是底部，100 是顶部。设为 80 表示价格回到自身区间顶部时卖出。仅限加密资产 — 它需要每根 K 线的最高价和最低价，而代币化股票的数据源不提供。",
+  sell_rsi_help:
+    "无论价格如何，动能已经消失。与周期无关：30 在任何 K 线级别上含义相同。",
+  sell_macd: "MACD 向下交叉于",
+  sell_macd_help:
+    "MACD 线跌破信号线是在几根 K 线之前。0 表示就在最新一根 — 把趋势反转作为「事件」而不是「水平」来捕捉。",
+  sell_supertrend: "Supertrend 向下翻转于",
+  sell_supertrend_help:
+    "Supertrend 转为看空是在几根 K 线之前。0 表示就在最新一根。这是趋势跟踪自己的出场 — 用它当初拒绝买入的同一个信号来卖出。",
+
   sl_steps_title: "分批止盈",
   sl_steps_off: "已关闭 — 仓位会一次性平掉。",
   sl_steps_on: "每一档会卖出仓位的一部分（各执行一次），剩下的继续持有。",

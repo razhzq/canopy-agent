@@ -26,6 +26,9 @@ export const enStrategy = {
   rule_momentum20dPct_help:
     "Percent change over the last 20 bars. Above 0 requires it to have risen; negative buys weakness. This is the change rule that follows your timeframe.",
   rule_rsi14: "Max RSI",
+  rule_rsi14Min: "Min RSI",
+  rule_rsi14Min_help:
+    "The same reading, the other way round: it must be AT LEAST this. Above 50 buys strength instead of weakness — and as a sell signal, 70 is 'close it once the move is stretched'.",
   rule_rsi14_help:
     "70+ is conventionally overbought — lower this to avoid buying into a run. Scale-free: 70 means the same thing on every bar size.",
   rule_smaSpreadPct: "Min trend",
@@ -44,6 +47,9 @@ export const enStrategy = {
   rule_bollingerPctB_help:
     "Where price sits in the 20-bar bands: 0 is the lower band, 50 the average, 100 the upper. Lower this to buy near the bottom of the range.",
   rule_bollingerBandwidthPct: "Max Bollinger bandwidth",
+  rule_bollingerBandwidthPctMin: "Min Bollinger bandwidth",
+  rule_bollingerBandwidthPctMin_help:
+    "Requires the bands to be at least this WIDE. It is the rule a band-to-band strategy needs: selling at the middle band wins one standard deviation, which is a quarter of this figure — so 4% bandwidth is a 1% trade, and a 10% stop would be six times the reward. Set this above roughly three times your stop for the two to be matched.",
   rule_bollingerBandwidthPct_help:
     "How wide the bands are, as a percent of price. Lower this to trade only when volatility has squeezed.",
   rule_supertrendDistancePct: "Min Supertrend distance",

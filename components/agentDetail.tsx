@@ -34,6 +34,7 @@ import { useLocale, useT, type Locale, type Translate } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
+import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
@@ -570,6 +571,9 @@ export function AgentDetailView({
     rules[0] ??
     null;
   const exits = strategy?.exits ?? null;
+  // Read back once, in the phrasing the builder and the edit dialog use — a
+  // second wording of the same conditions would eventually disagree with them.
+  const sells = sellSignalText((exits?.exitWhen ?? []) as SellCondition[], t);
   const constraints = agent.mandate?.constraints ?? {};
 
   const capital = Number(agent.capital_usd) || 0;
@@ -837,10 +841,21 @@ export function AgentDetailView({
                 label={t("ad_exit_take_profit")}
                 body={
                   exits
-                    ? t("ad_tp_body", { pct: exits.takeProfitPct })
+                    ? exits.takeProfitPct > 0
+                      ? t("ad_tp_body", { pct: exits.takeProfitPct })
+                      : // A strategy that sells on a SIGNAL often has no
+                        // percentage target at all, and "+0%" would read as a
+                        // target of nothing rather than as no target.
+                        t("ad_tp_body_off")
                     : t("ad_exit_unset")
                 }
               />
+              {/* THE ONLY EXIT THAT ASKS ABOUT THE MARKET. Shown next to the
+                  levels because an owner reading "take profit: none" needs the
+                  next card to say what DOES sell this position. */}
+              {sells ? (
+                <ExitCard label={t("ad_exit_sell_signal")} body={t("ad_sell_body", { rule: sells })} />
+              ) : null}
               <ExitCard
                 label={t("ad_exit_stop_loss")}
                 body={
@@ -944,13 +959,20 @@ export function AgentDetailView({
               ))}
               {exits ? (
                 <>
-                  <Chip>
-                    {t("ad_chip_take_profit")}{" "}
-                    <Num>+{exits.takeProfitPct}%</Num>
-                  </Chip>
+                  {exits.takeProfitPct > 0 ? (
+                    <Chip>
+                      {t("ad_chip_take_profit")}{" "}
+                      <Num>+{exits.takeProfitPct}%</Num>
+                    </Chip>
+                  ) : null}
                   <Chip>
                     {t("ad_chip_stop_loss")} <Num>−{exits.stopLossPct}%</Num>
                   </Chip>
+                  {sells ? (
+                    <Chip>
+                      {t("ad_chip_sell_signal")} {sells}
+                    </Chip>
+                  ) : null}
                 </>
               ) : null}
               {/* The chart the rules above are measured on. Each rule label

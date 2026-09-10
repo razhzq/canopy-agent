@@ -932,6 +932,21 @@ export function SetLimits({
                 })
               }
             />
+            <SellSignal
+              conditions={(value.exits.exitWhen ?? []) as SellCondition[]}
+              onChange={(next) =>
+                onChange({
+                  ...value,
+                  exits: {
+                    ...value.exits,
+                    // Undefined, never [], when the last one is removed: an
+                    // absent key IS the off state on the wire, and the column
+                    // is replaced rather than merged.
+                    exitWhen: next.length > 0 ? next : undefined,
+                  },
+                })
+              }
+            />
             </div>
           </div>
           </div>
@@ -1600,6 +1615,289 @@ export function ScaleOutLadder({
 }
 
 /**
+ * One condition on which the agent SELLS.
+ *
+ * `op` is not editable and never reaches the wire from a control: each entry in
+ * the catalogue below carries the direction its key was defined with, and the
+ * backend refuses a condition asking a key for the direction it does not have.
+ * A control that could build that state would be a control that lies.
+ */
+export interface SellCondition {
+  key: string;
+  op: "gte" | "lte";
+  value: number;
+}
+
+/**
+ * The sell signals worth offering, which is FEWER than the engine can express.
+ *
+ * Every rule key is available to a sentence — the composer reads the whole
+ * vocabulary — but a picker listing thirty-three readings is not a choice, it
+ * is a lookup. These five are the exits people actually describe, each with the
+ * direction that makes it an exit rather than an entry:
+ *
+ *   the band, upward     the second half of every mean-reversion strategy
+ *   the band, downward   the setup breaking instead of completing
+ *   RSI collapsing       momentum gone, whatever the price has done
+ *   MACD crossing down   the trend rolling over
+ *   Supertrend flipping  the same, for a trend follower
+ *
+ * A condition set in conversation may name a key that is not here. It is kept
+ * and shown rather than dropped — see the row rendering — because the exits
+ * column is REPLACED on save, so a control that quietly forgot a condition
+ * would delete it the next time anyone touched this dialog.
+ *
+ * Ranges mirror COMPOSABLE_RULES exactly. The backend validates against those,
+ * so a bound invented here would be a control that can build a refused state.
+ */
+const SELL_SIGNALS: {
+  key: string;
+  op: "gte" | "lte";
+  labelKey: TranslationKey;
+  helpKey: TranslationKey;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}[] = [
+  {
+    key: "bollingerPctBMin",
+    op: "gte",
+    labelKey: "sell_band_up",
+    helpKey: "sell_band_up_help",
+    value: 50,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "bollingerPctB",
+    op: "lte",
+    labelKey: "sell_band_down",
+    helpKey: "sell_band_down_help",
+    value: 0,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "rsi14",
+    op: "lte",
+    labelKey: "sell_rsi",
+    helpKey: "sell_rsi_help",
+    value: 30,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  // THE DIRECTION AN EXIT ACTUALLY WANTS, and the reason `rsi14Min` exists at
+  // all: "sell once RSI is back over 70" was inexpressible while the key had
+  // only its at-most form, because writing it that way composes "sell while
+  // RSI is under 70" — true of nearly every bar.
+  {
+    key: "rsi14Min",
+    op: "gte",
+    labelKey: "sell_rsi_high",
+    helpKey: "sell_rsi_high_help",
+    value: 70,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "stochasticKMin",
+    op: "gte",
+    labelKey: "sell_stoch_high",
+    helpKey: "sell_stoch_high_help",
+    value: 80,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "macdCrossDownBars",
+    op: "lte",
+    labelKey: "sell_macd",
+    helpKey: "sell_macd_help",
+    value: 0,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: "",
+  },
+  {
+    key: "supertrendFlipDownBars",
+    op: "lte",
+    labelKey: "sell_supertrend",
+    helpKey: "sell_supertrend_help",
+    value: 0,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: "",
+  },
+];
+
+/**
+ * A sell signal, read back in one line.
+ *
+ * Exported because three surfaces show the same thing and a second phrasing of
+ * it would eventually disagree with this one: the builder's summary card, the
+ * agent page's rail, and the edit dialog's confirmation.
+ *
+ * Named conditions rather than a count. "Sell signal: 2 conditions" tells an
+ * owner nothing about what their agent will do, which is the whole question
+ * this line exists to answer.
+ */
+export function sellSignalText(
+  conditions: readonly SellCondition[],
+  t: Translate,
+): string | null {
+  if (conditions.length === 0) return null;
+  return conditions
+    .map((c) => {
+      const spec = SELL_SIGNALS.find((s) => s.key === c.key);
+      // The raw key when the condition came from a sentence naming a reading
+      // the picker does not offer. Ugly, and better than silence: it is a
+      // condition on which real money is sold.
+      const label = spec ? t(spec.labelKey) : c.key;
+      return `${label} ${c.op === "gte" ? "≥" : "≤"} ${c.value}`;
+    })
+    .join(t("sl_sell_join"));
+}
+
+/**
+ * The sell signal: indicator conditions that close a position.
+ *
+ * THE ONLY EXIT HERE THAT ASKS ABOUT THE MARKET. Every chip above it is a
+ * percentage from cost or a clock — is this position up enough, down enough,
+ * old enough. "Sell at the middle Bollinger band" is none of those: the band
+ * moves with every bar, so no fixed target is the same instruction.
+ *
+ * AND, NOT OR, and the note says so once a second condition exists. Two
+ * conditions make the exit fire LESS often, which is the safe direction and the
+ * opposite of what a list usually implies — the stop loss is still underneath.
+ */
+export function SellSignal({
+  conditions,
+  onChange,
+}: {
+  conditions: SellCondition[];
+  onChange: (next: SellCondition[]) => void;
+}) {
+  const t = useT();
+  const used = new Set(conditions.map((c) => c.key));
+  const available = SELL_SIGNALS.filter((s) => !used.has(s.key));
+
+  const setAt = (i: number, value: number) =>
+    onChange(conditions.map((c, n) => (n === i ? { ...c, value } : c)));
+
+  return (
+    <div className="border-b border-grid px-4 py-3 last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
+            {t("sl_sell_signal")}
+          </p>
+          <InfoDot label={t("sl_sell_signal")}>
+            {t(conditions.length === 0 ? "sl_sell_signal_off" : "sl_sell_signal_on")}
+          </InfoDot>
+        </div>
+        {available.length > 0 ? (
+          // A select rather than a button, because the choice IS the control:
+          // which condition, not whether to have one.
+          <select
+            value=""
+            onChange={(e) => {
+              const spec = SELL_SIGNALS.find((s) => s.key === e.target.value);
+              if (!spec) return;
+              onChange([...conditions, { key: spec.key, op: spec.op, value: spec.value }]);
+            }}
+            aria-label={t("sl_add_condition")}
+            className="rounded-md border border-border bg-bg px-2 py-1 font-ui text-[12.5px] pointer-coarse:text-[16px] text-text-secondary outline-none transition-colors hover:text-text-primary focus:border-accent/40"
+          >
+            <option value="">{t("sl_add_condition")}</option>
+            {available.map((s) => (
+              <option key={s.key} value={s.key}>
+                {t(s.labelKey)}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+
+      {conditions.length > 0 ? (
+        <ul className="space-y-2 pt-3">
+          {conditions.map((c, i) => {
+            const spec = SELL_SIGNALS.find((s) => s.key === c.key);
+            return (
+              <li
+                key={c.key}
+                className="flex flex-wrap items-center gap-2 font-ui text-[12.5px]"
+              >
+                <span className="text-text-primary">
+                  {spec ? t(spec.labelKey) : c.key}
+                </span>
+                {spec ? (
+                  <InfoDot label={t(spec.labelKey)}>{t(spec.helpKey)}</InfoDot>
+                ) : null}
+                <span className="text-text-dim">
+                  {t(c.op === "gte" ? "rule_at_least" : "rule_at_most")}
+                </span>
+                {spec ? (
+                  <input
+                    type="number"
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step}
+                    value={c.value}
+                    onChange={(e) =>
+                      setAt(
+                        i,
+                        Math.min(spec.max, Math.max(spec.min, Number(e.target.value))),
+                      )
+                    }
+                    className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
+                    aria-label={t(spec.labelKey)}
+                  />
+                ) : (
+                  // A condition set in conversation, naming a reading this
+                  // picker does not offer. Shown rather than dropped: the exits
+                  // object is REPLACED on save, so forgetting it here would
+                  // delete it from the strategy.
+                  <span className="tnum font-mono text-[12.5px] text-text-primary">
+                    {c.value}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onChange(conditions.filter((_, n) => n !== i))}
+                  className="ml-auto font-ui text-[11.5px] text-text-dim transition-colors hover:text-negative"
+                >
+                  {t("common_remove")}
+                </button>
+              </li>
+            );
+          })}
+          {conditions.length > 1 ? (
+            <li className="font-ui text-[11.5px] text-text-dim">{t("sl_sell_all_hold")}</li>
+          ) : null}
+          {/* The caveat that changes what the level MEANS, and the one thing
+              nobody would work out from the control. */}
+          <li className="font-ui text-[11.5px] text-text-dim">{t("sl_sell_on_close")}</li>
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * What each exit does, in the two states it can be in.
  *
  * A table because the chips are no longer two-of-a-kind: a trailing stop and a
@@ -1854,10 +2152,19 @@ function StrategyCard({
   const tf = TIMEFRAMES.find((x) => x.tf === (value.timeframe ?? DEFAULT_TIMEFRAME));
   const facts: { label: string; value: string }[] = [
     { label: t("sl_card_position"), value: money(value.positionUsd) },
-    { label: t("sl_take_profit"), value: `+${value.exits.takeProfitPct}%` },
+    // Zero is OFF, and "+0%" reads as a target of nothing rather than as no
+    // target — which matters more now that a strategy can sell on a signal
+    // with no percentage target at all.
+    {
+      label: t("sl_take_profit"),
+      value: value.exits.takeProfitPct > 0 ? `+${value.exits.takeProfitPct}%` : t("req_off"),
+    },
     { label: t("sl_stop_loss"), value: `−${value.exits.stopLossPct}%` },
     { label: t("sl_card_bars"), value: tf ? t(tf.labelKey) : "—" },
   ];
+
+  const sells = sellSignalText((value.exits.exitWhen ?? []) as SellCondition[], t);
+  if (sells) facts.push({ label: t("sl_sell_signal"), value: sells });
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="px-5 pt-5 pb-4">

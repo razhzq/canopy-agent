@@ -620,6 +620,26 @@ export interface ExitRules {
    * Mirrors `ExitRules.basket` in @canopy/agent-contracts. Keep them in step.
    */
   basket?: { takeProfitPct?: number; stopLossPct?: number };
+  /**
+   * Indicator conditions that close the position — the only exit that asks
+   * about the market rather than about the holding.
+   *
+   * "Buy at the lower Bollinger band, sell at the middle one" cannot be written
+   * as `takeProfitPct`: the middle band is not a percentage from cost and it
+   * moves with every bar. Same rule keys as a strategy's entry rules, read as
+   * ALL-must-hold, and the direction comes from the key rather than from the
+   * comparator — `bollingerPctBMin` is the at-least form.
+   *
+   * MUST BE ROUND-TRIPPED BY ANY FORM THAT SAVES EXITS. The backend REPLACES
+   * the exits object rather than merging it, because an empty list is how this
+   * exit is switched off and a merge can only ever add keys. A dialog that
+   * rebuilds `exits` field by field and drops this one therefore deletes the
+   * owner's sell signal on save — so spread what was loaded, never construct a
+   * fresh object from the fields the form happens to show.
+   *
+   * Mirrors `ExitRules.exitWhen` in @canopy/agent-contracts. Keep them in step.
+   */
+  exitWhen?: { key: string; op: "gte" | "lte" | "eq"; value: number }[];
 }
 
 /**

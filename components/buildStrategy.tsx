@@ -220,6 +220,19 @@ export const RWA_RULES: RuleSpec[] = [
     unit: "",
   },
   {
+    key: "rsi14Min",
+    labelKey: "rule_rsi14Min",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_rsi14Min_help",
+    op: "gte",
+    value: 50,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  {
     key: "smaSpreadPct",
     labelKey: "rule_smaSpreadPct",
     basis: "bars",
@@ -302,6 +315,26 @@ export const RWA_RULES: RuleSpec[] = [
     helpKey: "rule_bollingerBandwidthPct_help",
     op: "lte",
     value: 20,
+    min: 1,
+    max: 40,
+    step: 1,
+    unit: "%",
+    scale: "dispersion",
+  },
+  // THE FLOOR ON THE SAME READING, which is what a band-to-band strategy needs
+  // and the at-most form cannot say. A mean-reversion exit's target is the
+  // distance from the lower band to the middle one — one standard deviation,
+  // a QUARTER of the bandwidth — so on a token whose bands span 4% of price
+  // the whole trade is worth 1%, and a 10% stop is six times the reward.
+  // Requiring the bands to be wide is how the two are matched.
+  {
+    key: "bollingerBandwidthPctMin",
+    labelKey: "rule_bollingerBandwidthPctMin",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_bollingerBandwidthPctMin_help",
+    op: "gte",
+    value: 8,
     min: 1,
     max: 40,
     step: 1,

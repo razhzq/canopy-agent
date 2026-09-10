@@ -8,6 +8,8 @@ import {
   ExitChip,
   RuleChip,
   ScaleOutLadder,
+  SellSignal,
+  type SellCondition,
 } from "@/components/setLimits";
 import {
   AddPlanCard,
@@ -426,6 +428,17 @@ export function EditStrategyModal({
               setExits({
                 ...exits,
                 scaleOut: next.length > 0 ? next : undefined,
+              })
+            }
+          />
+          <SellSignal
+            conditions={(exits.exitWhen ?? []) as SellCondition[]}
+            onChange={(next) =>
+              setExits({
+                ...exits,
+                // Undefined rather than [] — an absent key is the off state,
+                // and this dialog REPLACES the stored exits on save.
+                exitWhen: next.length > 0 ? next : undefined,
               })
             }
           />

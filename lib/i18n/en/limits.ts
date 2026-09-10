@@ -88,6 +88,44 @@ export const enLimits = {
   sl_min_clamp: "Min {value}",
 
   // ── Scale-out ladder ───────────────────────────────────────────
+  // ── The sell signal ────────────────────────────────────────────
+  // The only exit that asks about the MARKET rather than about the position,
+  // so its copy has to carry two things nothing else here does: that the
+  // conditions are ANDed, and that they are read on closed bars.
+  sl_sell_signal: "Sell signal",
+  /** Between two conditions of one signal. They are ANDed, so: "and". */
+  sl_sell_join: " and ",
+  sl_sell_signal_off:
+    "Off — the agent sells on the levels above and nothing else. Add a condition to sell on what the market is doing, like reaching the middle Bollinger band.",
+  sl_sell_signal_on:
+    "The agent closes the position when this is true, whatever the position is worth. Your stop loss still applies underneath it.",
+  sl_add_condition: "+ Add a condition",
+  sl_sell_all_hold: "All of these must be true before it sells.",
+  sl_sell_on_close:
+    "Read once a cycle, on closed bars — it sells on the first bar that CLOSES past the level, not the moment price touches it.",
+
+  sell_band_up: "Price back at the band",
+  sell_band_up_help:
+    "Where price sits in the 20-bar bands: 0 is the lower band, 50 the middle average, 100 the upper. 50 is the classic mean-reversion exit — buy at the bottom of the range, sell when it returns to the middle.",
+  sell_band_down: "Price falls through the band",
+  sell_band_down_help:
+    "The same scale, downward: sell if price drops to or below the lower band. This is the setup breaking rather than completing — an exit for a trade that went the wrong way without hitting its stop.",
+  sell_rsi: "RSI drops to",
+  sell_rsi_high: "RSI climbs back to",
+  sell_rsi_high_help:
+    "The move having gone far enough rather than having failed. 70+ is conventionally overbought — this is the exit for a bounce you bought oversold and want to leave while it is still working.",
+  sell_stoch_high: "Stochastic %K climbs back to",
+  sell_stoch_high_help:
+    "Where the close sits inside the recent high-low range: 0 is the bottom, 100 the top. 80 sells once price has worked back to the top of its own range. Crypto only — it needs a high and a low per bar, which the tokenized-stock feed does not serve.",
+  sell_rsi_help:
+    "Momentum gone, whatever the price has done. Scale-free: 30 means the same thing on every bar size.",
+  sell_macd: "MACD crossed down within",
+  sell_macd_help:
+    "How many bars ago the MACD line crossed below its signal line. 0 means on the latest bar — the trend rolling over, caught as the event rather than as a level.",
+  sell_supertrend: "Supertrend flipped down within",
+  sell_supertrend_help:
+    "How many bars ago Supertrend turned bearish. 0 means on the latest bar. The trend follower's own exit — it sells on the same signal it would have refused to buy on.",
+
   sl_steps_title: "Take profit in steps",
   sl_steps_off: "Off — the position closes in one go.",
   sl_steps_on: "Each step sells part of the position once, then the rest keeps running.",

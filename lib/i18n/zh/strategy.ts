@@ -27,6 +27,12 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_atrPct: "最大 ATR",
   rule_atrPct_help:
     "14 根 K 线的平均真实波幅，以价格百分比表示 — 也就是该代币在一根 K 线内通常的波动幅度，含跳空。调低只会放行更平稳的代币。",
+  rule_rsi14Min: "最低 RSI",
+  rule_rsi14Min_help:
+    "同一个读数，方向相反：必须「至少」达到这个值。高于 50 就是买强势而不是买弱势 — 作为卖出信号时，70 表示「涨得过头就平掉」。",
+  rule_bollingerBandwidthPctMin: "最小布林带宽",
+  rule_bollingerBandwidthPctMin_help:
+    "要求布林带至少有这么「宽」。这正是「下轨买、中轨卖」策略需要的规则：在中轨卖出赚到的是一个标准差，也就是这个数字的四分之一 — 带宽 4% 意味着这一笔只值 1%，而 10% 的止损是回报的六倍。把它设到止损的三倍以上，两者才算匹配。",
   rule_bollingerPctB: "最大布林 %B",
   rule_bollingerPctB_help:
     "价格在 20 周期布林带中的位置：0 是下轨，50 是中轨，100 是上轨。调低它就是在区间底部附近买入。",

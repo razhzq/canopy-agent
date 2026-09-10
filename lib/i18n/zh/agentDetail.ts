@@ -42,6 +42,10 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_exit_stop_loss: "出场 — 止损",
   ad_exit_unset: "未设置 — 使用该风格的平台默认值。",
   ad_tp_body: "较入场价 +{pct}% 时卖出",
+  ad_tp_body_off: "不设目标 — 盈利仓位会一直持有，直到别的条件把它平掉",
+  ad_exit_sell_signal: "出场 — 卖出信号",
+  ad_sell_body: "当{rule}时卖出",
+  ad_chip_sell_signal: "卖出信号：",
   ad_sl_body: "较入场价 −{pct}% 时卖出",
   ad_sl_body_hold: "较入场价 −{pct}% 时卖出，或持有满 {days} 天后卖出",
   ad_breaker_note:

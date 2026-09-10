@@ -52,6 +52,10 @@ export const enAgentDetail = {
   ad_exit_stop_loss: "Exit — stop-loss",
   ad_exit_unset: "Not set — platform default for the posture.",
   ad_tp_body: "Sell at +{pct}% from entry",
+  ad_tp_body_off: "No target — a winner runs until something else closes it",
+  ad_exit_sell_signal: "Exit — sell signal",
+  ad_sell_body: "Sell when {rule}",
+  ad_chip_sell_signal: "Sell signal:",
   ad_sl_body: "Sell at −{pct}% from entry",
   ad_sl_body_hold: "Sell at −{pct}% from entry, or after {days}d",
   ad_breaker_note:
