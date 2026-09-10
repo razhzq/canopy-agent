@@ -51,7 +51,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
-import { useLocale, useT, type Locale, type TranslationKey } from "@/lib/i18n";
+import { useLocale, useT, type Locale, type TranslationKey, dateLocale } from "@/lib/i18n";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import {
   DELEGATION_CEILING_USD,
@@ -588,7 +588,7 @@ export function GoLiveModal({
                         t("gl_row_expires"),
                         wallet?.expiresAt
                           ? new Date(wallet.expiresAt).toLocaleDateString(
-                              locale === "zh" ? "zh-CN" : "en-GB",
+                              dateLocale(locale),
                               { day: "numeric", month: "short", year: "numeric" },
                             )
                           : "—",

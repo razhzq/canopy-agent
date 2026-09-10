@@ -1,0 +1,55 @@
+import type { enAgent } from "../en/agent";
+
+export const trAgent: Record<keyof typeof enAgent, string> = {
+  agent_back_aria: "Ajanlarıma dön",
+  agent_chat_aria: "Bu ajanla sohbet et",
+  agent_live_pill: "CANLI",
+  agent_mode_paper: "KAĞIT",
+  agent_mode_live: "CANLI",
+  agent_subtitle: "{mode} · {class}",
+  agent_subtitle_cycle: "{mode} · {class} · DÖNGÜ {cycle}",
+
+  agent_nav_label: "Ajan NAV",
+  agent_nav_label_cycle: "Ajan NAV · döngü {cycle}",
+  agent_since_deploy: "devreye alındığından beri",
+  agent_curve_pending: "Eğri, ilk tamamlanan döngüde başlar.",
+  agent_cell_return: "Getiri",
+  agent_cell_win_rate: "Kazanç oranı",
+  agent_cell_max_dd: "Azami düşüş",
+  agent_cell_realised: "Gerçekleşen",
+
+  agent_cycle_running: "çalışıyor",
+  agent_cycle_label: "Döngü {seq} · {status}",
+  agent_cycle_in_progress: "sürüyor",
+  agent_phase_scan: "Tarama",
+  agent_phase_council: "Kurul",
+  agent_phase_execute: "İşlem",
+  agent_phase_settle: "Kapanış",
+
+  agent_open_positions: "Açık pozisyonlar",
+  agent_nothing_open: "Açık pozisyon yok — ajan nakitte.",
+  agent_cost: "{amount} maliyet",
+  agent_markets_title: "İşlem yapabileceği piyasalar",
+  agent_add_market: "Piyasa ekle",
+
+  agent_resume: "Devam ettir",
+  agent_pause: "Duraklat",
+  agent_add_funds: "Bakiye ekle",
+  agent_busy: "…",
+
+  ws_eyebrow: "Ajan",
+  ws_back: "← Ajanlarım",
+  ws_fallback_name: "Ajan {id}",
+  ws_badge_paper: "Kağıt",
+  ws_views_aria: "Ajan görünümleri",
+  ws_tab_overview: "Genel bakış",
+  ws_tab_chat: "Sohbet",
+  ws_tab_cycles: "Döngüler",
+  ws_status_active: "Çalışıyor",
+  ws_status_liquidating: "Pozisyonlar kapatılıyor",
+  ws_status_paused: "Duraklatıldı",
+  ws_status_stopped: "Durduruldu",
+  ws_status_draft: "Taslak",
+
+  route_badge_aria: "{chain} üzerinde {router}",
+};

@@ -12,7 +12,7 @@ import {
   type EquitySeries,
   type UniverseAsset,
 } from "@/lib/api";
-import { useLocale, type Locale, type Translate } from "@/lib/i18n";
+import { useLocale, type Locale, type Translate, dateLocale } from "@/lib/i18n";
 
 /**
  * The performance panel on the agent page: equity curve plus the figures a
@@ -343,7 +343,7 @@ function when(at: string, locale: Locale): string {
   // The reader's chosen language rather than the browser's regional setting:
   // this sits inside a card of translated labels, and an English month in the
   // middle of it reads as a rendering failure rather than as a preference.
-  return d.toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", {
+  return d.toLocaleString(dateLocale(locale), {
     month: "short",
     day: "numeric",
     hour: "2-digit",

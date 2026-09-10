@@ -16,13 +16,15 @@
 import { cookies } from "next/headers";
 import { en, type TranslationKey } from "./en";
 import { zh } from "./zh";
+import { tr } from "./tr";
 import type { Locale } from "./index";
 
 const COOKIE_KEY = "canopy_locale";
 
 export async function getServerLocale(): Promise<Locale> {
   const value = (await cookies()).get(COOKIE_KEY)?.value;
-  return value === "zh" ? "zh" : "en";
+  if (value === "zh" || value === "tr") return value;
+  return "en";
 }
 
 export type ServerT = (
@@ -32,7 +34,10 @@ export type ServerT = (
 
 export async function getServerT(): Promise<ServerT> {
   const locale = await getServerLocale();
-  const dict = locale === "zh" ? zh : en;
+  // Same fallback chain as the client's `t`: an in-progress locale shows
+  // English for what it has not reached, never a raw key.
+  const dict: Partial<Record<TranslationKey, string>> =
+    locale === "zh" ? zh : locale === "tr" ? tr : en;
   return (key, vars) => {
     const raw = dict[key] ?? en[key] ?? key;
     if (!vars) return raw;

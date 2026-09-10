@@ -1,3 +1,4 @@
+import { dateLocale, type Locale } from "@/lib/i18n";
 // Number display for a book that spans eighteen orders of magnitude.
 //
 // A position table holds gold at $4,000 and a memecoin at $0.00005835 in the
@@ -256,10 +257,10 @@ export function compactAge(iso: string | null | undefined, t: Translate): string
  * translated labels, and a run of English months down a Chinese column reads as
  * a rendering failure.
  */
-export function shortDate(iso: string, locale: "en" | "zh"): string {
+export function shortDate(iso: string, locale: Locale): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return DASH;
-  return d.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-GB", {
+  return d.toLocaleDateString(dateLocale(locale), {
     day: "numeric",
     month: "short",
     year: "2-digit",

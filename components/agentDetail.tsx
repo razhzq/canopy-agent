@@ -30,7 +30,7 @@ import {
 } from "@/components/kit";
 import type { UniverseSelection } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
-import { useLocale, useT, type Locale, type Translate } from "@/lib/i18n";
+import { useLocale, useT, type Locale, type Translate, dateLocale } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
@@ -1856,7 +1856,7 @@ function money(n: number): string {
 
 /** The deploy timestamp, in the reader's calendar conventions. */
 function absolute(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", {
+  return new Date(iso).toLocaleString(dateLocale(locale), {
     day: "numeric",
     month: "short",
     hour: "2-digit",

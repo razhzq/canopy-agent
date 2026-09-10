@@ -24,12 +24,21 @@ import {
 } from "react";
 import { en, type TranslationKey } from "./en";
 import { zh } from "./zh";
+import { tr } from "./tr";
 
-export type Locale = "en" | "zh";
+export type Locale = "en" | "zh" | "tr";
 export type { TranslationKey };
 export type { Translate } from "./translate";
 
-const DICTIONARIES: Record<Locale, Record<TranslationKey, string>> = { en, zh };
+// Partial by type, because a locale can be in progress. `t` resolves a missing
+// key against English below, so a half-translated locale shows English for what
+// it has not reached rather than a raw key — and each namespace file is still
+// checked exhaustively against its English original.
+const DICTIONARIES: Record<Locale, Partial<Record<TranslationKey, string>>> = {
+  en,
+  zh,
+  tr,
+};
 const STORAGE_KEY = "canopy_agent_locale";
 // Shared with canopy-fe / the RPS portal: same name, same values, so a user
 // who picked 中文 on one Canopy surface lands in 中文 here too — as long as
@@ -45,7 +54,19 @@ interface LocaleCtx {
 const Ctx = createContext<LocaleCtx | null>(null);
 
 function htmlLang(l: Locale): string {
-  return l === "zh" ? "zh-CN" : "en";
+  return l === "zh" ? "zh-CN" : l === "tr" ? "tr" : "en";
+}
+
+/**
+ * The locale as a BCP-47 tag for `toLocaleString`.
+ *
+ * Exported because six call sites were formatting dates with their own
+ * `locale === "zh" ? "zh-CN" : "en-GB"` ternary — which silently keeps a third
+ * language on English dates, and would have to be found and fixed again for a
+ * fourth. One mapping, one place.
+ */
+export function dateLocale(l: Locale): string {
+  return l === "zh" ? "zh-CN" : l === "tr" ? "tr-TR" : "en-GB";
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
@@ -58,7 +79,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored === "zh" || stored === "en") {
+      if (stored === "zh" || stored === "en" || stored === "tr") {
         setLocaleState(stored);
         document.documentElement.lang = htmlLang(stored);
         return;
@@ -68,6 +89,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     }
     // First visit — take the browser's word for it.
     const browser = navigator.language?.toLowerCase() ?? "";
+    if (browser.startsWith("tr")) {
+      setLocaleState("tr");
+      document.documentElement.lang = "tr";
+      return;
+    }
     if (browser.startsWith("zh")) {
       setLocaleState("zh");
       document.documentElement.lang = "zh-CN";

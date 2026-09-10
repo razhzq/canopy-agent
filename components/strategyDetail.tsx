@@ -16,7 +16,7 @@ import {
   SEGMENT_TRACK,
 } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
-import { useLocale, type Locale, type Translate } from "@/lib/i18n";
+import { useLocale, type Locale, type Translate, dateLocale } from "@/lib/i18n";
 import { useMarks } from "@/lib/useMarks";
 import { Tick } from "@/components/kit";
 import {
@@ -1484,7 +1484,7 @@ function dayLabel(day: string, t: Translate, locale: Locale): string {
   const diff = daysAgo(day);
   if (diff <= 0) return t("sd_today");
   if (diff === 1) return t("sd_yesterday");
-  return new Date(day).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-GB", {
+  return new Date(day).toLocaleDateString(dateLocale(locale), {
     day: "numeric",
     month: "short",
   });
@@ -1492,7 +1492,7 @@ function dayLabel(day: string, t: Translate, locale: Locale): string {
 
 function since(iso: string | null, locale: Locale): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-GB", {
+  return new Date(iso).toLocaleDateString(dateLocale(locale), {
     day: "numeric",
     month: "short",
   });

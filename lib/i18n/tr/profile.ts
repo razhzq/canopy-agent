@@ -1,0 +1,32 @@
+import type { enProfile } from "../en/profile";
+
+export const trProfile: Record<keyof typeof enProfile, string> = {
+  profile_edit_aria: "Profilinizi düzenleyin",
+  profile_notifications_aria: "Bildirimler",
+  profile_activity_aria: "Hareketler",
+  profile_settings_aria: "Ayarlar",
+  profile_your_portfolio: "Portföyünüz",
+  profile_stat_agent: "Ajan",
+  profile_stat_agents: "Ajan",
+  profile_stat_cycles: "Döngü",
+  profile_marked_live: "Canlı fiyatlandı",
+  profile_marked_last_cycle: "Son döngüde fiyatlandı",
+  profile_open_amount: "{amount} açık",
+  profile_paper: "Kağıt",
+  profile_live: "Canlı",
+  profile_aggregate_equity_one: "Toplam özkaynak · 1 ajan",
+  profile_aggregate_equity_many: "Toplam özkaynak · {count} ajan",
+  profile_no_readings: "Henüz ölçüm yok — eğri ilk tamamlanan döngüde başlar.",
+  profile_capital_note:
+    "Sermaye bugünkü toplamda tutulur; böylece bir ajanı fonlamak kazanç gibi görünmez.",
+  profile_idle_cash: "Bekleyen nakit",
+  profile_your_agents: "Ajanlarınız",
+  profile_filter_live: "Canlı",
+  profile_filter_paused: "Duraklatıldı",
+  profile_none_running: "Şu anda çalışan ajan yok.",
+  profile_none_paused: "Duraklatılmış bir şey yok.",
+  profile_deployed: "{amount} kullanımda",
+  profile_deployed_cycle: "{amount} kullanımda · döngü {cycle}",
+  profile_badge_paper: "kağıt",
+  profile_language: "Dil",
+};

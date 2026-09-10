@@ -38,8 +38,7 @@ import {
   useT,
   type Locale,
   type Translate,
-  type TranslationKey,
-} from "@/lib/i18n";
+  type TranslationKey, dateLocale } from "@/lib/i18n";
 
 /**
  * The portfolio overview — everything you own, as one position.
@@ -1298,7 +1297,7 @@ function signedPct(n: number): string {
 
 /** The axis date under the curve, in the reader's language. */
 function day(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", {
+  return new Date(iso).toLocaleDateString(dateLocale(locale), {
     month: "short",
     day: "numeric",
   });
