@@ -123,6 +123,39 @@ export const RWA_RULES: RuleSpec[] = [
     step: 10_000,
     unit: "$",
   },
+  // WHAT THE TOKEN IS WORTH, which is not what its pool is worth. Both of these
+  // are dollar figures on the same row and they answer different questions: a
+  // million-dollar token can sit on a fifty-thousand-dollar pool.
+  //
+  // `static` basis: it comes from the universe sweep rather than the candle
+  // series, so it does not follow the strategy's bar size — the same as the
+  // liquidity floor above it.
+  {
+    key: "marketCapUsd",
+    labelKey: "rule_marketCapUsd",
+    basis: "static",
+    helpKey: "rule_marketCapUsd_help",
+    op: "gte",
+    value: 1_000_000,
+    min: 0,
+    max: 1_000_000_000,
+    step: 50_000,
+    unit: "$",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "marketCapUsdMax",
+    labelKey: "rule_marketCapUsdMax",
+    basis: "static",
+    helpKey: "rule_marketCapUsdMax_help",
+    op: "lte",
+    value: 10_000_000,
+    min: 0,
+    max: 1_000_000_000,
+    step: 50_000,
+    unit: "$",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
   {
     key: "dailyVolPct",
     // RWA only — needs research market activity, which an SPL token does not have.

@@ -1,6 +1,12 @@
 import type { enStrategy } from "../en/strategy";
 
 export const zhStrategy: Record<keyof typeof enStrategy, string> = {
+  rule_marketCapUsd: "最小市值",
+  rule_marketCapUsd_help:
+    "代币本身的价值 — 流通量乘以当前价格。与流动性下限不是一回事：市值一百万的代币，池子里可能只有五万。把它设为两段式入场的「观察」条件，即「市值到一百万后，等回调再买」。仅限代币 — 代币化股票没有市值，永远无法满足这一条。",
+  rule_marketCapUsdMax: "最大市值",
+  rule_marketCapUsdMax_help:
+    "同一个数字的另一端 — 不超过这个值。两者都设就是在一个市值区间里挑标的。仅限代币。",
   rule_liquidityUsd: "最低流动性",
   rule_liquidityUsd_help: "Solana 上的池子深度。适用于所有标的，黄金也不例外。",
   rule_dailyVolPct: "最大日波动率",

@@ -10,6 +10,12 @@
 
 export const enStrategy = {
   // ── Rule catalogue ─────────────────────────────────────────────
+  rule_marketCapUsd: "Min market cap",
+  rule_marketCapUsd_help:
+    "What the token is worth — circulating supply at the current price. NOT the same as the liquidity floor: a million-dollar token can sit on a fifty-thousand-dollar pool. Set it as the WATCH condition of a two-stage entry for \"once it reaches a million, look for the dip\". Tokens only — a tokenized stock carries no market cap and will never satisfy it.",
+  rule_marketCapUsdMax: "Max market cap",
+  rule_marketCapUsdMax_help:
+    "The other end of the same figure — nothing bigger than this. Set both to hunt inside a size band. Tokens only.",
   rule_liquidityUsd: "Liquidity floor",
   rule_liquidityUsd_help: "Pool depth on Solana. Applies to every asset, including gold.",
   rule_dailyVolPct: "Max daily volatility",
