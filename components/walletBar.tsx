@@ -39,10 +39,13 @@ export function WalletBar({
   agentId,
   address,
   isPaper,
+  full = false,
 }: {
   agentId: number;
   address: string | null;
   isPaper: boolean;
+  /** Fill the container instead of the header's fixed 248px column (phone). */
+  full?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const t = useT();
@@ -94,7 +97,7 @@ export function WalletBar({
           border around facts nobody can press. One bordered object survives and
           it is the address — the only thing here you can do something with.
           Rule 3. */}
-      <span className="flex w-[248px] shrink-0 flex-col gap-2.5">
+      <span className={`flex shrink-0 flex-col gap-2.5 ${full ? "w-full" : "w-[248px]"}`}>
         <Row label={t("wallet_usdc_balance")}>
           <Balance agentId={agentId} />
         </Row>

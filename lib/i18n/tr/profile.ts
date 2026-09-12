@@ -29,4 +29,12 @@ export const trProfile: Record<keyof typeof enProfile, string> = {
   profile_deployed_cycle: "{amount} kullanımda · döngü {cycle}",
   profile_badge_paper: "kağıt",
   profile_language: "Dil",
+  profile_stat_open: "açık",
+  profile_main_wallet: "Ana cüzdan",
+  profile_range_aria: "Aralık",
+  profile_idle_in_agents: "Ajanlarda atıl {amount}",
+  profile_invite_unavailable: "Davet kodunuz yüklenemedi.",
+  profile_agent_book_aria: "Defter",
+  profile_agent_wallet: "Ajan cüzdanı",
+  profile_agent_edit: "Stratejiyi düzenle",
 };

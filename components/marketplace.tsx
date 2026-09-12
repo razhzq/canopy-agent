@@ -9,7 +9,7 @@ import { SkeletonCards } from "@/components/skeleton";
 import { CapabilityNotices } from "@/components/capabilityNotice";
 import { ModelBadge } from "@/components/modelBadge";
 import { HomeFeed } from "@/components/homeFeed";
-import { FOCUS } from "@/components/kit";
+import { Divider, FOCUS, SectionLabel } from "@/components/kit";
 import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
 import { useApi, type LoadState } from "@/lib/useApi";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -44,7 +44,7 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  * No "delisted" tab, because no delisted strategy reaches this page.
  */
 type Tab = "all" | "published" | "live" | "paper";
-type Sort = "risk" | "return" | "newest" | "capital" | "users";
+type Sort = "pnl" | "risk" | "return" | "newest" | "capital" | "users";
 
 const TABS: {
   key: Tab;
@@ -61,6 +61,9 @@ const TABS: {
 const MIN_RANK_DAYS = 14;
 
 const SORTS: { key: Sort; labelKey: TranslationKey }[] = [
+  // Realised P&L first and by default: the page opens on a podium of the
+  // three that have banked the most, and the rest follow in the same order.
+  { key: "pnl", labelKey: "market_sort_pnl" },
   // Risk-adjusted first and by default: a 40% return with a 35% drawdown and
   // a 12% return with a 3% drawdown are different products, and raw return
   // sorted them the wrong way round. Records under two weeks sink below every
@@ -86,7 +89,7 @@ export function MarketplaceView({
 }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>("all");
-  const [sort, setSort] = useState<Sort>("risk");
+  const [sort, setSort] = useState<Sort>("pnl");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
 
@@ -106,7 +109,9 @@ export function MarketplaceView({
           (r.author_username ?? "").toLowerCase().includes(q)),
     );
     const by = (r: StrategyRow) =>
-      sort === "risk"
+      sort === "pnl"
+        ? Number(r.realized_pnl_usd ?? 0)
+        : sort === "risk"
         ? r.stats && r.stats.days >= MIN_RANK_DAYS && r.stats.sharpe !== null
           ? r.stats.sharpe
           : -Infinity
@@ -131,6 +136,17 @@ export function MarketplaceView({
   const pages = Math.max(Math.ceil(visible.length / PER_PAGE), 1);
   const current = Math.min(page, pages - 1);
   const slice = visible.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
+
+  // THE PODIUM: the first three, on the first page, when the list is in P&L
+  // order — under any other sort the first three are not "the top three by
+  // P&L" and calling them that would be a lie. A ranking needs at least
+  // three with something banked; a shelf of two winners and a zero is not a
+  // podium.
+  const podium =
+    sort === "pnl" && current === 0 && slice.length >= 3 && Number(slice[2].realized_pnl_usd ?? 0) > 0
+      ? slice.slice(0, 3)
+      : [];
+  const rest = podium.length > 0 ? slice.slice(3) : slice;
 
   const reset = (fn: () => void) => {
     fn();
@@ -247,8 +263,19 @@ export function MarketplaceView({
             </div>
           ) : (
             <div className="space-y-5">
+              {podium.length > 0 ? (
+                <div className="space-y-3">
+                  <SectionLabel>{t("market_podium_label")}</SectionLabel>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {podium.map((r, i) => (
+                      <AgentCard key={r.id} row={r} hot={r.id === hottest} rank={i + 1} />
+                    ))}
+                  </div>
+                  {rest.length > 0 ? <Divider /> : null}
+                </div>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {slice.map((r) => (
+                {rest.map((r) => (
                   <AgentCard key={r.id} row={r} hot={r.id === hottest} />
                 ))}
               </div>
@@ -297,7 +324,16 @@ export function MarketplaceView({
 
 /* -------------------------------------------------------------------- cards -- */
 
-function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
+function AgentCard({
+  row: r,
+  hot,
+  rank,
+}: {
+  row: StrategyRow;
+  hot: boolean;
+  /** 1–3 on the podium; the number is the tag, and only first is lit. */
+  rank?: number;
+}) {
   const t = useT();
   const ret = return30dPct(r);
   const points = (r.spark ?? []).map(Number).filter(Number.isFinite);
@@ -306,8 +342,15 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
   return (
     <Link
       href={`/agents/${r.id}`}
-      className={`group flex flex-col rounded-2xl border border-border bg-surface p-5 transition-[border-color,transform] duration-200 hover:-translate-y-px hover:border-grid-strong ${FOCUS}`}
+      className={`group relative flex flex-col rounded-2xl border border-border bg-surface p-5 transition-[border-color,transform] duration-200 hover:-translate-y-px hover:border-grid-strong ${FOCUS}`}
+      // THE METAL ON THE EDGE. A podium card's border takes the medal's
+      // metal at low opacity, with a halo in the same metal — no offset, no
+      // darkness, so it is light on the edge rather than the card shadow the
+      // principles forbid on the page ground. Inline, so it overrides the
+      // hover border: a winner does not lose its metal under the pointer.
+      style={rank ? edgeOf(rank) : undefined}
     >
+      {rank ? <Medal rank={rank} label={t("market_rank_aria", { n: rank })} /> : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -345,6 +388,12 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
 
       {/* Two rows of three: every label at full width. */}
       <div className="grid grid-cols-3 gap-x-3 gap-y-3.5 border-t border-grid pt-3.5">
+        {/* The figure the default ranking is built on, first. */}
+        <Stat
+          label={t("market_metric_pnl")}
+          value={signedMoney(Number(r.realized_pnl_usd ?? 0))}
+          tone={Number(r.realized_pnl_usd ?? 0) > 0 ? "accent" : Number(r.realized_pnl_usd ?? 0) < 0 ? "negative" : "neutral"}
+        />
         <Stat
           label={t("market_metric_return_30d")}
           value={ret === null ? "—" : signedPct(ret)}
@@ -370,6 +419,65 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
 /* ------------------------------------------------------------------- pieces -- */
 
 /** A tag: 11px, sentence case, hairline, full radius. Accent only for Hot. */
+/**
+ * The podium medal: the Canopy mark struck in metal, pinned over the card's
+ * top-left corner.
+ *
+ * GOLD IS A MATERIAL HERE, NOT AN ACCENT. The principles keep green as the
+ * only accent colour and forbid amber on the UI — and nothing on the card
+ * changes colour for a winner: no border, no text, no wash. The medal is an
+ * object laid on top of the card, the way a sticker sits on a print, and its
+ * metal is the metal of the place: gold, silver, bronze. Three golds would
+ * be three accent moments in one row and no hierarchy among them.
+ *
+ * The 3px ring in the page ground is what lets it overlap the border
+ * cleanly instead of appearing to cut a notch in the card.
+ */
+const METAL: Record<1 | 2 | 3, { face: string; ring: string; ink: string }> = {
+  1: { face: "#D9B45A", ring: "#8C7230", ink: "#3A2A08" },
+  2: { face: "#C4CBC7", ring: "#7E8683", ink: "#2A2F2C" },
+  3: { face: "#C08A5A", ring: "#7A5433", ink: "#3A2210" },
+};
+
+const metalOf = (rank: number) => METAL[(rank === 1 || rank === 2 || rank === 3 ? rank : 3) as 1 | 2 | 3];
+
+/** rgba of a metal's face at the given alpha. */
+function tint(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/** The border tint and halo for a podium card. Silver is the palest metal, so it gets a touch less. */
+function edgeOf(rank: number): React.CSSProperties {
+  const face = metalOf(rank).face;
+  const soft = rank === 2 ? 0.85 : 1;
+  return {
+    borderColor: tint(face, 0.45 * soft),
+    boxShadow: `0 0 0 1px ${tint(face, 0.12 * soft)}, 0 0 28px -6px ${tint(face, 0.34 * soft)}`,
+  };
+}
+
+function Medal({ rank, label }: { rank: number; label: string }) {
+  const m = metalOf(rank);
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="absolute -top-[11px] -left-[11px] flex size-[30px] items-center justify-center rounded-full shadow-[0_0_0_3px_var(--color-bg)] transition-transform duration-200 group-hover:-translate-y-px"
+      style={{ background: m.face, border: `1px solid ${m.ring}` }}
+    >
+      <svg viewBox="0 0 10 6" width="16" height="9.6" aria-hidden focusable="false">
+        <rect x="3" y="0" width="4" height="1" fill={m.ink} />
+        <rect x="1" y="1" width="8" height="1" fill={m.ink} />
+        <rect x="0" y="2" width="10" height="1" fill={m.ink} />
+        <rect x="1" y="4" width="2" height="2" fill={m.ink} />
+        <rect x="4" y="4" width="2" height="2" fill={m.ink} />
+        <rect x="7" y="4" width="2" height="2" fill={m.ink} />
+      </svg>
+    </span>
+  );
+}
+
 function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "accent" }) {
   return (
     <span
@@ -516,6 +624,11 @@ function recordDays(r: StrategyRow): number {
 /** Under a fortnight of record. Objective, unlike a curated "featured" flag. */
 function isNew(r: StrategyRow): boolean {
   return recordDays(r) < 14;
+}
+
+function signedMoney(n: number): string {
+  const s = `$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  return n < 0 ? `−${s}` : n > 0 ? `+${s}` : s;
 }
 
 function money(n: number): string {

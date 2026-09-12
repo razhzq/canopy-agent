@@ -8,6 +8,10 @@ export const zhHome: Record<keyof typeof enHome, string> = {
   home_chip_top: "收益最高",
   home_chip_new: "最新",
   home_chip_held: "部署最多",
+  home_chip_return: "收益率最高",
+  home_chip_capital: "资金最多",
+  home_sort_aria: "排序",
+  home_search_none: "没有与“{query}”匹配的结果。",
   home_empty_title: "还没有已上架的策略",
   home_empty_body:
     "已上架并拥有实盘记录的策略会显示在这里。创建一个，它会先在实时行情上以模拟盘运行。",

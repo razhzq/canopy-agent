@@ -2,18 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ChevronLeft,
-  Gavel,
-  Pause,
-  Play,
-  Plus,
-  Share2,
-  Star,
-  TrendingUp,
-} from "lucide-react";
+import { ChevronLeft, Gavel, Pause, Pencil, Play, Plus } from "lucide-react";
 
 import { AddMarketModal } from "@/components/addMarket";
+import { BookSwitch } from "@/components/agentDetail";
+import {
+  Avatar,
+  BODY,
+  FOCUS,
+  LABEL,
+  PRIMARY,
+  SECONDARY,
+  SEGMENT_ITEM,
+  SEGMENT_OFF,
+  SEGMENT_ON,
+  SEGMENT_TRACK,
+  SectionLabel,
+} from "@/components/kit";
+import { WalletBar } from "@/components/walletBar";
 import { RouteBadge, routeOfMint } from "@/components/routeBadge";
 import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
@@ -74,6 +80,12 @@ export function AgentDetailMobile({
   onChanged,
   fundOnMount,
   onOpenChat,
+  walletAddress,
+  onBook,
+  onGoLive,
+  paperDisabledReason,
+  liveDisabledReason,
+  onEdit,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
@@ -103,6 +115,18 @@ export function AgentDetailMobile({
    * which meant two components could each believe they owned the conversation.
    */
   onOpenChat?: () => void;
+  /** The agent's own wallet. Null until provisioned; paper agents have none. */
+  walletAddress: string | null;
+  /**
+   * The book switch, with the same contract as the desktop head: `onBook`
+   * filters, `onGoLive` promotes, and a null reason means the half is live.
+   */
+  onBook: (book: "paper" | "live") => void;
+  onGoLive: (() => void) | null;
+  paperDisabledReason: string | null;
+  liveDisabledReason: string | null;
+  /** Opens the strategy editor. Null while the strategy is still loading. */
+  onEdit: (() => void) | null;
 }) {
   const { getAccessToken } = usePrivy();
   const t = useT();
@@ -180,20 +204,29 @@ export function AgentDetailMobile({
         <Link href="/portfolio" aria-label={t("agent_back_aria")}>
           <ChevronLeft className="size-6 text-text-primary" aria-hidden />
         </Link>
-        <div className="flex items-center gap-[18px]">
-          <Star className="size-[19px] text-text-secondary" aria-hidden />
-          <Share2 className="size-[19px] text-text-secondary" aria-hidden />
-        </div>
+        {/* One real control where two decorative icons sat. Star and Share
+            had no handler behind them — a favourite list and a share sheet
+            that do not exist — and an icon that does nothing is a promise
+            the page cannot keep. */}
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={t("profile_agent_edit")}
+            className={`flex h-9 items-center gap-1.5 rounded-full px-2.5 text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary ${FOCUS}`}
+          >
+            <Pencil className="size-[15px]" aria-hidden />
+            <span className="font-ui text-[12.5px]">{t("profile_agent_edit")}</span>
+          </button>
+        ) : null}
       </div>
 
       {/* --------------------------------------------------------- hero -- */}
       <div className="flex items-center gap-[13px] px-[18px] pt-1.5 pb-4">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-[17px] border border-border bg-accent-wash">
-          <TrendingUp className="size-6 text-accent" aria-hidden />
-        </span>
+        <Avatar label={agent.strategy_name} size={48} />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-[7px]">
-            <h1 className="truncate font-ui text-[21px] font-semibold tracking-[-0.5px] text-text-primary">
+            <h1 className="truncate font-ui text-[22px] font-light tracking-[-0.02em] text-text-primary">
               {agent.strategy_name}
             </h1>
             {/* Beside the name here too, so the phone and the desktop agree
@@ -209,9 +242,9 @@ export function AgentDetailMobile({
               <ModelBadge model={agent.model} />
             </button>
             {agent.status === "active" ? (
-              <span className="flex shrink-0 items-center gap-1.5 rounded-[5px] bg-accent-wash px-1.5 py-[3px]">
-                <span className="size-[5px] rounded-full bg-accent" />
-                <span className="font-mono text-[8.5px] font-semibold tracking-[0.7px] text-accent">
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-[3px]">
+                <span className="size-1.5 rounded-full bg-accent" aria-hidden />
+                <span className="font-mono text-[9px] tracking-[0.08em] text-text-secondary uppercase">
                   {t("agent_live_pill")}
                 </span>
               </span>
@@ -258,6 +291,33 @@ export function AgentDetailMobile({
         </button>
       </div>
 
+      {/* ------------------------------------------------- book + wallet -- */}
+      {/* The same two facts the desktop head carries beside the name: which
+          book you are reading, and what the agent's wallet holds. Neither had a
+          phone counterpart, so a phone could not promote an agent to live, see
+          its balance, or top it up with capital. */}
+      <div className="space-y-4 border-t border-grid px-[18px] pt-4 pb-5">
+        <BookSwitch
+          book={detail.book}
+          onChange={onBook}
+          onGoLive={onGoLive}
+          paperDisabledReason={paperDisabledReason}
+          liveDisabledReason={liveDisabledReason}
+          note={null}
+        />
+        {!agent.is_paper || walletAddress ? (
+          <div className="space-y-2.5">
+            <SectionLabel>{t("profile_agent_wallet")}</SectionLabel>
+            <WalletBar
+              agentId={agent.id}
+              address={walletAddress}
+              isPaper={agent.is_paper}
+              full
+            />
+          </div>
+        ) : null}
+      </div>
+
       {/* An agent waiting for its first deposit is mid-SETUP, not broken, so it
           gets an action rather than a red sentence — the same call the desktop
           layout makes. This had no mobile counterpart at all: the note and its
@@ -280,46 +340,48 @@ export function AgentDetailMobile({
       <div className="border-y border-grid bg-panel">
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5 px-[18px] pt-4 pb-2.5">
           <div className="space-y-1.5">
-            <p className="font-mono text-[9px] font-semibold tracking-[0.9px] text-text-dim uppercase">
+            <SectionLabel>
               {points.length
                 ? t("agent_nav_label_cycle", {
                     cycle: points[points.length - 1].tickSeq,
                   })
                 : t("agent_nav_label")}
-            </p>
-            <p className="flex items-end font-mono text-[30px] leading-none font-semibold tracking-[-1px]">
+            </SectionLabel>
+            <p className="tnum flex items-end font-mono text-[30px] leading-none tracking-[-0.02em]">
               <span className="text-text-primary">{whole}</span>
               <span className="text-text-muted">{cents}</span>
             </p>
             {mark ? (
               <p className="flex flex-wrap items-center gap-1.5">
                 <span
-                  className={`font-mono text-[13px] font-semibold ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}
+                  className={`tnum font-mono text-[13px] ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}
                 >
                   {signed(mark.pnlUsd)}
                 </span>
                 <span
-                  className={`font-mono text-[13px] font-semibold ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}
+                  className={`tnum font-mono text-[13px] ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}
                 >
                   {signedPct(mark.returnPct)}
                 </span>
-                <span className="font-mono text-[9px] font-semibold tracking-[0.7px] text-text-dim uppercase">
+                <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
                   {t("agent_since_deploy")}
                 </span>
               </p>
             ) : null}
           </div>
-          <div className="flex shrink-0 gap-0.5 rounded-[9px] border border-border bg-bg p-[3px]">
+          <div
+            role="group"
+            aria-label={t("profile_range_aria")}
+            className={`shrink-0 ${SEGMENT_TRACK}`}
+          >
             {(["7D", "30D", "ALL"] as const).map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
-                className={`rounded-[7px] px-2 py-[5px] font-mono text-[10px] font-semibold tracking-[0.4px] ${
-                  range === r
-                    ? "bg-surface-2 text-text-primary"
-                    : "text-text-muted"
+                className={`${SEGMENT_ITEM} h-7 px-2.5 font-mono text-[11px] ${
+                  range === r ? SEGMENT_ON : SEGMENT_OFF
                 }`}
               >
                 {r}
@@ -381,7 +443,7 @@ export function AgentDetailMobile({
       {cycle ? (
         <div className="space-y-[13px] border-b border-grid px-[18px] pt-[18px] pb-5">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] font-semibold tracking-[0.9px] text-text-secondary uppercase">
+            <span className="font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase">
               {t("agent_cycle_label", {
                 seq: cycle.tick_seq,
                 status: running
@@ -389,7 +451,7 @@ export function AgentDetailMobile({
                   : t(STATUS_LABEL_KEY[cycle.status]),
               })}
             </span>
-            <span className="font-mono text-[10px] font-semibold text-text-dim">
+            <span className="font-mono text-[10px] text-text-dim">
               {running
                 ? t("agent_cycle_in_progress")
                 : relativeTime(cycle.started_at, t)}
@@ -411,10 +473,10 @@ export function AgentDetailMobile({
                 <p
                   className={`font-ui text-[11.5px] ${
                     i === reached
-                      ? "font-semibold text-accent"
+                      ? "text-text-primary"
                       : i < reached
-                        ? "font-medium text-text-secondary"
-                        : "font-medium text-text-muted"
+                        ? "text-text-secondary"
+                        : "text-text-muted"
                   }`}
                 >
                   {t(phaseKey)}
@@ -423,14 +485,12 @@ export function AgentDetailMobile({
             ))}
           </div>
 
-          <div className="flex items-start gap-2.5 rounded-[11px] border border-border-soft bg-surface px-3 py-2.5">
+          <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
             <Gavel
               className="mt-0.5 size-3.5 shrink-0 text-warning"
               aria-hidden
             />
-            <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-              {headline(cycle, t)}
-            </p>
+            <p className={BODY}>{headline(cycle, t)}</p>
           </div>
         </div>
       ) : null}
@@ -438,10 +498,10 @@ export function AgentDetailMobile({
       {/* ---------------------------------------------------- positions -- */}
       <div className="border-b border-grid pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3">
-          <p className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
+          <p className="font-ui text-[16px] tracking-[-0.01em] text-text-primary">
             {t("agent_open_positions")}
           </p>
-          <span className="font-mono text-[13px] font-semibold text-text-muted">
+          <span className="tnum font-mono text-[13px] text-text-muted">
             {positions.length}
           </span>
         </div>
@@ -464,7 +524,7 @@ export function AgentDetailMobile({
                   className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}
                 >
                   <span className="min-w-0 flex-1 space-y-1">
-                    <span className="block truncate font-mono text-[14px] font-semibold text-text-primary">
+                    <span className="block truncate font-mono text-[14px] text-text-primary">
                       {p.symbol}
                     </span>
                     <span className="block font-mono text-[11px] text-text-dim">
@@ -473,7 +533,7 @@ export function AgentDetailMobile({
                   </span>
                   <span className="shrink-0 space-y-1 text-right">
                     <span
-                      className={`block font-mono text-[14px] font-semibold ${pnl >= 0 ? "text-accent" : "text-negative"}`}
+                      className={`tnum block font-mono text-[14px] ${pnl >= 0 ? "text-accent" : "text-negative"}`}
                     >
                       {signed(pnl)}
                     </span>
@@ -491,10 +551,10 @@ export function AgentDetailMobile({
       {/* ------------------------------------------------------ markets -- */}
       <div className="border-b border-grid pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3">
-          <p className="font-ui text-[16px] font-semibold tracking-[-0.2px] text-text-primary">
+          <p className="font-ui text-[16px] tracking-[-0.01em] text-text-primary">
             {t("agent_markets_title")}
           </p>
-          <span className="font-mono text-[13px] font-semibold text-text-muted">
+          <span className="tnum font-mono text-[13px] text-text-muted">
             {universe.length}
           </span>
         </div>
@@ -531,43 +591,37 @@ export function AgentDetailMobile({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-accent hover:text-accent"
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary ${FOCUS}`}
           >
             <Plus className="size-4" aria-hidden />
-            <span className="font-ui text-[13.5px] font-semibold">
-              {t("agent_add_market")}
-            </span>
+            <span className="font-ui text-[13px]">{t("agent_add_market")}</span>
           </button>
         </div>
       </div>
 
       {/* --------------------------------------------------------- CTA -- */}
-      <div className="flex gap-2.5 px-[18px] pt-[18px] pb-4">
+      {/* Ink on light, white on dark — never green. The primary here is the
+          model top-up, the one action an idle agent most often needs. */}
+      <div className="flex gap-2 px-[18px] pt-[18px] pb-4">
         <button
           type="button"
           onClick={() => void toggle()}
           disabled={busy}
-          className="flex h-[52px] shrink-0 items-center gap-[7px] rounded-[14px] border border-border bg-surface px-[18px] disabled:opacity-50"
+          className={`h-11 shrink-0 gap-2 px-4 ${SECONDARY}`}
         >
           {paused ? (
-            <Play className="size-4 text-text-primary" aria-hidden />
+            <Play className="size-4" aria-hidden />
           ) : (
-            <Pause className="size-4 text-text-primary" aria-hidden />
+            <Pause className="size-4" aria-hidden />
           )}
-          <span className="font-ui text-[15px] font-semibold text-text-primary">
-            {busy
-              ? t("agent_busy")
-              : t(paused ? "agent_resume" : "agent_pause")}
-          </span>
+          {busy ? t("agent_busy") : t(paused ? "agent_resume" : "agent_pause")}
         </button>
         <Link
           href={`/workspace/${agent.id}?tab=overview&fund=model`}
-          className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-accent"
+          className={`h-11 flex-1 gap-2 ${PRIMARY}`}
         >
-          <Plus className="size-4 text-bg" aria-hidden />
-          <span className="font-ui text-[15px] font-semibold text-bg">
-            {t("agent_add_funds")}
-          </span>
+          <Plus className="size-4" aria-hidden />
+          {t("agent_add_funds")}
         </Link>
       </div>
 
@@ -630,11 +684,9 @@ function Cell({
     <div
       className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}
     >
-      <p className="font-mono text-[8.5px] font-semibold tracking-[0.7px] text-text-dim uppercase">
-        {label}
-      </p>
+      <p className={LABEL}>{label}</p>
       <p
-        className={`font-mono text-[14.5px] font-semibold ${
+        className={`tnum font-mono text-[14px] ${
           tone === "accent"
             ? "text-accent"
             : tone === "negative"

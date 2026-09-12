@@ -208,6 +208,33 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /** A change of kind, not a gap. Do not use it to separate related facts. */
+/**
+ * One letter for an avatar.
+ *
+ * Deliberately not a generated identicon: the label sits right beside it, so a
+ * pattern would be decoration, while an initial is the same information the
+ * reader is already using to recognise the account. Shared by the nav's
+ * account trigger and the phone profile, so one person has one monogram on
+ * both platforms.
+ */
+export function initialOf(label: string): string {
+  const c = label.trim()[0];
+  return c ? c.toUpperCase() : "?";
+}
+
+/** The circular monogram. */
+export function Avatar({ label, size = 20 }: { label: string; size?: number }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-surface-2 font-ui font-medium text-text-primary ring-1 ring-border"
+      style={{ width: size, height: size, fontSize: Math.max(size * 0.46, 9) }}
+    >
+      {initialOf(label)}
+    </span>
+  );
+}
+
 export function Divider() {
   return <div className="h-px bg-grid" aria-hidden />;
 }

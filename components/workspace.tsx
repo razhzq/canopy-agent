@@ -212,7 +212,7 @@ export function Workspace({
       </section>
 
       {tab === "cycles" ? (
-        <section className="px-8 py-7">
+        <section className="px-5 py-7 sm:px-8">
           <ActivityLog agentId={agentId} />
         </section>
       ) : (

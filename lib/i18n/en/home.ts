@@ -9,6 +9,10 @@ export const enHome = {
   home_chip_top: "Top PnL",
   home_chip_new: "New",
   home_chip_held: "Most deployed",
+  home_chip_return: "Top return",
+  home_chip_capital: "Most capital",
+  home_sort_aria: "Sort",
+  home_search_none: "Nothing matches \u201c{query}\u201d.",
   home_empty_title: "Nothing listed yet",
   home_empty_body:
     "Published strategies show up here with a live record. Build one and it starts on live data in paper mode.",

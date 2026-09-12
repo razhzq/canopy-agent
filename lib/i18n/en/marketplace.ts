@@ -12,6 +12,9 @@ export const enMarketplace = {
   market_sort_newest: "Newest",
   market_sort_capital: "Capital",
   market_sort_users: "Users",
+  market_sort_pnl: "Realised P&L",
+  market_podium_label: "Top three by realised P&L",
+  market_rank_aria: "Ranked {n}",
   market_search_placeholder: "Search agents…",
   market_search_aria: "Search agents",
 
@@ -48,6 +51,7 @@ export const enMarketplace = {
   market_card_class_days: "{class} · {days} days",
   market_card_no_curve: "Not enough cycles yet",
   market_metric_return_30d: "Return 30d",
+  market_metric_pnl: "Realised P&L",
   market_metric_capital: "Capital",
   market_metric_trades_30d: "Trades 30d",
   market_metric_open_now: "Open now",

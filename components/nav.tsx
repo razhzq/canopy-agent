@@ -1,6 +1,6 @@
 "use client";
 
-import { FOCUS, POPOVER } from "@/components/kit";
+import { Avatar, FOCUS, POPOVER } from "@/components/kit";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { UsernameModal } from "@/components/usernameModal";
 import { readChainFunding, type ChainFunding } from "@/lib/chainBalance";
@@ -167,31 +167,6 @@ function walletLabel(
   if (w.client === "privy") return t("account_wallet_canopy");
   // "phantom" → "Phantom". The client type is the wallet the user chose.
   return w.client.charAt(0).toUpperCase() + w.client.slice(1);
-}
-
-/**
- * One letter for the avatar.
- *
- * Deliberately not a generated identicon: the label sits right beside it, so a
- * pattern would be decoration, while an initial is the same information the
- * reader is already using to recognise the account.
- */
-function initialOf(label: string): string {
-  const c = label.trim()[0];
-  return c ? c.toUpperCase() : "?";
-}
-
-/** The circular monogram, shared by the trigger and the menu's header. */
-function Avatar({ label, size = 20 }: { label: string; size?: number }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-surface-2 font-ui font-medium text-text-primary ring-1 ring-border"
-      style={{ width: size, height: size, fontSize: Math.max(size * 0.46, 9) }}
-    >
-      {initialOf(label)}
-    </span>
-  );
 }
 
 function CopyIcon({ className = "" }: { className?: string }) {

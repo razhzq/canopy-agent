@@ -31,4 +31,13 @@ export const enProfile = {
   profile_deployed_cycle: "{amount} deployed · cycle {cycle}",
   profile_badge_paper: "paper",
   profile_language: "Language",
+  profile_stat_open: "open",
+  profile_main_wallet: "Main wallet",
+  profile_range_aria: "Range",
+  profile_idle_in_agents: "{amount} idle inside agents",
+  profile_invite_unavailable: "Your invite code couldn't be loaded.",
+  // The agent page, below lg.
+  profile_agent_book_aria: "Book",
+  profile_agent_wallet: "Agent wallet",
+  profile_agent_edit: "Edit strategy",
 } as const;

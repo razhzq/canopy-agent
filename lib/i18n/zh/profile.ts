@@ -28,4 +28,12 @@ export const zhProfile: Record<keyof typeof enProfile, string> = {
   profile_deployed_cycle: "已部署 {amount} · 第 {cycle} 周期",
   profile_badge_paper: "模拟",
   profile_language: "语言",
+  profile_stat_open: "持仓",
+  profile_main_wallet: "主钱包",
+  profile_range_aria: "区间",
+  profile_idle_in_agents: "智能体内闲置 {amount}",
+  profile_invite_unavailable: "无法加载您的邀请码。",
+  profile_agent_book_aria: "账本",
+  profile_agent_wallet: "智能体钱包",
+  profile_agent_edit: "编辑策略",
 };

@@ -8,6 +8,10 @@ export const trHome: Record<keyof typeof enHome, string> = {
   home_chip_top: "En yüksek K/Z",
   home_chip_new: "Yeni",
   home_chip_held: "En çok kullanılan",
+  home_chip_return: "En yüksek getiri",
+  home_chip_capital: "En çok sermaye",
+  home_sort_aria: "Sırala",
+  home_search_none: "“{query}” ile eşleşen bir şey yok.",
   home_empty_title: "Henüz listelenen yok",
   home_empty_body:
     "Yayımlanan stratejiler canlı bir sicille burada görünür. Bir tane oluşturun; kağıt üzerinde, canlı veriyle çalışmaya başlasın.",

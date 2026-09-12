@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Bell, GitBranch, House, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getNotificationFeed } from "@/lib/api";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
@@ -43,10 +46,58 @@ function isActive(pathname: string, match: readonly string[]): boolean {
   return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 }
 
+/** Same cadence as the desktop bell's closed-panel poll. */
+const POLL_MS = 60_000;
+
+/**
+ * The unread count for the Alerts tab.
+ *
+ * The desktop bell carries a badge; this bar carried nothing, so the one
+ * signal that says "an agent wants you" was invisible on the platform where
+ * the reader is least likely to be looking anyway. One row is enough — the
+ * feed's `unread` is a server-side count, not the length of the page.
+ *
+ * Polls only below `lg`. The bar is mounted at every width and hidden by CSS,
+ * and a desktop already has the bell polling the same endpoint.
+ */
+function useUnread(): number {
+  const { ready, authenticated, getAccessToken } = usePrivy();
+  const mobile = useIsMobile();
+  const pathname = usePathname() ?? "";
+  const [unread, setUnread] = useState(0);
+  // Reading the alerts page is what clears them; re-check on the way out.
+  const onAlerts = pathname.startsWith("/notifications");
+
+  useEffect(() => {
+    if (!ready || !authenticated || mobile !== true) return;
+    let cancelled = false;
+    const read = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const feed = await getNotificationFeed(token, 1);
+        if (!cancelled) setUnread(feed.unread);
+      } catch {
+        /* a missed poll is nothing — the count stays where it was */
+      }
+    };
+    void read();
+    const id = setInterval(() => void read(), POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [ready, authenticated, mobile, onAlerts, getAccessToken]);
+
+  // Never lit while the reader is on the page that lists them.
+  return onAlerts ? 0 : unread;
+}
+
 export function MobileTabs() {
   const pathname = usePathname() ?? "";
   const { ready, authenticated } = usePrivy();
   const t = useT();
+  const unread = useUnread();
 
   // Nothing to navigate between until there is a session, and a row of tabs
   // that all bounce off a sign-in prompt is worse than no row.
@@ -63,17 +114,34 @@ export function MobileTabs() {
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(pathname, tab.match);
+          const count = tab.href === "/notifications" ? unread : 0;
           return (
             <li key={tab.href} className="min-w-0 flex-1">
               <Link
                 href={tab.href}
-                aria-label={t(tab.key)}
+                aria-label={
+                  count > 0
+                    ? `${t(tab.key)} · ${t("nc_aria_unread", { count })}`
+                    : t(tab.key)
+                }
                 aria-current={active ? "page" : undefined}
                 className={`flex h-11 items-center justify-center rounded-[22px] transition-colors ${
-                  active ? "bg-surface-2 text-text-primary" : "text-text-muted hover:text-text-secondary"
+                  active
+                    ? "bg-surface-2 text-text-primary"
+                    : count > 0
+                      ? "text-text-primary"
+                      : "text-text-muted hover:text-text-secondary"
                 }`}
               >
-                <Icon className="size-[21px] shrink-0" aria-hidden />
+                <span className="relative">
+                  <Icon className="size-[21px] shrink-0" aria-hidden />
+                  {count > 0 ? (
+                    // A count, not a dot — the same badge the desktop bell wears.
+                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] leading-none text-bg">
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  ) : null}
+                </span>
               </Link>
             </li>
           );

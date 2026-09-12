@@ -11,6 +11,9 @@ export const trMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_sort_newest: "En yeni",
   market_sort_capital: "Sermaye",
   market_sort_users: "Kullanıcı",
+  market_sort_pnl: "Gerçekleşen K/Z",
+  market_podium_label: "Gerçekleşen K/Z ile ilk üç",
+  market_rank_aria: "Sıra {n}",
   market_search_placeholder: "Ajan ara…",
   market_search_aria: "Ajan ara",
 
@@ -42,6 +45,7 @@ export const trMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_card_class_days: "{class} · {days} gün",
   market_card_no_curve: "Henüz yeterli döngü yok",
   market_metric_return_30d: "30g getiri",
+  market_metric_pnl: "Gerçekleşen K/Z",
   market_metric_capital: "Sermaye",
   market_metric_trades_30d: "30g işlem",
   market_metric_open_now: "Şu an açık",

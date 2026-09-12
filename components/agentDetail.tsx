@@ -613,25 +613,77 @@ export function AgentDetailView({
   const cadenceSec =
     strategy?.tick_interval_sec ?? agent.mandate?.tickIntervalSec ?? null;
 
+  // The strategy editor and the go-live dialog, at BOTH widths. They used to
+  // sit at the foot of the desktop tree only, which the phone branch returned
+  // before reaching — so a phone had no way to edit a strategy or promote an
+  // agent, and the switch that promotes could not even be shown.
+  const dialogs = (
+    <>
+  {editing && strategy ? (
+    <EditStrategyModal
+      agentId={agentId}
+      strategy={strategy}
+      mandate={agent.mandate}
+      isPaper={agent.is_paper}
+      equityUsd={equity?.points.at(-1)?.equityUsd ?? null}
+      // Reloads behind the dialog on the way out, so the rule chips, the
+      // exit cards and the accumulation note in the rail all restate the
+      // strategy that was just saved rather than the one that was loaded.
+      onSaved={() => void load()}
+      onClose={() => setEditing(false)}
+    />
+  ) : null}
+
+  {/* Opened from the Live half of the book switch. Reloads the page behind as
+      each step lands, so the header, the wallet tag and the dialog agree the
+      moment a delegation or a promotion takes effect. */}
+  {goingLive ? (
+    <GoLiveModal
+      agent={agent}
+      wallet={wallet}
+      openPositions={positions.length}
+      // Only true for the dialog the return from checkout opened. Cleared on
+      // close so reopening by hand is an ordinary read rather than another
+      // round trip to the payment provider.
+      resumedFromCheckout={resumedCheckout}
+      onChanged={() => void load()}
+      onClose={() => {
+        setGoingLive(false);
+        setResumedCheckout(false);
+      }}
+    />
+  ) : null}
+    </>
+  );
+
   if (mobile === null) return null;
 
   if (mobile) {
     return (
-      <AgentDetailMobile
-        onOpenChat={onOpenChat}
-        // The `?fund=model` hand-off, forwarded. This branch returns before the
-        // desktop tree that owns the panel, so without passing it down the flag
-        // is read, cleared, and dropped.
-        fundOnMount={modelOpen}
-        agent={agent}
-        detail={detail}
-        equity={equity}
-        positions={positions}
-        assets={marked}
-        assetsPending={assetsPending}
-        universe={strategy?.universe ?? []}
-        onChanged={() => void load()}
-      />
+      <>
+        <AgentDetailMobile
+          onOpenChat={onOpenChat}
+          // The `?fund=model` hand-off, forwarded. This branch returns before
+          // the desktop tree that owns the panel, so without passing it down
+          // the flag is read, cleared, and dropped.
+          fundOnMount={modelOpen}
+          agent={agent}
+          detail={detail}
+          equity={equity}
+          positions={positions}
+          assets={marked}
+          assetsPending={assetsPending}
+          universe={strategy?.universe ?? []}
+          onChanged={() => void load()}
+          walletAddress={wallet?.address ?? null}
+          onBook={setBook}
+          onGoLive={goLiveIntent}
+          paperDisabledReason={paperDisabledReason}
+          liveDisabledReason={liveDisabledReason}
+          onEdit={strategy ? () => setEditing(true) : null}
+        />
+        {dialogs}
+      </>
     );
   }
 
@@ -1217,40 +1269,7 @@ export function AgentDetailView({
         />
       ) : null}
 
-      {editing && strategy ? (
-        <EditStrategyModal
-          agentId={agentId}
-          strategy={strategy}
-          mandate={agent.mandate}
-          isPaper={agent.is_paper}
-          equityUsd={equity?.points.at(-1)?.equityUsd ?? null}
-          // Reloads behind the dialog on the way out, so the rule chips, the
-          // exit cards and the accumulation note in the rail all restate the
-          // strategy that was just saved rather than the one that was loaded.
-          onSaved={() => void load()}
-          onClose={() => setEditing(false)}
-        />
-      ) : null}
-
-      {/* Opened from the Live half of the book switch. Reloads the page behind as
-          each step lands, so the header, the wallet tag and the dialog agree the
-          moment a delegation or a promotion takes effect. */}
-      {goingLive ? (
-        <GoLiveModal
-          agent={agent}
-          wallet={wallet}
-          openPositions={positions.length}
-          // Only true for the dialog the return from checkout opened. Cleared on
-          // close so reopening by hand is an ordinary read rather than another
-          // round trip to the payment provider.
-          resumedFromCheckout={resumedCheckout}
-          onChanged={() => void load()}
-          onClose={() => {
-            setGoingLive(false);
-            setResumedCheckout(false);
-          }}
-        />
-      ) : null}
+      {dialogs}
     </div>
   );
 }
@@ -1480,7 +1499,7 @@ function StatusChip({ status }: { status: string }) {
  * this". `note` holds anything that IS worth saying unprompted, and the hovered
  * reason takes its place while pointed at.
  */
-function BookSwitch({
+export function BookSwitch({
   book,
   onChange,
   onGoLive,

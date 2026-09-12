@@ -11,6 +11,9 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_sort_newest: "最新",
   market_sort_capital: "资金规模",
   market_sort_users: "使用人数",
+  market_sort_pnl: "已实现盈亏",
+  market_podium_label: "已实现盈亏前三",
+  market_rank_aria: "排名 {n}",
   market_search_placeholder: "搜索智能体…",
   market_search_aria: "搜索智能体",
 
@@ -42,6 +45,7 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_card_class_days: "{class} · {days} 天记录",
   market_card_no_curve: "周期数量尚不足以绘制曲线",
   market_metric_return_30d: "30 日收益",
+  market_metric_pnl: "已实现盈亏",
   market_metric_capital: "资金规模",
   market_metric_trades_30d: "30 日成交",
   market_metric_open_now: "当前持仓",
