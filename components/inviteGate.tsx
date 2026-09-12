@@ -6,6 +6,7 @@ import { ApiError, openSession, redeemInvite, type SessionProfile } from "@/lib/
 import { readAccounts } from "@/components/nav";
 import { clearReferral, readReferral } from "@/lib/referral";
 import { useT } from "@/lib/i18n";
+import { UsernamePrompt } from "@/components/usernamePrompt";
 
 /**
  * The invite gate.
@@ -151,7 +152,17 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
     setPhase({ kind: "open" });
   }, []);
 
-  if (phase.kind === "open") return <>{children}</>;
+  if (phase.kind === "open") {
+    return (
+      <>
+        {/* The one thing asked of a new account once it is through the door.
+            Inside the open branch so it can never stack on the gate's own
+            dialog. */}
+        {authenticated ? <UsernamePrompt /> : null}
+        {children}
+      </>
+    );
+  }
 
   // Checking renders nothing rather than a spinner. The check is one request
   // against a warm token and normally resolves inside a frame; a flash of

@@ -17,6 +17,8 @@ export const zhAccount: Record<keyof typeof enAccount, string> = {
   gate_code_rejected: "该邀请码未能解锁访问权限。",
 
   username_title: "设置用户名",
+  username_welcome_title: "欢迎。先取个名字。",
+  username_welcome_body: "它会出现在你的智能体及其公开记录上，也是别人找到你的方式。",
   username_body: "它会在 Canopy 各处取代您的邮箱显示，别人也通过它找到您。",
   username_placeholder: "yourname",
   username_available: "@{name} 可以使用。",

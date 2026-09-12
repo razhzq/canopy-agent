@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { Modal } from "@/components/modal";
+import { FOCUS, PRIMARY, QUIET, SURFACE } from "@/components/kit";
 import { checkUsername } from "@/lib/api";
 import { useUsername } from "@/lib/useUsername";
 import { useT } from "@/lib/i18n";
@@ -21,6 +22,8 @@ import { useT } from "@/lib/i18n";
  * the lookup and the save, which is what the 409 on PATCH is for.
  */
 
+const noop = () => undefined;
+
 /** canopy-fe's mask, character for character. */
 const ALLOWED = /^[a-zA-Z0-9_]*$/;
 const MAX = 20;
@@ -31,7 +34,18 @@ type Check =
   | { at: "free" }
   | { at: "taken"; reason: string };
 
-export function UsernameModal({ onClose }: { onClose: () => void }) {
+export function UsernameModal({
+  onClose,
+  required = false,
+}: {
+  /** Absent when `required`: the only way out is a claimed name. */
+  onClose?: () => void;
+  /**
+   * Opened for a new account rather than from the menu. Cannot be dismissed
+   * — no Later, no X, no backdrop, no Escape — and carries the welcome.
+   */
+  required?: boolean;
+}) {
   const { getAccessToken } = usePrivy();
   const t = useT();
   const { save } = useUsername();
@@ -82,7 +96,7 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       await save(name);
-      onClose();
+      onClose?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setSaving(false);
@@ -92,15 +106,30 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
   const ready = name.length >= 3 && check.at !== "taken" && !saving;
 
   return (
-    <Modal title={t("username_title")} onClose={onClose}>
-      <div className="space-y-5 px-5 py-6">
-        <p className="font-ui text-[12.5px] leading-relaxed text-text-secondary">
-          {t("username_body")}
+    <Modal
+      title={t(required ? "username_welcome_title" : "username_title")}
+      // A required dialog swallows every dismissal the shell offers.
+      onClose={required ? noop : (onClose ?? noop)}
+      headless={required}
+    >
+      <div className="space-y-6 px-5 py-6">
+        {required ? (
+          <p className="font-ui text-[15px] font-medium text-text-primary">
+            {t("username_welcome_title")}
+          </p>
+        ) : null}
+        <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
+          {t(required ? "username_welcome_body" : "username_body")}
         </p>
 
+        {/* The one bordered object in the dialog is the input (rule 3), in
+            the same surface, ring and radius as the amount field on the
+            deposit dialog — a name is typed the way a figure is. */}
         <div className="space-y-2">
-          <div className="flex items-center border border-grid bg-bg focus-within:border-accent">
-            <span className="pl-3 font-mono text-[15px] text-text-dim">@</span>
+          <div
+            className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]`}
+          >
+            <span className="font-mono text-[15px] text-text-dim">@</span>
             <input
               value={name}
               autoFocus
@@ -115,9 +144,9 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
                 if (e.key === "Enter" && ready) void submit();
               }}
               placeholder={t("username_placeholder")}
-              className="w-full bg-transparent px-2 py-2.5 font-mono text-[15px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-dim"
+              className="w-full bg-transparent px-2 py-3 font-mono text-[15px] pointer-coarse:text-[16px] text-text-primary outline-none placeholder:text-text-dim"
             />
-            <span className="pr-3 font-mono text-[10px] text-text-dim">
+            <span className="tnum font-mono text-[11px] text-text-dim">
               {name.length}/{MAX}
             </span>
           </div>
@@ -139,31 +168,27 @@ export function UsernameModal({ onClose }: { onClose: () => void }) {
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex-1 border border-grid-strong py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:bg-surface disabled:opacity-40"
-          >
-            {t("username_later")}
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={!ready}
-            className="flex-1 bg-accent py-2.5 font-mono text-[11px] tracking-[0.1em] text-bg uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            {t(saving ? "username_saving" : "username_claim")}
-          </button>
+        {/* Weighted by consequence (rule 5): claiming is the filled pill,
+            "Later" is quiet text beside it, never an equal half of a split
+            row. Said once, under them: a username is unique across Canopy. */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-end gap-4">
+            {required ? null : (
+              <button type="button" onClick={onClose} disabled={saving} className={`${QUIET} ${FOCUS}`}>
+                {t("username_later")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={!ready}
+              className={`${PRIMARY} ${FOCUS} min-w-[7.5rem]`}
+            >
+              {t(saving ? "username_saving" : "username_claim")}
+            </button>
+          </div>
+          <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{t("username_note")}</p>
         </div>
-
-        {/* Said once. A username is not a nickname you can cycle through — it is
-            unique across Canopy, so the next person to want it cannot have it
-            while you hold it. */}
-        <p className="font-ui text-[11px] leading-relaxed text-text-dim">
-          {t("username_note")}
-        </p>
       </div>
     </Modal>
   );

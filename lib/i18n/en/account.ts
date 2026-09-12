@@ -22,6 +22,9 @@ export const enAccount = {
 
   // ── Username ───────────────────────────────────────────────────
   username_title: "Choose a username",
+  username_welcome_title: "Welcome. Pick your name.",
+  username_welcome_body:
+    "It goes on your agents and their public record, and it is how other people find you.",
   username_body:
     "It replaces your email everywhere in Canopy, and it is how other people will find you.",
   username_placeholder: "yourname",

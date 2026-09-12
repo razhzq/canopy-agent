@@ -17,6 +17,8 @@ export const trAccount: Record<keyof typeof enAccount, string> = {
   gate_code_rejected: "Bu kod erişimi açmadı.",
 
   username_title: "Bir kullanıcı adı seçin",
+  username_welcome_title: "Hoş geldin. Adını seç.",
+  username_welcome_body: "Ajanlarında ve herkese açık kayıtlarında görünür; başkaları seni böyle bulur.",
   username_body:
     "Canopy'nin her yerinde e-postanızın yerini alır ve başkalarının sizi bulma yoludur.",
   username_placeholder: "adiniz",
