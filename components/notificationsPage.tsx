@@ -42,7 +42,7 @@ const FILTERS = [
   {
     key: "trades",
     labelKey: "nc_filter_trades" as TranslationKey,
-    kinds: ["fill"],
+    kinds: ["fill", "discovery"],
   },
   {
     key: "risk",

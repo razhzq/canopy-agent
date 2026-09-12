@@ -685,7 +685,17 @@ export type ScreenMetric =
   | "change6hPct"
   | "change24hPct"
   | "txns24h"
-  | "buySellRatio24h";
+  | "buySellRatio24h"
+  // Launch-age facts, judged on live readings (CANOPY_100).
+  | "launchAgeMinutes"
+  | "liquidityGrowthPct"
+  | "holderCount"
+  | "top10HolderPct"
+  | "creatorHoldingPct"
+  | "volume5mUsd"
+  | "txns5m"
+  | "buySellRatio5m"
+  | "sellImpactPct";
 
 /**
  * One bound on one metric. A range is two of them.
@@ -736,6 +746,8 @@ export interface DiscoverySpec {
    */
   require?: {
     socials?: boolean;
+    /** A $100 round trip routes through Jupiter. A gate, checked live. */
+    sellable?: boolean;
   };
   /** Rug checks, run only on what already passed the filters. Omitted = none. */
   safety?: {
@@ -1140,6 +1152,8 @@ export interface RiskCaps {
   maxOpenPositions?: number | null;
   dailyLossLimitPct?: number | null;
   cooldownAfterLosses?: { losses: number; minutes: number } | null;
+  /** Dollar cap on one position in a pool-tier token, both books. Off unless set. */
+  maxPoolTierPositionUsd?: number | null;
 }
 
 /**
@@ -3395,7 +3409,14 @@ export interface TelegramStatus {
 /* -------------------------------------------------- notification centre -- */
 
 export type NotificationKind =
-  "fill" | "proposal" | "breach" | "risk_hold" | "state_change" | "cycle";
+  | "fill"
+  | "proposal"
+  | "breach"
+  | "risk_hold"
+  | "state_change"
+  | "cycle"
+  /** A brand-new pool passed the agent's discovery screen. */
+  | "discovery";
 
 /** What a `fill` notification carries besides its sentence. */
 export interface FillPayload {

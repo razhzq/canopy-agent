@@ -56,7 +56,7 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  * type rather than by a single "number" treatment is what stops a market cap
  * and a buy/sell ratio being rendered as the same kind of thing.
  */
-type Unit = "usd" | "pct" | "ratio" | "count" | "hours";
+type Unit = "usd" | "pct" | "ratio" | "count" | "hours" | "minutes";
 
 interface MetricDef {
   key: ScreenMetric;
@@ -84,9 +84,25 @@ const ACTIVITY: MetricDef[] = [
 
 const AGE: MetricDef[] = [
   { key: "pairAgeHours", unit: "hours", note: "dsc_pairAgeHours_note" },
+  { key: "launchAgeMinutes", unit: "minutes", note: "dsc_launchAgeMinutes_note" },
 ];
 
-const ALL_METRICS = [...SIZE, ...ACTIVITY, ...AGE];
+/**
+ * Judged on facts seconds old, for a shortlist, rather than on the hourly
+ * row — which is why they sit in their own group with a note saying so.
+ */
+const LIVE: MetricDef[] = [
+  { key: "volume5mUsd", unit: "usd" },
+  { key: "txns5m", unit: "count" },
+  { key: "buySellRatio5m", unit: "ratio" },
+  { key: "liquidityGrowthPct", unit: "pct", note: "dsc_liquidityGrowthPct_note" },
+  { key: "holderCount", unit: "count" },
+  { key: "top10HolderPct", unit: "pct", note: "dsc_top10HolderPct_note" },
+  { key: "creatorHoldingPct", unit: "pct", note: "dsc_creatorHoldingPct_note" },
+  { key: "sellImpactPct", unit: "pct", note: "dsc_sellImpactPct_note" },
+];
+
+const ALL_METRICS = [...SIZE, ...ACTIVITY, ...AGE, ...LIVE];
 
 /* ----------------------------------------------------------------- entry -- */
 
@@ -190,6 +206,12 @@ function Editor({
               <Range key={m.key} def={m} boundOf={boundOf} onBound={setBound} />
             ))}
           </Group>
+
+          <Group title={t("dsc_group_live")} note={t("dsc_group_live_note")}>
+            {LIVE.map((m) => (
+              <Range key={m.key} def={m} boundOf={boundOf} onBound={setBound} />
+            ))}
+          </Group>
         </div>
 
         <div className="space-y-6">
@@ -228,6 +250,12 @@ function Editor({
               note={t("dsc_require_socials_note")}
               on={value.require?.socials ?? false}
               onChange={(on) => set({ require: { ...value.require, socials: on } })}
+            />
+            <Exclusion
+              label={t("dsc_require_sellable")}
+              note={t("dsc_require_sellable_note")}
+              on={value.require?.sellable ?? false}
+              onChange={(on) => set({ require: { ...value.require, sellable: on } })}
             />
           </Group>
 
@@ -383,6 +411,7 @@ function NumberInput({
       />
       {unit === "pct" ? <span className="font-mono text-[11px] text-text-dim">%</span> : null}
       {asDays ? <span className={LABEL}>{t("dsc_unit_days")}</span> : null}
+      {unit === "minutes" ? <span className={LABEL}>{t("dsc_unit_minutes")}</span> : null}
     </span>
   );
 }
@@ -736,6 +765,7 @@ export function describeScreen(
   }
 
   if (spec.require?.socials) parts.push(t("dsc_summary_socials"));
+  if (spec.require?.sellable) parts.push(t("dsc_summary_sellable"));
   parts.push(t(`dsc_tier_${spec.minTier}` as TranslationKey));
   return parts.join(" · ");
 }
@@ -756,6 +786,8 @@ function formatBound(
       return n >= 48 ? `${Math.round(n / 24)} ${t("dsc_unit_days")}` : `${n} ${t("dsc_unit_hours")}`;
     case "count":
       return n.toLocaleString("en-US");
+    case "minutes":
+      return `${n} ${t("dsc_unit_minutes")}`;
     case "ratio":
       return String(n);
   }

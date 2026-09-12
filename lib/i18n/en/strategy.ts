@@ -272,6 +272,42 @@ export const enStrategy = {
   warn_ladder_unbounded: "A doubling ladder with no limit on adds compounds fast. Set a maximum.",
 
   // ── Plan summary sentence ──────────────────────────────────────
+  rule_launchAgeMinutes: "Min minutes since launch",
+  rule_launchAgeMinutes_help:
+    "Skip the first minutes after a pool opens, when the price is pure noise and the rug is still possible.",
+  rule_launchAgeMinutesMax: "Max minutes since launch",
+  rule_launchAgeMinutesMax_help:
+    "Only tokens younger than this. Read from the chain the moment the pool was created.",
+  rule_changeSinceLaunchPct: "Min change since launch",
+  rule_changeSinceLaunchPct_help:
+    "Price against the first price recorded after the pool opened. Needs no chart history.",
+  rule_changeSinceLaunchPctMax: "Max change since launch",
+  rule_changeSinceLaunchPctMax_help:
+    "Leave out tokens that have already run too far from their launch price.",
+  rule_drawdownFromLaunchHighPct: "Min dip from launch high",
+  rule_drawdownFromLaunchHighPct_help:
+    "How far price has fallen from the highest point since launch. The launch-era version of the 60-bar high.",
+  rule_liquidityGrowthPct: "Min liquidity growth",
+  rule_liquidityGrowthPct_help:
+    "Pool liquidity now against what it opened with. Negative means liquidity is leaving.",
+  rule_volume5mUsd: "Min 5-minute volume",
+  rule_volume5mUsd_help:
+    "Dollar value traded in the last five minutes, refreshed live.",
+  rule_buySellRatio5m: "Min 5-minute buys per sell",
+  rule_buySellRatio5m_help:
+    "Buys divided by sells over the last five minutes. 1 is balanced; above 1 more buyers than sellers.",
+  rule_holderCount: "Min holders",
+  rule_holderCount_help:
+    "Wallets holding the token, refreshed live.",
+  rule_top10HolderPct: "Max top-10 holder share",
+  rule_top10HolderPct_help:
+    "Share of supply in the ten largest wallets. Lower is better spread.",
+  rule_creatorHoldingPct: "Max creator holding",
+  rule_creatorHoldingPct_help:
+    "Share of supply the wallet that created the pool still has.",
+  rule_sellImpactPct: "Max cost to sell $100",
+  rule_sellImpactPct_help:
+    "What a $100 round trip loses to the pool right now. The tighter this is, the easier it is to get out.",
   acc_from_heading: "Measured from",
   acc_from_help:
     "The average falls with every buy, so rungs measured from it crowd together on the way down. Measured from the last fill, each rung sits the same distance below the previous buy — which is what a grid is.",

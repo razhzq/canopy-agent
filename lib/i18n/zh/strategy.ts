@@ -313,6 +313,42 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_priceUsdMax: "最高价格",
   rule_priceUsdMax_help:
     "美元价格上限。“$180 以下买入”，或作为信号离场时的硬止损价位。是价位，不是涨跌幅。",
+  rule_launchAgeMinutes: "上线后最少分钟数",
+  rule_launchAgeMinutes_help:
+    "跳过建池后的最初几分钟，那时价格是纯噪音，跑路仍可能发生。",
+  rule_launchAgeMinutesMax: "上线后最多分钟数",
+  rule_launchAgeMinutesMax_help:
+    "只要比这更年轻的代币。建池那一刻从链上读取。",
+  rule_changeSinceLaunchPct: "较发行价最低涨幅",
+  rule_changeSinceLaunchPct_help:
+    "价格相对建池后记录的第一个价格。无需 K 线历史。",
+  rule_changeSinceLaunchPctMax: "较发行价最高涨幅",
+  rule_changeSinceLaunchPctMax_help:
+    "排除已经偏离发行价太远的代币。",
+  rule_drawdownFromLaunchHighPct: "较上线高点最小回撤",
+  rule_drawdownFromLaunchHighPct_help:
+    "价格自上线以来最高点的回落幅度。相当于上线阶段的 60 根 K 线高点。",
+  rule_liquidityGrowthPct: "最低流动性增长",
+  rule_liquidityGrowthPct_help:
+    "池子当前流动性相对开池时。负值表示流动性在流出。",
+  rule_volume5mUsd: "5 分钟最低成交额",
+  rule_volume5mUsd_help:
+    "最近五分钟的美元成交额，实时刷新。",
+  rule_buySellRatio5m: "5 分钟最低买卖比",
+  rule_buySellRatio5m_help:
+    "最近五分钟买入笔数除以卖出笔数。1 为均衡，大于 1 买方更多。",
+  rule_holderCount: "最少持有人数",
+  rule_holderCount_help:
+    "持有该代币的钱包数，实时刷新。",
+  rule_top10HolderPct: "前十大持仓最高占比",
+  rule_top10HolderPct_help:
+    "前十大钱包持有的供应量比例。越低越分散。",
+  rule_creatorHoldingPct: "创建者最高持仓",
+  rule_creatorHoldingPct_help:
+    "建池钱包仍持有的供应量比例。",
+  rule_sellImpactPct: "卖出 $100 的最高成本",
+  rule_sellImpactPct_help:
+    "此刻 $100 一买一卖在池子里的损耗。越小越容易退出。",
   acc_from_heading: "以什么为基准",
   acc_from_help:
     "均价会随每次买入而下降，以均价为基准的档位在下跌途中会越挤越密。以上一次成交为基准，每一档都在上一次买入之下相同距离 — 这才是网格。",

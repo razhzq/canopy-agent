@@ -58,6 +58,7 @@ export const enNotifs = {
   nc_kind_risk_hold: "Risk hold",
   nc_kind_state_change: "Status",
   nc_kind_cycle: "Cycle",
+  nc_kind_discovery: "New pool",
   nc_kind_unknown: "Update",
 
   // ── Chat sheet ─────────────────────────────────────────────────

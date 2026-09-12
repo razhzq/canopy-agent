@@ -1126,6 +1126,13 @@ const KIND: Record<
     tone: "text-text-dim",
     dot: "bg-text-muted",
   },
+  // A find, not a fill: reported in the accent, because it is the one kind
+  // that is news rather than a consequence of something the agent did.
+  discovery: {
+    labelKey: "nc_kind_discovery",
+    tone: "text-accent",
+    dot: "bg-accent",
+  },
 };
 
 // `ago` moved to lib/format as `compactAge`.

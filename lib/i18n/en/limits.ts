@@ -180,6 +180,16 @@ export const enLimits = {
   sl_cap_turn_off: "Turn off",
   sl_cap_turn_on: "Turn on",
   sl_caps_tail: "None of these ever blocks a sell. Exits, stops and the breaker always run.",
+  sl_cap_pool_tier: "Unverified token cap",
+  sl_cap_pool_tier_info:
+    "Most dollars in one position on a token nobody has vouched for beyond its pool. Applies on paper and live alike, so the paper record stays one the live agent can repeat.",
+  sl_cap_pool_tier_help: "At most {usd} in any one unverified token",
+  sl_priority_fee: "Priority fee",
+  sl_priority_fee_info:
+    "How hard a live swap bids to be included in the next block. Auto is Jupiter's estimate. Bid higher for launches, where a slow fill is the trade going without you; a deep pool does not need it.",
+  sl_priority_auto: "Auto",
+  sl_priority_high: "High",
+  sl_priority_very_high: "Very high",
   sl_unit_trade: "trade",
   sl_step_down: "Fewer {label}",
   sl_step_up: "More {label}",

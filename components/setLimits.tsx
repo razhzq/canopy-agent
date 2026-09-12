@@ -90,6 +90,12 @@ export interface Limits {
    */
   riskCaps?: RiskCaps;
   /**
+   * How hard a live swap bids for inclusion. Absent is Jupiter's own estimate,
+   * which is what every strategy did before this was a choice. Rides on the
+   * strategy's safety floor.
+   */
+  priorityFee?: "auto" | "high" | "veryHigh";
+  /**
    * Which compliance screen the agent runs.
    *
    * Absent means the author never chose, which defers to the server default —
@@ -1307,6 +1313,53 @@ export function SetLimits({
             </div>
           </BudgetRow>
         </div>
+        <div className="mt-3 overflow-hidden rounded-xl border border-border">
+          <BudgetRow
+            label={t("sl_cap_pool_tier")}
+            info={t("sl_cap_pool_tier_info")}
+            help={
+              caps.maxPoolTierPositionUsd != null
+                ? t("sl_cap_pool_tier_help", { usd: money(caps.maxPoolTierPositionUsd) })
+                : undefined
+            }
+          >
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.maxPoolTierPositionUsd ?? 100}
+                min={5}
+                max={100_000}
+                step={5}
+                unit="$"
+                label={t("sl_cap_pool_tier")}
+                disabled={caps.maxPoolTierPositionUsd == null}
+                onChange={(n) => setCaps({ ...caps, maxPoolTierPositionUsd: n })}
+              />
+              <CapToggle
+                on={caps.maxPoolTierPositionUsd != null}
+                onToggle={(on) => setCaps({ ...caps, maxPoolTierPositionUsd: on ? 100 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow label={t("sl_priority_fee")} info={t("sl_priority_fee_info")}>
+            <div className="flex items-center gap-1">
+              {(["auto", "high", "veryHigh"] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  aria-pressed={(value.priorityFee ?? "auto") === level}
+                  onClick={() => onChange({ ...value, priorityFee: level === "auto" ? undefined : level })}
+                  className={`h-7 rounded-full px-2.5 font-ui text-[11.5px] font-medium transition-colors ${
+                    (value.priorityFee ?? "auto") === level
+                      ? "bg-surface-2 text-text-primary"
+                      : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {t(level === "auto" ? "sl_priority_auto" : level === "high" ? "sl_priority_high" : "sl_priority_very_high")}
+                </button>
+              ))}
+            </div>
+          </BudgetRow>
+        </div>
         <p className={`pt-2 ${LABEL}`}>{t("sl_caps_tail")}</p>
       </section>
 
@@ -1518,6 +1571,9 @@ export const DEFAULT_RISK_CAPS: Required<RiskCaps> = {
   maxOpenPositions: 8,
   dailyLossLimitPct: 5,
   cooldownAfterLosses: { losses: 3, minutes: 120 },
+  // Off: there is no posture default for this one. It is a choice about how
+  // much to trust a token nobody has vouched for.
+  maxPoolTierPositionUsd: null,
 };
 
 /**

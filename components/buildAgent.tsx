@@ -537,6 +537,8 @@ export function BuildAgent() {
           minLiquidityUsd: 25_000,
           maxSlippagePct: 1.5,
           requireSafetyScreen: false,
+          // The execution bid from the guardrails card. Omitted means auto.
+          ...(limits.priorityFee ? { priorityFee: limits.priorityFee } : {}),
         },
         feePct: 10,
         // Every market chosen. The picker guarantees they share a class, which
