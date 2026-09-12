@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Pill, PillRow, PillTag, StepHead } from "@/components/wizard";
-import { InfoDot } from "@/components/kit";
+import { InfoDot, LABEL } from "@/components/kit";
 import type {
   AddPlan,
   AddSizing,
@@ -1752,7 +1752,7 @@ export function AddPlanCard({
                     {/* WHERE THE RUNG IS MEASURED FROM. The average crowds the
                         rungs together as it falls; the last fill keeps them
                         evenly spaced — which is what a grid is. */}
-                    <p className="flex items-center gap-1.5 pb-2 pt-3 font-ui text-[11.5px] text-text-muted">
+                    <p className={`flex items-center gap-1.5 pb-2 pt-3 ${LABEL}`}>
                       {t("acc_from_heading")}
                       <InfoDot label={t("acc_from_heading")}>{t("acc_from_help")}</InfoDot>
                     </p>

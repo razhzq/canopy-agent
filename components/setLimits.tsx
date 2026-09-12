@@ -34,7 +34,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot, Spinner, StatusLine } from "@/components/kit";
+import { FieldNote, InfoDot, LABEL, MICRO, Spinner, StatusLine } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { ChevronDown } from "lucide-react";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
@@ -1203,8 +1203,8 @@ export function SetLimits({
             />
           </BudgetRow>
           <BudgetRow label={t("sl_cap_positions")} info={t("sl_cap_positions_info")}>
-            <div className="flex items-center justify-end gap-2">
-              {caps.maxOpenPositions !== null ? (
+            <div className="flex items-center justify-end gap-3">
+              <Dimmed on={caps.maxOpenPositions !== null}>
                 <Stepper
                   value={caps.maxOpenPositions ?? 8}
                   min={1}
@@ -1213,7 +1213,7 @@ export function SetLimits({
                   unit={t("sl_cap_unit_positions")}
                   onChange={(n) => setCaps({ ...caps, maxOpenPositions: n })}
                 />
-              ) : null}
+              </Dimmed>
               <CapToggle
                 on={caps.maxOpenPositions !== null}
                 onToggle={(on) => setCaps({ ...caps, maxOpenPositions: on ? 8 : null })}
@@ -1229,18 +1229,17 @@ export function SetLimits({
                 : undefined
             }
           >
-            <div className="flex items-center justify-end gap-2">
-              {caps.dailyLossLimitPct !== null ? (
-                <NumberEntry
-                  value={caps.dailyLossLimitPct ?? 5}
-                  min={0.5}
-                  max={50}
-                  step={0.5}
-                  unit="%"
-                  label={t("sl_cap_daily")}
-                  onChange={(n) => setCaps({ ...caps, dailyLossLimitPct: n })}
-                />
-              ) : null}
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.dailyLossLimitPct ?? 5}
+                min={0.5}
+                max={50}
+                step={0.5}
+                unit="%"
+                label={t("sl_cap_daily")}
+                disabled={caps.dailyLossLimitPct === null}
+                onChange={(n) => setCaps({ ...caps, dailyLossLimitPct: n })}
+              />
               <CapToggle
                 on={caps.dailyLossLimitPct !== null}
                 onToggle={(on) => setCaps({ ...caps, dailyLossLimitPct: on ? 5 : null })}
@@ -1260,8 +1259,8 @@ export function SetLimits({
             }
           >
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-              {caps.cooldownAfterLosses !== null ? (
-                <>
+              <Dimmed on={caps.cooldownAfterLosses !== null}>
+                <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
                   <Stepper
                     value={caps.cooldownAfterLosses?.losses ?? 3}
                     min={2}
@@ -1297,8 +1296,8 @@ export function SetLimits({
                       </button>
                     ))}
                   </div>
-                </>
-              ) : null}
+                </div>
+              </Dimmed>
               <CapToggle
                 on={caps.cooldownAfterLosses !== null}
                 onToggle={(on) =>
@@ -1308,7 +1307,7 @@ export function SetLimits({
             </div>
           </BudgetRow>
         </div>
-        <p className="pt-2 font-ui text-[11.5px] text-text-muted">{t("sl_caps_tail")}</p>
+        <p className={`pt-2 ${LABEL}`}>{t("sl_caps_tail")}</p>
       </section>
 
       {/* ------------------------------------------------------ ranking */}
@@ -1521,23 +1520,27 @@ export const DEFAULT_RISK_CAPS: Required<RiskCaps> = {
   cooldownAfterLosses: { losses: 3, minutes: 120 },
 };
 
-/** On / off for a cap that can be switched off. Same shape as the guard toggle. */
+/**
+ * Switching a cap off, as quiet text beside its control.
+ *
+ * Not a bordered pill: the card is already the group's one bordered object
+ * and the row's control is the one to press (kit rule 3). A utility that
+ * merely disables something is small, dim and last (rule 6). The control it
+ * governs stays drawn, dimmed, when off — the reader still sees what the cap
+ * would be (rule 12).
+ */
 function CapToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => void }) {
   const t = useT();
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(!on)}
-      aria-pressed={on}
-      className={`h-7 rounded-full border px-2.5 font-ui text-[11.5px] font-medium transition-colors ${
-        on
-          ? "border-border bg-surface-2 text-text-primary"
-          : "border-grid text-text-muted hover:text-text-primary"
-      }`}
-    >
-      {t(on ? "sl_cap_on" : "sl_cap_off")}
+    <button type="button" onClick={() => onToggle(!on)} aria-pressed={on} className={MICRO}>
+      {t(on ? "sl_cap_turn_off" : "sl_cap_turn_on")}
     </button>
   );
+}
+
+/** Dims a control whose cap is off, without removing it. */
+function Dimmed({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return on ? <>{children}</> : <div className="pointer-events-none opacity-40">{children}</div>;
 }
 
 function BudgetRow({

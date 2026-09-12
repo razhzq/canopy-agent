@@ -164,7 +164,6 @@ export function EquityView({
           <Stat
             label={t("equity_sharpe")}
             value={series.stats.sharpe === null ? "—" : series.stats.sharpe.toFixed(2)}
-            tone={series.stats.sharpe === null ? "neutral" : series.stats.sharpe >= 1 ? "accent" : series.stats.sharpe < 0 ? "negative" : "neutral"}
             note={series.stats.days < 7 ? t("equity_needs_days") : undefined}
           />
           <Stat
@@ -174,7 +173,6 @@ export function EquityView({
           <Stat
             label={t("equity_profit_factor")}
             value={series.stats.profitFactor === null ? "—" : series.stats.profitFactor.toFixed(2)}
-            tone={series.stats.profitFactor === null ? "neutral" : series.stats.profitFactor >= 1 ? "accent" : "negative"}
           />
           <Stat
             label={t("equity_fee_drag")}
@@ -189,7 +187,9 @@ export function EquityView({
             <Stat
               label={t("equity_vs_benchmark", { symbol: series.benchmark.symbol })}
               value={signedPct(returnPct - series.benchmark.returnPct)}
-              tone={returnPct - series.benchmark.returnPct >= 0 ? "accent" : "negative"}
+              // A signed delta, toned like realised and unrealised are: the
+              // one figure on this row that is a verdict rather than a reading.
+              tone={toneOf(returnPct - series.benchmark.returnPct)}
               note={t("equity_benchmark_return", { pct: signedPct(series.benchmark.returnPct) })}
             />
           ) : null}

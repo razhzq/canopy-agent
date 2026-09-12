@@ -468,7 +468,6 @@ export function StrategyDetail({
               <Stat
                 label={t("sd_sharpe")}
                 value={ready.stats.sharpe === null ? "—" : ready.stats.sharpe.toFixed(2)}
-                tone={ready.stats.sharpe === null ? "neutral" : ready.stats.sharpe >= 1 ? "accent" : ready.stats.sharpe < 0 ? "negative" : "neutral"}
               />
               <Stat
                 label={t("sd_sortino")}
@@ -477,7 +476,6 @@ export function StrategyDetail({
               <Stat
                 label={t("sd_profit_factor")}
                 value={ready.stats.profitFactor === null ? "—" : ready.stats.profitFactor.toFixed(2)}
-                tone={ready.stats.profitFactor === null ? "neutral" : ready.stats.profitFactor >= 1 ? "accent" : "negative"}
               />
               <Stat
                 label={t("sd_win_rate")}
