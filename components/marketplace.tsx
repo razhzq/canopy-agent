@@ -37,12 +37,13 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  */
 
 /**
- * A TAB IS A PREDICATE, NOT A STATUS. Paper is two statuses: a `draft` with an
- * agent running on it and a `verifying` one are both paper records that
- * cannot be deployed. No "delisted" tab, because no delisted strategy reaches
- * this page.
+ * A TAB IS A PREDICATE, NOT A STATUS. "Listed" is the strategy's status —
+ * published, deployable. "Live" and "Paper" are the BOOK: a strategy with a
+ * funded agent on it is live whatever its listing status, which is how an
+ * owner's live agent on an unpublished strategy used to land under "Paper".
+ * No "delisted" tab, because no delisted strategy reaches this page.
  */
-type Tab = "all" | "published" | "paper";
+type Tab = "all" | "published" | "live" | "paper";
 type Sort = "risk" | "return" | "newest" | "capital" | "users";
 
 const TABS: {
@@ -52,11 +53,8 @@ const TABS: {
 }[] = [
   { key: "all", labelKey: "market_tab_all", admits: () => true },
   { key: "published", labelKey: "market_tab_listed", admits: (r) => r.status === "published" },
-  {
-    key: "paper",
-    labelKey: "market_tab_paper",
-    admits: (r) => r.status === "verifying" || r.status === "draft",
-  },
+  { key: "live", labelKey: "market_tab_live", admits: (r) => r.all_paper === false },
+  { key: "paper", labelKey: "market_tab_paper", admits: (r) => r.all_paper !== false },
 ];
 
 /** Days of record a strategy needs before its Sharpe is allowed to rank it. */
@@ -375,18 +373,26 @@ function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?:
   );
 }
 
-/** Status is a dot and a word. */
+/**
+ * Status is a dot and a word: the listing status, then the book. A funded
+ * agent on an unpublished strategy reads "Live", not "Paper" — the word is
+ * about the money, and it was saying the opposite of the truth.
+ */
 function Status({ row: r }: { row: StrategyRow }) {
   const t = useT();
-  const live = r.status === "published";
-  const label = live
+  const listed = r.status === "published";
+  const live = r.all_paper === false;
+  const label = listed
     ? t("market_badge_listed")
     : r.status === "delisted"
       ? t("market_badge_delisted")
-      : t("market_badge_paper");
+      : live
+        ? t("market_badge_live")
+        : t("market_badge_paper");
+  const lit = listed || live;
   return (
-    <span className={`inline-flex items-center gap-1.5 font-ui text-[12px] font-medium ${live ? "text-accent" : "text-text-secondary"}`}>
-      <span className={`size-1.5 rounded-full ${live ? "bg-accent" : "bg-text-muted"}`} aria-hidden />
+    <span className={`inline-flex items-center gap-1.5 font-ui text-[12px] font-medium ${lit ? "text-accent" : "text-text-secondary"}`}>
+      <span className={`size-1.5 rounded-full ${lit ? "bg-accent" : "bg-text-muted"}`} aria-hidden />
       {label}
     </span>
   );
