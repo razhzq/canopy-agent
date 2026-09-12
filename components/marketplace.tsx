@@ -102,7 +102,8 @@ export function MarketplaceView({
         (q === "" ||
           r.name.toLowerCase().includes(q) ||
           r.strategy_class.toLowerCase().includes(q) ||
-          r.author.toLowerCase().includes(q)),
+          r.author.toLowerCase().includes(q) ||
+          (r.author_username ?? "").toLowerCase().includes(q)),
     );
     const by = (r: StrategyRow) =>
       sort === "risk"
@@ -316,7 +317,15 @@ function AgentCard({ row: r, hot }: { row: StrategyRow; hot: boolean }) {
             {hot ? <Tag tone="accent">{t("market_badge_hot")}</Tag> : isNew(r) ? <Tag>{t("market_badge_new")}</Tag> : null}
             {r.is_mine ? <Tag>{t("market_badge_yours")}</Tag> : null}
           </div>
+          {/* Whose it is, then what it is. The owner's own cards carry the
+              "Yours" tag above instead of repeating their name here. */}
           <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
+            {!r.is_mine && r.author_username ? (
+              <>
+                <span className="text-text-secondary">@{r.author_username}</span>
+                <span aria-hidden> · </span>
+              </>
+            ) : null}
             {t("market_card_class_days", { class: r.strategy_class, days: recordDays(r) })}
           </p>
         </div>

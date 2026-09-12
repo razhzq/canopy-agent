@@ -264,6 +264,8 @@ export interface StrategyRow {
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
+  /** The author's username, for the card. Null until they claim one. */
+  author_username?: string | null;
   /** What its agents reason with. Absent means the Canopy model. */
   model?: ModelRef | null;
 
