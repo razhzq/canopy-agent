@@ -167,7 +167,7 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   dsc_sample_show: "查看符合条件的标的",
   dsc_sample_hide: "收起",
   dsc_near_misses: "差一点符合",
-  dsc_stale_note: "代币数据每小时更新一次，智能体每个周期重新筛选一遍。",
+  dsc_stale_note: "新池子一出现即被筛选，命中会立刻唤醒智能体。其余代币的价格与流动性每小时更新。",
 
   dsc_needs_ranking: "这可能匹配到上百个代币。没有排序时，智能体会按推理顺序买入通过筛选的代币——设置排序可以让选择更有依据。",
 

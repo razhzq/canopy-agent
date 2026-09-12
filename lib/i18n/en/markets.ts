@@ -202,7 +202,8 @@ export const enMarkets = {
   dsc_sample_show: "Show what matched",
   dsc_sample_hide: "Hide",
   dsc_near_misses: "Just missed",
-  dsc_stale_note: "Token data refreshes hourly. Your agent re-checks every cycle.",
+  dsc_stale_note:
+    "New pools are screened the moment they appear, and a match wakes your agent. Prices and liquidity for the rest refresh hourly.",
 
   dsc_needs_ranking:
     "This can match hundreds of tokens. Without a ranking the agent buys whatever passes, in the order it reasons about them — a ranking picks deliberately instead.",

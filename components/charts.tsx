@@ -576,6 +576,7 @@ export function EquityCurve({
   overlay,
   height = 200,
   hoverAnimate = false,
+  overlayStrong = false,
 }: {
   values: number[];
   /** Starting capital. Drawn as a dashed rule so gains and losses read against it. */
@@ -597,6 +598,12 @@ export function EquityCurve({
    * marketplace card the redraw is the card answering the pointer.
    */
   hoverAnimate?: boolean;
+  /**
+   * Draw the overlay in ink rather than dim. The detail page lifts the
+   * benchmark while the reader is on its figure, so the line they are being
+   * asked to compare with is the one that comes forward.
+   */
+  overlayStrong?: boolean;
 }) {
   if (values.length === 0) return <div style={{ height }} />;
 
@@ -660,9 +667,10 @@ export function EquityCurve({
                 : over.map((v, i) => [x(i), y(v)]),
             )}
             fill="none"
-            stroke="var(--color-text-dim)"
-            strokeWidth="1.25"
+            stroke={overlayStrong ? "var(--color-text-primary)" : "var(--color-text-dim)"}
+            strokeWidth={overlayStrong ? "1.5" : "1.25"}
             strokeDasharray="2 3"
+            style={{ transition: "stroke 160ms" }}
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
           />

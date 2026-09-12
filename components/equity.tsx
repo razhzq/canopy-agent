@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
 import { markAgent } from "@/lib/perf";
-import { Tick } from "@/components/kit";
+import { SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Tick } from "@/components/kit";
 import {
   type Benchmark,
-  num,
   type AgentDetail,
   type EquityPoint,
   type EquitySeries,
@@ -51,6 +50,15 @@ export function EquityView({
   universe: UniverseAsset[];
 }) {
   const { t, locale } = useLocale();
+  const [range, setRange] = useState<Range>("all");
+  const [scrub, setScrub] = useState<number | null>(null);
+  const [focus, setFocus] = useState<Focus>(null);
+
+  // The window's points, chosen before any early return so the hook order
+  // holds; an empty series simply yields an empty window.
+  const all = series?.points ?? [];
+  const windowed = useMemo(() => pointsIn(all, range), [all, range]);
+  const drawdown = useMemo(() => drawdownSpan(windowed.map((p) => p.equityUsd)), [windowed]);
 
   if (series === null) {
     return (
@@ -93,150 +101,445 @@ export function EquityView({
     equityUsd: equity,
     returnPct,
     openBookUsd: deployed,
-    maxDrawdownPct: drawdown,
+    maxDrawdownPct: maxDd,
     hitRatePct: hitRate,
   } = mark;
+  const stats = series.stats;
+  const bench = series.benchmark && series.benchmark.returnPct !== null ? series.benchmark : null;
+
+  /* THE HEADLINE FOLLOWS THE POINTER. Resting, it is the live mark against
+     the capital. Over a window it is the change since the window opened. Under
+     a scrub it is that cycle's reading, with the cycle and its time where the
+     "against" line was — so the reader never has to look away from the number
+     to know what they are looking at. */
+  const first = windowed[0];
+  const scrubbed = scrub === null ? null : windowed[Math.min(scrub, windowed.length - 1)];
+  const headEquity = scrubbed ? scrubbed.equityUsd : range === "all" ? equity : windowed[windowed.length - 1].equityUsd;
+  const base = range === "all" ? deployedCapital : first.equityUsd;
+  const headPnl = headEquity - base;
+  const headPct = base > 0 ? (headPnl / base) * 100 : 0;
+  const headCaption = scrubbed
+    ? t("equity_readout_head", { seq: scrubbed.tickSeq, when: when(scrubbed.at, locale) })
+    : range === "all"
+      ? t("equity_against", { capital: money(deployedCapital) })
+      : t("equity_since", { when: when(first.at, locale) });
+
+  const ranges: { key: Range; label: string; ok: boolean }[] = [
+    { key: "24h", label: t("equity_range_24h"), ok: pointsIn(all, "24h").length >= 2 },
+    { key: "7d", label: t("equity_range_7d"), ok: pointsIn(all, "7d").length >= 2 },
+    { key: "all", label: t("equity_range_all"), ok: true },
+  ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+    <div className="space-y-4">
+      {/* THE HERO. One large number and the control that changes what it
+          measures. Nothing else up here competes with it (rule 1). */}
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="space-y-1.5">
           <p className="font-ui text-[12.5px] text-text-dim">
             {t(isPaper ? "equity_paper_equity" : "equity_equity")}
           </p>
-          {/* Equity is capital plus realised plus unrealised, so it moves on
-              every mark exactly as the unrealised stat does. Flashing one and
-              not the other would read as the two disagreeing. */}
           <Tick
-            value={equity}
+            value={headEquity}
             className="tnum block font-mono text-[34px] leading-none tracking-[-0.02em] text-text-primary"
           >
-            {money(equity)}
+            {money(headEquity)}
           </Tick>
-          <Tick
-            value={pnl}
-            className={`tnum block font-mono text-[13px] ${
-              pnl >= 0 ? "text-accent" : "text-negative"
-            }`}
-          >
-            {t("equity_against_capital", {
-              pnl: signed(pnl),
-              pct: signedPct(returnPct),
-              capital: money(deployedCapital),
-            })}
-          </Tick>
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <Tick
+              value={headPnl}
+              className={`tnum font-mono text-[13px] ${headPnl >= 0 ? "text-accent" : "text-negative"}`}
+            >
+              {signed(headPnl)} · {signedPct(headPct)}
+            </Tick>
+            <span className="font-ui text-[12px] text-text-dim">{headCaption}</span>
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-          <Stat
-            label={t("equity_realised")}
-            value={signed(realizedPnlUsd)}
-            tone={toneOf(realizedPnlUsd)}
-          />
-          <Stat
-            label={t("equity_unrealised")}
-            value={signed(unrealized)}
-            tone={toneOf(unrealized)}
-            // THE FIGURE THAT ACTUALLY MOVES. Marks refresh every ten seconds,
-            // so this is the one stat on the panel that changes while someone
-            // is looking at it — and the wash is what makes a change legible
-            // instead of a number quietly becoming a different number.
-            watch={unrealized}
-          />
-          <Stat
-            label={t("equity_max_drawdown")}
-            value={drawdown === 0 ? "—" : `−${drawdown.toFixed(2)}%`}
-            tone={drawdown > 0 ? "negative" : "neutral"}
-          />
-          <Stat
-            label={t("equity_hit_rate")}
-            value={hitRate === null ? "—" : `${hitRate.toFixed(0)}%`}
-            note={closedPositions > 0 ? `${winningPositions}/${closedPositions}` : undefined}
-          />
-          <Stat label={t("equity_deployed")} value={deployed === null ? "—" : money(deployed)} />
+        {/* 24h · 7d · All. A window the record cannot fill stays drawn, dim and
+            unpressable (rule 12), so the control is the same shape on day one. */}
+        <div role="group" aria-label={t("equity_range_aria")} className={SEGMENT_TRACK}>
+          {ranges.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              disabled={!r.ok}
+              aria-pressed={range === r.key}
+              onClick={() => {
+                setRange(r.key);
+                setScrub(null);
+              }}
+              className={`${SEGMENT_ITEM} h-7 px-3 text-[12px] disabled:cursor-default disabled:opacity-40 ${
+                range === r.key ? SEGMENT_ON : SEGMENT_OFF
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* THE RISK-ADJUSTED ROW. Null renders as a dash: a Sharpe over four days
-          is withheld by the server, not invented here. */}
-      {series.stats ? (
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-          <Stat
-            label={t("equity_sharpe")}
-            value={series.stats.sharpe === null ? "—" : series.stats.sharpe.toFixed(2)}
-            note={series.stats.days < 7 ? t("equity_needs_days") : undefined}
-          />
-          <Stat
-            label={t("equity_sortino")}
-            value={series.stats.sortino === null ? "—" : series.stats.sortino.toFixed(2)}
-          />
-          <Stat
-            label={t("equity_profit_factor")}
-            value={series.stats.profitFactor === null ? "—" : series.stats.profitFactor.toFixed(2)}
-          />
-          <Stat
-            label={t("equity_fee_drag")}
-            value={series.stats.feeDragPct === null ? "—" : `${series.stats.feeDragPct.toFixed(2)}%`}
-            note={
-              series.stats.feesVsGrossPct === null
-                ? undefined
-                : t("equity_fees_of_gross", { pct: series.stats.feesVsGrossPct.toFixed(0) })
-            }
-          />
-          {series.benchmark && series.benchmark.returnPct !== null ? (
-            <Stat
-              label={t("equity_vs_benchmark", { symbol: series.benchmark.symbol })}
-              value={signedPct(returnPct - series.benchmark.returnPct)}
-              // A signed delta, toned like realised and unrealised are: the
-              // one figure on this row that is a verdict rather than a reading.
-              tone={toneOf(returnPct - series.benchmark.returnPct)}
-              note={t("equity_benchmark_return", { pct: signedPct(series.benchmark.returnPct) })}
+      {/* THE INSTRUMENT. One bordered object (rule 3): the figures across the
+          top, the curve under them, one hairline between. The figures are not
+          decoration on the chart — each one is a handle on it. Resting on
+          drawdown shades the fall it measures; resting on the benchmark brings
+          the dotted line forward; resting on unrealised marks the reading
+          that moves. A qualifier ("3 of 10", the fee share of gross wins)
+          rises under its figure on hover rather than crowding the strip at
+          rest. Five across on a desktop — the book on the first row, what
+          the return cost on the second — and two across on a phone, where
+          the ten cells flow as one grid so no row is left with an orphan. */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div
+          className="grid grid-cols-2 border-b border-grid md:grid-cols-5"
+          onMouseLeave={() => setFocus(null)}
+        >
+            <Fig cell={0}
+              label={t("equity_realised")}
+              value={signed(realizedPnlUsd)}
+              tone={toneOf(realizedPnlUsd)}
             />
-          ) : null}
+            <Fig cell={1}
+              label={t("equity_unrealised")}
+              value={signed(unrealized)}
+              tone={toneOf(unrealized)}
+              // THE FIGURE THAT ACTUALLY MOVES. Marks refresh every ten
+              // seconds; the wash is what makes that legible.
+              watch={unrealized}
+              focus="last"
+              onFocus={setFocus}
+            />
+            <Fig cell={2} label={t("equity_deployed")} value={deployed === null ? null : money(deployed)} />
+            <Fig cell={3}
+              label={t("equity_max_drawdown")}
+              value={maxDd === 0 ? null : `−${maxDd.toFixed(2)}%`}
+              pending={maxDd === 0 ? t("equity_no_trades_yet") : undefined}
+              note={
+                drawdown && drawdown.pct > 0
+                  ? t("equity_dd_span", {
+                      from: when(windowed[drawdown.peak].at, locale),
+                      to: when(windowed[drawdown.trough].at, locale),
+                    })
+                  : undefined
+              }
+              focus="drawdown"
+              onFocus={setFocus}
+            />
+            <Fig cell={4}
+              label={t("equity_hit_rate")}
+              value={hitRate === null ? null : `${hitRate.toFixed(0)}%`}
+              pending={hitRate === null ? t("equity_no_trades_yet") : undefined}
+              note={
+                closedPositions > 0
+                  ? t("equity_hit_fraction", { won: winningPositions, closed: closedPositions })
+                  : undefined
+              }
+            />
+            <Fig cell={5}
+              label={t("equity_sharpe")}
+              value={stats?.sharpe == null ? null : ratio(stats.sharpe)}
+              pending={stats?.sharpe == null ? t("equity_needs_days") : undefined}
+            />
+            <Fig cell={6}
+              label={t("equity_sortino")}
+              value={stats?.sortino == null ? null : ratio(stats.sortino)}
+              pending={stats?.sortino == null ? t("equity_needs_days") : undefined}
+            />
+            <Fig cell={7}
+              label={t("equity_profit_factor")}
+              value={stats?.profitFactor == null ? null : stats.profitFactor.toFixed(2)}
+              pending={
+                stats?.profitFactor == null
+                  ? !stats || stats.closed === 0
+                    ? t("equity_no_trades_yet")
+                    : t("equity_no_losses_yet")
+                  : undefined
+              }
+            />
+            <Fig cell={8}
+              label={t("equity_fee_drag")}
+              value={stats?.feeDragPct == null ? null : `${stats.feeDragPct.toFixed(2)}%`}
+              pending={stats?.feeDragPct == null ? t("equity_no_trades_yet") : undefined}
+              note={
+                stats?.feesVsGrossPct == null
+                  ? undefined
+                  : t("equity_fees_of_gross", { pct: stats.feesVsGrossPct.toFixed(0) })
+              }
+            />
+            <Fig cell={9}
+              label={t("equity_vs_benchmark", { symbol: bench?.symbol ?? series.benchmark?.symbol ?? "SOL" })}
+              value={bench ? signedPct(returnPct - bench.returnPct!) : null}
+              tone={bench ? toneOf(returnPct - bench.returnPct!) : "neutral"}
+              pending={bench ? undefined : t("equity_needs_days")}
+              note={bench ? t("equity_benchmark_return", { pct: signedPct(bench.returnPct!) }) : undefined}
+              focus={bench ? "benchmark" : undefined}
+              onFocus={setFocus}
+            />
         </div>
-      ) : null}
 
-      <div className="rounded-2xl border border-border bg-surface p-5">
-        <ReadableCurve
-          points={points}
-          capitalUsd={capitalUsd}
-          overlay={benchmarkOverlay(points, series.benchmark ?? null)}
-          height={220}
-          t={t}
-          locale={locale}
-        />
-        <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
-          <span>{t("equity_cycle_n", { seq: points[0].tickSeq })}</span>
+        <div className="px-5 pt-5 pb-3">
+          <ReadableCurve
+            points={windowed}
+            baseline={base}
+            overlay={benchmarkOverlay(windowed, series.benchmark ?? null)}
+            height={220}
+            focus={focus}
+            drawdown={drawdown}
+            onScrub={setScrub}
+          />
+        </div>
+        <div className="flex items-center justify-between px-5 pb-4 font-ui text-[11.5px] text-text-muted">
+          <span>{t("equity_cycle_n", { seq: windowed[0].tickSeq })}</span>
           {series.benchmark ? (
-            <span>{t("equity_dotted_line", { symbol: series.benchmark.symbol })}</span>
+            <span className={`transition-colors ${focus === "benchmark" ? "text-text-primary" : ""}`}>
+              {t("equity_dotted_line", { symbol: series.benchmark.symbol })}
+            </span>
           ) : null}
-          <span>{t("equity_cycle_n", { seq: points[points.length - 1].tickSeq })}</span>
+          <span>{t("equity_cycle_n", { seq: windowed[windowed.length - 1].tickSeq })}</span>
         </div>
       </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------- hover read -- */
+/* ---------------------------------------------------------------- window -- */
+
+type Range = "24h" | "7d" | "all";
+
+/** The readings inside the window; all of them for "all". */
+function pointsIn(points: readonly EquityPoint[], range: Range): EquityPoint[] {
+  if (range === "all") return [...points];
+  const since = Date.now() - (range === "24h" ? 24 : 24 * 7) * 3_600_000;
+  const inside = points.filter((p) => Date.parse(p.at) >= since);
+  // Carry the reading just before the window in, so the line has a start
+  // and "since" measures from a cycle that actually preceded the window.
+  const before = points.findIndex((p) => Date.parse(p.at) >= since);
+  return before > 0 ? [points[before - 1], ...inside] : inside;
+}
+
+/** Peak and trough of the deepest fall, as indices into the values. */
+function drawdownSpan(values: readonly number[]): { peak: number; trough: number; pct: number } | null {
+  if (values.length < 2) return null;
+  let peak = 0;
+  let best = { peak: 0, trough: 0, pct: 0 };
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] > values[peak]) peak = i;
+    const pct = values[peak] > 0 ? ((values[peak] - values[i]) / values[peak]) * 100 : 0;
+    if (pct > best.pct) best = { peak, trough: i, pct };
+  }
+  return best.pct > 0 ? best : null;
+}
+
+/* ----------------------------------------------------------------- strip -- */
+
+/** What a figure under the pointer asks the chart to show. */
+type Focus = "drawdown" | "benchmark" | "last" | null;
 
 /**
- * The curve with a per-cycle readout under the pointer.
+ * One figure in the strip: label, value, and a qualifier that rises on hover.
  *
- * The curve alone answers "how did it go"; a reader looking at a step in it
- * immediately wants "which cycle was that, and what was the account worth" —
- * and the only way to answer used to be counting cycles along the axis labels.
+ * A `button` when it has something to show on the chart, so it is reachable
+ * by keyboard and announces its pressed state; a plain cell otherwise. Every
+ * cell reserves the qualifier's line, so revealing one never moves the row.
+ * A value the record cannot support yet is `null`, and `pending` takes its
+ * place in the dim tone: the cell keeps its place and says why (rule 12).
+ */
+function Fig({
+  cell,
+  label,
+  value,
+  note,
+  pending,
+  tone = "neutral",
+  watch,
+  focus,
+  onFocus,
+}: {
+  /** Position in the strip, 0–9: five across on wide screens, two on narrow. */
+  cell: number;
+  label: string;
+  value: string | null;
+  note?: string;
+  pending?: string;
+  tone?: "accent" | "negative" | "neutral";
+  watch?: number | null;
+  focus?: Exclude<Focus, null>;
+  onFocus?: (f: Focus) => void;
+}) {
+  const interactive = focus !== undefined && value !== null;
+  const inner = (
+    <>
+      <span className="block truncate font-ui text-[11.5px] text-text-dim transition-colors group-hover/fig:text-text-secondary">
+        {label}
+      </span>
+      {value === null ? (
+        <span className="block font-ui text-[12px] leading-[18px] text-text-dim">{pending ?? "—"}</span>
+      ) : (
+        <Tick
+          value={watch}
+          className={`tnum block font-mono text-[15px] leading-[18px] whitespace-nowrap ${
+            tone === "accent"
+              ? "text-accent"
+              : tone === "negative"
+                ? "text-negative"
+                : "text-text-primary"
+          }`}
+        >
+          {value}
+        </Tick>
+      )}
+      <span
+        aria-hidden={!note}
+        className="tnum block truncate font-mono text-[11px] leading-[14px] text-text-muted opacity-0 transition-[opacity,transform] duration-150 translate-y-0.5 group-hover/fig:opacity-100 group-hover/fig:translate-y-0 group-focus-visible/fig:opacity-100 group-focus-visible/fig:translate-y-0 motion-reduce:transition-none"
+      >
+        {value !== null && note ? note : "\u00a0"}
+      </span>
+    </>
+  );
+  // Hairlines between cells, never around them: a left edge on every cell
+  // that is not first in its row, a top edge on every row but the first.
+  // Two columns on a phone, five on a desktop, so the rule is computed for
+  // both and the wide one overrides.
+  const edges = [
+    cell % 2 === 1 ? "border-l" : "",
+    cell >= 2 ? "border-t" : "",
+    cell % 5 === 0 ? "md:border-l-0" : "md:border-l",
+    cell >= 5 ? "md:border-t" : "md:border-t-0",
+  ].join(" ");
+  const cls = `group/fig min-w-0 space-y-1.5 border-grid px-4 pt-3.5 pb-2.5 text-left transition-colors duration-150 hover:bg-surface-2 motion-reduce:transition-none ${edges}`;
+  if (!interactive) return <div className={cls}>{inner}</div>;
+  return (
+    <button
+      type="button"
+      className={`${cls} outline-none focus-visible:bg-surface-2`}
+      onMouseEnter={() => onFocus?.(focus!)}
+      onFocus={() => onFocus?.(focus!)}
+      onBlur={() => onFocus?.(null)}
+    >
+      {inner}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------- the curve -- */
+
+/**
+ * The curve, scrubbed and annotated.
  *
- * The marker and the card are HTML, positioned over the SVG rather than drawn
- * inside it. The chart's viewBox is stretched with `preserveAspectRatio="none"`,
- * so anything drawn in SVG units gets stretched with it — a circle becomes an
- * ellipse and text becomes wider than it is tall. Percentages off the same
- * scale the line was built from land in exactly the same place without
- * inheriting the distortion.
+ * SCRUBBING REPORTS UPWARD. The pointer's cycle is handed to the panel, which
+ * puts that reading in the headline — the number the eye is already on —
+ * rather than in a card floating over the line. What stays on the chart is
+ * the crosshair and the marker, which say WHERE without repeating WHAT.
  *
  * Snapping is to the NEAREST READING, never to a position along the line: the
- * card always names a cycle that actually happened and a figure the desk
- * actually recorded.
+ * headline always names a cycle that happened and a figure the desk recorded.
+ *
+ * The annotations are HTML over the SVG rather than drawn inside it. The
+ * viewBox is stretched with `preserveAspectRatio="none"`, so anything in SVG
+ * units stretches with it; percentages off the same scale the line was built
+ * from land in the same place without the distortion.
  */
+function ReadableCurve({
+  points,
+  baseline,
+  overlay,
+  height,
+  focus,
+  drawdown,
+  onScrub,
+}: {
+  points: EquityPoint[];
+  baseline: number;
+  overlay?: number[];
+  height: number;
+  focus: Focus;
+  drawdown: { peak: number; trough: number; pct: number } | null;
+  onScrub: (i: number | null) => void;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const values = points.map((p) => p.equityUsd);
+  // The same scale the curve draws with, overlay included, or the marker
+  // would sit off the line whenever the benchmark widened the range.
+  const { W, H, x, y } = equityScale(values, baseline, overlay ?? []);
+  const px = (i: number) => ((values.length === 1 ? W / 2 : x(i)) / W) * 100;
+  const py = (v: number) => (y(v) / H) * 100;
+
+  const set = (i: number | null) => {
+    setHover(i);
+    onScrub(i);
+  };
+  const track = (clientX: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    set(Math.round(frac * (values.length - 1)));
+  };
+
+  const i = hover === null ? null : Math.min(hover, values.length - 1);
+  const up = values[values.length - 1] >= baseline;
+  const ring = up ? "var(--color-accent)" : "var(--color-negative)";
+  const last = values.length - 1;
+
+  return (
+    <div
+      className="relative"
+      onMouseMove={(e) => track(e.clientX, e.currentTarget)}
+      onMouseLeave={() => set(null)}
+      onTouchStart={(e) => track(e.touches[0].clientX, e.currentTarget)}
+      onTouchMove={(e) => track(e.touches[0].clientX, e.currentTarget)}
+      onTouchEnd={() => set(null)}
+    >
+      <EquityCurve
+        values={values}
+        baseline={baseline}
+        overlay={overlay}
+        height={height}
+        overlayStrong={focus === "benchmark"}
+      />
+
+      {/* The deepest fall, shaded from its peak to its trough while the
+          reader is on the drawdown figure. */}
+      {focus === "drawdown" && drawdown ? (
+        <>
+          <div
+            className="pointer-events-none absolute inset-y-0 bg-negative/10 transition-opacity"
+            style={{ left: `${px(drawdown.peak)}%`, width: `${px(drawdown.trough) - px(drawdown.peak)}%` }}
+          />
+          {[drawdown.peak, drawdown.trough].map((k) => (
+            <Marker key={k} left={px(k)} top={py(values[k])} ring="var(--color-negative)" />
+          ))}
+        </>
+      ) : null}
+
+      {/* The live reading, marked while the reader is on unrealised. */}
+      {focus === "last" ? <Marker left={px(last)} top={py(values[last])} ring={ring} pulse /> : null}
+
+      {i !== null ? (
+        <>
+          {/* Crosshair and marker. pointer-events-none throughout: the pointer
+              must keep reaching the container. */}
+          <div
+            className="pointer-events-none absolute inset-y-0 w-px bg-grid-strong"
+            style={{ left: `${px(i)}%` }}
+          />
+          <Marker left={px(i)} top={py(values[i])} ring={ring} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function Marker({ left, top, ring, pulse = false }: { left: number; top: number; ring: string; pulse?: boolean }) {
+  return (
+    <div
+      className={`pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-panel ${
+        pulse ? "trail-pulse" : ""
+      }`}
+      style={{ left: `${left}%`, top: `${top}%`, boxShadow: `0 0 0 2px ${ring}` }}
+    />
+  );
+}
+
 /**
  * The benchmark, one value per equity point.
  *
@@ -269,154 +572,6 @@ export function benchmarkOverlay(
   return out;
 }
 
-function ReadableCurve({
-  points,
-  capitalUsd,
-  overlay,
-  height,
-  t,
-  locale,
-}: {
-  points: EquityPoint[];
-  capitalUsd: number;
-  overlay?: number[];
-  height: number;
-  // Passed down rather than re-read from context: the readout is a leaf of the
-  // panel that already holds both, and threading them keeps this hook-free.
-  t: Translate;
-  locale: Locale;
-}) {
-  const [hover, setHover] = useState<number | null>(null);
-  const values = points.map((p) => p.equityUsd);
-  // The same scale the curve draws with, overlay included, or the marker
-  // would sit off the line whenever the benchmark widened the range.
-  const { W, H, x, y } = equityScale(values, capitalUsd, overlay ?? []);
-
-  const track = (clientX: number, el: HTMLElement) => {
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-    setHover(Math.round(frac * (values.length - 1)));
-  };
-
-  const i = hover === null ? null : Math.min(hover, values.length - 1);
-  const point = i === null ? null : points[i];
-  // A single reading is drawn as a flat line across the whole panel, so its
-  // marker belongs at the middle of that line rather than at x(0).
-  const leftPct = i === null ? 0 : (values.length === 1 ? W / 2 : x(i)) / W;
-  const topPct = i === null ? 0 : y(values[i]) / H;
-
-  return (
-    <div
-      className="relative"
-      onMouseMove={(e) => track(e.clientX, e.currentTarget)}
-      onMouseLeave={() => setHover(null)}
-      onTouchStart={(e) => track(e.touches[0].clientX, e.currentTarget)}
-      onTouchMove={(e) => track(e.touches[0].clientX, e.currentTarget)}
-      onTouchEnd={() => setHover(null)}
-    >
-      <EquityCurve values={values} baseline={capitalUsd} overlay={overlay} height={height} />
-
-      {point ? (
-        <>
-          {/* Crosshair and marker. pointer-events-none throughout: the pointer
-              must keep reaching the container, or moving onto the card the
-              pointer just summoned would dismiss it. */}
-          <div
-            className="pointer-events-none absolute inset-y-0 w-px bg-grid-strong"
-            style={{ left: `${leftPct * 100}%` }}
-          />
-          <div
-            className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-panel"
-            style={{
-              left: `${leftPct * 100}%`,
-              top: `${topPct * 100}%`,
-              // A ring in the line's own colour, which the chart tints by where
-              // the series ended.
-              boxShadow: `0 0 0 2px ${
-                values[values.length - 1] >= capitalUsd
-                  ? "var(--color-accent)"
-                  : "var(--color-negative)"
-              }`,
-            }}
-          />
-          <Readout
-            point={point}
-            capitalUsd={capitalUsd}
-            /* Flipped near the edges so the card never hangs outside the panel. */
-            align={leftPct > 0.72 ? "right" : leftPct < 0.28 ? "left" : "center"}
-            /* And dropped below the point when there is no room above it. */
-            below={topPct < 0.34}
-            style={{ left: `${leftPct * 100}%`, top: `${topPct * 100}%` }}
-            t={t}
-            locale={locale}
-          />
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-/** The card itself: which cycle, when, what it was worth, and against capital. */
-function Readout({
-  point,
-  capitalUsd,
-  align,
-  below,
-  style,
-  t,
-  locale,
-}: {
-  point: EquityPoint;
-  capitalUsd: number;
-  align: "left" | "center" | "right";
-  below: boolean;
-  style: CSSProperties;
-  t: Translate;
-  locale: Locale;
-}) {
-  const pnl = point.equityUsd - capitalUsd;
-  const pct = capitalUsd > 0 ? (pnl / capitalUsd) * 100 : 0;
-  const cash = num(point.cashUsd);
-
-  return (
-    <div
-      className="pointer-events-none absolute z-10 whitespace-nowrap rounded-xl border border-border bg-surface px-3 py-2.5 shadow-[0_20px_44px_-16px_rgba(0,0,0,0.9)]"
-      style={{
-        ...style,
-        transform: `translate(${
-          align === "center" ? "-50%" : align === "right" ? "calc(-100% - 10px)" : "10px"
-        }, ${below ? "12px" : "calc(-100% - 12px)"})`,
-      }}
-    >
-      <p className="font-ui text-[11.5px] text-text-muted">
-        {t("equity_readout_head", { seq: point.tickSeq, when: when(point.at, locale) })}
-      </p>
-      <p className="tnum pt-1 font-mono text-[16px] leading-none text-text-primary">
-        {money(point.equityUsd)}
-      </p>
-      <p
-        className={`tnum pt-1 font-mono text-[11px] ${
-          pnl >= 0 ? "text-accent" : "text-negative"
-        }`}
-      >
-        {t("equity_readout_pnl", { pnl: signed(pnl), pct: signedPct(pct) })}
-      </p>
-      {cash === null ? null : (
-        <p className="tnum pt-1 font-mono text-[11px] text-text-muted">
-          {t("equity_readout_cash", { amount: money(cash) })}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * The reading's timestamp, short.
- *
- * Locale-formatted on the client only, which this is — the panel is behind a
- * signed-in fetch, so there is no server render of this string to disagree with.
- */
 function when(at: string, locale: Locale): string {
   const d = new Date(at);
   if (Number.isNaN(d.getTime())) return "—";
@@ -431,70 +586,17 @@ function when(at: string, locale: Locale): string {
   });
 }
 
+/** A ratio with a real minus, so it reads like every other signed figure. */
+function ratio(n: number): string {
+  return n < 0 ? `−${Math.abs(n).toFixed(2)}` : n.toFixed(2);
+}
+
 /* ---------------------------------------------------------------- helpers -- */
 
 
 
 function toneOf(n: number): "accent" | "negative" | "neutral" {
   return n > 0 ? "accent" : n < 0 ? "negative" : "neutral";
-}
-
-/**
- * One figure in the stat rail.
- *
- * Every instance is exactly two lines — label, then value. `note` renders
- * INLINE after the value rather than on a third line: hit rate was the only
- * stat carrying a sub-line, which made its column taller than the rest and tore
- * the row's alignment apart.
- */
-function Stat({
-  label,
-  value,
-  note,
-  tone = "neutral",
-  watch,
-}: {
-  label: string;
-  value: string;
-  /** Small dim qualifier, e.g. the fraction behind a percentage. */
-  note?: string;
-  tone?: "accent" | "negative" | "neutral";
-  /**
-   * The NUMBER behind `value`, when this figure moves on its own.
-   *
-   * Given, the stat washes green or red for a moment each time it changes. Not
-   * given, it never flashes — which is right for the ones that only move when
-   * the agent trades, where a wash would be claiming an event that a hit rate
-   * or a drawdown does not have.
-   *
-   * The number rather than the string, because a formatted figure rounds: two
-   * different marks both rendering "−$32.91" are not a tick, and comparing text
-   * would miss a real move that happened to round the same way.
-   */
-  watch?: number | null;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="font-ui text-[11.5px] text-text-dim">{label}</p>
-      <Tick
-        value={watch}
-        className={`tnum block font-mono text-[17px] leading-none whitespace-nowrap ${
-          tone === "accent"
-            ? "text-accent"
-            : tone === "negative"
-              ? "text-negative"
-              : "text-text-primary"
-        }`}
-      >
-        {value}
-        {note ? (
-          <span className="pl-1.5 font-ui text-[11px] text-text-muted">
-            {note}
-          </span>
-        ) : null}
-      </Tick>
-    </div>
-  );
 }
 
 function money(n: number): string {
