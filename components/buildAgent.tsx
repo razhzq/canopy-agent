@@ -24,7 +24,7 @@ import {
 import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
-import {
+import { DEFAULT_RISK_CAPS,
   CAPITAL_USD,
   RWA_RULES,
   SetLimits,
@@ -141,6 +141,9 @@ const DEFAULT_LIMITS: Limits = {
   exits: { takeProfitPct: 25, stopLossPct: 12, maxHoldDays: 0 },
   positionUsd: 2_500,
   tradesPerCycle: 2,
+  // The guardrails, visible from the first render rather than applied
+  // silently at deploy. Same figures the lifecycle falls back to.
+  riskCaps: DEFAULT_RISK_CAPS,
 };
 
 /**
@@ -564,6 +567,9 @@ export function BuildAgent() {
         // went to 10 and every agent ran with 3.
         positionUsd: limits.positionUsd,
         tradesPerCycle: limits.tradesPerCycle,
+        // The guardrails card. Sent whole, nulls included, because null is
+        // "off" and absence would be read as "never chose".
+        riskCaps: limits.riskCaps,
         // Only meaningful across several markets — a top-3 of one asset is that
         // asset. Sent regardless when set, because the engine treats a ranking
         // wider than the universe as a no-op rather than an error.

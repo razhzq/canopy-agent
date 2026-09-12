@@ -423,6 +423,317 @@ export const RWA_RULES: RuleSpec[] = [
     unit: " bars",
     classes: ["spot"] as ("rwa" | "spot")[],
   },
+  // EVERYTHING THE COMPOSER CAN SET, OR THE BUILDER DROPS IT.
+  //
+  // The limits step merges a composed draft by matching keys against THIS
+  // list, and a key it does not know is discarded without a note. Eighteen
+  // keys the backend has composed since CANOPY_071 were landing exactly there:
+  // "buy the pullback to the MA5" compiled correctly, was reported as set, and
+  // vanished on the way into the form. Every backend rule key is now listed,
+  // with the bounds copied from COMPOSABLE_RULES so the two agree about what a
+  // legal value is. The range family (ADX, Stochastic, CCI, MFI, VWAP) needs a
+  // bar's high and low, which the tokenized-stock feed does not serve, so
+  // those stay spot-only — the same restriction the specialist applies.
+  {
+    key: "bollingerPctBMin",
+    labelKey: "rule_bollingerPctBMin",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_bollingerPctBMin_help",
+    op: "gte",
+    value: 80,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "%",
+  },
+  {
+    key: "priceVsSma5Pct",
+    labelKey: "rule_priceVsSma5Pct",
+    basis: "bars",
+    periods: "5",
+    helpKey: "rule_priceVsSma5Pct_help",
+    op: "lte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 0.25,
+    unit: "%",
+    scale: "dispersion",
+  },
+  {
+    key: "priceVsSma10Pct",
+    labelKey: "rule_priceVsSma10Pct",
+    basis: "bars",
+    periods: "10",
+    helpKey: "rule_priceVsSma10Pct_help",
+    op: "lte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 0.25,
+    unit: "%",
+    scale: "dispersion",
+  },
+  {
+    key: "priceVsEma20Pct",
+    labelKey: "rule_priceVsEma20Pct",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_priceVsEma20Pct_help",
+    op: "lte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 0.25,
+    unit: "%",
+    scale: "dispersion",
+  },
+  {
+    key: "priceVsEma50Pct",
+    labelKey: "rule_priceVsEma50Pct",
+    basis: "bars",
+    periods: "50",
+    helpKey: "rule_priceVsEma50Pct_help",
+    op: "lte",
+    value: 0,
+    min: -20,
+    max: 20,
+    step: 0.25,
+    unit: "%",
+    scale: "dispersion",
+  },
+  {
+    key: "aboveLow60dPct",
+    labelKey: "rule_aboveLow60dPct",
+    basis: "bars",
+    periods: "60",
+    helpKey: "rule_aboveLow60dPct_help",
+    op: "lte",
+    value: 20,
+    min: 0,
+    max: 200,
+    step: 5,
+    unit: "%",
+    scale: "dispersion",
+  },
+  {
+    key: "smaCrossUpBars",
+    labelKey: "rule_smaCrossUpBars",
+    basis: "bars",
+    periods: "20 × 50",
+    helpKey: "rule_smaCrossUpBars_help",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+  },
+  {
+    key: "smaCrossDownBars",
+    labelKey: "rule_smaCrossDownBars",
+    basis: "bars",
+    periods: "20 × 50",
+    helpKey: "rule_smaCrossDownBars_help",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+  },
+  {
+    key: "macdCrossUpBars",
+    labelKey: "rule_macdCrossUpBars",
+    basis: "bars",
+    periods: "12 · 26 · 9",
+    helpKey: "rule_macdCrossUpBars_help",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+  },
+  {
+    key: "macdCrossDownBars",
+    labelKey: "rule_macdCrossDownBars",
+    basis: "bars",
+    periods: "12 · 26 · 9",
+    helpKey: "rule_macdCrossDownBars_help",
+    op: "lte",
+    value: 3,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: " bars",
+  },
+  {
+    key: "volumeRatio",
+    labelKey: "rule_volumeRatio",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_volumeRatio_help",
+    op: "gte",
+    value: 1.5,
+    min: 0,
+    max: 10,
+    step: 0.25,
+    unit: "×",
+  },
+  {
+    key: "buyPressurePct",
+    labelKey: "rule_buyPressurePct",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_buyPressurePct_help",
+    op: "gte",
+    value: 50,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "%",
+  },
+  {
+    key: "adx",
+    labelKey: "rule_adx",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_adx_help",
+    op: "gte",
+    value: 20,
+    min: 0,
+    max: 60,
+    step: 1,
+    unit: "",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "stochasticK",
+    labelKey: "rule_stochasticK",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_stochasticK_help",
+    op: "lte",
+    value: 80,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "stochasticKMin",
+    labelKey: "rule_stochasticKMin",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_stochasticKMin_help",
+    op: "gte",
+    value: 20,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "cci",
+    labelKey: "rule_cci",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_cci_help",
+    op: "lte",
+    value: 100,
+    min: -300,
+    max: 300,
+    step: 10,
+    unit: "",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "mfi",
+    labelKey: "rule_mfi",
+    basis: "bars",
+    periods: "14",
+    helpKey: "rule_mfi_help",
+    op: "lte",
+    value: 80,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "",
+    classes: ["spot"] as ("rwa" | "spot")[],
+  },
+  {
+    key: "vwapDistPct",
+    labelKey: "rule_vwapDistPct",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_vwapDistPct_help",
+    op: "lte",
+    value: 0,
+    min: -30,
+    max: 30,
+    step: 0.5,
+    unit: "%",
+    classes: ["spot"] as ("rwa" | "spot")[],
+    scale: "dispersion",
+  },
+  // DOLLAR VOLUME PER BAR and A PRICE LEVEL — the two the demand ledger asked
+  // for most after grids. The slider is coarse for a price: a token at
+  // $0.00002 and a stock at $400 cannot share one scale, so the composer and
+  // the fine-tune field keep whatever precision was typed, and the slider is
+  // only a rough control.
+  {
+    key: "barVolumeUsd",
+    labelKey: "rule_barVolumeUsd",
+    basis: "bars",
+    helpKey: "rule_barVolumeUsd_help",
+    op: "gte",
+    value: 500,
+    min: 0,
+    max: 100000000,
+    step: 100,
+    unit: "$",
+  },
+  {
+    key: "avgBarVolumeUsd",
+    labelKey: "rule_avgBarVolumeUsd",
+    basis: "bars",
+    periods: "20",
+    helpKey: "rule_avgBarVolumeUsd_help",
+    op: "gte",
+    value: 500,
+    min: 0,
+    max: 100000000,
+    step: 100,
+    unit: "$",
+  },
+  {
+    key: "priceUsd",
+    labelKey: "rule_priceUsd",
+    basis: "bars",
+    helpKey: "rule_priceUsd_help",
+    op: "gte",
+    value: 1,
+    min: 0,
+    max: 1000000,
+    step: 0.01,
+    unit: "$",
+  },
+  {
+    key: "priceUsdMax",
+    labelKey: "rule_priceUsdMax",
+    basis: "bars",
+    helpKey: "rule_priceUsdMax_help",
+    op: "lte",
+    value: 100,
+    min: 0,
+    max: 1000000,
+    step: 0.01,
+    unit: "$",
+  },
 ];
 
 /** Bar sizes a strategy's technical rules can be measured on. */
@@ -1423,18 +1734,69 @@ export function AddPlanCard({
                 />
               </>
             ) : trigger ? (
-              <Slider
-                label={t(trigger.kind === "drawdown" ? "acc_falls_by" : "acc_rises_by")}
-                help={t(
-                  trigger.kind === "drawdown" ? "acc_drawdown_help" : "acc_gain_help",
-                )}
-                value={trigger.pct}
-                min={1}
-                max={90}
-                step={1}
-                display={`${trigger.kind === "drawdown" ? "−" : "+"}${trigger.pct}%`}
-                onChange={(v) => setTrigger({ ...trigger, pct: v })}
-              />
+              <>
+                <Slider
+                  label={t(trigger.kind === "drawdown" ? "acc_falls_by" : "acc_rises_by")}
+                  help={t(
+                    trigger.kind === "drawdown" ? "acc_drawdown_help" : "acc_gain_help",
+                  )}
+                  value={trigger.pct}
+                  min={1}
+                  max={90}
+                  step={1}
+                  display={`${trigger.kind === "drawdown" ? "−" : "+"}${trigger.pct}%`}
+                  onChange={(v) => setTrigger({ ...trigger, pct: v })}
+                />
+                {trigger.kind === "drawdown" ? (
+                  <>
+                    {/* WHERE THE RUNG IS MEASURED FROM. The average crowds the
+                        rungs together as it falls; the last fill keeps them
+                        evenly spaced — which is what a grid is. */}
+                    <p className="flex items-center gap-1.5 pb-2 pt-3 font-ui text-[11.5px] text-text-muted">
+                      {t("acc_from_heading")}
+                      <InfoDot label={t("acc_from_heading")}>{t("acc_from_help")}</InfoDot>
+                    </p>
+                    <PillRow>
+                      <Pill
+                        active={trigger.from !== "lastAdd"}
+                        onClick={() => {
+                          const { from: _from, ...rest } = trigger;
+                          setTrigger(rest);
+                        }}
+                      >
+                        {t("acc_from_average")}
+                      </Pill>
+                      <Pill
+                        active={trigger.from === "lastAdd"}
+                        onClick={() => setTrigger({ ...trigger, from: "lastAdd" })}
+                      >
+                        {t("acc_from_last")}
+                      </Pill>
+                    </PillRow>
+                    <Slider
+                      label={t("acc_growth")}
+                      help={t("acc_growth_help")}
+                      value={trigger.growth ?? 1}
+                      min={1}
+                      max={3}
+                      step={0.1}
+                      display={
+                        (trigger.growth ?? 1) <= 1
+                          ? t("acc_growth_even")
+                          : t("acc_growth_display", { factor: (trigger.growth ?? 1).toFixed(1) })
+                      }
+                      onChange={(v) => {
+                        if (v <= 1) {
+                          const { growth: _g, ...rest } = trigger;
+                          setTrigger(rest);
+                        } else {
+                          setTrigger({ ...trigger, growth: Number(v.toFixed(1)) });
+                        }
+                      }}
+                    />
+                  </>
+                ) : null}
+              </>
             ) : null}
           </div>
 
@@ -1567,6 +1929,25 @@ export function AddPlanCard({
               })()}
               onChange={(v) => onChange({ ...plan!, minSpacingSec: v })}
             />
+            <Slider
+              label={t("acc_depth")}
+              help={t("acc_depth_help")}
+              value={plan!.maxDepthPct ?? 0}
+              min={0}
+              max={95}
+              step={1}
+              display={
+                plan!.maxDepthPct ? t("acc_depth_display", { pct: plan!.maxDepthPct }) : t("acc_depth_off")
+              }
+              onChange={(v) => {
+                if (v <= 0) {
+                  const { maxDepthPct: _d, ...rest } = plan!;
+                  onChange(rest);
+                } else {
+                  onChange({ ...plan!, maxDepthPct: v });
+                }
+              }}
+            />
           </div>
 
           {warnings.length > 0 ? (
@@ -1622,7 +2003,9 @@ export function describeAddPlan(plan: AddPlan | null | undefined, t: Translate):
       trig.kind === "schedule"
         ? t("plan_every", { spacing: every(trig.everySec) })
         : trig.kind === "drawdown"
-          ? t("plan_when_down", { pct: trig.pct })
+          ? t("plan_when_down", { pct: trig.pct }) +
+            (trig.from === "lastAdd" ? t("plan_from_last") : "") +
+            (trig.growth && trig.growth > 1 ? t("plan_widening", { factor: trig.growth }) : "")
           : trig.kind === "drawdownVolatility"
             ? // No percent, because the rung moves with the asset. Naming the
               // measure is what keeps this honest — "down 2x" alone reads as 2%.
@@ -1646,6 +2029,7 @@ export function describeAddPlan(plan: AddPlan | null | undefined, t: Translate):
   if (plan.maxTotalUsd !== undefined) {
     parts.push(t("plan_up_to", { amount: money(plan.maxTotalUsd) }));
   }
+  if (plan.maxDepthPct !== undefined) parts.push(t("plan_depth", { pct: plan.maxDepthPct }));
 
   return parts.join(" · ");
 }

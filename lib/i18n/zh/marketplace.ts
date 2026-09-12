@@ -5,6 +5,7 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_tab_listed: "已上架",
   market_tab_paper: "模拟盘",
   market_sort: "排序",
+  market_sort_risk: "风险调整后",
   market_sort_return: "收益率",
   market_sort_newest: "最新",
   market_sort_capital: "资金规模",

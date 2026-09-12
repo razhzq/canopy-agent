@@ -6,6 +6,7 @@ import { EquityCurve, equityScale } from "@/components/charts";
 import { markAgent } from "@/lib/perf";
 import { Tick } from "@/components/kit";
 import {
+  type Benchmark,
   num,
   type AgentDetail,
   type EquityPoint,
@@ -156,16 +157,59 @@ export function EquityView({
         </div>
       </div>
 
+      {/* THE RISK-ADJUSTED ROW. Null renders as a dash: a Sharpe over four days
+          is withheld by the server, not invented here. */}
+      {series.stats ? (
+        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+          <Stat
+            label={t("equity_sharpe")}
+            value={series.stats.sharpe === null ? "—" : series.stats.sharpe.toFixed(2)}
+            tone={series.stats.sharpe === null ? "neutral" : series.stats.sharpe >= 1 ? "accent" : series.stats.sharpe < 0 ? "negative" : "neutral"}
+            note={series.stats.days < 7 ? t("equity_needs_days") : undefined}
+          />
+          <Stat
+            label={t("equity_sortino")}
+            value={series.stats.sortino === null ? "—" : series.stats.sortino.toFixed(2)}
+          />
+          <Stat
+            label={t("equity_profit_factor")}
+            value={series.stats.profitFactor === null ? "—" : series.stats.profitFactor.toFixed(2)}
+            tone={series.stats.profitFactor === null ? "neutral" : series.stats.profitFactor >= 1 ? "accent" : "negative"}
+          />
+          <Stat
+            label={t("equity_fee_drag")}
+            value={series.stats.feeDragPct === null ? "—" : `${series.stats.feeDragPct.toFixed(2)}%`}
+            note={
+              series.stats.feesVsGrossPct === null
+                ? undefined
+                : t("equity_fees_of_gross", { pct: series.stats.feesVsGrossPct.toFixed(0) })
+            }
+          />
+          {series.benchmark && series.benchmark.returnPct !== null ? (
+            <Stat
+              label={t("equity_vs_benchmark", { symbol: series.benchmark.symbol })}
+              value={signedPct(returnPct - series.benchmark.returnPct)}
+              tone={returnPct - series.benchmark.returnPct >= 0 ? "accent" : "negative"}
+              note={t("equity_benchmark_return", { pct: signedPct(series.benchmark.returnPct) })}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-border bg-surface p-5">
         <ReadableCurve
           points={points}
           capitalUsd={capitalUsd}
+          overlay={benchmarkOverlay(points, series.benchmark ?? null)}
           height={220}
           t={t}
           locale={locale}
         />
         <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
           <span>{t("equity_cycle_n", { seq: points[0].tickSeq })}</span>
+          {series.benchmark ? (
+            <span>{t("equity_dotted_line", { symbol: series.benchmark.symbol })}</span>
+          ) : null}
           <span>{t("equity_cycle_n", { seq: points[points.length - 1].tickSeq })}</span>
         </div>
       </div>
@@ -193,15 +237,49 @@ export function EquityView({
  * card always names a cycle that actually happened and a figure the desk
  * actually recorded.
  */
+/**
+ * The benchmark, one value per equity point.
+ *
+ * The server sends it per DAY; the curve is per CYCLE. Each point takes its
+ * day's benchmark value, carried forward across days the benchmark has none,
+ * so the two lines share an x-axis. Undefined when there is no benchmark or
+ * no overlap, which draws nothing rather than a misaligned line.
+ */
+export function benchmarkOverlay(
+  points: readonly EquityPoint[],
+  benchmark: Benchmark | null,
+): number[] | undefined {
+  if (!benchmark || benchmark.points.length === 0) return undefined;
+  const byDay = new Map(benchmark.points.map((p) => [p.day, p.equityUsd]));
+  const days = [...byDay.keys()].sort();
+  const out: number[] = [];
+  let last: number | null = null;
+  for (const p of points) {
+    const day = new Date(p.at).toISOString().slice(0, 10);
+    const exact = byDay.get(day);
+    if (exact !== undefined) last = exact;
+    else if (last === null) {
+      // Before the first benchmark day: the nearest earlier day, if any.
+      const prior = days.filter((d) => d < day).pop();
+      if (prior !== undefined) last = byDay.get(prior)!;
+    }
+    if (last === null) return undefined;
+    out.push(last);
+  }
+  return out;
+}
+
 function ReadableCurve({
   points,
   capitalUsd,
+  overlay,
   height,
   t,
   locale,
 }: {
   points: EquityPoint[];
   capitalUsd: number;
+  overlay?: number[];
   height: number;
   // Passed down rather than re-read from context: the readout is a leaf of the
   // panel that already holds both, and threading them keeps this hook-free.
@@ -210,7 +288,9 @@ function ReadableCurve({
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const values = points.map((p) => p.equityUsd);
-  const { W, H, x, y } = equityScale(values, capitalUsd);
+  // The same scale the curve draws with, overlay included, or the marker
+  // would sit off the line whenever the benchmark widened the range.
+  const { W, H, x, y } = equityScale(values, capitalUsd, overlay ?? []);
 
   const track = (clientX: number, el: HTMLElement) => {
     const rect = el.getBoundingClientRect();
@@ -235,7 +315,7 @@ function ReadableCurve({
       onTouchMove={(e) => track(e.touches[0].clientX, e.currentTarget)}
       onTouchEnd={() => setHover(null)}
     >
-      <EquityCurve values={values} baseline={capitalUsd} height={height} />
+      <EquityCurve values={values} baseline={capitalUsd} overlay={overlay} height={height} />
 
       {point ? (
         <>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
+import { benchmarkOverlay } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
@@ -462,6 +463,35 @@ export function StrategyDetail({
             tone={drawdown > 0 ? "negative" : "neutral"}
           />
           <Stat label={t("sd_trades_30d")} value={String(trades30)} />
+          {ready?.stats ? (
+            <>
+              <Stat
+                label={t("sd_sharpe")}
+                value={ready.stats.sharpe === null ? "—" : ready.stats.sharpe.toFixed(2)}
+                tone={ready.stats.sharpe === null ? "neutral" : ready.stats.sharpe >= 1 ? "accent" : ready.stats.sharpe < 0 ? "negative" : "neutral"}
+              />
+              <Stat
+                label={t("sd_sortino")}
+                value={ready.stats.sortino === null ? "—" : ready.stats.sortino.toFixed(2)}
+              />
+              <Stat
+                label={t("sd_profit_factor")}
+                value={ready.stats.profitFactor === null ? "—" : ready.stats.profitFactor.toFixed(2)}
+                tone={ready.stats.profitFactor === null ? "neutral" : ready.stats.profitFactor >= 1 ? "accent" : "negative"}
+              />
+              <Stat
+                label={t("sd_win_rate")}
+                value={ready.stats.winRatePct === null ? "—" : `${ready.stats.winRatePct.toFixed(0)}%`}
+              />
+              {ready.benchmark && ready.benchmark.returnPct !== null && ret !== null ? (
+                <Stat
+                  label={t("sd_vs_benchmark", { symbol: ready.benchmark.symbol })}
+                  value={signedPct(ret - ready.benchmark.returnPct)}
+                  tone={ret - ready.benchmark.returnPct >= 0 ? "accent" : "negative"}
+                />
+              ) : null}
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -542,11 +572,15 @@ export function StrategyDetail({
             <EquityCurve
               values={windowed.map((p) => p.equityUsd)}
               baseline={capital}
+              overlay={benchmarkOverlay(windowed, ready?.benchmark ?? null)}
               height={220}
             />
             <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
               <span>{t("sd_cycle_n", { seq: windowed[0].tickSeq })}</span>
-              <span className="text-text-muted">{t("sd_dashed_line")}</span>
+              <span className="text-text-muted">
+                {t("sd_dashed_line")}
+                {ready?.benchmark ? ` · ${t("sd_dotted_line", { symbol: ready.benchmark.symbol })}` : ""}
+              </span>
               <span>
                 {t("sd_cycle_n", {
                   seq: windowed[windowed.length - 1].tickSeq,

@@ -5,6 +5,7 @@ export const trMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_tab_listed: "Listelenen",
   market_tab_paper: "Kağıt",
   market_sort: "Sırala",
+  market_sort_risk: "Riske göre",
   market_sort_return: "Getiri",
   market_sort_newest: "En yeni",
   market_sort_capital: "Sermaye",

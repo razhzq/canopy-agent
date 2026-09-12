@@ -461,8 +461,8 @@ const CURVE_H = 300;
  * scale there by hand is how a marker ends up a few pixels off the line it is
  * supposed to be sitting on.
  */
-export function equityScale(values: number[], baseline?: number) {
-  const all = baseline === undefined ? values : [...values, baseline];
+export function equityScale(values: number[], baseline?: number, extra: number[] = []) {
+  const all = [...values, ...extra, ...(baseline === undefined ? [] : [baseline])];
   let lo = Math.min(...all);
   let hi = Math.max(...all);
   // A perfectly flat series has no range to scale into; give it one so the
@@ -573,12 +573,20 @@ export function curvePath(pts: number[][]): string {
 export function EquityCurve({
   values,
   baseline,
+  overlay,
   height = 200,
   hoverAnimate = false,
 }: {
   values: number[];
   /** Starting capital. Drawn as a dashed rule so gains and losses read against it. */
   baseline?: number;
+  /**
+   * A second series on the same scale — the buy-and-hold line. Same length
+   * as `values`, aligned point for point; drawn muted and dotted so the agent's
+   * own line stays the subject. The scale includes it, so a benchmark that
+   * ran away upward is not clipped off the top of the panel.
+   */
+  overlay?: number[];
   height?: number;
   /**
    * Redraw the curve when an ancestor carrying `group` is hovered.
@@ -592,7 +600,8 @@ export function EquityCurve({
 }) {
   if (values.length === 0) return <div style={{ height }} />;
 
-  const { W, H, x, y } = equityScale(values, baseline);
+  const over = overlay && overlay.length === values.length ? overlay : undefined;
+  const { W, H, x, y } = equityScale(values, baseline, over ?? []);
 
   // One point is a flat line across the panel, not a dot in the middle: the
   // account existed for that whole cycle at that value.
@@ -639,6 +648,25 @@ export function EquityCurve({
         </defs>
 
         <path d={area} fill={`url(#equityFill-${up ? "up" : "down"})`} />
+
+        {over ? (
+          <path
+            d={curvePath(
+              over.length === 1
+                ? [
+                    [0, y(over[0])],
+                    [W, y(over[0])],
+                  ]
+                : over.map((v, i) => [x(i), y(v)]),
+            )}
+            fill="none"
+            stroke="var(--color-text-dim)"
+            strokeWidth="1.25"
+            strokeDasharray="2 3"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
 
         {baseline !== undefined ? (
           <line

@@ -43,7 +43,7 @@ import { useT, type TranslationKey } from "@/lib/i18n";
  * this page.
  */
 type Tab = "all" | "published" | "paper";
-type Sort = "return" | "newest" | "capital" | "users";
+type Sort = "risk" | "return" | "newest" | "capital" | "users";
 
 const TABS: {
   key: Tab;
@@ -59,7 +59,15 @@ const TABS: {
   },
 ];
 
+/** Days of record a strategy needs before its Sharpe is allowed to rank it. */
+const MIN_RANK_DAYS = 14;
+
 const SORTS: { key: Sort; labelKey: TranslationKey }[] = [
+  // Risk-adjusted first and by default: a 40% return with a 35% drawdown and
+  // a 12% return with a 3% drawdown are different products, and raw return
+  // sorted them the wrong way round. Records under two weeks sink below every
+  // ranked one rather than ranking on a number that means nothing yet.
+  { key: "risk", labelKey: "market_sort_risk" },
   { key: "return", labelKey: "market_sort_return" },
   { key: "newest", labelKey: "market_sort_newest" },
   { key: "capital", labelKey: "market_sort_capital" },
@@ -80,7 +88,7 @@ export function MarketplaceView({
 }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>("all");
-  const [sort, setSort] = useState<Sort>("return");
+  const [sort, setSort] = useState<Sort>("risk");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
 
@@ -99,7 +107,11 @@ export function MarketplaceView({
           r.author.toLowerCase().includes(q)),
     );
     const by = (r: StrategyRow) =>
-      sort === "return"
+      sort === "risk"
+        ? r.stats && r.stats.days >= MIN_RANK_DAYS && r.stats.sharpe !== null
+          ? r.stats.sharpe
+          : -Infinity
+        : sort === "return"
         ? (return30dPct(r) ?? -Infinity)
         : sort === "capital"
           ? Number(r.aum_usd)

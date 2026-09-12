@@ -247,6 +247,90 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   plan_up_to: "累计不超过 {amount}",
   plan_or: " 或 ",
   plan_and: " 且 ",
+  rule_bollingerPctBMin: "最低布林 %B",
+  rule_bollingerPctBMin_help:
+    "价格在 20 根 K 线布林通道中的位置：0 为下轨，100 为上轨。接近 100 的下限要求收盘在上轨或之上 — 即突破。",
+  rule_priceVsSma5Pct: "价格高于 MA5 的上限",
+  rule_priceVsSma5Pct_help:
+    "价格相对 5 根 K 线简单均线的百分比。0 或以下表示回踩均线；小的正数允许略高于均线。",
+  rule_priceVsSma10Pct: "价格高于 MA10 的上限",
+  rule_priceVsSma10Pct_help:
+    "价格相对 10 根 K 线简单均线的百分比。0 或以下表示回踩均线。",
+  rule_priceVsEma20Pct: "价格高于 EMA20 的上限",
+  rule_priceVsEma20Pct_help:
+    "价格相对 20 根 K 线指数均线的百分比。0 或以下表示回踩均线。",
+  rule_priceVsEma50Pct: "价格高于 EMA50 的上限",
+  rule_priceVsEma50Pct_help:
+    "价格相对 50 根 K 线指数均线的百分比。0 或以下表示回踩均线。",
+  rule_aboveLow60dPct: "高于 60 根 K 线低点的上限",
+  rule_aboveLow60dPct_help:
+    "价格从 60 根 K 线内最低收盘反弹的幅度。数值小则只放行仍靠近底部的资产。",
+  rule_smaCrossUpBars: "金叉发生在几根 K 线内",
+  rule_smaCrossUpBars_help:
+    "20 均线上穿 50 均线距今不超过这么多根 K 线。这是一个事件，所以窗口很短。",
+  rule_smaCrossDownBars: "死叉发生在几根 K 线内",
+  rule_smaCrossDownBars_help:
+    "20 均线下穿 50 均线距今不超过这么多根 K 线。",
+  rule_macdCrossUpBars: "MACD 上穿在几根 K 线内",
+  rule_macdCrossUpBars_help:
+    "MACD 线上穿信号线距今不超过这么多根 K 线。",
+  rule_macdCrossDownBars: "MACD 下穿在几根 K 线内",
+  rule_macdCrossDownBars_help:
+    "MACD 线下穿信号线距今不超过这么多根 K 线。",
+  rule_volumeRatio: "最低成交量倍数（对 20 根均量）",
+  rule_volumeRatio_help:
+    "最后一根 K 线成交量相对其 20 根均量的倍数。1 是普通一根，2 是两倍。用它要求放量确认。",
+  rule_buyPressurePct: "最低买盘压力",
+  rule_buyPressurePct_help:
+    "最近 14 根 K 线中上涨 K 线成交量占比（百分比）。高于 50 表示买方占优。",
+  rule_adx: "最低趋势强度（ADX 14）",
+  rule_adx_help:
+    "不论方向，是否存在趋势。低于 20 为震荡；高于 25 为趋势市。仅限代币 — 需要每根 K 线的最高最低价。",
+  rule_stochasticK: "最高随机指标 %K（14）",
+  rule_stochasticK_help:
+    "收盘价在最近 14 根 K 线区间中的位置：0 在低点，100 在高点。上限避免在区间顶部买入。仅限代币。",
+  rule_stochasticKMin: "最低随机指标 %K（14）",
+  rule_stochasticKMin_help:
+    "收盘价在最近 14 根 K 线区间中的位置。下限要求强势 — 收盘靠近区间顶部。仅限代币。",
+  rule_cci: "最高 CCI（20）",
+  rule_cci_help:
+    "20 根 K 线的顺势指标。高于 +100 为过度拉伸；上限避免追高。仅限代币。",
+  rule_mfi: "最高资金流量指数（14）",
+  rule_mfi_help:
+    "以成交量加权的 RSI，取 14 根 K 线。高于 80 为过度买入。仅限代币。",
+  rule_vwapDistPct: "高于 VWAP 的上限",
+  rule_vwapDistPct_help:
+    "价格相对 20 根 K 线成交量加权均价的百分比。0 或以下要求价格不高于主要成交区。仅限代币。",
+  rule_barVolumeUsd: "最后一根 K 线的最低成交额",
+  rule_barVolumeUsd_help:
+    "你所选 K 线周期最后一根的美元成交额。“每根 15 分钟 K 线至少 $500”就是在 15 分钟周期上把此规则设为 500。",
+  rule_avgBarVolumeUsd: "每根 K 线的最低平均成交额",
+  rule_avgBarVolumeUsd_help:
+    "最近 20 根 K 线每根的平均美元成交额。要求持续成交，而不是某一根放量。",
+  rule_priceUsd: "最低价格",
+  rule_priceUsd_help:
+    "美元价格下限。“只在 $2 以上”，或作为两段式入场的观察条件：“到 $1 之后”。是价位，不是涨跌幅。",
+  rule_priceUsdMax: "最高价格",
+  rule_priceUsdMax_help:
+    "美元价格上限。“$180 以下买入”，或作为信号离场时的硬止损价位。是价位，不是涨跌幅。",
+  acc_from_heading: "以什么为基准",
+  acc_from_help:
+    "均价会随每次买入而下降，以均价为基准的档位在下跌途中会越挤越密。以上一次成交为基准，每一档都在上一次买入之下相同距离 — 这才是网格。",
+  acc_from_average: "我的均价",
+  acc_from_last: "上一次成交",
+  acc_growth: "逐档加宽",
+  acc_growth_help:
+    "每执行一档，间距乘以该系数。5% 档位配 1.5× 即 5%、7.5%、11.25% — 越跌间距越大的递进式间距。",
+  acc_growth_even: "等距",
+  acc_growth_display: "每档 {factor}×",
+  acc_depth: "最深不超过",
+  acc_depth_help:
+    "网格的下限，以首次入场价为基准。覆盖 33% 跌幅的网格，在价格低于起点 33% 之后不再加仓，无论还剩多少档。",
+  acc_depth_display: "低于首次入场 {pct}%",
+  acc_depth_off: "无下限",
+  plan_from_last: "（以上一次成交为基准）",
+  plan_widening: "，每档加宽 {factor}×",
+  plan_depth: "最深 {pct}%",
   plan_every_days: "{n} 天",
   plan_every_hours: "{n} 小时",
   plan_every_minutes: "{n} 分钟",

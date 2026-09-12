@@ -282,6 +282,8 @@ export interface StrategyRow {
 
   deployments?: string;
   aum_usd?: string;
+  /** Risk-adjusted figures over the trailing quarter, for the ranking. */
+  stats?: PerfStats;
   published_at: string | null;
   verification_started_at: string | null;
   /** Set when this strategy was created by editing a verifying one. */
@@ -1122,6 +1124,17 @@ export function classFor(a: UniverseAsset): "rwa" | "spot" {
 }
 
 /**
+ * The account-level caps as the author states them. Mirrors `RiskCaps` in
+ * @canopy/agent-contracts: absent = never chose, null = off, number = set.
+ */
+export interface RiskCaps {
+  maxDrawdownPct?: number;
+  maxOpenPositions?: number | null;
+  dailyLossLimitPct?: number | null;
+  cooldownAfterLosses?: { losses: number; minutes: number } | null;
+}
+
+/**
  * A strategy draft composed from a sentence.
  *
  * The model selects; the backend decides. It cannot return an asset that failed
@@ -1207,7 +1220,16 @@ export interface Clause {
   detail: string;
 }
 
-export const composeAgent = (token: string, prompt: string) =>
+export const composeAgent = (
+  token: string,
+  prompt: string,
+  /**
+   * Which vocabulary the sentence is for. The builder knows because it picked
+   * the markets; passing it stops the backend guessing from the prompt, and
+   * stops its demand ledger filing crypto requests under tokenized stocks.
+   */
+  strategyClass?: "rwa" | "spot",
+) =>
   request<{
     draft: ComposedDraft | null;
     notes: string[];
@@ -1221,7 +1243,7 @@ export const composeAgent = (token: string, prompt: string) =>
     provenance?: ComposeProvenance;
   }>("/agents/compose", token, {
     method: "POST",
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, ...(strategyClass ? { strategyClass } : {}) }),
   });
 
 /**
@@ -1241,7 +1263,13 @@ export type VolatilityMeasure = "atr" | "bollingerBandwidth";
 
 export type AddTrigger =
   | { kind: "schedule"; everySec: number }
-  | { kind: "drawdown"; pct: number }
+  /**
+   * Down `pct` from a reference. `from: "lastAdd"` measures each rung from the
+   * previous fill — a grid — instead of the blended average, which crowds the
+   * rungs together as it falls. `growth` widens each rung by that factor.
+   * Mirrors @canopy/agent-contracts; keep them in step.
+   */
+  | { kind: "drawdown"; pct: number; from?: "average" | "lastAdd"; growth?: number }
   | { kind: "gain"; pct: number }
   /**
    * Down `multiple` × the asset's own volatility, recomputed every cycle.
@@ -1281,6 +1309,8 @@ export interface AddPlan {
    * Mirrors `AddPlan.perLotExits` in @canopy/agent-contracts. Keep them in step.
    */
   perLotExits?: boolean;
+  /** How far below the first entry the ladder may reach, in percent. */
+  maxDepthPct?: number;
 }
 
 /**
@@ -1358,6 +1388,11 @@ export const createStrategy = (
     positionUsd?: number;
     /** Entries per cycle, 1–10. Exits are not counted against it. */
     tradesPerCycle?: number;
+    /**
+     * The account-level caps from the limits step. Absent key = the posture
+     * default at deploy; null = off. The breaker cannot be off.
+     */
+    riskCaps?: RiskCaps;
     /** Keep the best N of what passed the rules. Omitted keeps all. */
     ranking?: RankingSpec;
     /**
@@ -1487,6 +1522,12 @@ export interface AgentMandate {
     allow?: string[];
     deny?: string[];
     complianceProfile?: string;
+    /** Most distinct assets held at once. Absent = off. */
+    maxOpenPositions?: number;
+    /** No new positions once equity is down this much on the UTC day. */
+    dailyLossLimitPct?: number;
+    /** No new positions for `minutes` after `losses` losing closes in a row. */
+    cooldownAfterLosses?: { losses: number; minutes: number };
   };
 }
 
@@ -2958,6 +2999,38 @@ export interface EquityPoint {
   highWaterMarkUsd: number;
 }
 
+/**
+ * Risk-adjusted figures, computed server-side from the same readings the
+ * curve is drawn from. Every field is null when the record cannot support it
+ * — a Sharpe over four days is withheld, not shown — so render "—" for null.
+ * Mirrors `PerfStats` in @canopy/agent-stack.
+ */
+export interface PerfStats {
+  days: number;
+  returnPct: number | null;
+  volatilityPct: number | null;
+  sharpe: number | null;
+  sortino: number | null;
+  maxDrawdownPct: number | null;
+  calmar: number | null;
+  closed: number;
+  winRatePct: number | null;
+  profitFactor: number | null;
+  avgWinUsd: number | null;
+  avgLossUsd: number | null;
+  expectancyUsd: number | null;
+  avgHoldHours: number | null;
+  feeDragPct: number | null;
+  feesVsGrossPct: number | null;
+}
+
+/** Buy-and-hold of a reference asset over the agent's own days, same capital. */
+export interface Benchmark {
+  symbol: string;
+  points: { day: string; equityUsd: number }[];
+  returnPct: number | null;
+}
+
 export interface EquitySeries {
   capitalUsd: number;
   isPaper: boolean;
@@ -2965,6 +3038,9 @@ export interface EquitySeries {
   closedPositions: number;
   winningPositions: number;
   points: EquityPoint[];
+  /** Absent on an older backend. */
+  stats?: PerfStats;
+  benchmark?: Benchmark | null;
 }
 
 /** One day of a public record. */
@@ -3008,6 +3084,9 @@ export interface RecordPosition {
 
 export interface StrategyRecord {
   agentId: number | null;
+  /** Risk-adjusted figures for the book shown. Absent on an older backend. */
+  stats?: PerfStats;
+  benchmark?: Benchmark | null;
   /**
    * What the book being shown started with.
    *

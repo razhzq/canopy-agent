@@ -876,6 +876,29 @@ export function AgentDetailView({
                 {t("ad_breaker_note", { pct: constraints.maxDrawdownPct })}
               </p>
             ) : null}
+            {/* The account-level caps, when set. Entries only — the sentence
+                says so, because "stops for the day" reads as "cannot sell". */}
+            {constraints.dailyLossLimitPct || constraints.maxOpenPositions || constraints.cooldownAfterLosses ? (
+              <p className={`pt-2 ${BODY}`}>
+                {[
+                  constraints.dailyLossLimitPct
+                    ? t("ad_cap_daily", { pct: constraints.dailyLossLimitPct })
+                    : null,
+                  constraints.maxOpenPositions
+                    ? t("ad_cap_positions", { n: constraints.maxOpenPositions })
+                    : null,
+                  constraints.cooldownAfterLosses
+                    ? t("ad_cap_cooldown", {
+                        losses: constraints.cooldownAfterLosses.losses,
+                        minutes: constraints.cooldownAfterLosses.minutes,
+                      })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}{" "}
+                {t("ad_cap_tail")}
+              </p>
+            ) : null}
           </section>
 
           {/* activity */}

@@ -50,6 +50,10 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_sl_body_hold: "较入场价 −{pct}% 时卖出，或持有满 {days} 天后卖出",
   ad_breaker_note:
     "智能体级熔断线为较历史高点 −{pct}%：一旦跌破，它会自行清仓并停止。",
+  ad_cap_daily: "当日回撤达 {pct}% 后不再开新仓",
+  ad_cap_positions: "同时最多持有 {n} 个仓位",
+  ad_cap_cooldown: "连续 {losses} 次亏损后暂停 {minutes} 分钟",
+  ad_cap_tail: "— 离场始终执行。",
 
   ad_all_cycles: "全部周期 →",
   ad_append_only: "只追加记录。无论是否成交，每一次检查都会被记录。",

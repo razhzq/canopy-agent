@@ -60,6 +60,10 @@ export const enAgentDetail = {
   ad_sl_body_hold: "Sell at −{pct}% from entry, or after {days}d",
   ad_breaker_note:
     "Agent-wide breaker at −{pct}% from the high-water mark: past that it liquidates and stops on its own.",
+  ad_cap_daily: "No new positions once down {pct}% on the day",
+  ad_cap_positions: "at most {n} positions open",
+  ad_cap_cooldown: "{minutes} min pause after {losses} losses in a row",
+  ad_cap_tail: "— exits always run.",
 
   // ── Activity ───────────────────────────────────────────────────
   ad_all_cycles: "All cycles →",

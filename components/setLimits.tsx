@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  type RiskCaps,
   classFor,
   composeAgent,
   type Clause,
@@ -82,6 +83,12 @@ export interface Limits {
   positionUsd: number;
   /** Ceiling on entries per cycle. */
   tradesPerCycle: number;
+  /**
+   * The account-level guardrails: the drawdown breaker and the three caps
+   * that stop the agent opening positions for a while. Absent means the
+   * author never touched the card, which deploys with the posture defaults.
+   */
+  riskCaps?: RiskCaps;
   /**
    * Which compliance screen the agent runs.
    *
@@ -192,6 +199,9 @@ export function SetLimits({
    */
   const market: UniverseAsset | undefined = markets[0];
   const klass = market ? classFor(market) : "spot";
+  // The guardrails as shown: the author's, or the defaults they would get.
+  const caps: RiskCaps = value.riskCaps ?? DEFAULT_RISK_CAPS;
+  const setCaps = (next: RiskCaps) => onChange({ ...value, riskCaps: next });
   const isCrypto = market ? market.kind === "crypto" : true;
   // Every market in a strategy shares one class, so the first decides which bar
   // sizes are on offer — the same rule the ATR rule and the compliance screen
@@ -354,6 +364,7 @@ export function SetLimits({
         // them, and a composer that believes it is writing for one asset will
         // reach for facts only that asset has.
         prefix + nextSpec.join(" "),
+        klass,
       );
       const ownClauses = (provenance?.clauses ?? []).filter(
         (c) => !prefix.includes(c.phrase),
@@ -1168,6 +1179,138 @@ export function SetLimits({
         </div>
       </section>
 
+      {/* --------------------------------------------------- guardrails */}
+      {/* The account-level caps. Every one of these is about the ACCOUNT over
+          time rather than one trade, and every one blocks entries only — the
+          note says so, because "stops for the day" reads as "cannot sell".
+          Three of the four can be switched off; the breaker cannot. */}
+      <section>
+        <SectionLabel title={t("sl_caps")} note={t("sl_caps_note")} info={t("sl_caps_info")} />
+        <div className="overflow-hidden rounded-xl border border-border">
+          <BudgetRow
+            label={t("sl_cap_breaker")}
+            info={t("sl_cap_breaker_info")}
+            help={t("sl_cap_breaker_help", { usd: money((CAPITAL_USD * (caps.maxDrawdownPct ?? 20)) / 100) })}
+          >
+            <NumberEntry
+              value={caps.maxDrawdownPct ?? 20}
+              min={5}
+              max={60}
+              step={1}
+              unit="%"
+              label={t("sl_cap_breaker")}
+              onChange={(n) => setCaps({ ...caps, maxDrawdownPct: n })}
+            />
+          </BudgetRow>
+          <BudgetRow label={t("sl_cap_positions")} info={t("sl_cap_positions_info")}>
+            <div className="flex items-center justify-end gap-2">
+              {caps.maxOpenPositions !== null ? (
+                <Stepper
+                  value={caps.maxOpenPositions ?? 8}
+                  min={1}
+                  max={50}
+                  label={t("sl_cap_positions")}
+                  unit={t("sl_cap_unit_positions")}
+                  onChange={(n) => setCaps({ ...caps, maxOpenPositions: n })}
+                />
+              ) : null}
+              <CapToggle
+                on={caps.maxOpenPositions !== null}
+                onToggle={(on) => setCaps({ ...caps, maxOpenPositions: on ? 8 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
+            label={t("sl_cap_daily")}
+            info={t("sl_cap_daily_info")}
+            help={
+              caps.dailyLossLimitPct !== null
+                ? t("sl_cap_daily_help", { usd: money((CAPITAL_USD * (caps.dailyLossLimitPct ?? 5)) / 100) })
+                : undefined
+            }
+          >
+            <div className="flex items-center justify-end gap-2">
+              {caps.dailyLossLimitPct !== null ? (
+                <NumberEntry
+                  value={caps.dailyLossLimitPct ?? 5}
+                  min={0.5}
+                  max={50}
+                  step={0.5}
+                  unit="%"
+                  label={t("sl_cap_daily")}
+                  onChange={(n) => setCaps({ ...caps, dailyLossLimitPct: n })}
+                />
+              ) : null}
+              <CapToggle
+                on={caps.dailyLossLimitPct !== null}
+                onToggle={(on) => setCaps({ ...caps, dailyLossLimitPct: on ? 5 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
+            label={t("sl_cap_cooldown")}
+            info={t("sl_cap_cooldown_info")}
+            help={
+              caps.cooldownAfterLosses !== null
+                ? t("sl_cap_cooldown_help", {
+                    losses: caps.cooldownAfterLosses?.losses ?? 3,
+                    minutes: caps.cooldownAfterLosses?.minutes ?? 120,
+                  })
+                : undefined
+            }
+          >
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              {caps.cooldownAfterLosses !== null ? (
+                <>
+                  <Stepper
+                    value={caps.cooldownAfterLosses?.losses ?? 3}
+                    min={2}
+                    max={20}
+                    label={t("sl_cap_cooldown")}
+                    unit={t("sl_cap_unit_losses")}
+                    onChange={(n) =>
+                      setCaps({
+                        ...caps,
+                        cooldownAfterLosses: { losses: n, minutes: caps.cooldownAfterLosses?.minutes ?? 120 },
+                      })
+                    }
+                  />
+                  <div className="flex items-center gap-1">
+                    {COOLDOWN_MINUTES.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={(caps.cooldownAfterLosses?.minutes ?? 120) === m}
+                        onClick={() =>
+                          setCaps({
+                            ...caps,
+                            cooldownAfterLosses: { losses: caps.cooldownAfterLosses?.losses ?? 3, minutes: m },
+                          })
+                        }
+                        className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                          (caps.cooldownAfterLosses?.minutes ?? 120) === m
+                            ? "bg-surface-2 text-text-primary"
+                            : "text-text-dim hover:text-text-primary"
+                        }`}
+                      >
+                        {m >= 60 ? t("sl_cap_hours", { n: m / 60 }) : t("sl_cap_minutes", { n: m })}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              <CapToggle
+                on={caps.cooldownAfterLosses !== null}
+                onToggle={(on) =>
+                  setCaps({ ...caps, cooldownAfterLosses: on ? { losses: 3, minutes: 120 } : null })
+                }
+              />
+            </div>
+          </BudgetRow>
+        </div>
+        <p className="pt-2 font-ui text-[11.5px] text-text-muted">{t("sl_caps_tail")}</p>
+      </section>
+
       {/* ------------------------------------------------------ ranking */}
       {/*
         Only when there is something to rank. A top-3 of one market is that
@@ -1362,6 +1505,41 @@ function SectionLabel({
 }
 
 /** One row of the budget card: the name and its consequence left, the control right. */
+/** The cool-down lengths offered. Minutes, so the engine's unit is the UI's. */
+const COOLDOWN_MINUTES = [30, 60, 120, 240, 1440] as const;
+
+/**
+ * What the limits step shows before the author touches the guardrails card:
+ * the moderate posture's defaults, which is what the lifecycle would apply
+ * anyway. Shown rather than hidden, because a cap that applies and cannot be
+ * seen is the thing this step exists to prevent.
+ */
+export const DEFAULT_RISK_CAPS: Required<RiskCaps> = {
+  maxDrawdownPct: 20,
+  maxOpenPositions: 8,
+  dailyLossLimitPct: 5,
+  cooldownAfterLosses: { losses: 3, minutes: 120 },
+};
+
+/** On / off for a cap that can be switched off. Same shape as the guard toggle. */
+function CapToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => void }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!on)}
+      aria-pressed={on}
+      className={`h-7 rounded-full border px-2.5 font-ui text-[11.5px] font-medium transition-colors ${
+        on
+          ? "border-border bg-surface-2 text-text-primary"
+          : "border-grid text-text-muted hover:text-text-primary"
+      }`}
+    >
+      {t(on ? "sl_cap_on" : "sl_cap_off")}
+    </button>
+  );
+}
+
 function BudgetRow({
   label,
   help,

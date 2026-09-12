@@ -272,6 +272,24 @@ export const enStrategy = {
   warn_ladder_unbounded: "A doubling ladder with no limit on adds compounds fast. Set a maximum.",
 
   // ── Plan summary sentence ──────────────────────────────────────
+  acc_from_heading: "Measured from",
+  acc_from_help:
+    "The average falls with every buy, so rungs measured from it crowd together on the way down. Measured from the last fill, each rung sits the same distance below the previous buy — which is what a grid is.",
+  acc_from_average: "My average",
+  acc_from_last: "The last fill",
+  acc_growth: "Widen each rung",
+  acc_growth_help:
+    "Multiplies the gap for every rung taken. 1.5× on a 5% rung is 5%, then 7.5%, then 11.25% — progressive spacing, deeper as it falls.",
+  acc_growth_even: "Even spacing",
+  acc_growth_display: "{factor}× each rung",
+  acc_depth: "No deeper than",
+  acc_depth_help:
+    "The ladder's floor, measured below your first entry. A grid drawn to cover a 33% fall stops adding once price is more than 33% under where you started, however many rungs remain.",
+  acc_depth_display: "{pct}% under the first entry",
+  acc_depth_off: "No floor",
+  plan_from_last: " from the last fill",
+  plan_widening: ", each rung {factor}× wider",
+  plan_depth: "no deeper than {pct}%",
   plan_adds: "Adds {size}",
   plan_size_pct: "{pct}% of capital",
   plan_size_ladder: "{base}, growing {factor}x",
@@ -285,6 +303,72 @@ export const enStrategy = {
   plan_max_adds: "max {n}",
   plan_up_to: "up to {amount}",
   plan_or: " or ",
+  rule_bollingerPctBMin: "Min Bollinger %B",
+  rule_bollingerPctBMin_help:
+    "Where price sits in its 20-bar Bollinger channel: 0 is the lower band, 100 the upper. A floor near 100 asks for a close at or above the upper band — a breakout.",
+  rule_priceVsSma5Pct: "Max price above MA5",
+  rule_priceVsSma5Pct_help:
+    "Price against its 5-bar simple average, in percent. 0 or below asks for a pullback to the average; a small positive number allows a touch above it.",
+  rule_priceVsSma10Pct: "Max price above MA10",
+  rule_priceVsSma10Pct_help:
+    "Price against its 10-bar simple average, in percent. 0 or below asks for a pullback to the average.",
+  rule_priceVsEma20Pct: "Max price above EMA20",
+  rule_priceVsEma20Pct_help:
+    "Price against its 20-bar exponential average, in percent. 0 or below asks for a pullback to the average.",
+  rule_priceVsEma50Pct: "Max price above EMA50",
+  rule_priceVsEma50Pct_help:
+    "Price against its 50-bar exponential average, in percent. 0 or below asks for a pullback to the average.",
+  rule_aboveLow60dPct: "Max above 60-bar low",
+  rule_aboveLow60dPct_help:
+    "How far price has risen off its lowest close in 60 bars. A small number admits only assets still near their floor.",
+  rule_smaCrossUpBars: "Golden cross within",
+  rule_smaCrossUpBars_help:
+    "The 20-bar average crossed above the 50-bar average this many bars ago or fewer. An event, so the window is short.",
+  rule_smaCrossDownBars: "Death cross within",
+  rule_smaCrossDownBars_help:
+    "The 20-bar average crossed below the 50-bar average this many bars ago or fewer.",
+  rule_macdCrossUpBars: "MACD crossed up within",
+  rule_macdCrossUpBars_help:
+    "The MACD line crossed above its signal line this many bars ago or fewer.",
+  rule_macdCrossDownBars: "MACD crossed down within",
+  rule_macdCrossDownBars_help:
+    "The MACD line crossed below its signal line this many bars ago or fewer.",
+  rule_volumeRatio: "Min volume vs 20-bar average",
+  rule_volumeRatio_help:
+    "Volume on the last bar as a multiple of its own 20-bar average. 1 is an ordinary bar, 2 is double. This is how you ask for volume to confirm a move.",
+  rule_buyPressurePct: "Min buying pressure",
+  rule_buyPressurePct_help:
+    "Share of volume on rising bars over the last 14, in percent. Above 50 means buyers have had the upper hand.",
+  rule_adx: "Min trend strength (ADX 14)",
+  rule_adx_help:
+    "Whether there is a trend at all, whichever way. Under 20 is chop; over 25 is a trending market. Tokens only — it needs each bar's high and low.",
+  rule_stochasticK: "Max Stochastic %K (14)",
+  rule_stochasticK_help:
+    "Where the close sits in the last 14 bars' range: 0 at the low, 100 at the high. A ceiling keeps you out of the top of the range. Tokens only.",
+  rule_stochasticKMin: "Min Stochastic %K (14)",
+  rule_stochasticKMin_help:
+    "Where the close sits in the last 14 bars' range. A floor asks for strength — a close near the top of its range. Tokens only.",
+  rule_cci: "Max CCI (20)",
+  rule_cci_help:
+    "Commodity Channel Index over 20 bars. Above +100 is stretched high; a ceiling avoids buying the stretch. Tokens only.",
+  rule_mfi: "Max Money Flow Index (14)",
+  rule_mfi_help:
+    "RSI weighted by volume, over 14 bars. Above 80 is heavily bought. Tokens only.",
+  rule_vwapDistPct: "Max distance above VWAP",
+  rule_vwapDistPct_help:
+    "Price against the 20-bar volume-weighted average price, in percent. 0 or below asks for a price at or under where most volume traded. Tokens only.",
+  rule_barVolumeUsd: "Min volume on the last bar",
+  rule_barVolumeUsd_help:
+    "Dollar value traded on the last bar of your bar size. \"At least $500 per 15-minute candle\" is this rule at 500 on 15-minute bars.",
+  rule_avgBarVolumeUsd: "Min average volume per bar",
+  rule_avgBarVolumeUsd_help:
+    "Average dollar value traded per bar over the last 20 bars. Asks for consistent trading rather than one busy candle.",
+  rule_priceUsd: "Min price",
+  rule_priceUsd_help:
+    "A price floor in dollars. \"Only above $2\" or, as the watch of a two-stage entry, \"once it reaches $1\". A level, not a change.",
+  rule_priceUsdMax: "Max price",
+  rule_priceUsdMax_help:
+    "A price ceiling in dollars. \"Buy under $180\", or as a signal exit, a hard stop at a price. A level, not a change.",
   plan_and: " and ",
   plan_every_days: "{n} days",
   plan_every_hours: "{n} hours",

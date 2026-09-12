@@ -6,6 +6,7 @@ export const enMarketplace = {
   market_tab_listed: "Listed",
   market_tab_paper: "Paper",
   market_sort: "Sort",
+  market_sort_risk: "Risk-adjusted",
   market_sort_return: "Return",
   market_sort_newest: "Newest",
   market_sort_capital: "Capital",
