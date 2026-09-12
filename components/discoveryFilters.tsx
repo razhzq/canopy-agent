@@ -219,6 +219,18 @@ function Editor({
             />
           </Group>
 
+          {/* The one REQUIREMENT, its own group: the quality group's note says
+              "left out unless you untick", which is the wrong sentence for a
+              box that is off until ticked. */}
+          <Group title={t("dsc_group_require")} note={t("dsc_require_note")}>
+            <Exclusion
+              label={t("dsc_require_socials")}
+              note={t("dsc_require_socials_note")}
+              on={value.require?.socials ?? false}
+              onChange={(on) => set({ require: { ...value.require, socials: on } })}
+            />
+          </Group>
+
           <SafetyControl value={value} onChange={set} />
 
           <Group title={t("dsc_cap")} note={t("dsc_cap_note")}>
@@ -723,6 +735,7 @@ export function describeScreen(
     }
   }
 
+  if (spec.require?.socials) parts.push(t("dsc_summary_socials"));
   parts.push(t(`dsc_tier_${spec.minTier}` as TranslationKey));
   return parts.join(" · ");
 }

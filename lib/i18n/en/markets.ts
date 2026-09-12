@@ -149,6 +149,13 @@ export const enMarkets = {
     "Your rules in the next step read past prices. Without any, nothing can trigger.",
   dsc_exclude_note: "These are left out unless you untick them.",
 
+  dsc_group_require: "Require",
+  dsc_require_note: "Off unless you tick it.",
+  dsc_require_socials: "A website or social link",
+  dsc_require_socials_note:
+    "As declared on the token's DexScreener profile. Says the project claimed one, not that it is real. Tokens with no profile at all are left out too.",
+  dsc_summary_socials: "has a website or social",
+
   dsc_safety_note: "Only run on tokens that already match everything above.",
   dsc_safety_mint: "Nobody can create more of it",
   dsc_safety_freeze: "Nobody can freeze your tokens",

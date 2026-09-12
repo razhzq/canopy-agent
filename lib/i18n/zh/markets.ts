@@ -120,6 +120,13 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   dsc_exclude_withoutPool_note: "下一步的规则要读历史价格。没有价格历史，任何规则都不会触发。",
   dsc_exclude_note: "默认排除，取消勾选即可保留。",
 
+  dsc_group_require: "必须满足",
+  dsc_require_note: "默认关闭，勾选后生效。",
+  dsc_require_socials: "有网站或社交链接",
+  dsc_require_socials_note:
+    "以代币在 DexScreener 上的资料为准。只说明项目方声明了链接，不代表真实有效。完全没有资料的代币也会被排除。",
+  dsc_summary_socials: "有网站或社交",
+
   dsc_safety_note: "只对已经符合上面全部条件的代币做检查。",
   dsc_safety_mint: "没人能再增发",
   dsc_safety_freeze: "没人能冻结你的代币",

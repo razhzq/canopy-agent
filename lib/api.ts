@@ -729,6 +729,14 @@ export interface DiscoverySpec {
     /** No pool means no candles, so indicator rules cannot be evaluated. */
     withoutPool?: boolean;
   };
+  /**
+   * Opt-in requirements, the opposite polarity to `exclude`. Off by default:
+   * requiring a declared website or social drops every token DexScreener has
+   * no profile for, which is a real share of the long tail.
+   */
+  require?: {
+    socials?: boolean;
+  };
   /** Rug checks, run only on what already passed the filters. Omitted = none. */
   safety?: {
     mintRenounced?: boolean;
