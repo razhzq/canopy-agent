@@ -28,13 +28,61 @@ import {
   getTelegramStatus,
   linkTelegram,
   setTelegramEnabled,
+  setTelegramPrefs,
   unlinkTelegram,
+  type MutableTelegramKind,
 } from "@/lib/api";
 import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
 import { SkeletonPanel } from "./skeleton";
-import { StatusLine, FOCUS } from "./kit";
-import { useT } from "@/lib/i18n";
+import { StatusLine, FOCUS, LABEL, SURFACE } from "./kit";
+import { useT, type TranslationKey } from "@/lib/i18n";
+
+/** The kinds an owner may switch off, in the order they are listed. */
+const KINDS: { key: MutableTelegramKind; label: TranslationKey; note: TranslationKey }[] = [
+  { key: "fill", label: "tg_kind_fill", note: "tg_kind_fill_note" },
+  { key: "proposal", label: "tg_kind_proposal", note: "tg_kind_proposal_note" },
+  { key: "risk_hold", label: "tg_kind_risk_hold", note: "tg_kind_risk_hold_note" },
+  { key: "alert", label: "tg_kind_alert", note: "tg_kind_alert_note" },
+  { key: "discovery", label: "tg_kind_discovery", note: "tg_kind_discovery_note" },
+  { key: "digest", label: "tg_kind_digest", note: "tg_kind_digest_note" },
+];
+
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+/** An hour of the day in UTC, or off. Mono digits, the same face as figures. */
+function HourSelect({
+  id,
+  value,
+  offLabel,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  value: number | null;
+  offLabel: string;
+  disabled?: boolean;
+  onChange: (h: number | null) => void;
+}) {
+  return (
+    <select
+      id={id}
+      value={value === null ? "off" : String(value)}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value === "off" ? null : Number(e.target.value))}
+      className={`${SURFACE} h-8 px-2 font-mono text-[11.5px] text-text-primary outline-none focus:border-accent disabled:opacity-50`}
+    >
+      <option value="off" className="bg-bg">
+        {offLabel}
+      </option>
+      {HOURS.map((h) => (
+        <option key={h} value={String(h)} className="bg-bg">
+          {String(h).padStart(2, "0")}:00
+        </option>
+      ))}
+    </select>
+  );
+}
 
 /** How often to look for the claim while Telegram is open, and for how long. */
 const WATCH_MS = 3_000;
@@ -131,7 +179,9 @@ export function NotificationSettings() {
     return <ErrorState message={state.message} onRetry={state.reload} />;
   }
 
-  const { configured, linked, username, enabled } = state.data;
+  const { configured, linked, username, enabled, mutedKinds, quietFrom, quietTo, digestHourUtc } =
+    state.data;
+  const quietOn = quietFrom !== null && quietTo !== null;
 
   return (
     <div className="space-y-6">
@@ -234,18 +284,124 @@ export function NotificationSettings() {
           </div>
 
           {/* -------------------------------------------------------- body */}
-          <div className="border-t border-grid px-5 py-4">
-            <p className="font-ui text-[12.5px] text-text-muted">{t("tg_will_send_title")}</p>
-            <ul className="mt-2 space-y-1.5 font-ui text-[13px] leading-relaxed text-text-secondary">
-              {(["tg_will_send_1", "tg_will_send_2", "tg_will_send_3"] as const).map((k) => (
-                <li key={k} className="flex gap-2.5">
-                  <span className="mt-[9px] size-1 shrink-0 rounded-full bg-text-muted" aria-hidden />
-                  {t(k)}
+          {linked ? (
+            // What arrives. One row per kind, the whole row a control; an
+            // off row dims rather than disappears, so the list stays the same
+            // shape whichever are on. Breaches have no switch — a stopped
+            // agent is the message no setting may silence — so they read as
+            // a fixed line under the others.
+            <div className="border-t border-grid px-5 py-4">
+              <p className="font-ui text-[12.5px] text-text-muted">{t("tg_will_send_title")}</p>
+              <ul className="mt-2 divide-y divide-grid">
+                {KINDS.map((k) => {
+                  const on = !mutedKinds.includes(k.key);
+                  return (
+                    <li key={k.key}>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        disabled={busy}
+                        onClick={() =>
+                          void run((token) =>
+                            setTelegramPrefs(token, {
+                              mutedKinds: on
+                                ? [...mutedKinds, k.key]
+                                : mutedKinds.filter((m) => m !== k.key),
+                            }),
+                          )
+                        }
+                        className={`flex w-full items-center justify-between gap-4 py-2.5 text-left transition-opacity disabled:opacity-50 ${FOCUS} ${on ? "" : "opacity-50"}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-ui text-[13px] text-text-primary">{t(k.label)}</span>
+                          <span className="block font-ui text-[11.5px] text-text-dim">{t(k.note)}</span>
+                        </span>
+                        <span
+                          className={`relative h-[18px] w-8 shrink-0 rounded-full border transition-colors ${on ? "border-text-secondary bg-text-secondary" : "border-border bg-bg"}`}
+                          aria-hidden
+                        >
+                          <span
+                            className={`absolute top-[2px] size-3 rounded-full transition-[left] ${on ? "left-[15px] bg-bg" : "left-[2px] bg-text-muted"}`}
+                          />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+                <li className="flex items-center justify-between gap-4 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block font-ui text-[13px] text-text-primary">{t("tg_kind_breach")}</span>
+                    <span className="block font-ui text-[11.5px] text-text-dim">{t("tg_kind_breach_note")}</span>
+                  </span>
+                  <span className="font-ui text-[11.5px] text-text-muted">{t("tg_always")}</span>
                 </li>
-              ))}
-            </ul>
-            <p className="mt-3 font-ui text-[12.5px] text-text-dim">{t("tg_wont_line")}</p>
-          </div>
+              </ul>
+
+              {/* Hours. Two selects for the window, one for the digest; UTC
+                  said once in the label rather than after every value. */}
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <span className={LABEL}>{t("tg_quiet_label")}</span>
+                  <div className="flex items-center gap-2">
+                    <HourSelect
+                      id="tg-quiet-from"
+                      value={quietOn ? quietFrom : null}
+                      offLabel={t("tg_off")}
+                      disabled={busy}
+                      onChange={(h) =>
+                        void run((token) =>
+                          setTelegramPrefs(
+                            token,
+                            h === null
+                              ? { quietFrom: null, quietTo: null }
+                              : { quietFrom: h, quietTo: quietTo ?? (h + 8) % 24 },
+                          ),
+                        )
+                      }
+                    />
+                    <span className="font-ui text-[12px] text-text-dim">{t("tg_quiet_to")}</span>
+                    <HourSelect
+                      id="tg-quiet-to"
+                      value={quietOn ? quietTo : null}
+                      offLabel="—"
+                      disabled={busy || !quietOn}
+                      onChange={(h) =>
+                        h === null
+                          ? undefined
+                          : void run((token) => setTelegramPrefs(token, { quietFrom: quietFrom ?? 22, quietTo: h }))
+                      }
+                    />
+                  </div>
+                  <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{t("tg_quiet_note")}</p>
+                </div>
+                <div className="space-y-2">
+                  <span className={LABEL}>{t("tg_digest_label")}</span>
+                  <HourSelect
+                    id="tg-digest-hour"
+                    value={digestHourUtc}
+                    offLabel={t("tg_off")}
+                    disabled={busy}
+                    onChange={(h) => void run((token) => setTelegramPrefs(token, { digestHourUtc: h }))}
+                  />
+                  <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{t("tg_digest_note")}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="border-t border-grid px-5 py-4">
+              <p className="font-ui text-[12.5px] text-text-muted">{t("tg_will_send_title")}</p>
+              <ul className="mt-2 space-y-1.5 font-ui text-[13px] leading-relaxed text-text-secondary">
+                {(["tg_will_send_1", "tg_will_send_2", "tg_will_send_3"] as const).map((k) => (
+                  <li key={k} className="flex gap-2.5">
+                    <span className="mt-[9px] size-1 shrink-0 rounded-full bg-text-muted" aria-hidden />
+                    {t(k)}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 font-ui text-[12.5px] text-text-dim">{t("tg_wont_line")}</p>
+            </div>
+          )}
 
           {/* ------------------------------------------------------ footer */}
           {linked ? (

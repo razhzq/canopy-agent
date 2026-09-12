@@ -53,6 +53,8 @@ export const zhNotifs: Record<keyof typeof enNotifs, string> = {
   nc_kind_state_change: "状态",
   nc_kind_cycle: "周期",
   nc_kind_discovery: "新池子",
+  nc_kind_alert: "提醒",
+  nc_kind_digest: "日报",
   nc_kind_unknown: "更新",
 
   chat_title: "与 {name} 对话",

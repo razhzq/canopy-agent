@@ -47,7 +47,7 @@ const FILTERS = [
   {
     key: "risk",
     labelKey: "nc_filter_risk" as TranslationKey,
-    kinds: ["breach", "risk_hold"],
+    kinds: ["breach", "risk_hold", "alert"],
   },
 ] as const;
 

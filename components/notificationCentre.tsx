@@ -1133,6 +1133,17 @@ const KIND: Record<
     tone: "text-accent",
     dot: "bg-accent",
   },
+  // The agent's own words, delivered: worth reading, not a breach.
+  alert: {
+    labelKey: "nc_kind_alert",
+    tone: "text-warning",
+    dot: "bg-warning",
+  },
+  digest: {
+    labelKey: "nc_kind_digest",
+    tone: "text-text-secondary",
+    dot: "bg-text-dim",
+  },
 };
 
 // `ago` moved to lib/format as `compactAge`.

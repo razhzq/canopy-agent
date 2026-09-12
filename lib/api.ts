@@ -3399,11 +3399,20 @@ export const deleteAgent = (token: string, agentId: number) =>
  * available here" instead of offering a button that returns 503 — a missing env
  * var should not look like the user did something wrong.
  */
+/** Kinds an owner may switch off on Telegram. Breaches always arrive. */
+export type MutableTelegramKind = "fill" | "proposal" | "risk_hold" | "alert" | "discovery" | "digest";
+
 export interface TelegramStatus {
   configured: boolean;
   linked: boolean;
   username: string | null;
   enabled: boolean;
+  mutedKinds: MutableTelegramKind[];
+  /** UTC hours delivery waits between; both set or both null. */
+  quietFrom: number | null;
+  quietTo: number | null;
+  /** UTC hour the daily digest arrives; null is off. */
+  digestHourUtc: number | null;
 }
 
 /* -------------------------------------------------- notification centre -- */
@@ -3416,7 +3425,11 @@ export type NotificationKind =
   | "state_change"
   | "cycle"
   /** A brand-new pool passed the agent's discovery screen. */
-  | "discovery";
+  | "discovery"
+  /** Something the agent said that needs reading: a market it holds turned, its model is down or unfunded, a cycle failed, its mandate is expiring. */
+  | "alert"
+  /** The daily summary of every running agent. */
+  | "digest";
 
 /** What a `fill` notification carries besides its sentence. */
 export interface FillPayload {
@@ -3565,6 +3578,16 @@ export const setTelegramEnabled = (token: string, enabled: boolean) =>
       body: JSON.stringify({ enabled }),
     },
   );
+
+/** Which kinds arrive, the hours they wait, and when the digest comes. */
+export const setTelegramPrefs = (
+  token: string,
+  prefs: Partial<Pick<TelegramStatus, "mutedKinds" | "quietFrom" | "quietTo" | "digestHourUtc">>,
+) =>
+  request<TelegramStatus>("/agents/notifications/telegram", token, {
+    method: "PATCH",
+    body: JSON.stringify(prefs),
+  });
 
 /** Forgets the chat entirely. Reconnecting needs a new link. */
 export const unlinkTelegram = (token: string) =>
