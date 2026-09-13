@@ -75,39 +75,62 @@ priority list. Before building anything on the table above, pull the last 90
 days grouped by normalised phrase and count. The ranking of what people
 actually typed beats any guess in this document.
 
+## What the demand ledger says (90 days to 13 Sep 2026)
+
+Thirty-nine distinct refused phrases, ~75 refusals. Grouped:
+
+| Group | Refusals | Examples | Verdict |
+|---|---|---|---|
+| Grid / DCA execution | ~30 | "grid strategy", "allocation per level scales with spacing", "cumulative range covered", "weighted average entry price", "grid levels with progressive spacing", "close all orders with overall profit 10%", "buy $500 every 1 hour" | Not a rule; a different execution model. The single largest ask, and the gap study said the same. |
+| Things the catalogue already has, refused anyway | ~14 | "minimum average volume $500 per 15-min candle" (avgBarVolumeUsd), "volume more than $1M in a 15-min candle" (barVolumeUsd), "price reaches MA5 or MA10" (priceVsSma5/10), "price closes above top BB" (bollingerPctBMin), "sell when TP 5%", "stop at 3%", "trailing stop 5%", "supertrend", "market cap at entry $1M" (marketCapUsd), "50% drawdown of position" (stop 50%), "buy $500 every hour" (add plan on a schedule) | False refusals. The model did not map a phrasing the catalogue supports. The cheapest and highest-yield fix on this list. |
+| Volatility and bar change | ~7 | "volatility increase by 1%", "volatility up 1%", "price go up 1%" | Missing keys: change in ATR / bandwidth over N bars, and change on the current bar. Small. |
+| Fixed periods and timeframes | ~4 | "1h 200 EMA", "price stays above the 1h 200 EMA", "middle Bollinger band" (SMA 20), "short timeframe play 5m and 15m" | Parameterised periods and multi-timeframe. |
+| Asset names not recognised | 3 | "wbtc", "cbbtc", "500" | Pre-dates the fix that lists both universes; should not recur. |
+| Out of scope for a rule | 3 | "founder post about good news", "high frequency trade setup", "turn off my stop loss" (refused on purpose) | News/social data does not exist here; the stop is mandatory by design. |
+
+Two things the ledger changes about the plan below. False refusals are a
+much bigger share than expected — roughly a fifth of everything typed, on
+rules that exist — so prompt and alias work comes before any new key. And
+grid/DCA is not one item among nine; it is the largest single gap and
+should be scoped as a strategy type of its own, not waited on.
+
 ## The plan, in order
 
-1. **A coverage harness (2 days).** A corpus of ~150 real strategy sentences,
-   drawn from the demand ledger and from how MQL5 / Pine users describe
-   strategies, run through the composer with the real model on every deploy.
-   Output: refusal rate, the list of refused phrases, and any drift. This is
-   the number to move; without it every fix is anecdotal.
-2. **Parameterised indicators (3 days).** Period on RSI, SMA/EMA pairs,
-   Bollinger, ATR, ADX, Stochastic. The battery computes from bars already;
-   the change is the key grammar (`rsi14` becomes `rsi` with a `period`),
-   the composer's catalogue and prompt, and the builder's chips. This alone
-   removes the largest class of refusal.
-3. **Windows and breakouts (2 days).** `changePct` over any window,
-   bar-change, new-high / new-low over N bars, generic cross-above /
-   cross-below over any two series. Needs the candle store to keep more bars
-   than 120 for long windows at small bar sizes.
-4. **Session and calendar facts (half a day).** Hour, weekday, timezone.
-5. **Candle patterns (2 days).** Engulfing, pin bar, doji, inside bar, from
-   OHLC. Composer aliases for the common names.
-6. **Cross-asset facts (2 days).** BTC and SOL trend and relative strength
-   for every token; the bars are already fetched for perps.
-7. **Multi-timeframe (1 week).** A second series per market, facts keyed by
-   timeframe, the composer able to say "on the daily". The biggest change
-   and the one that makes the "1h entry, daily trend" strategy possible.
-8. **Perp state history (1 day).** Persist OI, funding and borrow per tick so
-   change keys exist for them.
-9. **Grid / DCA execution (1 week).** Not a rule; a strategy type. Highest
-   demand per the gap study.
+1. **A coverage harness (2 days).** The thirty-nine phrases above are the
+   seed corpus, plus ~100 more in the shapes MQL5 / Pine users write. Run
+   through the composer with the real model on every deploy; report refusal
+   rate and the refused list. This is the number to move.
+2. **Kill the false refusals (2 days).** Aliases and evidence regexes for
+   the phrasings above (volume per candle with a timeframe named, "reaches
+   MA n", "closes above the top band", TP/SL/trailing stated as "sell when",
+   market cap "at entry", "buy $X every hour" → schedule add plan), worked
+   examples in the prompt for each, and the harness to prove it. Expected
+   to remove a fifth of all refusals without a new key.
+3. **Grid / DCA as a strategy type (1–2 weeks).** Levels between two prices,
+   fixed or progressive spacing, allocation per level, weighted average
+   entry, basket take-profit on the whole ladder, "cumulative range covered"
+   as the stop. A different executor, not a rule; the composer routes a grid
+   sentence to it. The largest ask in the ledger.
+4. **Volatility-change and bar-change keys (1 day).** ATR / bandwidth change
+   over N bars, current-bar change.
+5. **Parameterised indicators (3 days).** Period on RSI, MA pairs, Bollinger,
+   ATR; middle band as SMA 20. The battery computes from bars already; the
+   change is the key grammar, the catalogue and the builder's chips.
+6. **Windows and breakouts (2 days).** Change over any window, new high /
+   low over N bars, cross-above / below over any two series.
+7. **Session and calendar facts (half a day).** Hour, weekday, timezone.
+8. **Candle patterns (2 days).** Engulfing, pin bar, doji, inside bar.
+9. **Cross-asset facts (2 days).** BTC / SOL trend and relative strength.
+10. **Multi-timeframe (1 week).** A second series per market, facts keyed by
+    timeframe, "on the 1h" in the composer.
+11. **Perp state history (1 day).** OI, funding, borrow per tick so change
+    keys exist.
 
-Data: nothing above needs a new paid provider. Items 2–6 run on the candles
-already stored; item 7 needs more candle storage (the same sources, more
-rows); item 8 is our own reads. The one provider gap worth research is order
-book depth for spot on an order-book venue, which no rule needs yet.
+Data: nothing above needs a new paid provider. Items 2, 4–9 run on the
+candles already stored; item 10 needs more candle storage from the same
+sources; item 11 is our own reads. News and social signals ("founder post
+about good news") are the one category with no data source at all and are
+deliberately not on this list.
 
 ## What is not the problem
 
