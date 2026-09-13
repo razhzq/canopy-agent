@@ -94,13 +94,83 @@ rules that exist — so prompt and alias work comes before any new key. And
 grid/DCA is not one item among nine; it is the largest single gap and
 should be scoped as a strategy type of its own, not waited on.
 
+## The harness and the false refusals (done 13 Sep 2026)
+
+Steps 1 and 2 below shipped together in canopy-be.
+
+**Corpus.** `packages/agent-stack/src/coverageCorpus.ts` — 138 sentences:
+the 35 ledger phrases plus MQL5, Pine and Pionex-style shapes, each with an
+expectation (keys, exits, add plan, setup, ranking) or `refusalOk` with the
+gap it waits on. `rescue: true` marks the sentences the deterministic layer
+must compose from a verbatim refusal; a unit test pins every one.
+
+**Harness.** `npm run coverage:compose` in `packages/canopy-be`. Same prompt,
+same validator, same self-hosted model as the compose route, no database.
+`--dry` skips the model and measures the rescue layer alone; `--only ledger`,
+`--grep`, `--out file.json`. Exit code 1 on any false refusal, so it can gate
+a deploy.
+
+**What changed in the composer.** All of it lives in `compose.ts` and none
+of it invents a number: every value is read out of the user's own words.
+
+- Aliases can read a level from the phrase (`dollarsIn`): "$500 per
+  15-min candle" → avgBarVolumeUsd 500, "$1M in a 15-min candle" →
+  barVolumeUsd 1000000, "market cap at entry $1M" → marketCapUsd (or the
+  ceiling on "under"), "down 5%" with no window → changePct −5 with the
+  24-hour reading stated. No number, no rule.
+- An alias can name alternatives: "MA5 or MA10" is an either/or group of
+  priceVsSma5Pct / priceVsSma10Pct, not a refusal about 20/50 periods.
+- Supertrend: bare is the bullish state, "flips up" the event.
+- A refused exit with a number lands in exits (`recoverExit`): "sell when
+  TP 5%", "stop at 3%", "trailing stop 5%", "50% drawdown of the position".
+  Never over a figure the model set; "turn off my stop loss" stays refused.
+- A refused sell condition becomes an exit signal (`recoverExitSignal`):
+  "sell when RSI goes above 70" → exitWhen rsi14Min 70.
+- A whole-book sentence answered with a per-position take-profit is moved
+  to the basket, and the per-position figure reset.
+- A model rule whose period the sentence names differently is dropped and
+  refused with the periods note — "the 1h 200 EMA" no longer becomes the
+  20 EMA on screen. "200 EMA" and "EMA 200" both read as 200.
+- Half-refusals — the rule set and its own words listed as unsupported —
+  are dropped silently instead of writing a phantom to the ledger.
+- The prompt carries the exit, volume-per-candle and exit-signal phrasings
+  as worked examples.
+
+**Measured** (Qwen3-14B, temperature 0.2, so ±1–2 sentences run to run).
+
+| Run | Expressible | As asked | False refusals | Mismatches |
+|---|---|---|---|---|
+| Rescue layer only (`--dry`, every phrase refused verbatim) | 105 | 47 (44.8%) | 46 | 12 |
+| Ledger subset, real model | 20 | 18 (90.0%) | 0 | 2 |
+| Full corpus, real model, first run | 106 | 91 (85.8%) | 7 (6.6%) | 7 |
+| Full corpus after exit-signal + half-refusal fixes | 106 | 97 (91.5%) | 2 (1.9%) | 6 |
+
+The two remaining false refusals were half-refusals ("buy new launches"
+beside changeSinceLaunchPct; "only if I can sell $1,000 with under 2%
+impact" beside sellImpactPct) and are fixed; both re-run clean.
+
+**Still open from the runs.** Model choices the validator cannot yet
+correct, in the order the harness surfaces them:
+
+- Wrong twin of a floor/ceiling pair: "bandwidth over 10%" → the ceiling
+  key; "within 5% of the 60-day low" → the high-side key. Needs a direction
+  check on the stated words, like the period check.
+- The two-stage setup is skipped when the sentence says "then".
+- Substitutions on known gaps that the reading does not flag: "middle
+  Bollinger band" → the upper band; "volatility up 1%" → an ATR ceiling;
+  "a whale wallet buys" → buy/sell ratio. The catalogue keys are real but
+  the sentence asked for something else. These are the case for step 4
+  (volatility change) and step 5 (middle band as SMA 20), and for a
+  refusal when a launch-flow key is used for a wallet sentence.
+- "fast average above slow average" is read as the cross, not the state.
+
 ## The plan, in order
 
-1. **A coverage harness (2 days).** The thirty-nine phrases above are the
+1. **A coverage harness (2 days) — done.** The thirty-nine phrases above are the
    seed corpus, plus ~100 more in the shapes MQL5 / Pine users write. Run
    through the composer with the real model on every deploy; report refusal
    rate and the refused list. This is the number to move.
-2. **Kill the false refusals (2 days).** Aliases and evidence regexes for
+2. **Kill the false refusals (2 days) — done.** Aliases and evidence regexes for
    the phrasings above (volume per candle with a timeframe named, "reaches
    MA n", "closes above the top band", TP/SL/trailing stated as "sell when",
    market cap "at entry", "buy $X every hour" → schedule add plan), worked
