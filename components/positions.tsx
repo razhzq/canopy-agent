@@ -131,6 +131,11 @@ function TabButton({
 
 /* ------------------------------------------------------------------ open -- */
 
+/** One row per holding, and a perp long and short are two holdings. */
+function rowKeyOf(h: { symbol: string; perp?: { side: string } }): string {
+  return h.perp ? `${h.symbol}:${h.perp.side}` : h.symbol;
+}
+
 interface Lot {
   id: number;
   qty: number;
@@ -198,9 +203,12 @@ export function aggregate(
 ): Holding[] {
   const bySymbol = new Map<string, AgentDetail["positions"]>();
   for (const p of positions) {
-    const list = bySymbol.get(p.symbol);
+    // A perp long and a perp short in one market are two rows, never one:
+    // the venue holds them apart and so does the ledger.
+    const key = p.perp ? `${p.symbol}:${p.perp.side}` : p.symbol;
+    const list = bySymbol.get(key);
     if (list) list.push(p);
-    else bySymbol.set(p.symbol, [p]);
+    else bySymbol.set(key, [p]);
   }
 
   const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
@@ -208,7 +216,8 @@ export function aggregate(
   const bySymbolAsset = new Map(universe.map((a) => [a.symbol, a]));
 
   return [...bySymbol.entries()]
-    .map(([symbol, group]) => {
+    .map(([, group]) => {
+      const symbol = group[0].symbol;
       const lots: Lot[] = group
         .map((p) => ({
           id: p.id,
@@ -360,11 +369,12 @@ function OpenTable({
       </div>
 
       {shown.map((h) => {
-        const expanded = open === h.symbol;
+        const rowKey = rowKeyOf(h);
+        const expanded = open === rowKey;
         // One lot is not an accumulation — nothing to expand into.
         const canExpand = h.lots.length > 1;
         return (
-          <div key={h.symbol} className="border-b border-grid last:border-b-0">
+          <div key={rowKey} className="border-b border-grid last:border-b-0">
             {/* SIBLINGS, not nested. A × inside the expand button would be a
                 button inside a button — invalid, and every click on it would
                 also toggle the row underneath the dialog it opened. */}
@@ -372,7 +382,7 @@ function OpenTable({
               <button
                 type="button"
                 disabled={!canExpand}
-                onClick={() => setOpen(expanded ? null : h.symbol)}
+                onClick={() => setOpen(expanded ? null : rowKey)}
                 className="grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
               >
                 <span className="min-w-0">

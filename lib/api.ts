@@ -3736,7 +3736,13 @@ export const closePreview = (token: string, agentId: number, mint: string) =>
     body: JSON.stringify({ mint }),
   });
 
-export const closePosition = (token: string, agentId: number, mint: string) =>
+export const closePosition = (
+  token: string,
+  agentId: number,
+  mint: string,
+  /** On a perp market, which side. A hedge holds both and the owner closes one. */
+  side?: "long" | "short",
+) =>
   request<{
     closed: number;
     symbol: string;
@@ -3746,7 +3752,7 @@ export const closePosition = (token: string, agentId: number, mint: string) =>
   }>(
     `/agents/${agentId}/positions/close`,
     token,
-    { method: "POST", body: JSON.stringify({ mint }) },
+    { method: "POST", body: JSON.stringify({ mint, ...(side ? { side } : {}) }) },
   );
 
 /* ------------------------------------------------------------- username -- */

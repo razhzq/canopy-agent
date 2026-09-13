@@ -53,6 +53,8 @@ export interface ClosableHolding {
   valueUsd: number | null;
   pnlUsd: number | null;
   pnlPct: number | null;
+  /** On a perp position: which side this row is, so the close names it. */
+  perp?: { side: "long" | "short" };
   /** See Holding in positions.tsx — what closing costs, and what it leaves. */
   exitCostUsd?: number | null;
   netPnlUsd?: number | null;
@@ -139,7 +141,7 @@ export function ClosePositionModal({
     try {
       const token = await getAccessToken();
       if (!token) throw new Error(t("close_sign_in"));
-      const result = await closePosition(token, agentId, holding.mint);
+      const result = await closePosition(token, agentId, holding.mint, holding.perp?.side);
       onClosed();
       if (result.txSignature) {
         setSold(result.txSignature);
