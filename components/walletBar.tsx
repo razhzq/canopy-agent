@@ -40,10 +40,13 @@ export function WalletBar({
   address,
   isPaper,
   full = false,
+  perps = false,
 }: {
   agentId: number;
   address: string | null;
   isPaper: boolean;
+  /** The agent trades perps — threaded to the funding dialog for its SOL note. */
+  perps?: boolean;
   /** Fill the container instead of the header's fixed 248px column (phone). */
   full?: boolean;
 }) {
@@ -160,6 +163,7 @@ export function WalletBar({
           agentId={agentId}
           agentWallet={address}
           personalWallet={personalWallet}
+          perps={perps}
           initial="capital"
           onClose={() => setMoving(null)}
         />

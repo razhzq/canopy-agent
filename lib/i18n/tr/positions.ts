@@ -42,4 +42,8 @@ export const trPositions: Record<keyof typeof enPositions, string> = {
   positions_open_showing: "{total} içinden {shown} gösteriliyor",
   positions_open_count_one: "1 pozisyon",
   positions_open_count_many: "{count} pozisyon",
+
+  positions_perp_long: "Long",
+  positions_perp_short: "Short",
+  positions_perp_leg: "{lev}× · tasfiye {liq}",
 };

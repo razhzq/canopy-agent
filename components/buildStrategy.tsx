@@ -83,7 +83,7 @@ export interface RuleSpec {
    * quietly ignores one of its rules. Showing it and letting them set it is
    * worse than not offering it.
    */
-  classes?: ("rwa" | "spot")[];
+  classes?: ("rwa" | "spot" | "perp")[];
   /**
    * Whether this rule's USEFUL RANGE shrinks as the bar gets smaller.
    *
@@ -895,6 +895,22 @@ export const RWA_RULES: RuleSpec[] = [
   },
 ];
 
+/**
+ * Readings only a perp market has. Served by the perps specialist from the
+ * venue's market row; on a spot market they have no fact and a rule on them
+ * rejects every candidate, so they are offered only when the picked market is
+ * a perp (see rulesForClasses). Keys and comparators mirror the backend
+ * catalogue in compose.ts — a key here the backend does not know is dropped
+ * silently when a draft merges.
+ */
+export const PERP_RULES: RuleSpec[] = [
+  { key: "borrowAprPct", labelKey: "rule_borrowAprPct", basis: "static", helpKey: "rule_borrowAprPct_help", op: "lte", value: 40, min: 0, max: 500, step: 1, unit: "%", classes: ["perp"] },
+  { key: "utilizationPct", labelKey: "rule_utilizationPct", basis: "static", helpKey: "rule_utilizationPct_help", op: "lte", value: 80, min: 0, max: 100, step: 5, unit: "%", classes: ["perp"] },
+  { key: "fundingRateHourlyPct", labelKey: "rule_fundingRateHourlyPct", basis: "static", helpKey: "rule_fundingRateHourlyPct_help", op: "lte", value: 0.05, min: -1, max: 1, step: 0.005, unit: "%", classes: ["perp"] },
+  { key: "fundingRateHourlyPctMin", labelKey: "rule_fundingRateHourlyPctMin", basis: "static", helpKey: "rule_fundingRateHourlyPctMin_help", op: "gte", value: 0.03, min: -1, max: 1, step: 0.005, unit: "%", classes: ["perp"] },
+  { key: "openInterestImbalancePct", labelKey: "rule_openInterestImbalancePct", basis: "static", helpKey: "rule_openInterestImbalancePct_help", op: "lte", value: 70, min: 0, max: 100, step: 5, unit: "%", classes: ["perp"] },
+];
+
 /** Bar sizes a strategy's technical rules can be measured on. */
 export type Timeframe = "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
 export const DEFAULT_TIMEFRAME: Timeframe = "1d";
@@ -913,7 +929,7 @@ export const TIMEFRAMES: {
    * passed every validation, deployed, woke on schedule and bought nothing,
    * with the reason buried in a screening trace nobody opens.
    */
-  classes?: ("rwa" | "spot")[];
+  classes?: ("rwa" | "spot" | "perp")[];
 }[] = [
   { tf: "1d", labelKey: "tf_1d", detailKey: "tf_1d_detail" },
   { tf: "1h", labelKey: "tf_1h", detailKey: "tf_1h_detail" },
@@ -2210,9 +2226,13 @@ export function rulesForClass(strategyClass: "rwa" | "spot"): RuleSpec[] {
  * The consequence is real and belongs in the UI, not hidden here: a margin rule
  * on a mixed agent screens out every token, because a token has no margin.
  */
-export function rulesForClasses(classes: ("rwa" | "spot")[]): RuleSpec[] {
+export function rulesForClasses(classes: ("rwa" | "spot" | "perp")[]): RuleSpec[] {
   if (classes.length === 0) return rulesForClass("rwa");
-  return RWA_RULES.filter(
-    (r) => !r.classes || classes.some((c) => r.classes!.includes(c)),
+  // "perp" adds the perp-only readings on top of the token vocabulary: a perp
+  // on SOL is screened on SOL's bars, so every token indicator applies too.
+  const base = classes.includes("perp") && !classes.includes("spot") ? [...classes, "spot" as const] : classes;
+  const spot = RWA_RULES.filter(
+    (r) => !r.classes || base.some((c) => r.classes!.includes(c)),
   );
+  return classes.includes("perp") ? [...spot, ...PERP_RULES] : spot;
 }

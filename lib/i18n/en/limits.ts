@@ -304,4 +304,45 @@ export const enLimits = {
   preset_deep: "Deep pools only",
   preset_deep_prompt:
     "Only trade when the pool is deep. Take profit steadily and keep a tight stop.",
+
+  // ── Perps ─────────────────────────────────────────────────────────────
+  sl_group_perp: "Leverage and direction",
+  sl_perp_note:
+    "A perp is a bet on the price with borrowed size. The venue holds your collateral and opens a position of collateral × leverage; past the liquidation price it keeps the collateral.",
+  sl_direction: "Direction",
+  sl_direction_long: "Go long",
+  sl_direction_short: "Go short",
+  sl_direction_help:
+    "The long side uses the rules above. The short side has its own rules below. Both on means the agent can take either, one at a time per market.",
+  sl_direction_none: "At least one side has to be on, or the agent has nothing to do.",
+  sl_leverage: "Leverage",
+  sl_leverage_liq: "Liquidates at −{pct}% from entry",
+  sl_leverage_liq_help:
+    "How far price can move against the position before the venue takes the collateral. Fees are already counted.",
+  sl_leverage_max: "This market allows up to {max}×.",
+  sl_collateral: "Collateral per position",
+  sl_collateral_help: "What leaves the wallet for one position. The most you can lose on it.",
+  sl_notional: "Opens {notional} of exposure at {lev}×",
+  sl_exit_effect: "{pct}% in price is {effect}% on collateral at {lev}×",
+  sl_stop_inside_liq:
+    "This stop is at or past the liquidation price at {lev}×. Tighten the stop or lower the leverage.",
+  sl_opposite: "On an opposite signal",
+  sl_opposite_help: "What happens when the other side's rules fire while a position is open.",
+  sl_opposite_hold: "Hold",
+  sl_opposite_hold_help: "Keep the open side. A long and a short can coexist as a hedge.",
+  sl_opposite_close: "Close",
+  sl_opposite_close_help: "Close the open side and wait for the next cycle.",
+  sl_opposite_flip: "Flip",
+  sl_opposite_flip_help: "Close and open the other way in one cycle. Two sets of fees.",
+  sl_short_rules: "Go short when",
+  sl_short_rules_help:
+    "Same readings as the long side, the other way round. A rule you switch on here is a condition for a short.",
+  sl_short_rules_none: "No short rules yet — switch some on, or turn the short side off.",
+  sl_borrow_cap: "Skip entries when borrow is above",
+  sl_borrow_cap_help:
+    "Yearly borrow rate the pool charges the side being opened. It rises with pool utilization; a crowded pool gets expensive fast.",
+  sl_liq_buffer: "Keep the stop at least",
+  sl_liq_buffer_unit: "× ATR inside liquidation",
+  sl_liq_buffer_help:
+    "The stop must sit this many average true ranges above the liquidation price, or the entry is skipped.",
 } as const;

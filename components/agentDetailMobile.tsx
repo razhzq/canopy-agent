@@ -312,6 +312,7 @@ export function AgentDetailMobile({
               agentId={agent.id}
               address={walletAddress}
               isPaper={agent.is_paper}
+              perps={positions.some((p) => !!p.perp)}
               full
             />
           </div>

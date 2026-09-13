@@ -7,6 +7,8 @@ import {
   marketKey,
   peekAllMarkets,
   getAllMarkets,
+  getPerpMarkets,
+  peekPerpMarkets,
   num,
   type DiscoverySpec,
   type UniverseAsset,
@@ -82,11 +84,12 @@ import { Check, Search, X } from "lucide-react";
  * not invent a second name for the same venue — the dialog draws the control as
  * a dropdown rather than chips, but the words have to match.
  */
-export const VENUE_LABEL: Record<Router, TranslationKey | "Jupiter" | "KalqiX" | "PhantX"> = {
+export const VENUE_LABEL: Record<Router, TranslationKey | "Jupiter" | "KalqiX" | "PhantX" | "Jupiter Perps"> = {
   // Brands, not descriptions — they read the same in every language.
   jupiter: "Jupiter",
   kalqix: "KalqiX",
   phantx: "PhantX",
+  "jupiter-perps": "Jupiter Perps",
 };
 
 /**
@@ -100,7 +103,7 @@ export function venueLabel(
   t: (k: TranslationKey) => string,
 ): string {
   const entry = VENUE_LABEL[router];
-  return entry === "Jupiter" || entry === "KalqiX" || entry === "PhantX"
+  return entry === "Jupiter" || entry === "KalqiX" || entry === "PhantX" || entry === "Jupiter Perps"
     ? entry
     : t(entry);
 }
@@ -120,13 +123,18 @@ export const MARKET_CLASSES = [
   {
     key: "token",
     labelKey: "mk_class_token" as TranslationKey,
-    admits: (a: UniverseAsset) => a.kind === "crypto",
+    // A perp on a token (SOL-PERP) sits under Token; a perp on an equity, when
+    // a venue lists one, will sit under Stocks by its assetClass.
+    admits: (a: UniverseAsset) => a.kind === "crypto" || (a.kind === "perp" && a.assetClass === "token"),
   },
 ] as const;
 
 /** Kept so this file reads unchanged; the picker and the add-market modal
  *  now share one definition, because two lists of the same chips drift. */
 const CLASSES = MARKET_CLASSES;
+
+/** Market · price · 24h volume · max leverage · borrow long/short · utilization. */
+const PERP_GRID = "sm:grid-cols-[minmax(0,1fr)_100px_100px_64px_120px_64px]";
 
 /**
  * Rows on one page.
@@ -173,10 +181,19 @@ export function PickMarket({
   discovery,
   onDiscoveryChange,
   onNext,
+  instrument = "spot",
+  onInstrumentChange,
 }: {
   value: UniverseAsset[];
   /** The whole selection, every time — the parent never merges. */
   onChange: (next: UniverseAsset[]) => void;
+  /**
+   * Spot or perps — the first control on the screen, because it changes what
+   * the rest of the screen lists. Lifted to the builder so the draft keeps it;
+   * absent (the add-market dialog) means spot and no switch is drawn.
+   */
+  instrument?: "spot" | "perp";
+  onInstrumentChange?: (next: "spot" | "perp") => void;
   /**
    * The screen, if this strategy has one. Undefined means it trades only what
    * is picked above.
@@ -199,7 +216,14 @@ export function PickMarket({
   // unchanged and there is nothing for hydration to disagree about.
   // Every class at once. The categories below are a view over one list rather
   // than four separate fetches, so switching chips never waits on the network.
-  const universe = useApi((t) => getAllMarkets(t), [], peekAllMarkets() ?? undefined);
+  // Two universes, never merged: a perp row has no pool to be deep or thin and
+  // a token has no leverage. The switch decides which list is fetched.
+  const perps = instrument === "perp";
+  const universe = useApi(
+    (t) => (perps ? getPerpMarkets(t) : getAllMarkets(t)),
+    [perps],
+    (perps ? peekPerpMarkets() : peekAllMarkets()) ?? undefined,
+  );
   const [query, setQuery] = useState("");
   const [klass, setKlass] = useState<string>("all");
   /** A router key, or "all". Independent of the class chips — see the note above. */
@@ -469,7 +493,7 @@ export function PickMarket({
         block-level child would stretch the full width of the column and read as
         a toolbar rather than as a control.
       */}
-      {tokensPresent ? (
+      {tokensPresent && !perps ? (
         <div className={`${SEGMENT_TRACK} w-fit`} role="tablist">
           <button
             type="button"
@@ -519,8 +543,40 @@ export function PickMarket({
         </div>
       ) : null}
 
-      {view === "markets" ? (
+      {view === "markets" || perps ? (
       <>
+      {/*
+        SPOT / PERPS, above everything else on the screen.
+        Not a fifth class chip and not a venue: a perp on SOL is still a token
+        market by class and fills on a venue of its own, so it would break both
+        partitions. It is a third axis, and it is first because the chips, the
+        venue filter and the list all re-read from it. Switching drops the
+        pick — a SOL spot pick is not a SOL-PERP pick — which the builder does.
+      */}
+      {onInstrumentChange ? (
+        <div className={`${SEGMENT_TRACK} w-fit`} role="tablist" aria-label={t("mk_instrument_aria")}>
+          {(["spot", "perp"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={instrument === k}
+              onClick={() => {
+                if (instrument === k) return;
+                onInstrumentChange(k);
+                setKlass("all");
+                setVenue("all");
+                setQuery("");
+                setCursor(0);
+                setPage(0);
+              }}
+              className={`${SEGMENT_ITEM} ${instrument === k ? SEGMENT_ON : SEGMENT_OFF}`}
+            >
+              {t(k === "spot" ? "mk_instrument_spot" : "mk_instrument_perps")}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="flex items-center gap-2">
@@ -664,6 +720,19 @@ export function PickMarket({
         </Note>
       ) : (
         <div ref={listRef} className="overflow-hidden rounded-xl border border-border">
+          {perps ? (
+            // What a perp trader reads before entering. Borrow and utilization
+            // are the numbers that decide whether to enter at all; pool depth
+            // has no meaning on a pool that is the counterparty.
+            <div className={`grid grid-cols-1 ${PERP_GRID} items-center gap-x-4 border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted`}>
+              <span>{t("mk_col_market")}</span>
+              <span className="text-right">{t("mk_col_price")}</span>
+              <span className="text-right">{t("mk_col_volume")}</span>
+              <span className="text-right">{t("mk_col_max_lev")}</span>
+              <span className="text-right">{t("mk_col_borrow")}</span>
+              <span className="text-right">{t("mk_col_util")}</span>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-2.5 font-ui text-[11.5px] text-text-muted">
             <span>{t("mk_col_market")}</span>
             <span className="text-right">{t("mk_col_price")}</span>
@@ -671,6 +740,7 @@ export function PickMarket({
             {/* Not "volume": nothing here measures traded volume. */}
             <span className="text-right">{t("mk_col_depth")}</span>
           </div>
+          )}
 
           {pageRows.map((a, i) => (
             <button
@@ -689,7 +759,7 @@ export function PickMarket({
               // The cursor row is a surface; a chosen row is a tick. Two facts,
               // two marks — the wash used to stand for both, so a hovered pick
               // and a pick you had made looked the same.
-              className={`relative grid w-full grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
+              className={`relative grid w-full grid-cols-1 ${perps ? PERP_GRID : "sm:grid-cols-[minmax(0,1fr)_110px_90px_120px]"} items-center gap-x-4 border-b border-grid px-4 py-3 text-left transition-colors last:border-b-0 ${
                 i === cursor ? "bg-surface-2/70" : ""
               }`}
             >
@@ -714,7 +784,7 @@ export function PickMarket({
                     chosen(a) ? "text-text-primary" : "text-text-primary"
                   }`}
                 >
-                  {a.symbol}/USDC
+                  {a.kind === "perp" ? a.symbol : `${a.symbol}/USDC`}
                 </span>
                 {/* Where it settles and who fills it. Per row, because that
                     stops being one answer as soon as a second chain lands. */}
@@ -749,6 +819,30 @@ export function PickMarket({
               <span className="tnum text-right font-mono text-[12.5px] text-text-primary">
                 {tokenPrice(num(a.priceUsd)).display}
               </span>
+              {a.kind === "perp" && a.perp ? (
+                <>
+                  <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+                    {num(a.perp.volume24hUsd) === null ? "—" : money(num(a.perp.volume24hUsd)!)}
+                  </span>
+                  <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+                    {a.perp.maxLeverage}×
+                  </span>
+                  {/* Long rate first, short rate second: the two curves differ
+                      by an order of magnitude on Jupiter and a trader picks a
+                      side knowing which one they will pay. */}
+                  <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
+                    {a.perp.borrowAprLongPct.toFixed(1)}% / {a.perp.borrowAprShortPct.toFixed(1)}%
+                  </span>
+                  <span
+                    className={`tnum text-right font-mono text-[12.5px] ${
+                      a.perp.utilizationPct >= 80 ? "text-negative" : "text-text-secondary"
+                    }`}
+                  >
+                    {a.perp.utilizationPct.toFixed(0)}%
+                  </span>
+                </>
+              ) : (
+                <>
               <span
                 className={`tnum text-right font-mono text-[12.5px] ${
                   num(a.changePct) === null
@@ -765,6 +859,8 @@ export function PickMarket({
               <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">
                 {num(a.liquidityUsd) === null ? "—" : money(num(a.liquidityUsd)!)}
               </span>
+                </>
+              )}
             </button>
           ))}
 

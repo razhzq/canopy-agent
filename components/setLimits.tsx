@@ -15,6 +15,8 @@ import {
   type ExitRules,
   type UniverseAsset,
   type DiscoverySpec,
+  type PerpConfig,
+  type PerpMarketInfo,
 } from "@/lib/api";
 import {
   AddPlanCard,
@@ -25,6 +27,8 @@ import {
   TIMEFRAMES,
   fmt,
   rescaleRuleValue,
+  rulesForClasses,
+  toPayload,
   ruleBasisNote,
   ruleLabel,
   ruleSpan,
@@ -34,7 +38,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot, LABEL, MICRO, Spinner, StatusLine } from "@/components/kit";
+import { FieldNote, InfoDot, LABEL, MICRO, SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Spinner, StatusLine } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
 import { ChevronDown } from "lucide-react";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
@@ -123,7 +127,67 @@ export interface Limits {
   anyOf?: DetectionRule[][];
   /** Two-stage entry. Absent means the rules are the whole test. */
   setup?: SetupSpec;
+  /**
+   * Leverage, direction and the short side, on a perp market only. The long
+   * side is `rules`; the short side keeps its own rule list here, drawn from
+   * the same catalogue. Absent on a spot draft.
+   */
+  perp?: PerpLimits;
 }
+
+/** The builder's form of the perp block. `perpPayload` turns it into what the API takes. */
+export interface PerpLimits {
+  leverage: number;
+  longEnabled: boolean;
+  shortEnabled: boolean;
+  /** The short side's rules, `enabled` flags and all, like {@link Limits.rules}. */
+  shortRules: RuleSpec[];
+  onOppositeSignal: "hold" | "close" | "flip";
+  /** Absent = no cap. */
+  maxBorrowAprPct?: number;
+  /** Absent = not checked. */
+  liquidationBufferAtr?: number;
+}
+
+export function defaultPerp(): PerpLimits {
+  return {
+    leverage: 2,
+    longEnabled: true,
+    shortEnabled: false,
+    shortRules: rulesForClasses(["spot", "perp"]).map((r) => ({ ...r, enabled: false })),
+    onOppositeSignal: "close",
+  };
+}
+
+/** The block the API takes. A short side with nothing switched on is no short side. */
+export function perpPayload(p: PerpLimits): PerpConfig {
+  const shortOn = p.shortEnabled ? p.shortRules.filter((r) => r.enabled !== false) : [];
+  return {
+    leverage: p.leverage,
+    longEnabled: p.longEnabled,
+    onOppositeSignal: p.onOppositeSignal,
+    ...(shortOn.length > 0 ? { short: { rules: toPayload(shortOn) } } : {}),
+    ...(p.maxBorrowAprPct !== undefined ? { maxBorrowAprPct: p.maxBorrowAprPct } : {}),
+    ...(p.liquidationBufferAtr !== undefined ? { liquidationBufferAtr: p.liquidationBufferAtr } : {}),
+  };
+}
+
+/**
+ * How far price can move against a fresh position before the venue takes the
+ * collateral, in percent. 1/L less the maintenance margin less the round-trip
+ * fees — the line beside the leverage control. Jupiter's figures when the row
+ * carries none.
+ */
+export function perpLiquidationDistancePct(leverage: number, info?: PerpMarketInfo): number {
+  if (!(leverage > 0)) return 0;
+  const maintenance = (info?.maintenanceMarginPct ?? 0.2) / 100;
+  // Open and close base fees plus one basis point of impact each way.
+  const fees = ((info?.openFeeBps ?? 6) + (info?.closeFeeBps ?? 6) + 2) / 10_000;
+  return Math.max(0, (1 / leverage - maintenance - fees) * 100);
+}
+
+const OPPOSITE_LABEL = { close: "sl_opposite_close", hold: "sl_opposite_hold", flip: "sl_opposite_flip" } as const;
+const OPPOSITE_HELP = { close: "sl_opposite_close_help", hold: "sl_opposite_hold_help", flip: "sl_opposite_flip_help" } as const;
 
 /** Verification capital. The budget is expressed against it. */
 const CAPITAL_USD = 10_000;
@@ -209,6 +273,15 @@ export function SetLimits({
   const caps: RiskCaps = value.riskCaps ?? DEFAULT_RISK_CAPS;
   const setCaps = (next: RiskCaps) => onChange({ ...value, riskCaps: next });
   const isCrypto = market ? market.kind === "crypto" : true;
+  // A perp market: leverage, direction and the short side appear, sizing is
+  // read as collateral, and the exits say what they do on that collateral.
+  const isPerp = market?.kind === "perp";
+  const perp: PerpLimits = value.perp ?? defaultPerp();
+  const setPerp = (patch: Partial<PerpLimits>) => onChange({ ...value, perp: { ...perp, ...patch } });
+  const perpInfo = market?.perp;
+  const perpMaxLeverage = perpInfo?.maxLeverage ?? 250;
+  const liqPct = perpLiquidationDistancePct(perp.leverage, perpInfo);
+  const stopPastLiq = isPerp && value.exits.stopLossPct >= liqPct;
   // Every market in a strategy shares one class, so the first decides which bar
   // sizes are on offer — the same rule the ATR rule and the compliance screen
   // already follow.
@@ -222,6 +295,7 @@ export function SetLimits({
    * the wall this step used to be.
    */
   const [showOff, setShowOff] = useState(false);
+  const [showOffShort, setShowOffShort] = useState(false);
   /**
    * ONE TIMING CONTROL. Bar size and cycle are two axes, but picking 5-minute
    * bars already sets a 5-minute cycle, so two rows of identical pills read
@@ -864,8 +938,209 @@ export function SetLimits({
             </div>
           </div>
 
+          {isPerp ? (
           <div>
-            <SectionLabel title={t("sl_group_exits")} />
+            <SectionLabel title={t("sl_group_perp")} note={t("sl_perp_note")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {/* DIRECTION. Two switches, not a three-way: each side is a
+                  thing you turn on, and both on is the "both" the founder
+                  asked for. At least one must stay on. */}
+              <BudgetRow label={t("sl_direction")} info={t("sl_direction_help")}>
+                <div className="flex items-center justify-end gap-2">
+                  {(["long", "short"] as const).map((side) => {
+                    const on = side === "long" ? perp.longEnabled : perp.shortEnabled;
+                    const other = side === "long" ? perp.shortEnabled : perp.longEnabled;
+                    return (
+                      <button
+                        key={side}
+                        type="button"
+                        aria-pressed={on}
+                        disabled={on && !other}
+                        title={on && !other ? t("sl_direction_none") : undefined}
+                        onClick={() =>
+                          setPerp(side === "long" ? { longEnabled: !on } : { shortEnabled: !on })
+                        }
+                        className={`h-8 rounded-full border px-3.5 font-ui text-[12.5px] font-medium transition-colors disabled:cursor-not-allowed ${
+                          on
+                            ? side === "long"
+                              ? "border-accent/40 bg-accent/10 text-accent"
+                              : "border-negative/40 bg-negative/10 text-negative"
+                            : "border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
+                        }`}
+                      >
+                        {t(side === "long" ? "sl_direction_long" : "sl_direction_short")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </BudgetRow>
+              {/* LEVERAGE. The user's number, not a cap of ours; the venue's
+                  maximum is the only ceiling. The line beside it is the
+                  warning: past 5× it turns amber, past 20× red, and above 20×
+                  the presets end and the number has to be typed. */}
+              <BudgetRow
+                label={t("sl_leverage")}
+                info={t("sl_leverage_liq_help")}
+                help={`${t("sl_leverage_liq", { pct: liqPct.toFixed(1) })} · ${t("sl_leverage_max", { max: perpMaxLeverage })}`}
+              >
+                <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                  <div className="flex items-center gap-1">
+                    {LEVERAGE_PRESETS.filter((n) => n <= perpMaxLeverage).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        aria-pressed={perp.leverage === n}
+                        onClick={() => setPerp({ leverage: n })}
+                        className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                          perp.leverage === n
+                            ? "bg-surface-2 text-text-primary"
+                            : "text-text-dim hover:text-text-primary"
+                        }`}
+                      >
+                        {n}×
+                      </button>
+                    ))}
+                  </div>
+                  <NumberEntry
+                    value={perp.leverage}
+                    min={1.1}
+                    max={perpMaxLeverage}
+                    step={0.1}
+                    unit="×"
+                    label={t("sl_leverage")}
+                    onChange={(n) => setPerp({ leverage: Math.round(n * 10) / 10 })}
+                  />
+                </div>
+              </BudgetRow>
+              {/* OPPOSITE SIGNAL. What the other side's rules do while a
+                  position is open. Only meaningful with both sides on. */}
+              {perp.longEnabled && perp.shortEnabled ? (
+                <BudgetRow label={t("sl_opposite")} info={t("sl_opposite_help")}>
+                  <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_opposite")}>
+                    {(["close", "hold", "flip"] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        role="radio"
+                        aria-checked={perp.onOppositeSignal === k}
+                        title={t(OPPOSITE_HELP[k])}
+                        onClick={() => setPerp({ onOppositeSignal: k })}
+                        className={`${SEGMENT_ITEM} ${perp.onOppositeSignal === k ? SEGMENT_ON : SEGMENT_OFF}`}
+                      >
+                        {t(OPPOSITE_LABEL[k])}
+                      </button>
+                    ))}
+                  </div>
+                </BudgetRow>
+              ) : null}
+              {/* THE TWO PERP CAPS. Both optional; absent means not checked. */}
+              <BudgetRow label={t("sl_borrow_cap")} info={t("sl_borrow_cap_help")}>
+                <div className="flex items-center justify-end gap-3">
+                  <Dimmed on={perp.maxBorrowAprPct !== undefined}>
+                    <NumberEntry
+                      value={perp.maxBorrowAprPct ?? 40}
+                      min={0}
+                      max={500}
+                      step={5}
+                      unit="%"
+                      label={t("sl_borrow_cap")}
+                      onChange={(n) => setPerp({ maxBorrowAprPct: n })}
+                    />
+                  </Dimmed>
+                  <CapToggle
+                    on={perp.maxBorrowAprPct !== undefined}
+                    onToggle={(on) => setPerp({ maxBorrowAprPct: on ? 40 : undefined })}
+                  />
+                </div>
+              </BudgetRow>
+              <BudgetRow label={t("sl_liq_buffer")} info={t("sl_liq_buffer_help")}>
+                <div className="flex items-center justify-end gap-3">
+                  <Dimmed on={perp.liquidationBufferAtr !== undefined}>
+                    <NumberEntry
+                      value={perp.liquidationBufferAtr ?? 1.5}
+                      min={0.5}
+                      max={10}
+                      step={0.5}
+                      unit={t("sl_liq_buffer_unit")}
+                      label={t("sl_liq_buffer")}
+                      onChange={(n) => setPerp({ liquidationBufferAtr: n })}
+                    />
+                  </Dimmed>
+                  <CapToggle
+                    on={perp.liquidationBufferAtr !== undefined}
+                    onToggle={(on) => setPerp({ liquidationBufferAtr: on ? 1.5 : undefined })}
+                  />
+                </div>
+              </BudgetRow>
+            </div>
+          </div>
+          ) : null}
+          {/* GO SHORT WHEN. The short side's own rule list, same catalogue,
+              same chips as the long side above. A rule switched on here is a
+              condition for a short; the long side's list is untouched. */}
+          {isPerp && perp.shortEnabled ? (
+          <div>
+            <SectionLabel title={t("sl_short_rules")} note={t("sl_short_rules_help")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(() => {
+                const on = perp.shortRules.filter((r) => r.enabled !== false);
+                const off = perp.shortRules.filter((r) => r.enabled === false);
+                const shown = on.length === 0 || showOffShort ? [...on, ...off] : on;
+                return (
+                  <>
+                    {on.length === 0 ? (
+                      <p className="border-b border-grid px-4 py-2.5 font-ui text-[12.5px] text-text-muted">
+                        {t("sl_short_rules_none")}
+                      </p>
+                    ) : null}
+                    {shown.map((r) => (
+                      <RuleChip
+                        key={r.key}
+                        rule={r}
+                        timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+                        onChange={(p) =>
+                          setPerp({
+                            shortRules: perp.shortRules.map((x) => (x.key === r.key ? { ...x, ...p } : x)),
+                          })
+                        }
+                      />
+                    ))}
+                    {on.length > 0 && off.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-expanded={showOffShort}
+                        onClick={() => setShowOffShort((v) => !v)}
+                        className="flex w-full items-center justify-between gap-4 border-t border-grid px-4 py-2.5 text-left font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        <span>{t(showOffShort ? "sl_hide_off_rules" : "sl_show_off_rules", { count: off.length })}</span>
+                        <ChevronDown
+                          aria-hidden
+                          className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                            showOffShort ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+          ) : null}
+          <div>
+            <SectionLabel
+              title={t("sl_group_exits")}
+              note={
+                isPerp
+                  ? `${t("sl_exit_effect", { pct: `−${value.exits.stopLossPct}`, effect: `−${Math.round(value.exits.stopLossPct * perp.leverage)}`, lev: perp.leverage })} · ${t("sl_exit_effect", { pct: `+${value.exits.takeProfitPct}`, effect: `+${Math.round(value.exits.takeProfitPct * perp.leverage)}`, lev: perp.leverage })}`
+                  : undefined
+              }
+            />
+            {stopPastLiq ? (
+              <p className="mb-2 font-ui text-[12.5px] text-negative">
+                {t("sl_stop_inside_liq", { lev: perp.leverage })}
+              </p>
+            ) : null}
             <div className="overflow-hidden rounded-xl border border-border">
             {/* The ceiling is the strategy route's, not the composer's.
                 /agents/compose clamps a target to 200% (compose.ts's
@@ -1131,12 +1406,16 @@ export function SetLimits({
         <SectionLabel title={t("sl_budget")} note={t("sl_budget_note", { book: money(CAPITAL_USD) })} />
         <div className="overflow-hidden rounded-xl border border-border">
           <BudgetRow
-            label={t("sl_position_limit")}
-            info={t("sl_position_info")}
-            help={t("sl_position_consequence", {
-              pct: ((value.positionUsd / CAPITAL_USD) * 100).toFixed(0),
-              positions: Math.max(1, Math.floor(CAPITAL_USD / value.positionUsd)),
-            })}
+            label={t(isPerp ? "sl_collateral" : "sl_position_limit")}
+            info={t(isPerp ? "sl_collateral_help" : "sl_position_info")}
+            help={
+              isPerp
+                ? t("sl_notional", { notional: money(value.positionUsd * perp.leverage), lev: perp.leverage })
+                : t("sl_position_consequence", {
+                    pct: ((value.positionUsd / CAPITAL_USD) * 100).toFixed(0),
+                    positions: Math.max(1, Math.floor(CAPITAL_USD / value.positionUsd)),
+                  })
+            }
           >
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
               <div className="flex items-center gap-1">
@@ -1533,6 +1812,8 @@ function RankingControl({
 
 /** Amounts people actually type. The entry beside them takes anything else. */
 const QUICK_SIZES = [250, 500, 1_000, 2_500];
+/** Presets end at 20×; past that the number has to be typed. That is the only friction. */
+const LEVERAGE_PRESETS = [1.5, 2, 3, 5, 10, 20];
 
 /** A section's name in the running register: a title, and a quiet fact beside it. */
 function SectionLabel({

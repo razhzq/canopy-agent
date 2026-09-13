@@ -201,4 +201,19 @@ export const enBuild = {
   fn_go_to: "Go to {name}",
   fn_later_note: "You can do this later. The agent waits. It will not trade, spend, or charge you anything until it has a balance.",
   fn_later: "Do this later",
+
+  // ── Perps on the review rail ──────────────────────────────────────────
+  review_row_direction: "Direction",
+  review_direction_long: "Long",
+  review_direction_short: "Short",
+  review_direction_both: "Long and short",
+  review_row_leverage: "Leverage",
+  review_leverage_value: "{lev}× · liquidates at −{pct}%",
+  review_row_collateral: "Collateral · notional",
+  review_collateral_value: "{collateral} · {notional}",
+  review_row_opposite: "On opposite signal",
+  review_opposite_hold: "Hold (hedge)",
+  review_opposite_close: "Close",
+  review_opposite_flip: "Flip",
+  review_exit_on_collateral: "{pct}% ({effect}% on collateral)",
 } as const;

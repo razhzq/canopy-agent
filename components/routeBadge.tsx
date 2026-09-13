@@ -20,7 +20,7 @@ import { useT } from "@/lib/i18n";
  */
 
 export type Chain = "solana" | "base";
-export type Router = "jupiter" | "kalqix" | "phantx";
+export type Router = "jupiter" | "kalqix" | "phantx" | "jupiter-perps";
 
 interface Mark {
   label: string;
@@ -72,10 +72,16 @@ const ROUTER_LABEL: Record<Router, string> = {
   // the fills it records follow the account, so the row a person picked has to
   // say which. See services/kalqix/partners.ts in canopy-be.
   phantx: "PhantX",
+  // Jupiter's perpetuals venue: same brand, a different market and a
+  // different position. Named apart because an agent trades one or the other
+  // and the review rail has to say which.
+  "jupiter-perps": "Jupiter Perps",
 };
 
 const ROUTER: Record<Router, Mark> = {
   jupiter: { label: ROUTER_LABEL.jupiter, src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
+  // The same mark as the swap router; the label is what separates them.
+  "jupiter-perps": { label: ROUTER_LABEL["jupiter-perps"], src: "/venues/jupiter.png", scale: 1, bg: "bg-[#101728]" },
   // Cropped from the icon+wordmark lockup: the horse fills its square edge to
   // edge, so it needs no scaling, and its art is on opaque dark like Solana's.
   kalqix: { label: ROUTER_LABEL.kalqix, src: "/venues/kalqix.png", scale: 1, bg: "bg-black" },
@@ -108,6 +114,11 @@ export function routeOf(asset: UniverseAsset): { chain: Chain; router: Router } 
   if (asset.venue === "kalqix" || asset.venue === "phantx") {
     return { chain: "base", router: asset.venue };
   }
+  // A perp settles on Solana like a Jupiter swap does, so the chain cannot
+  // tell them apart; the row's kind and its namespaced identity can.
+  if (asset.kind === "perp" || asset.venue === "jupiter-perps" || asset.mint?.startsWith("perp:")) {
+    return { chain: "solana", router: "jupiter-perps" };
+  }
   return asset.chain ? routeOfChain(asset.chain) : routeOfMint(asset.mint);
 }
 
@@ -135,6 +146,7 @@ export function routeOfMint(mint?: string): { chain: Chain; router: Router } {
   // Same book, same listings, a different account — and the namespace is the
   // only thing that says which, which is exactly why the identity carries it.
   if (mint?.startsWith("phantx:")) return { chain: "base", router: "phantx" };
+  if (mint?.startsWith("perp:")) return { chain: "solana", router: "jupiter-perps" };
   return { chain: "solana", router: "jupiter" };
 }
 

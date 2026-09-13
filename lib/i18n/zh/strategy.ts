@@ -370,4 +370,15 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   plan_every_days: "{n} 天",
   plan_every_hours: "{n} 小时",
   plan_every_minutes: "{n} 分钟",
+
+  rule_borrowAprPct: "最高借款利率（年化）",
+  rule_borrowAprPct_help: "池子向开仓方向收取的年化利率。随池使用率上升。仅永续市场。",
+  rule_utilizationPct: "最高池使用率",
+  rule_utilizationPct_help: "池子中已被持仓锁定的比例。越过拐点后借款利率急剧上升。仅永续市场。",
+  rule_fundingRateHourlyPct: "最高小时资金费率",
+  rule_fundingRateHourlyPct_help: "为正表示多头付给空头。Jupiter 这类池子场所为零；订单簿场所为实时值。仅永续市场。",
+  rule_fundingRateHourlyPctMin: "最低小时资金费率",
+  rule_fundingRateHourlyPctMin_help: "至少形式：仅当多头每小时至少支付这么多时才做空。仅永续市场。",
+  rule_openInterestImbalancePct: "最高持仓失衡",
+  rule_openInterestImbalancePct_help: "多空未平仓量的不平衡程度，占较大一侧的百分比。拥挤的一侧容易被挤压。仅永续市场。",
 };

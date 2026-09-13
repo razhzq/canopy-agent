@@ -180,4 +180,12 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   // ── 第一步的两个视图 ───────────────────────────────────────────
   mk_tab_pick: "手动选择",
   mk_tab_discovery: "自动发现",
+
+  mk_instrument_aria: "现货或永续",
+  mk_instrument_spot: "现货",
+  mk_instrument_perps: "永续",
+  mk_col_volume: "24h 成交量",
+  mk_col_max_lev: "最高杠杆",
+  mk_col_borrow: "借款利率 多 / 空",
+  mk_col_util: "池使用率",
 };

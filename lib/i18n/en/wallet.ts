@@ -138,4 +138,8 @@ export const enWallet = {
   transfer_not_a_number: "not a number",
   transfer_max_decimals: "at most {decimals} decimal places",
   transfer_amount_above_zero: "enter an amount above zero",
+
+  // ── Perps ─────────────────────────────────────────────────────────────
+  funding_perp_sol_float:
+    "This agent trades perps. Keep about {sol} SOL in the wallet as well: each position request needs a small rent deposit that sponsorship does not cover. It comes back when the position closes.",
 } as const;

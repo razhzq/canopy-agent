@@ -48,4 +48,9 @@ export const enPositions = {
   positions_open_showing: "Showing {shown} of {total}",
   positions_open_count_one: "1 position",
   positions_open_count_many: "{count} positions",
+
+  // ── Perps ─────────────────────────────────────────────────────────────
+  positions_perp_long: "Long",
+  positions_perp_short: "Short",
+  positions_perp_leg: "{lev}× · liquidates at {liq}",
 } as const;

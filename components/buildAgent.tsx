@@ -28,6 +28,9 @@ import { DEFAULT_RISK_CAPS,
   CAPITAL_USD,
   RWA_RULES,
   SetLimits,
+  defaultPerp,
+  perpLiquidationDistancePct,
+  perpPayload,
   type Limits,
 } from "@/components/setLimits";
 import {
@@ -116,11 +119,13 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
 const DRAFT_KEY = "canopy_build_draft_v1";
 
 interface Draft {
-  v: 1;
+  /** 2 added `instrument`. A v1 draft reads as spot, which is all it could be. */
+  v: 1 | 2;
   savedAt: number;
   name: string;
   named: boolean;
   step: number;
+  instrument?: "spot" | "perp";
   markets: UniverseAsset[];
   discovery: DiscoverySpec | undefined;
   limits: Limits;
@@ -189,6 +194,9 @@ export function BuildAgent() {
    * class, so any of them would describe the specialist equally well.
    */
   const [markets, setMarkets] = useState<UniverseAsset[]>([]);
+  // Spot or perps. Step 01's first control; kept here because the draft
+  // persists it and step 02 reads it.
+  const [instrument, setInstrument] = useState<"spot" | "perp">("spot");
   const asset = markets[0] ?? null;
   /**
    * The screen, when the author asked the agent to find its own markets.
@@ -286,10 +294,11 @@ export function BuildAgent() {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw) as Draft;
-        if (d && d.v === 1) {
+        if (d && (d.v === 1 || d.v === 2)) {
           setName(d.name ?? "");
           setNamed(!!d.named);
           setStep(d.step ?? 0);
+          setInstrument(d.instrument ?? "spot");
           setMarkets(d.markets ?? []);
           setDiscovery(d.discovery);
           setLimits(d.limits ?? DEFAULT_LIMITS);
@@ -341,7 +350,7 @@ export function BuildAgent() {
     if (!dirty) return;
     const id = setTimeout(() => {
       try {
-        const d: Draft = { v: 1, savedAt: Date.now(), name, named, step, markets, discovery, limits, model };
+        const d: Draft = { v: 2, savedAt: Date.now(), name, named, step, instrument, markets, discovery, limits, model };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
         setSaved(true);
         if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -351,7 +360,7 @@ export function BuildAgent() {
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [dirty, name, named, step, markets, discovery, limits, model]);
+  }, [dirty, name, named, step, instrument, markets, discovery, limits, model]);
 
   // Leaving with an unfinished draft asks first. The draft is saved
   // either way; this is for the tab closed by accident mid-sentence.
@@ -390,6 +399,7 @@ export function BuildAgent() {
     setName("");
     setNamed(false);
     setStep(0);
+    setInstrument("spot");
     setMarkets([]);
     setDiscovery(undefined);
     setLimits(DEFAULT_LIMITS);
@@ -576,6 +586,9 @@ export function BuildAgent() {
         // asset. Sent regardless when set, because the engine treats a ranking
         // wider than the universe as a no-op rather than an error.
         ranking: limits.ranking,
+        // Only on a perp market. The short side's rules are sent as written;
+        // the backend checks them against the same catalogue as the long side.
+        ...(instrument === "perp" && limits.perp ? { perp: perpPayload(limits.perp) } : {}),
         // Step 3. The RUNTIME council model — what the five seats reason with
         // every cycle. It is deliberately NOT what compiled the rules above:
         // that ran on Canopy's model, before this agent existed.
@@ -621,6 +634,25 @@ export function BuildAgent() {
     syncRulesTo(classesIn(next), discovery);
     setMarkets(next);
   }
+  /**
+   * Switching instrument drops the pick and the screen — a SOL spot pick is
+   * not a SOL-PERP pick — and gives the limits a perp block or takes it away.
+   * The name, the model and every other limit carry over.
+   */
+  function onInstrumentChange(next: "spot" | "perp"): void {
+    if (next === instrument) return;
+    setInstrument(next);
+    syncRulesTo([], undefined, next);
+    setMarkets([]);
+    setDiscovery(undefined);
+    setLimits((l) => {
+      if (next === "perp") {
+        return { ...l, perp: l.perp ?? defaultPerp() };
+      }
+      const { perp: _dropped, ...rest } = l;
+      return rest;
+    });
+  }
 
   /**
    * Adding or removing a screen changes which rules step 2 can offer.
@@ -646,11 +678,15 @@ export function BuildAgent() {
   function syncRulesTo(
     classes: ("rwa" | "spot")[],
     spec: DiscoverySpec | undefined,
+    instr: "spot" | "perp" = instrument,
   ): void {
-    const withScreen = (cs: ("rwa" | "spot")[], on: boolean): ("rwa" | "spot")[] =>
-      on ? [...new Set<"rwa" | "spot">([...cs, "spot"])] : cs;
-    const beforeAll = withScreen(classesIn(markets), Boolean(discovery));
-    const afterAll = withScreen(classes, Boolean(spec));
+    type Cls = "rwa" | "spot" | "perp";
+    const withScreen = (cs: Cls[], on: boolean): Cls[] =>
+      on ? [...new Set<Cls>([...cs, "spot"])] : cs;
+    // A perp market adds the perp-only readings to the catalogue.
+    const withPerp = (cs: Cls[], on: boolean): Cls[] => (on ? [...new Set<Cls>([...cs, "perp"])] : cs);
+    const beforeAll = withPerp(withScreen(classesIn(markets), Boolean(discovery)), instrument === "perp");
+    const afterAll = withPerp(withScreen(classes, Boolean(spec)), instr === "perp");
     if (afterAll.join() === beforeAll.join()) return;
     setLimits((l) => {
       const enabled = new Map(l.rules.map((r) => [r.key, r.enabled]));
@@ -729,6 +765,55 @@ export function BuildAgent() {
         tone: "negative" as const,
         step: "02",
       },
+      // The perp rows, only on a perp market. Direction, leverage with the
+      // liquidation distance, what leaves the wallet against what the venue
+      // opens, and what an opposite signal does — the four facts a person
+      // must not discover after deploying.
+      ...(instrument === "perp" && limits.perp
+        ? (() => {
+            const p = limits.perp;
+            const shortOn = p.shortEnabled && p.shortRules.some((r) => r.enabled !== false);
+            const liq = perpLiquidationDistancePct(p.leverage, markets[0]?.perp);
+            return [
+              {
+                label: t("review_row_direction"),
+                value: t(
+                  p.longEnabled && shortOn
+                    ? "review_direction_both"
+                    : shortOn
+                      ? "review_direction_short"
+                      : "review_direction_long",
+                ),
+                step: "02",
+              },
+              {
+                label: t("review_row_leverage"),
+                value: t("review_leverage_value", { lev: p.leverage, pct: liq.toFixed(1) }),
+                tone: p.leverage > 20 ? ("negative" as const) : undefined,
+                step: "02",
+              },
+              {
+                label: t("review_row_collateral"),
+                value: t("review_collateral_value", {
+                  collateral: money(limits.positionUsd),
+                  notional: money(limits.positionUsd * p.leverage),
+                }),
+                step: "02",
+              },
+              {
+                label: t("review_row_opposite"),
+                value: t(
+                  p.onOppositeSignal === "hold"
+                    ? "review_opposite_hold"
+                    : p.onOppositeSignal === "flip"
+                      ? "review_opposite_flip"
+                      : "review_opposite_close",
+                ),
+                step: "02",
+              },
+            ];
+          })()
+        : []),
       {
         label: t("review_row_compliance"),
         value: t(
@@ -892,6 +977,8 @@ export function BuildAgent() {
               discovery={discovery}
               onDiscoveryChange={onDiscoveryChange}
               onNext={() => setStep(1)}
+              instrument={instrument}
+              onInstrumentChange={onInstrumentChange}
             />
           ) : step === 1 ? (
             <SetLimits
@@ -1028,6 +1115,8 @@ export function BuildAgent() {
                   onChange={onMarketsChange}
                   discovery={discovery}
                   onDiscoveryChange={onDiscoveryChange}
+                  instrument={instrument}
+                  onInstrumentChange={onInstrumentChange}
                 />
               </div>
             ) : step === 1 ? (

@@ -72,6 +72,7 @@ import {
   type EquitySeries,
   type StrategyRow,
   type UniverseAsset,
+  isPerpMint,
 } from "@/lib/api";
 
 /**
@@ -527,6 +528,10 @@ export function AgentDetailView({
 
   const { detail, strategy, equity, assets, assetsPending } = state;
   const { agent, positions, wallet, lastRun } = detail;
+  // A perp agent: its universe holds a namespaced identity, or its book does.
+  const tradesPerps =
+    (strategy?.universe ?? []).some((sel) => sel.kind === "crypto" && isPerpMint(sel.mint)) ||
+    positions.some((p) => !!p.perp);
 
 
   // The strategy's universe, resolved against live marks. A selection whose
@@ -780,6 +785,7 @@ export function AgentDetailView({
             agentId={agentId}
             address={wallet?.address ?? null}
             isPaper={agent.is_paper}
+            perps={tradesPerps}
           />
         </div>
 
