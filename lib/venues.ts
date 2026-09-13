@@ -35,10 +35,15 @@ export type Venue = {
    * still integrating.
    */
   chain?: Chain;
+  /** What the venue trades. Absent means spot, which is every venue that predates perps. */
+  instrument?: "perp";
 };
 
 export const VENUES: Venue[] = [
   { key: "jupiter", name: "Jupiter", feePct: 0.04, live: true, chain: "solana" },
+  // Jupiter's perpetuals venue. 6 bps each way is the published base fee; the
+  // impact fee and the hourly borrow ride on top and are shown on the row.
+  { key: "jupiter-perps", name: "Jupiter Perps", feePct: 0.06, live: true, chain: "solana", instrument: "perp" },
   { key: "canopy", name: "Canopy", feePct: 0.02, live: true, chain: "solana" },
   // KalqiX publishes no flat taker schedule to quote here, so its fee stays
   // null rather than becoming a guess with a percent sign on it.
@@ -66,7 +71,12 @@ function chainsOf(markets: UniverseAsset[]): Set<Chain> {
  */
 export function liveVenuesFor(markets: UniverseAsset[]): Venue[] {
   const chains = chainsOf(markets);
-  return VENUES.filter((v) => v.live && v.chain && chains.has(v.chain));
+  // Perp markets fill on a perp venue and nowhere else, and a token never
+  // fills on one. The instrument splits the list before the chain does.
+  const perp = markets.some((m) => m.kind === "perp");
+  return VENUES.filter(
+    (v) => v.live && v.chain && chains.has(v.chain) && (v.instrument === "perp") === perp,
+  );
 }
 
 /**

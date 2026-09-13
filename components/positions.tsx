@@ -180,6 +180,8 @@ interface Holding {
   netPnlUsd: number | null;
   openedAt: string;
   lots: Lot[];
+  /** On a perp position: what to draw beside the symbol, and what the maths ran on. */
+  perp?: { side: "long" | "short"; leverage: number; notionalUsd: number; entryUsd: number; liquidationUsd: number | null };
 }
 
 /**
@@ -218,8 +220,54 @@ export function aggregate(
 
       const qty = lots.reduce((s, l) => s + l.qty, 0);
       const costUsd = lots.reduce((s, l) => s + l.costUsd, 0);
-      const markUsd = priced.get(symbol) ?? null;
       const asset = bySymbolAsset.get(symbol);
+
+      // A PERP IS NOT A LOT. Its cost is the collateral, its exposure is the
+      // notional, and its value is collateral plus what the notional has made
+      // or lost — floored at zero, since past liquidation the venue has it.
+      // The mark comes from the row's own venue read first, the universe
+      // price second; the percent is the PRICE MOVE, sign-adjusted for a
+      // short, which is how the strategy's stops are written.
+      const leg = group[0].perp;
+      if (leg) {
+        const entryUsd = Number(leg.entry_price_usd);
+        const notionalUsd = Number(leg.size_usd);
+        const rowMark = leg.mark_price_usd === null ? null : Number(leg.mark_price_usd);
+        const perpMark = rowMark ?? priced.get(symbol) ?? null;
+        const move =
+          perpMark === null || entryUsd <= 0
+            ? null
+            : ((perpMark - entryUsd) / entryUsd) * (leg.side === "long" ? 1 : -1);
+        const pnl = move === null ? null : notionalUsd * move;
+        const value = pnl === null ? null : Math.max(0, costUsd + pnl);
+        return {
+          mint: group[0].mint,
+          symbol,
+          underlying: group[0].underlying,
+          qty,
+          costUsd,
+          avgUsd: entryUsd,
+          markUsd: perpMark,
+          logoSrc: asset?.iconUrl ?? null,
+          issuer: asset?.issuer ?? null,
+          valueUsd: value,
+          pnlUsd: value === null ? null : value - costUsd,
+          pnlPct: move === null ? null : move * 100,
+          exitCostUsd: null,
+          netPnlUsd: value === null ? null : value - costUsd,
+          openedAt: lots[0].openedAt,
+          lots,
+          perp: {
+            side: leg.side,
+            leverage: Number(leg.leverage),
+            notionalUsd,
+            entryUsd,
+            liquidationUsd: leg.liquidation_price_usd === null ? null : Number(leg.liquidation_price_usd),
+          },
+        };
+      }
+
+      const markUsd = priced.get(symbol) ?? null;
       const valueUsd = markUsd === null ? null : markUsd * qty;
 
       return {
@@ -343,6 +391,23 @@ function OpenTable({
                     </span>
                   </span>
                   <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
+                    {h.perp ? (
+                      // Side, leverage and where the venue takes it: the three
+                      // facts a perp row has that a lot does not. The side is
+                      // coloured because it is the one word that changes what
+                      // "up" means on this row.
+                      <>
+                        <span className={h.perp.side === "long" ? "text-accent" : "text-negative"}>
+                          {t(h.perp.side === "long" ? "positions_perp_long" : "positions_perp_short")}
+                        </span>
+                        {" "}
+                        {t("positions_perp_leg", {
+                          lev: h.perp.leverage,
+                          liq: h.perp.liquidationUsd === null ? "—" : tokenPrice(h.perp.liquidationUsd).display,
+                        })}
+                        {" · "}
+                      </>
+                    ) : null}
                     {h.lots.length === 1
                       ? t("positions_since", {
                           date: shortDate(h.openedAt, locale),

@@ -183,4 +183,18 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   fn_go_to: "前往 {name}",
   fn_later_note: "可以稍后再做。智能体会等待，在有余额之前不会交易、消费或向您收费。",
   fn_later: "稍后再做",
+
+  review_row_direction: "方向",
+  review_direction_long: "做多",
+  review_direction_short: "做空",
+  review_direction_both: "多空双向",
+  review_row_leverage: "杠杆",
+  review_leverage_value: "{lev}× · 跌至 −{pct}% 时清算",
+  review_row_collateral: "保证金 · 名义仓位",
+  review_collateral_value: "{collateral} · {notional}",
+  review_row_opposite: "出现反向信号时",
+  review_opposite_hold: "持有（对冲）",
+  review_opposite_close: "平仓",
+  review_opposite_flip: "反手",
+  review_exit_on_collateral: "{pct}%（相当于保证金的 {effect}%）",
 };

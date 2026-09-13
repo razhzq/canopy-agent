@@ -123,4 +123,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   transfer_not_a_number: "不是数字",
   transfer_max_decimals: "最多 {decimals} 位小数",
   transfer_amount_above_zero: "请输入大于零的金额",
+
+  funding_perp_sol_float:
+    "该智能体交易永续合约。钱包中还需保留约 {sol} SOL：每笔仓位请求需要一小笔租金押金，赞助不覆盖这部分。仓位关闭后会退回。",
 };

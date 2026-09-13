@@ -409,4 +409,21 @@ export const enStrategy = {
   plan_every_days: "{n} days",
   plan_every_hours: "{n} hours",
   plan_every_minutes: "{n} min",
+
+  // ── Perp-only readings ────────────────────────────────────────────────
+  rule_borrowAprPct: "Max borrow rate (APR)",
+  rule_borrowAprPct_help:
+    "Yearly rate the pool charges the side being opened. Rises with pool utilization. Perp markets only.",
+  rule_utilizationPct: "Max pool utilization",
+  rule_utilizationPct_help:
+    "Share of the pool already locked by open positions. Past the venue's kink the borrow rate climbs steeply. Perp markets only.",
+  rule_fundingRateHourlyPct: "Max hourly funding",
+  rule_fundingRateHourlyPct_help:
+    "Positive means longs pay shorts. Zero on a pool venue like Jupiter; live on an order book. Perp markets only.",
+  rule_fundingRateHourlyPctMin: "Min hourly funding",
+  rule_fundingRateHourlyPctMin_help:
+    "The at-least form: go short only when longs are paying at least this much an hour. Perp markets only.",
+  rule_openInterestImbalancePct: "Max open-interest imbalance",
+  rule_openInterestImbalancePct_help:
+    "How lopsided long and short open interest are, as a percent of the larger side. A crowded side is the side that gets squeezed. Perp markets only.",
 } as const;

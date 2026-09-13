@@ -42,9 +42,12 @@ export function AddFundsModal({
   initial = "capital",
   onChanged,
   onClose,
+  perps = false,
 }: {
   agentId: number;
   agentWallet: string | null;
+  /** The agent trades perps: the funding panel adds the SOL rent-float line. */
+  perps?: boolean;
   personalWallet: string | null;
   initial?: FundsTab;
   onChanged?: () => void;
@@ -77,7 +80,7 @@ export function AddFundsModal({
         {tab === "capital" ? (
           // The address is handed down so the panel can read the chain itself
           // when canopy-be cannot — see the fallback note in funding.tsx.
-          <FundingPanel agentId={agentId} address={agentWallet} />
+          <FundingPanel agentId={agentId} address={agentWallet} perps={perps} />
         ) : (
           <ModelTopUpForm
             agentId={agentId}

@@ -96,8 +96,17 @@ interface View {
 export function FundingPanel({
   agentId,
   address,
+  perps = false,
 }: {
   agentId: number;
+  /**
+   * The one exception to "USDC only" on this screen. A perp agent posts USDC
+   * as collateral like any other, but every position request creates a
+   * temporary account on chain whose rent deposit sponsorship does not pay,
+   * so the wallet needs a little SOL as well. Said here, on the funding
+   * screen, rather than discovered as a refused first trade.
+   */
+  perps?: boolean;
   /**
    * The wallet address, if the caller already knows it.
    *
@@ -276,6 +285,11 @@ export function FundingPanel({
           <StatusLine tone={funded ? "good" : "pending"}>
             {t(funded ? "funding_ready" : "funding_waiting")}
           </StatusLine>
+          {perps ? (
+            <p className="max-w-[44ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
+              {t("funding_perp_sol_float", { sol: "0.02" })}
+            </p>
+          ) : null}
         </div>
 
         {/* Address. The one bordered object on the screen, because it is the

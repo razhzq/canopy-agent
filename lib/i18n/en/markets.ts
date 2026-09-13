@@ -226,4 +226,13 @@ export const enMarkets = {
   // distinguishes it from the other tab, where the agent does the picking.
   mk_tab_pick: "Pick markets",
   mk_tab_discovery: "Discovery",
+
+  // ── Spot / Perps ──────────────────────────────────────────────────────
+  mk_instrument_aria: "Spot or perpetuals",
+  mk_instrument_spot: "Spot",
+  mk_instrument_perps: "Perps",
+  mk_col_volume: "24h volume",
+  mk_col_max_lev: "Max lev",
+  mk_col_borrow: "Borrow L / S",
+  mk_col_util: "Pool used",
 } as const;

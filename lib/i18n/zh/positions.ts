@@ -40,4 +40,8 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   positions_open_showing: "已显示 {shown} / {total}",
   positions_open_count_one: "共 1 笔持仓",
   positions_open_count_many: "共 {count} 笔持仓",
+
+  positions_perp_long: "多",
+  positions_perp_short: "空",
+  positions_perp_leg: "{lev}× · 清算价 {liq}",
 };

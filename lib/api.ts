@@ -481,12 +481,61 @@ export interface DetectionRule {
  * resolved fresh server-side at every boot, so a stored address can never start
  * pointing somewhere else.
  */
+/** A perp market's live parameters, as the backend's picker row carries them. */
+export interface PerpMarketInfo {
+  underlying: string;
+  /** The venue's own market name: "SOL". */
+  market: string;
+  maxLeverage: number;
+  minCollateralUsd: number;
+  /** Null when the venue publishes no per-position cap. */
+  maxPositionUsd: number | null;
+  /** Maintenance margin as a percent of notional: 0.2 on Jupiter. */
+  maintenanceMarginPct: number;
+  /** Yearly, percent, the rate a long pays right now. */
+  borrowAprLongPct: number;
+  /** Yearly, percent, the rate a short pays right now. */
+  borrowAprShortPct: number;
+  utilizationPct: number;
+  /** Zero on a pool venue; live on an order book. */
+  fundingRateHourlyPct: number;
+  volume24hUsd: number | null;
+  openFeeBps: number;
+  closeFeeBps: number;
+  /** What the venue holds against each side. Funding asks for USDC either way. */
+  collateral: { long: string; short: string };
+}
+
+/**
+ * The perp block on a strategy — leverage, direction, the short-side recipe.
+ * Mirrors `PerpConfig` in @canopy/agent-contracts; the backend clamps and
+ * validates, this is what the builder sends.
+ */
+export interface PerpConfig {
+  leverage: number;
+  longEnabled: boolean;
+  short?: {
+    rules: DetectionRule[];
+    anyOf?: DetectionRule[][];
+    setup?: SetupSpec;
+    exitWhen?: DetectionRule[];
+  };
+  onOppositeSignal: "hold" | "close" | "flip";
+  maxBorrowAprPct?: number;
+  liquidationBufferAtr?: number;
+}
+
 export interface UniverseAsset {
   /**
    * Which identity model this asset uses, and therefore which selection
    * variant picking it produces.
+   *
+   * A "perp" row is a perpetual-futures market. It has no token: its `mint`
+   * is a namespaced identity ("perp:jupiter:SOL"), and picking it produces the
+   * crypto selection variant carrying that identity, which is how the backend
+   * tells a perp from a token everywhere downstream (docs/perps-builder-spec.md).
    */
-  kind: "rwa" | "crypto";
+  kind: "rwa" | "crypto" | "perp";
   /**
    * The ticker the mint tracks. ABSENT for a crypto token, which has no
    * underlying — it is the asset. Left off rather than filled with the symbol,
@@ -518,9 +567,15 @@ export interface UniverseAsset {
    * identical rows — the chain cannot, and the picker has to show both because
    * an agent trades one of them.
    */
-  venue?: "jupiter" | "kalqix" | "phantx";
+  venue?: "jupiter" | "kalqix" | "phantx" | "jupiter-perps";
   /** How much is known about a crypto token. Absent for RWA. */
   tier?: "verified" | "listed" | "pool";
+  /**
+   * The venue's live parameters, on a perp row only. What a perp trader reads
+   * before entering, and what step 02 needs to draw the liquidation line
+   * without another request.
+   */
+  perp?: PerpMarketInfo;
   /**
    * When the sweep last saw this token.
    *
@@ -1072,9 +1127,39 @@ export async function getMarketsForClass(
  * it must agree on what "the same asset" means.
  */
 export function marketKey(a: UniverseAsset): string {
-  return a.kind === "crypto"
+  // A perp's identity IS its mint, like a token's, so it keys the same way —
+  // and cannot collide, because no address starts with "perp:".
+  return a.kind === "crypto" || a.kind === "perp"
     ? `crypto:${a.mint}`
     : `rwa:${a.issuer}/${a.underlying}`;
+}
+
+/** The perp universe — a separate list behind the builder's Spot / Perps switch. */
+export async function getPerpMarkets(token: string): Promise<UniverseAsset[]> {
+  const key = "perp";
+  const fresh = peekUniverse(key);
+  if (fresh) return fresh.assets as UniverseAsset[];
+  const pending = universeInFlight.get(key);
+  if (pending) return (await pending).assets as UniverseAsset[];
+  const call = request<UniverseResponse>(`/agents/universe?instrument=perp`, token)
+    .then((data) => {
+      universeCache.set(key, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => {
+      universeInFlight.delete(key);
+    });
+  universeInFlight.set(key, call);
+  return (await call).assets as UniverseAsset[];
+}
+
+export function peekPerpMarkets(): UniverseAsset[] | null {
+  const fresh = peekUniverse("perp");
+  return fresh ? (fresh.assets as UniverseAsset[]) : null;
+}
+
+export function isPerpMint(mint?: string | null): boolean {
+  return typeof mint === "string" && mint.startsWith("perp:");
 }
 
 /**
@@ -1135,14 +1220,16 @@ export function peekAllMarkets(): UniverseAsset[] | null {
  * later; a token pins its mint here and forever.
  */
 export function selectionFor(a: UniverseAsset): UniverseSelection {
-  return a.kind === "crypto"
+  // A perp is stored as a crypto selection carrying its namespaced identity;
+  // the backend's normaliser keeps that shape and reads the prefix.
+  return a.kind === "crypto" || a.kind === "perp"
     ? { kind: "crypto", mint: a.mint! }
     : { kind: "rwa", underlying: a.underlying!, issuer: a.issuer };
 }
 
 /** The strategy class an asset implies. A strategy has exactly one. */
 export function classFor(a: UniverseAsset): "rwa" | "spot" {
-  return a.kind === "crypto" ? "spot" : "rwa";
+  return a.kind === "crypto" || a.kind === "perp" ? "spot" : "rwa";
 }
 
 /**
@@ -1189,6 +1276,8 @@ export interface ComposedDraft {
   timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
   /** Set only when the description asked to buy repeatedly. */
   addPlan?: AddPlan;
+  /** Present only when the sentence was composed for a perp market. */
+  perp?: PerpConfig;
   /** One sentence on how the request was read. */
   reading: string;
 }
@@ -1419,6 +1508,11 @@ export const createStrategy = (
     riskCaps?: RiskCaps;
     /** Keep the best N of what passed the rules. Omitted keeps all. */
     ranking?: RankingSpec;
+    /**
+     * Leverage, direction and the short-side recipe. Sent only when the
+     * picked market is a perp; the long side is `rules` / `anyOf` / `setup`.
+     */
+    perp?: PerpConfig;
     /**
      * Which model the agent's council reasons with, chosen in step 3.
      *
@@ -2569,6 +2663,21 @@ export interface AgentDetail {
     opened_by_sme: string | null;
     opened_by_signal: string | null;
     opened_at: string;
+    /**
+     * The perp leg, on a perp position only. `cost_basis_usd` is then the
+     * collateral and `qty` the exposure in tokens; the notional the venue
+     * holds is `size_usd`. Absent on every spot lot.
+     */
+    perp?: {
+      side: "long" | "short";
+      leverage: string;
+      size_usd: string;
+      entry_price_usd: string;
+      mark_price_usd: string | null;
+      liquidation_price_usd: string | null;
+      mark_borrow_fees_usd: string | null;
+      mark_pnl_after_fees_usd: string | null;
+    };
   }[];
   lastRun: {
     id: string;
@@ -2852,6 +2961,8 @@ export const updateAgentStrategy = (
     maxPositionPct?: number;
     /** Entries per cycle, 1–10. */
     maxTradesPerTick?: number;
+    /** The perp block, replaced whole. */
+    perp?: PerpConfig;
   },
 ) =>
   request<{ agentId: number; changed: string[] }>(
