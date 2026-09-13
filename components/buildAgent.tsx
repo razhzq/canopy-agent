@@ -31,6 +31,9 @@ import { DEFAULT_RISK_CAPS,
   defaultPerp,
   perpLiquidationDistancePct,
   perpPayload,
+  gridPayload,
+  gridReady,
+  describeGrid,
   type Limits,
 } from "@/components/setLimits";
 import {
@@ -262,6 +265,11 @@ export function BuildAgent() {
   const [reviewing, setReviewing] = useState(false);
 
   const activeRules = limits.rules.filter((r) => r.enabled !== false);
+  // A grid replaces the rules: one token, a ladder, no entry rules and no
+  // per-position exits. Spot only.
+  const isGrid =
+    instrument === "spot" && limits.strategyType === "grid" && !!limits.grid && markets.length === 1 && !!markets[0]?.mint;
+  const gridOk = isGrid && gridReady(limits.grid);
 
   /* ------------------------------------------------------------- drafts --
      Everything above is component state, which is to say it lived exactly as
@@ -534,15 +542,15 @@ export function BuildAgent() {
         strategyClass: classesIn(markets)[0] ?? (discovery ? "spot" : "rwa"),
         // Only rules left on. An off rule is absent, not zeroed — a zeroed
         // threshold still applies and still excludes things.
-        rules: toPayload(activeRules),
+        rules: isGrid ? [] : toPayload(activeRules),
         // The third and fourth things collected and then dropped here, after
         // timeframe and addPlan. These two are worse than those were: a
         // sentence is the ONLY way to build either, so an either/or group or a
         // two-stage entry that does not survive this call cannot be created at
         // all — the composer builds it, the route stores it, and nothing in
         // between carried it.
-        anyOf: limits.anyOf,
-        setup: limits.setup,
+        anyOf: isGrid ? [] : limits.anyOf,
+        setup: isGrid ? undefined : limits.setup,
         safetyFloor: {
           minLiquidityUsd: 25_000,
           maxSlippagePct: 1.5,
@@ -558,7 +566,7 @@ export function BuildAgent() {
         // optional on the route, and absent is what every strategy written
         // before this sends.
         discovery,
-        exits: limits.exits,
+        exits: isGrid ? { takeProfitPct: 0, stopLossPct: 0, maxHoldDays: 0 } : limits.exits,
         // Both of these were collected by the builder and then dropped on the
         // floor here — a timeframe the author picked and a plan the composer
         // read out of their sentence never reached the strategy they created.
@@ -569,7 +577,7 @@ export function BuildAgent() {
         // anything outside 300–86400 rather than clamping, and every value the
         // picker offers is inside it.
         tickIntervalSec: limits.cadenceSec,
-        addPlan: limits.addPlan ?? null,
+        addPlan: isGrid ? null : (limits.addPlan ?? null),
         // The compliance screen the author chose in step 2. Omitted when they
         // never chose, which defers to the server default rather than asserting
         // "none" on their behalf.
@@ -589,6 +597,9 @@ export function BuildAgent() {
         // Only on a perp market. The short side's rules are sent as written;
         // the backend checks them against the same catalogue as the long side.
         ...(instrument === "perp" && limits.perp ? { perp: perpPayload(limits.perp) } : {}),
+        ...(isGrid && limits.grid && markets[0]?.mint
+          ? { grid: gridPayload(limits.grid, { mint: markets[0].mint, symbol: markets[0].symbol }) }
+          : {}),
         // Step 3. The RUNTIME council model — what the five seats reason with
         // every cycle. It is deliberately NOT what compiled the rules above:
         // that ran on Canopy's model, before this agent existed.
@@ -724,11 +735,22 @@ export function BuildAgent() {
             .join(" · ") || "—",
         step: "01",
       },
-      {
-        label: t("review_row_rules"),
-        value: t("review_row_rules_value", { count: activeRules.length }),
-        step: "02",
-      },
+      ...(isGrid && limits.grid
+        ? [
+            {
+              label: t("review_row_grid"),
+              value: describeGrid(limits.grid, markets[0]?.symbol ?? null, t),
+              tone: "accent" as const,
+              step: "02",
+            },
+          ]
+        : [
+            {
+              label: t("review_row_rules"),
+              value: t("review_row_rules_value", { count: activeRules.length }),
+              step: "02",
+            },
+          ]),
       {
         label: t("review_row_measured_on"),
         // A bar size, written the way every chart writes it.
@@ -753,18 +775,22 @@ export function BuildAgent() {
         value: String(limits.tradesPerCycle),
         step: "02",
       },
-      {
-        label: t("review_row_take_profit"),
-        value: `+${limits.exits.takeProfitPct}%`,
-        tone: "accent" as const,
-        step: "02",
-      },
-      {
-        label: t("review_row_stop_loss"),
-        value: `−${limits.exits.stopLossPct}%`,
-        tone: "negative" as const,
-        step: "02",
-      },
+      ...(isGrid
+        ? []
+        : [
+            {
+              label: t("review_row_take_profit"),
+              value: `+${limits.exits.takeProfitPct}%`,
+              tone: "accent" as const,
+              step: "02",
+            },
+            {
+              label: t("review_row_stop_loss"),
+              value: `−${limits.exits.stopLossPct}%`,
+              tone: "negative" as const,
+              step: "02",
+            },
+          ]),
       // The perp rows, only on a perp market. Direction, leverage with the
       // liquidation distance, what leaves the wallet against what the venue
       // opens, and what an opposite signal does — the four facts a person
@@ -947,13 +973,13 @@ export function BuildAgent() {
           ? {
               label: t("build_cta_model"),
               hint: t("build_cta_model_hint"),
-              disabled: activeRules.length === 0,
+              disabled: isGrid ? !gridOk : activeRules.length === 0,
               onClick: () => setStep(2),
             }
           : {
               label: t("build_cta_review"),
               hint: t("build_cta_review_hint"),
-              disabled: activeRules.length === 0,
+              disabled: isGrid ? !gridOk : activeRules.length === 0,
               onClick: () => setReviewing(true),
             };
 

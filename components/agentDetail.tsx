@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
+import { GridLadder } from "@/components/gridLadder";
 import { AddMarketModal } from "@/components/addMarket";
 import { EditStrategyModal } from "@/components/editStrategy";
 import { describeScreen } from "@/components/discoveryFilters";
@@ -560,6 +561,8 @@ export function AgentDetailView({
   // does not ask for otherwise.
   const addPlan = strategy?.add_plan ?? null;
   const planSummary = describeAddPlan(addPlan, t);
+  const grid = strategy?.grid ?? null;
+  const gridMark = grid ? (marked.find((a) => a.mint === grid.market.mint)?.priceUsd ?? null) : null;
   // The rule to headline under "Watching now".
   //
   // changePct first because "drops 4%+ on the day" is the most legible thing a
@@ -667,6 +670,7 @@ export function AgentDetailView({
     return (
       <>
         <AgentDetailMobile
+          grid={strategy?.grid ?? null}
           onOpenChat={onOpenChat}
           // The `?fund=model` hand-off, forwarded. This branch returns before
           // the desktop tree that owns the panel, so without passing it down
@@ -852,6 +856,16 @@ export function AgentDetailView({
               onChanged={() => void load()}
             />
           </section>
+
+          {/* the grid, when the strategy is one */}
+          {grid ? (
+            <section className="border-b border-grid px-5 sm:px-8 py-6">
+              <Rule label={t("ad_sec_grid")} />
+              <div className="pt-4">
+                <GridLadder grid={grid} positions={positions} markUsd={gridMark} />
+              </div>
+            </section>
+          ) : null}
 
           {/* watching now */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">

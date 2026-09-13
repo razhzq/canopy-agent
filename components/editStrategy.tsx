@@ -10,6 +10,10 @@ import {
   ScaleOutLadder,
   SellSignal,
   type SellCondition,
+  GridCard,
+  gridFromPlan,
+  gridPayload,
+  type GridLimits,
 } from "@/components/setLimits";
 import {
   AddPlanCard,
@@ -35,6 +39,7 @@ import {
   type ExitRules,
   type SetupSpec,
   type StrategyRow,
+  type GridPlan,
   type AgentMandate,
 } from "@/lib/api";
 
@@ -186,6 +191,10 @@ export function EditStrategyModal({
     strategy.anyOf,
   );
   const [setup, setSetup] = useState<SetupSpec | undefined>(strategy.setup);
+  // A grid strategy edits its ladder, not rules. The market is the one it runs on.
+  const [grid, setGrid] = useState<GridLimits | undefined>(
+    strategy.grid ? gridFromPlan(strategy.grid) : undefined,
+  );
 
   /**
    * BUDGET. The cap is a PERCENT, and that is what the field takes. What it
@@ -270,7 +279,7 @@ export function EditStrategyModal({
    * agent wearing the name of the narrowest.
    */
   const hasEntry =
-    nextRules.length > 0 || (anyOf ?? []).some((g) => g.length > 0) || !!setup;
+    !!strategy.grid || nextRules.length > 0 || (anyOf ?? []).some((g) => g.length > 0) || !!setup;
 
   /**
    * What actually changed, as the request body.
@@ -289,6 +298,7 @@ export function EditStrategyModal({
       addPlan?: AddPlan | null;
       maxPositionPct?: number;
       maxTradesPerTick?: number;
+      grid?: GridPlan;
     } = {};
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -308,6 +318,10 @@ export function EditStrategyModal({
     // `null` is the instruction to stop accumulating, and it is not the same
     // as leaving the plan alone — the API takes the distinction seriously.
     if (!same(addPlan, strategy.add_plan)) p.addPlan = addPlan ?? null;
+    if (strategy.grid && grid) {
+      const next = gridPayload(grid, strategy.grid.market);
+      if (!same(next, strategy.grid)) p.grid = next;
+    }
     return p;
   })();
 
@@ -444,17 +458,30 @@ export function EditStrategyModal({
           />
         </div>
 
+        {/* ------------------------------------------------------- grid */}
+        {strategy.grid && grid ? (
+          <GridCard
+            grid={grid}
+            onChange={setGrid}
+            symbol={strategy.grid.market.symbol}
+            markUsd={null}
+          />
+        ) : null}
         {/* ------------------------------------------------ accumulation */}
-        <Section
-          title={t("es_accumulation")}
-          help={t("es_accumulation_help")}
-        />
-        <AddPlanCard
-          plan={addPlan}
-          exits={exits}
-          onChange={setAddPlan}
-          strategyClass={klass}
-        />
+        {strategy.grid ? null : (
+          <>
+            <Section
+              title={t("es_accumulation")}
+              help={t("es_accumulation_help")}
+            />
+            <AddPlanCard
+              plan={addPlan}
+              exits={exits}
+              onChange={setAddPlan}
+              strategyClass={klass}
+            />
+          </>
+        )}
 
         {/* ------------------------------------------------------ budget */}
         <Section title={t("es_budget")} help={t("es_budget_help")} />

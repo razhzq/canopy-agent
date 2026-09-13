@@ -164,6 +164,36 @@ correct, in the order the harness surfaces them:
   refusal when a launch-flow key is used for a wallet sentence.
 - "fast average above slow average" is read as the cross, not the state.
 
+## The grid (shipped 14 Sep 2026)
+
+Cyclic, user prices first with an auto range, inside Spot — the three
+decisions from the checkpoint.
+
+**Backend (canopy-be).** `GridPlan` on the strategy (`grid` column,
+CANOPY_109): one market, a manual or auto range, 2–200 levels, equal-dollar
+or equal-percent spacing, an amount a level (flat or scaled with spacing), a
+whole-ladder take-profit on the weighted average entry, a stop below the
+range, an optional stop above. The tick runs the grid after the drawdown
+breaker and ends there: no screen, no council, no per-position exits. Level
+i buys when the mark is at or below its price and holds nothing; its lot
+sells one level up and the level re-arms. Seeding is the same rule: on the
+first tick every level above the mark buys at the mark. Several levels can
+fill in one tick (paced at 20). A lot's level rides its signal key. The
+composer reads a grid sentence into the block (`readGridPlan`), asks for a
+range or a market when one is missing, and drops a range the model invented.
+
+**Frontend (this repo).** A Rules / Grid switch at the top of step 02 on a
+single spot token; a grid card (range, levels, spacing, per level,
+allocation, take-profit, range stop, cycle) that states what the narrowest
+level earns a cycle and what the ladder holds fully filled; a composed grid
+sentence flips the switch and fills the card; the review shows the ladder in
+one line; the agent page (desktop and mobile) draws the ladder — held levels
+with their sell price, empty levels with their buy price, the mark among
+them; the edit page edits the ladder in place.
+
+**Not yet.** Resting limit orders (fills are at the mark each cycle, which
+the card says); a grid on a perp market; Bollinger-derived spacing.
+
 ## The plan, in order
 
 1. **A coverage harness (2 days) — done.** The thirty-nine phrases above are the
@@ -176,7 +206,7 @@ correct, in the order the harness surfaces them:
    market cap "at entry", "buy $X every hour" → schedule add plan), worked
    examples in the prompt for each, and the harness to prove it. Expected
    to remove a fifth of all refusals without a new key.
-3. **Grid / DCA as a strategy type (1–2 weeks).** Levels between two prices,
+3. **Grid / DCA as a strategy type (1–2 weeks) — shipped 14 Sep 2026, see below.** Levels between two prices,
    fixed or progressive spacing, allocation per level, weighted average
    entry, basket take-profit on the whole ladder, "cumulative range covered"
    as the stop. A different executor, not a rule; the composer routes a grid

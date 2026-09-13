@@ -141,6 +141,7 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
     "它会在实时行情上以模拟盘开始运行 — 真实数据，不涉及资金。等记录说服您之后再转实盘。",
   review_row_markets: "市场",
   review_row_rules: "规则",
+  review_row_grid: "网格",
   review_row_rules_value: "已启用 {count} 条",
   review_row_measured_on: "衡量周期",
   review_row_cycle: "运行周期",

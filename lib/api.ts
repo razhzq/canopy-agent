@@ -370,6 +370,8 @@ export interface StrategyRow {
    * plainly as a rule does.
    */
   add_plan?: AddPlan | null;
+  /** The cyclic price grid, when the strategy is one. */
+  grid?: GridPlan | null;
   created_at?: string;
 }
 
@@ -523,6 +525,29 @@ export interface PerpConfig {
   onOppositeSignal: "hold" | "close" | "flip";
   maxBorrowAprPct?: number;
   liquidationBufferAtr?: number;
+}
+
+/**
+ * A cyclic price grid on one market. Mirror of @canopy/agent-contracts
+ * GridPlan — keep the two in step. When a strategy carries one, its rules,
+ * add plan and per-position exits are empty: the ladder is the strategy.
+ */
+export interface GridPlan {
+  market: { chain: string; mint: string; symbol: string };
+  /** `auto` reads the range from the recent high and low on the first cycle and records it here. */
+  range: "manual" | "auto";
+  lowerUsd: number;
+  upperUsd: number;
+  /** Levels including both bounds, 2–200. The top level never buys. */
+  levels: number;
+  spacing: "arithmetic" | "geometric";
+  perLevelUsd: number;
+  allocation: "flat" | "scalesWithSpacing";
+  /** Close every lot and stop when the book is up this much on its average entry. */
+  takeProfitPct?: number;
+  /** Close every lot and stop when the mark falls this far below the lower bound. */
+  stopBelowLowerPct: number;
+  stopAboveUpperPct?: number;
 }
 
 export interface UniverseAsset {
@@ -1278,6 +1303,8 @@ export interface ComposedDraft {
   addPlan?: AddPlan;
   /** Present only when the sentence was composed for a perp market. */
   perp?: PerpConfig;
+  /** Present when the sentence described a price grid; rules and exits are then empty. */
+  grid?: GridPlan;
   /** One sentence on how the request was read. */
   reading: string;
 }
@@ -1513,6 +1540,8 @@ export const createStrategy = (
      * picked market is a perp; the long side is `rules` / `anyOf` / `setup`.
      */
     perp?: PerpConfig;
+    /** The cyclic price grid. Sent with empty rules and zero exits: the ladder is the strategy. */
+    grid?: GridPlan;
     /**
      * Which model the agent's council reasons with, chosen in step 3.
      *
@@ -2963,6 +2992,8 @@ export const updateAgentStrategy = (
     maxTradesPerTick?: number;
     /** The perp block, replaced whole. */
     perp?: PerpConfig;
+    /** The grid block, replaced whole. */
+    grid?: GridPlan;
   },
 ) =>
   request<{ agentId: number; changed: string[] }>(
