@@ -218,7 +218,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
    change is the key grammar, the catalogue and the builder's chips.
 6. **Windows and breakouts (2 days) — shipped 14 Sep 2026.** Momentum over any window (period = the window in bars, converted from "in the last 4 hours" at the strategy's timeframe) with a ceiling twin; breakHighPct / breakLowPct against the prior N-bar high or low; price crossing its own EMA or SMA of any period as an event. Change over any window, new high /
    low over N bars, cross-above / below over any two series.
-7. **Session and calendar facts (half a day).** Hour, weekday, timezone.
+7. **Session and calendar facts (half a day) — shipped 14 Sep 2026.** hourOfDayMin / hourOfDay and dayOfWeekMin / dayOfWeek from the tick's clock in the strategy's timezone (CANOPY_110, read from "New York time", "Singapore", "GMT"; UTC when none is named). Hour, weekday, timezone.
 8. **Candle patterns (2 days).** Engulfing, pin bar, doji, inside bar.
 9. **Cross-asset facts (2 days).** BTC / SOL trend and relative strength.
 10. **Multi-timeframe (1 week).** A second series per market, facts keyed by

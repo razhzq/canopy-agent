@@ -571,6 +571,7 @@ export function BuildAgent() {
         // floor here — a timeframe the author picked and a plan the composer
         // read out of their sentence never reached the strategy they created.
         timeframe: limits.timeframe,
+        ...(limits.timezone ? { timezone: limits.timezone } : {}),
         // How often it wakes. Omitted when the author never chose, which lets
         // the engine default (hourly) stand — sending a number here on their
         // behalf would assert a cadence they never picked. The route refuses
@@ -751,6 +752,9 @@ export function BuildAgent() {
               step: "02",
             },
           ]),
+      ...(activeRules.some((r) => r.key.startsWith("hourOfDay") || r.key.startsWith("dayOfWeek"))
+        ? [{ label: t("review_row_session"), value: limits.timezone ?? "UTC", step: "02" }]
+        : []),
       {
         label: t("review_row_measured_on"),
         // A bar size, written the way every chart writes it.

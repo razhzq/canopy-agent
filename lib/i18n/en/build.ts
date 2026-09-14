@@ -154,6 +154,7 @@ export const enBuild = {
   review_row_rules: "Rules",
   review_row_grid: "Grid",
   review_row_rules_value: "{count} active",
+  review_row_session: "Session clock",
   review_row_measured_on: "Measured on",
   review_row_cycle: "Cycle",
   review_cadence_default: "1 hour (default)",

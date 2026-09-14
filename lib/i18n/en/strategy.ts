@@ -28,6 +28,14 @@ export const enStrategy = {
   rule_changePct: "Max change on the day",
   rule_changePct_help:
     "Buy only after a fall. −4 means it must already be down 4% or more today.",
+  rule_hourOfDayMin: "Earliest hour to buy",
+  rule_hourOfDayMin_help: "The hour of the local day (0–23) a session starts, in the strategy's timezone. 9 with 'latest hour' 15 is a 9-to-4 session.",
+  rule_hourOfDay: "Latest hour to buy",
+  rule_hourOfDay_help: "The last full hour of the local day the agent may buy in. 'Until 4pm' is 15, since the 16:00 hour is after four.",
+  rule_dayOfWeekMin: "Earliest weekday",
+  rule_dayOfWeekMin_help: "1 is Monday, 7 is Sunday. 6 is 'weekends only'.",
+  rule_dayOfWeek: "Latest weekday",
+  rule_dayOfWeek_help: "1 is Monday, 7 is Sunday. 5 is 'weekdays only' — not on weekends.",
   rule_momentum20dPctMax: "Max momentum",
   rule_momentum20dPctMax_help:
     "The ceiling form: percent change over the window, at most this. −10 with a period of 4 on hourly bars is 'down 10% or more in the last 4 hours'. Set the period to the window you mean.",

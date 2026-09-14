@@ -78,6 +78,8 @@ export interface Limits {
    * every strategy authored before this was a choice.
    */
   timeframe?: Timeframe;
+  /** IANA timezone the session rules read in. Absent means UTC. */
+  timezone?: string;
   /**
    * Seconds between cycles — how often the agent wakes.
    *
@@ -626,6 +628,7 @@ export function SetLimits({
       next = {
         ...next,
         timeframe: nextTf,
+        timezone: draft.timezone ?? next.timezone,
         cadenceSec:
           nextTf && nextTf !== prevTf
             ? CADENCE_FOR_TIMEFRAME[nextTf]

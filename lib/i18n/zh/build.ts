@@ -143,6 +143,7 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   review_row_rules: "规则",
   review_row_grid: "网格",
   review_row_rules_value: "已启用 {count} 条",
+  review_row_session: "交易时段时区",
   review_row_measured_on: "衡量周期",
   review_row_cycle: "运行周期",
   review_cadence_default: "1 小时（默认）",

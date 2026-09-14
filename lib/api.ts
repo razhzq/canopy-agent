@@ -261,6 +261,8 @@ export interface StrategyRow {
    * must default it rather than treat it as unknown.
    */
   timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m" | null;
+  /** IANA timezone for the session rules (hourOfDay / dayOfWeek). Null means UTC. */
+  timezone?: string | null;
   status: "draft" | "verifying" | "published" | "delisted" | "superseded";
   fee_pct: string;
   author: string;
@@ -1322,6 +1324,8 @@ export interface ComposedDraft {
   exits: ExitRules;
   /** Bar size the rules are measured on. Always concrete. */
   timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
+  /** IANA timezone, present only beside a session rule. */
+  timezone?: string;
   /** Set only when the description asked to buy repeatedly. */
   addPlan?: AddPlan;
   /** Present only when the sentence was composed for a perp market. */
@@ -1530,6 +1534,8 @@ export const createStrategy = (
     tickIntervalSec?: number;
     /** Bar size the technical rules are measured on. Omitted means daily. */
     timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
+    /** IANA timezone for the session rules. Omitted means UTC. */
+    timezone?: string;
     /** Accumulation. Omitted means one entry per asset. */
     addPlan?: AddPlan | null;
     /**
@@ -3008,6 +3014,7 @@ export const updateAgentStrategy = (
     setup?: SetupSpec | null;
     exits?: ExitRules;
     timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
+    timezone?: string;
     addPlan?: AddPlan | null;
     /** Ceiling on one position as a percent of the mandate's capital. */
     maxPositionPct?: number;
