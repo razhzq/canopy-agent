@@ -24,6 +24,14 @@ export const PERIOD_KEYS: Record<string, { default: number; min: number; max: nu
   vwapDistPct: { default: 20, min: 2, max: 100 },
   volatilityChangePct: { default: 14, min: 2, max: 100 },
   volatilityChangePctMax: { default: 14, min: 2, max: 100 },
+  momentum20dPct: { default: 20, min: 1, max: 300 },
+  momentum20dPctMax: { default: 20, min: 1, max: 300 },
+  breakHighPct: { default: 20, min: 1, max: 300 },
+  breakLowPct: { default: 20, min: 1, max: 300 },
+  priceCrossEmaUpBars: { default: 20, min: 2, max: 300 },
+  priceCrossEmaDownBars: { default: 20, min: 2, max: 300 },
+  priceCrossSmaUpBars: { default: 20, min: 2, max: 300 },
+  priceCrossSmaDownBars: { default: 20, min: 2, max: 300 },
 };
 
 export const PAIR_KEYS: Record<string, { default: [number, number]; min: number; max: number }> = {

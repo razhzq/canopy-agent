@@ -28,6 +28,24 @@ export const enStrategy = {
   rule_changePct: "Max change on the day",
   rule_changePct_help:
     "Buy only after a fall. −4 means it must already be down 4% or more today.",
+  rule_momentum20dPctMax: "Max momentum",
+  rule_momentum20dPctMax_help:
+    "The ceiling form: percent change over the window, at most this. −10 with a period of 4 on hourly bars is 'down 10% or more in the last 4 hours'. Set the period to the window you mean.",
+  rule_breakHighPct: "Above the prior high by at least",
+  rule_breakHighPct_help:
+    "The last close against the highest high of the previous N bars. 0 is a breakout — a new N-bar high. 'Breaks yesterday's high' on hourly bars is a period of 24; 'new 7-day high' on daily bars is 7.",
+  rule_breakLowPct: "Above the prior low by at most",
+  rule_breakLowPct_help:
+    "The last close against the lowest low of the previous N bars. 0 or less is a new N-bar low; 2 admits closes within 2% of it.",
+  rule_priceCrossEmaUpBars: "Price crossed above the EMA within",
+  rule_priceCrossEmaUpBars_help:
+    "How many bars ago the close crossed above the N-period EMA. An event, like the average cross below — set the period to the EMA you mean.",
+  rule_priceCrossEmaDownBars: "Price crossed below the EMA within",
+  rule_priceCrossEmaDownBars_help: "How many bars ago the close crossed below the N-period EMA. The natural sell signal for an EMA strategy.",
+  rule_priceCrossSmaUpBars: "Price crossed above the MA within",
+  rule_priceCrossSmaUpBars_help: "How many bars ago the close crossed above the N-period simple moving average. 'Breaks above its 50-day MA' is a period of 50.",
+  rule_priceCrossSmaDownBars: "Price crossed below the MA within",
+  rule_priceCrossSmaDownBars_help: "How many bars ago the close crossed below the N-period simple moving average.",
   rule_momentum20dPct: "Min momentum",
   rule_momentum20dPct_help:
     "Percent change over the last 20 bars. Above 0 requires it to have risen; negative buys weakness. This is the change rule that follows your timeframe.",

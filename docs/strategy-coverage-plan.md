@@ -216,7 +216,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
 5. **Parameterised indicators (3 days) — shipped 14 Sep 2026.** The rule carries `period` (RSI, ATR, ADX, CCI, MFI, stochastic, Bollinger, the MA-distance keys, VWAP, volatility change), `periods` [fast, slow] on the MA pair keys, and `deviations` on Bollinger; the key stays the family and the battery emits the parameterised reading beside the default. The builder chip has a period box; the composer sets a period the sentence names instead of refusing it. Period on RSI, MA pairs, Bollinger,
    ATR; middle band as SMA 20. The battery computes from bars already; the
    change is the key grammar, the catalogue and the builder's chips.
-6. **Windows and breakouts (2 days).** Change over any window, new high /
+6. **Windows and breakouts (2 days) — shipped 14 Sep 2026.** Momentum over any window (period = the window in bars, converted from "in the last 4 hours" at the strategy's timeframe) with a ceiling twin; breakHighPct / breakLowPct against the prior N-bar high or low; price crossing its own EMA or SMA of any period as an event. Change over any window, new high /
    low over N bars, cross-above / below over any two series.
 7. **Session and calendar facts (half a day).** Hour, weekday, timezone.
 8. **Candle patterns (2 days).** Engulfing, pin bar, doji, inside bar.
