@@ -36,6 +36,11 @@ export const PERIOD_KEYS: Record<string, { default: number; min: number; max: nu
   relativeStrengthBtcPctMax: { default: 20, min: 2, max: 300 },
   relativeStrengthSolPct: { default: 20, min: 2, max: 300 },
   relativeStrengthSolPctMax: { default: 20, min: 2, max: 300 },
+  // Perp history: hours, not bars.
+  openInterestChangePct: { default: 24, min: 1, max: 168 },
+  openInterestChangePctMax: { default: 24, min: 1, max: 168 },
+  borrowAprChangePts: { default: 24, min: 1, max: 168 },
+  borrowAprChangePtsMax: { default: 24, min: 1, max: 168 },
 };
 
 export const PAIR_KEYS: Record<string, { default: [number, number]; min: number; max: number }> = {

@@ -1372,6 +1372,11 @@ export const PERP_RULES: RuleSpec[] = [
   { key: "fundingRateHourlyPct", labelKey: "rule_fundingRateHourlyPct", basis: "static", helpKey: "rule_fundingRateHourlyPct_help", op: "lte", value: 0.05, min: -1, max: 1, step: 0.005, unit: "%", classes: ["perp"] },
   { key: "fundingRateHourlyPctMin", labelKey: "rule_fundingRateHourlyPctMin", basis: "static", helpKey: "rule_fundingRateHourlyPctMin_help", op: "gte", value: 0.03, min: -1, max: 1, step: 0.005, unit: "%", classes: ["perp"] },
   { key: "openInterestImbalancePct", labelKey: "rule_openInterestImbalancePct", basis: "static", helpKey: "rule_openInterestImbalancePct_help", op: "lte", value: 70, min: 0, max: 100, step: 5, unit: "%", classes: ["perp"] },
+  // Perp state history (coverage plan step 11): change over a window in HOURS.
+  { key: "openInterestChangePct", labelKey: "rule_openInterestChangePct", basis: "static", helpKey: "rule_openInterestChangePct_help", op: "gte", value: 10, min: -100, max: 500, step: 1, unit: "%", classes: ["perp"] },
+  { key: "openInterestChangePctMax", labelKey: "rule_openInterestChangePctMax", basis: "static", helpKey: "rule_openInterestChangePctMax_help", op: "lte", value: 0, min: -100, max: 500, step: 1, unit: "%", classes: ["perp"] },
+  { key: "borrowAprChangePts", labelKey: "rule_borrowAprChangePts", basis: "static", helpKey: "rule_borrowAprChangePts_help", op: "gte", value: 0, min: -500, max: 500, step: 1, unit: "pts", classes: ["perp"] },
+  { key: "borrowAprChangePtsMax", labelKey: "rule_borrowAprChangePtsMax", basis: "static", helpKey: "rule_borrowAprChangePtsMax_help", op: "lte", value: 0, min: -500, max: 500, step: 1, unit: "pts", classes: ["perp"] },
 ];
 
 /** Bar sizes a strategy's technical rules can be measured on. */

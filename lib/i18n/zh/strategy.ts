@@ -452,4 +452,12 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_fundingRateHourlyPctMin_help: "至少形式：仅当多头每小时至少支付这么多时才做空。仅永续市场。",
   rule_openInterestImbalancePct: "最高持仓失衡",
   rule_openInterestImbalancePct_help: "多空未平仓量的不平衡程度，占较大一侧的百分比。拥挤的一侧容易被挤压。仅永续市场。",
+  rule_openInterestChangePct: "持仓量至少上升",
+  rule_openInterestChangePct_help: "当前总持仓量相对设定小时数前（默认 24，最多一周），取自市场记录。10 即“一天内持仓量上升 10%”。历史记录不足时，入场规则视为不满足，退出规则不会触发。",
+  rule_openInterestChangePctMax: "持仓量至少下降",
+  rule_openInterestChangePctMax_help: "上限形式：0 只允许窗口内持仓量下降的市场——仓位在平。",
+  rule_borrowAprChangePts: "借贷利率至少上升",
+  rule_borrowAprChangePts_help: "该方向借贷年化相对设定小时数前的变化，单位为百分点。0 即“借贷利率在上升”。",
+  rule_borrowAprChangePtsMax: "借贷利率至少下降",
+  rule_borrowAprChangePtsMax_help: "上限形式：0 即“仅当借贷没有变贵”。",
 };

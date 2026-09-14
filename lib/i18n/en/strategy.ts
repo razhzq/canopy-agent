@@ -505,4 +505,13 @@ export const enStrategy = {
   rule_openInterestImbalancePct: "Max open-interest imbalance",
   rule_openInterestImbalancePct_help:
     "How lopsided long and short open interest are, as a percent of the larger side. A crowded side is the side that gets squeezed. Perp markets only.",
+  rule_openInterestChangePct: "Open interest up at least",
+  rule_openInterestChangePct_help:
+    "Total open interest now against the period's hours ago (24 unless set; a week at most), from the market's recorded history. 10 is 'open interest up 10% in a day'. With too little history recorded, an entry rule is not met and an exit rule does not fire.",
+  rule_openInterestChangePctMax: "Open interest down at least",
+  rule_openInterestChangePctMax_help: "The ceiling form: 0 admits only a market whose open interest has fallen over the window — positions unwinding.",
+  rule_borrowAprChangePts: "Borrow rate up at least",
+  rule_borrowAprChangePts_help: "This side's borrow APR now against the period's hours ago, in percentage points. 0 is 'the borrow rate is rising'.",
+  rule_borrowAprChangePtsMax: "Borrow rate down at least",
+  rule_borrowAprChangePtsMax_help: "The ceiling form: 0 is 'only when borrowing has not got more expensive'.",
 } as const;

@@ -223,7 +223,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
 9. **Cross-asset facts (2 days) — shipped 14 Sep 2026.** BTC and SOL as reference series beside every candidate (one fetch a tick, only when a rule reads them): trend (20/50 spread), day change, and relative strength (the token's change minus the reference's over a window) — each with its floor/ceiling twin. BTC / SOL trend and relative strength.
 10. **Multi-timeframe (1 week).** A second series per market, facts keyed by
     timeframe, "on the 1h" in the composer.
-11. **Perp state history (1 day).** OI, funding, borrow per tick so change
+11. **Perp state history (1 day) — shipped 14 Sep 2026.** CANOPY_111 snapshots every perp market each 15 minutes (a boot sweep keeps it accruing); openInterestChangePct / Max and borrowAprChangePts / Max over a window in hours. The compose prompt now offers specialised families only when the sentence touches them — it had outgrown the 12,288-token window on perps. OI, funding, borrow per tick so change
     keys exist.
 
 Data: nothing above needs a new paid provider. Items 2, 4–9 run on the
