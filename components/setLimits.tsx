@@ -17,7 +17,9 @@ import {
   type DiscoverySpec,
   type PerpConfig,
   type PerpMarketInfo,
+  type GridPlan,
 } from "@/lib/api";
+import { gridMinSpacingPct, gridTotalUsd } from "@/lib/grid";
 import {
   AddPlanCard,
   CADENCES,
@@ -60,6 +62,13 @@ import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
  */
 
 export interface Limits {
+  /**
+   * Rules or a price grid. Absent reads as rules, which is every strategy
+   * built before the grid existed. A grid is spot only: the ladder buys and
+   * sells one token, and rules, exits and the add plan play no part in it.
+   */
+  strategyType?: "rules" | "grid";
+  grid?: GridLimits;
   rules: RuleSpec[];
   exits: ExitRules;
   /**
@@ -147,6 +156,62 @@ export interface PerpLimits {
   maxBorrowAprPct?: number;
   /** Absent = not checked. */
   liquidationBufferAtr?: number;
+}
+
+/** The grid as the form holds it: the block minus the market, which is the picked one. */
+export type GridLimits = Omit<GridPlan, "market">;
+
+/** A range around the mark when there is one; otherwise empty, to be typed. */
+export function defaultGrid(markUsd?: number | null): GridLimits {
+  const has = typeof markUsd === "number" && markUsd > 0;
+  const round = (n: number) => Number(n.toPrecision(3));
+  return {
+    range: "manual",
+    lowerUsd: has ? round(markUsd * 0.9) : 0,
+    upperUsd: has ? round(markUsd * 1.1) : 0,
+    levels: 10,
+    spacing: "arithmetic",
+    perLevelUsd: 50,
+    allocation: "flat",
+    stopBelowLowerPct: 10,
+  };
+}
+
+export function gridFromPlan(plan: GridPlan): GridLimits {
+  const { market: _market, ...rest } = plan;
+  return rest;
+}
+
+/** The block the API takes: the form plus the market it runs on. */
+export function gridPayload(g: GridLimits, market: { chain?: string; mint: string; symbol: string }): GridPlan {
+  return {
+    market: { chain: market.chain ?? "solana", mint: market.mint, symbol: market.symbol },
+    range: g.range,
+    lowerUsd: g.range === "auto" ? 0 : g.lowerUsd,
+    upperUsd: g.range === "auto" ? 0 : g.upperUsd,
+    levels: g.levels,
+    spacing: g.spacing,
+    perLevelUsd: g.perLevelUsd,
+    allocation: g.allocation,
+    ...(g.takeProfitPct !== undefined ? { takeProfitPct: g.takeProfitPct } : {}),
+    stopBelowLowerPct: g.stopBelowLowerPct,
+    ...(g.stopAboveUpperPct !== undefined ? { stopAboveUpperPct: g.stopAboveUpperPct } : {}),
+  };
+}
+
+/** A grid the builder can submit: a range it can draw, or an auto range. */
+export function gridReady(g: GridLimits | undefined): boolean {
+  if (!g) return false;
+  if (g.range === "auto") return g.levels >= 2 && g.perLevelUsd > 0;
+  return g.lowerUsd > 0 && g.upperUsd > g.lowerUsd && g.levels >= 2 && g.perLevelUsd > 0;
+}
+
+export function describeGrid(g: GridLimits, symbol: string | null, t: Translate): string {
+  const sym = symbol ?? "";
+  const perLevel = `$${g.perLevelUsd.toLocaleString("en-US")}`;
+  return g.range === "auto"
+    ? t("sl_grid_describe_auto", { symbol: sym, levels: g.levels, perLevel })
+    : t("sl_grid_describe", { symbol: sym, lower: g.lowerUsd.toLocaleString("en-US"), upper: g.upperUsd.toLocaleString("en-US"), levels: g.levels, perLevel });
 }
 
 export function defaultPerp(): PerpLimits {
@@ -276,6 +341,16 @@ export function SetLimits({
   // A perp market: leverage, direction and the short side appear, sizing is
   // read as collateral, and the exits say what they do on that collateral.
   const isPerp = market?.kind === "perp";
+  // A grid is spot only, on exactly one token. The switch is hidden otherwise.
+  const gridAllowed = !isPerp && isCrypto && markets.length === 1 && !!market?.mint && !discovery;
+  const isGrid = gridAllowed && value.strategyType === "grid";
+  const markUsd = (market as { priceUsd?: number | null } | undefined)?.priceUsd ?? null;
+  const setType = (type: "rules" | "grid") =>
+    onChange({
+      ...value,
+      strategyType: type,
+      ...(type === "grid" && !value.grid ? { grid: defaultGrid(markUsd) } : {}),
+    });
   const perp: PerpLimits = value.perp ?? defaultPerp();
   const setPerp = (patch: Partial<PerpLimits>) => onChange({ ...value, perp: { ...perp, ...patch } });
   const perpInfo = market?.perp;
@@ -359,7 +434,7 @@ export function SetLimits({
   const [manualRules, setManualRules] = useState(false);
   // Preset no longer forces the editor open: a preset is a first sentence, and
   // what it compiles to arrives as the card like anything typed.
-  const showRules = active.length > 0 || manualRules;
+  const showRules = !isGrid && (active.length > 0 || manualRules);
   /**
    * THE RESULT IS A CARD, THE RULES ARE UNDER IT. What a compile produces is
    * read back as one sentence plus four figures; the eleven rule rows, exits,
@@ -591,6 +666,11 @@ export function SetLimits({
           };
         }),
         exits: draft.exits,
+        // A grid sentence compiles to a ladder. The switch follows the draft
+        // so what came back is what is on screen; the market is the picked one.
+        ...(draft.grid && gridAllowed
+          ? { strategyType: "grid" as const, grid: gridFromPlan(draft.grid) }
+          : {}),
       };
       onChange(next);
       setFineTune(false);
@@ -666,6 +746,38 @@ export function SetLimits({
           </button>
         </p>
       </div>
+
+      {/* ------------------------------------------------- strategy type */}
+      {/* Rules or a grid. Sits above the sentence because it changes what the
+          sentence compiles INTO: a grid sentence lands here as a ladder, a
+          rules sentence as rules. Spot only, one token. */}
+      {gridAllowed ? (
+        <section>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p className="font-ui text-[12.5px] text-text-muted">
+              {t("sl_type")}
+              <InfoDot label={t("sl_type")}>{t("sl_type_help")}</InfoDot>
+            </p>
+            <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_type")}>
+              {(["rules", "grid"] as const).map((k) => {
+                const on = (value.strategyType ?? "rules") === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setType(k)}
+                    className={`${SEGMENT_ITEM} ${on ? SEGMENT_ON : SEGMENT_OFF}`}
+                  >
+                    {t(k === "rules" ? "sl_type_rules" : "sl_type_grid")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* ------------------------------------------------------- write it */}
       <section>
@@ -825,7 +937,7 @@ export function SetLimits({
 
             Setting them by hand is still allowed; it is just no longer what the
             page opens on. */}
-        {showRules ? null : (
+        {showRules || isGrid ? null : (
           <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
             {t("sl_rules_appear")}{" "}
             <button
@@ -842,6 +954,18 @@ export function SetLimits({
           </p>
         )}
       </section>
+
+      {/* ------------------------------------------------------- grid */}
+      {isGrid && value.grid ? (
+        <GridCard
+          grid={value.grid}
+          onChange={(grid) => onChange({ ...value, grid })}
+          symbol={market?.symbol ?? null}
+          markUsd={markUsd}
+          cadenceSec={value.cadenceSec ?? CADENCE_FOR_TIMEFRAME[value.timeframe ?? DEFAULT_TIMEFRAME]}
+          onCadence={(cadenceSec) => onChange({ ...value, cadenceSec })}
+        />
+      ) : null}
 
       {/* ---------------------------------------------------- read as */}
       {showRules ? (
@@ -1878,6 +2002,209 @@ function CapToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => v
 /** Dims a control whose cap is off, without removing it. */
 function Dimmed({ on, children }: { on: boolean; children: React.ReactNode }) {
   return on ? <>{children}</> : <div className="pointer-events-none opacity-40">{children}</div>;
+}
+
+/**
+ * The grid, as a card of its own numbers. Every figure states its consequence
+ * beside it — what the narrowest level earns a cycle, and what the ladder
+ * holds when every level is filled — because those two numbers are the whole
+ * judgement of a grid and nobody can do the arithmetic in their head.
+ */
+export function GridCard({
+  grid,
+  onChange,
+  symbol,
+  markUsd,
+  cadenceSec,
+  onCadence,
+}: {
+  grid: GridLimits;
+  onChange: (next: GridLimits) => void;
+  symbol: string | null;
+  markUsd: number | null;
+  cadenceSec?: number;
+  onCadence?: (sec: number) => void;
+}) {
+  const t = useT();
+  const set = (patch: Partial<GridLimits>) => onChange({ ...grid, ...patch });
+  const manual = grid.range !== "auto";
+  const rangeOk = !manual || (grid.lowerUsd > 0 && grid.upperUsd > grid.lowerUsd);
+  const spacingPct = manual && rangeOk ? gridMinSpacingPct(grid) : null;
+  const totalUsd = gridTotalUsd(grid);
+  const priceMax = Math.max(1_000_000, (markUsd ?? 0) * 10, grid.upperUsd * 2);
+  const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return (
+    <section>
+      <SectionLabel title={t("sl_grid_title", { symbol: symbol ?? "" })} note={t("sl_grid_note")} />
+      <div className="overflow-hidden rounded-xl border border-border">
+        <BudgetRow label={t("sl_grid_range")} info={t("sl_grid_range_help")} help={manual ? undefined : t("sl_grid_auto_note")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_range")}>
+            {(["manual", "auto"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.range === k}
+                onClick={() => set({ range: k })}
+                className={`${SEGMENT_ITEM} ${grid.range === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "manual" ? "sl_grid_range_manual" : "sl_grid_range_auto")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        {manual ? (
+          <BudgetRow
+            label={t("sl_grid_prices")}
+            help={rangeOk ? (markUsd ? t("sl_grid_mark", { price: markUsd.toLocaleString("en-US", { maximumFractionDigits: 4 }) }) : undefined) : t("sl_grid_range_invalid")}
+          >
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <NumberEntry value={grid.lowerUsd} min={0} max={priceMax} step={0.0001} unit="$" label={t("sl_grid_lower")} onChange={(n) => set({ lowerUsd: n })} />
+              <span className="font-ui text-[12px] text-text-dim">{t("sl_grid_to")}</span>
+              <NumberEntry value={grid.upperUsd} min={0} max={priceMax} step={0.0001} unit="$" label={t("sl_grid_upper")} onChange={(n) => set({ upperUsd: n })} />
+            </div>
+          </BudgetRow>
+        ) : null}
+        <BudgetRow
+          label={t("sl_grid_levels")}
+          info={t("sl_grid_levels_help")}
+          help={
+            spacingPct !== null
+              ? t("sl_grid_spacing_fact", { pct: spacingPct.toFixed(2) })
+              : undefined
+          }
+        >
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <div className="flex items-center gap-1">
+              {[5, 10, 20, 50].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={grid.levels === n}
+                  onClick={() => set({ levels: n })}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    grid.levels === n ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <NumberEntry value={grid.levels} min={2} max={200} step={1} unit="" label={t("sl_grid_levels")} onChange={(n) => set({ levels: Math.round(n) })} />
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_spacing")} info={t("sl_grid_spacing_help")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_spacing")}>
+            {(["arithmetic", "geometric"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.spacing === k}
+                onClick={() => set({ spacing: k })}
+                className={`${SEGMENT_ITEM} ${grid.spacing === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "arithmetic" ? "sl_grid_spacing_arith" : "sl_grid_spacing_geo")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        <BudgetRow
+          label={t("sl_grid_per_level")}
+          info={t("sl_grid_per_level_help")}
+          help={t("sl_grid_total", { total: fmtUsd(totalUsd), levels: Math.max(2, grid.levels) - 1 })}
+        >
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <div className="flex items-center gap-1">
+              {[25, 50, 100, 250].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={grid.perLevelUsd === n}
+                  onClick={() => set({ perLevelUsd: n })}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    grid.perLevelUsd === n ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {fmtUsd(n)}
+                </button>
+              ))}
+            </div>
+            <NumberEntry value={grid.perLevelUsd} min={5} max={1_000_000} step={1} unit="$" label={t("sl_grid_per_level")} onChange={(n) => set({ perLevelUsd: n })} />
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_allocation")} info={t("sl_grid_allocation_help")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_allocation")}>
+            {(["flat", "scalesWithSpacing"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.allocation === k}
+                onClick={() => set({ allocation: k })}
+                className={`${SEGMENT_ITEM} ${grid.allocation === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "flat" ? "sl_grid_alloc_flat" : "sl_grid_alloc_scales")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_take_profit")} info={t("sl_grid_take_profit_help")}>
+          <div className="flex items-center justify-end gap-3">
+            <Dimmed on={grid.takeProfitPct !== undefined}>
+              <NumberEntry
+                value={grid.takeProfitPct ?? 10}
+                min={1}
+                max={500}
+                step={0.5}
+                unit="%"
+                sign="+"
+                label={t("sl_grid_take_profit")}
+                disabled={grid.takeProfitPct === undefined}
+                onChange={(n) => set({ takeProfitPct: n })}
+              />
+            </Dimmed>
+            <button
+              type="button"
+              aria-pressed={grid.takeProfitPct !== undefined}
+              onClick={() => set({ takeProfitPct: grid.takeProfitPct === undefined ? 10 : undefined })}
+              className="font-ui text-[12px] text-text-dim underline underline-offset-4 transition-colors hover:text-text-primary"
+            >
+              {t(grid.takeProfitPct === undefined ? "sl_grid_turn_on" : "sl_grid_turn_off")}
+            </button>
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_stop_below")} info={t("sl_grid_stop_below_help")}>
+          <NumberEntry value={grid.stopBelowLowerPct} min={0} max={90} step={0.5} unit="%" sign="−" label={t("sl_grid_stop_below")} onChange={(n) => set({ stopBelowLowerPct: n })} />
+        </BudgetRow>
+        {onCadence ? (
+          <BudgetRow label={t("sl_grid_cycle")} info={t("sl_grid_cycle_help")}>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {CADENCES.filter((c) => c.sec >= 300).map((c) => (
+                <button
+                  key={c.sec}
+                  type="button"
+                  aria-pressed={cadenceSec === c.sec}
+                  onClick={() => onCadence(c.sec)}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    cadenceSec === c.sec ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {t(c.labelKey)}
+                </button>
+              ))}
+            </div>
+          </BudgetRow>
+        ) : null}
+      </div>
+      {spacingPct !== null && spacingPct < 0.6 ? (
+        <div className="pt-2">
+          <FieldNote tone="warn">{t("sl_grid_fee_warning", { pct: spacingPct.toFixed(2) })}</FieldNote>
+        </div>
+      ) : null}
+      <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">{t("sl_grid_how")}</p>
+    </section>
+  );
 }
 
 function BudgetRow({

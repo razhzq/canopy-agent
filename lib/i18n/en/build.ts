@@ -152,6 +152,7 @@ export const enBuild = {
     "It starts on paper against live prices — real data, no money. Promote it when its record convinces you.",
   review_row_markets: "Markets",
   review_row_rules: "Rules",
+  review_row_grid: "Grid",
   review_row_rules_value: "{count} active",
   review_row_measured_on: "Measured on",
   review_row_cycle: "Cycle",

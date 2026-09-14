@@ -370,6 +370,8 @@ export interface StrategyRow {
    * plainly as a rule does.
    */
   add_plan?: AddPlan | null;
+  /** The cyclic price grid, when the strategy is one. */
+  grid?: GridPlan | null;
   created_at?: string;
 }
 
@@ -472,6 +474,12 @@ export interface DetectionRule {
   key: string;
   op: "gte" | "lte" | "eq";
   value: number;
+  /** A period other than the key's own: "RSI 7" is { key: "rsi14", period: 7 }. Mirror of agent-contracts. */
+  period?: number;
+  /** A pair for the moving-average keys: "the 50 crosses the 200" is [50, 200]. */
+  periods?: [number, number];
+  /** Bollinger width in standard deviations, when not 2. */
+  deviations?: number;
 }
 
 /**
@@ -523,6 +531,29 @@ export interface PerpConfig {
   onOppositeSignal: "hold" | "close" | "flip";
   maxBorrowAprPct?: number;
   liquidationBufferAtr?: number;
+}
+
+/**
+ * A cyclic price grid on one market. Mirror of @canopy/agent-contracts
+ * GridPlan — keep the two in step. When a strategy carries one, its rules,
+ * add plan and per-position exits are empty: the ladder is the strategy.
+ */
+export interface GridPlan {
+  market: { chain: string; mint: string; symbol: string };
+  /** `auto` reads the range from the recent high and low on the first cycle and records it here. */
+  range: "manual" | "auto";
+  lowerUsd: number;
+  upperUsd: number;
+  /** Levels including both bounds, 2–200. The top level never buys. */
+  levels: number;
+  spacing: "arithmetic" | "geometric";
+  perLevelUsd: number;
+  allocation: "flat" | "scalesWithSpacing";
+  /** Close every lot and stop when the book is up this much on its average entry. */
+  takeProfitPct?: number;
+  /** Close every lot and stop when the mark falls this far below the lower bound. */
+  stopBelowLowerPct: number;
+  stopAboveUpperPct?: number;
 }
 
 export interface UniverseAsset {
@@ -1017,6 +1048,23 @@ export const searchUniverse = (token: string, q: string) =>
     token,
   );
 
+/**
+ * A day of hourly closes for one token, oldest first. Empty when there is
+ * nothing to draw — a perp, an RWA wrapper, or a token with no resolved pool.
+ * The hover card on the book reads this; nothing decides on it.
+ */
+export interface TokenSparkline {
+  closes: number[];
+  /** Unix seconds, one per close. */
+  at: number[];
+}
+
+export const getTokenSparkline = (token: string, mint: string) =>
+  request<TokenSparkline>(
+    `/agents/universe/sparkline?mint=${encodeURIComponent(mint)}`,
+    token,
+  );
+
 /** What a screen matches right now, and a few of the rows it matched. */
 export interface ScreenPreview {
   /** How many tokens the universe holds. The denominator, so a count means something. */
@@ -1278,6 +1326,8 @@ export interface ComposedDraft {
   addPlan?: AddPlan;
   /** Present only when the sentence was composed for a perp market. */
   perp?: PerpConfig;
+  /** Present when the sentence described a price grid; rules and exits are then empty. */
+  grid?: GridPlan;
   /** One sentence on how the request was read. */
   reading: string;
 }
@@ -1513,6 +1563,8 @@ export const createStrategy = (
      * picked market is a perp; the long side is `rules` / `anyOf` / `setup`.
      */
     perp?: PerpConfig;
+    /** The cyclic price grid. Sent with empty rules and zero exits: the ladder is the strategy. */
+    grid?: GridPlan;
     /**
      * Which model the agent's council reasons with, chosen in step 3.
      *
@@ -2963,6 +3015,8 @@ export const updateAgentStrategy = (
     maxTradesPerTick?: number;
     /** The perp block, replaced whole. */
     perp?: PerpConfig;
+    /** The grid block, replaced whole. */
+    grid?: GridPlan;
   },
 ) =>
   request<{ agentId: number; changed: string[] }>(

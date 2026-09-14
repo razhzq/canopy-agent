@@ -53,4 +53,13 @@ export const enPositions = {
   positions_perp_long: "Long",
   positions_perp_short: "Short",
   positions_perp_leg: "{lev}× · liquidates at {liq}",
+
+  // ── Token hover card ─────────────────────────────────────────────
+  token_peek_daily: "Today",
+  token_peek_market_cap: "Market cap",
+  token_peek_fdv: "FDV",
+  token_peek_liquidity: "Liquidity",
+  token_peek_volume_24h: "Vol 24h",
+  token_peek_last_24h: "Last 24h",
+  token_peek_no_chart: "No price history yet",
 } as const;

@@ -1,5 +1,8 @@
 "use client";
 
+import { GridLadder } from "@/components/gridLadder";
+import type { GridPlan } from "@/lib/api";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Gavel, Pause, Pencil, Play, Plus } from "lucide-react";
@@ -86,9 +89,12 @@ export function AgentDetailMobile({
   paperDisabledReason,
   liveDisabledReason,
   onEdit,
+  grid = null,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
+  /** The ladder, when the strategy is a grid. */
+  grid?: GridPlan | null;
   equity: EquitySeries | null;
   positions: AgentDetail["positions"];
   assets: UniverseAsset[];
@@ -493,6 +499,18 @@ export function AgentDetailMobile({
             />
             <p className={BODY}>{headline(cycle, t)}</p>
           </div>
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------------- grid -- */}
+      {grid ? (
+        <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+          <p className="pb-3 font-ui text-[16px] tracking-[-0.01em] text-text-primary">{t("ad_sec_grid")}</p>
+          <GridLadder
+            grid={grid}
+            positions={positions}
+            markUsd={assets.find((a) => a.mint === grid.market.mint)?.priceUsd ?? null}
+          />
         </div>
       ) : null}
 

@@ -345,4 +345,55 @@ export const enLimits = {
   sl_liq_buffer_unit: "× ATR inside liquidation",
   sl_liq_buffer_help:
     "The stop must sit this many average true ranges above the liquidation price, or the entry is skipped.",
+
+  // ── Strategy type: rules or a grid ─────────────────────────────
+  sl_type: "Strategy type",
+  sl_type_help:
+    "Rules buy when conditions hold and sell on an exit. A grid is a ladder of price levels: each level buys when price reaches it and sells one level up, then re-arms, earning the spacing while price stays in the range.",
+  sl_type_rules: "Rules",
+  sl_type_grid: "Grid",
+
+  // ── Grid ───────────────────────────────────────────────────────
+  sl_grid_title: "{symbol} grid",
+  sl_grid_note: "Buys a level when price reaches it, sells one level up, re-arms.",
+  sl_grid_range: "Range",
+  sl_grid_range_help:
+    "The prices the ladder spans. Below the range nothing buys; above it every lot has sold and the grid waits for price to come back.",
+  sl_grid_range_manual: "Set prices",
+  sl_grid_range_auto: "Recent high and low",
+  sl_grid_auto_note: "Read from the last 60 bars when the agent starts, then fixed.",
+  sl_grid_prices: "Lower and upper",
+  sl_grid_lower: "Lower",
+  sl_grid_upper: "Upper",
+  sl_grid_to: "to",
+  sl_grid_mark: "Mark ${price}",
+  sl_grid_range_invalid: "The upper price must be above the lower price.",
+  sl_grid_levels: "Levels",
+  sl_grid_levels_help: "Including both bounds. The top level never buys; it is where the level below it sells.",
+  sl_grid_spacing_fact: "Narrowest level earns {pct}% a cycle before fees",
+  sl_grid_spacing: "Spacing",
+  sl_grid_spacing_help: "Equal dollars between levels, or equal percent — the same earn per cycle at every level.",
+  sl_grid_spacing_arith: "Equal dollars",
+  sl_grid_spacing_geo: "Equal percent",
+  sl_grid_per_level: "Per level",
+  sl_grid_per_level_help: "What one level buys. Every level of the ladder can be filled at once, so the total below is what the agent must be able to hold.",
+  sl_grid_total: "{total} across {levels} buy levels when fully filled",
+  sl_grid_allocation: "Allocation",
+  sl_grid_allocation_help: "The same amount at every level, or more where a level is wider and so earns more per cycle.",
+  sl_grid_alloc_flat: "Same each level",
+  sl_grid_alloc_scales: "More on wider levels",
+  sl_grid_take_profit: "Close the ladder at",
+  sl_grid_take_profit_help: "Sells every lot and stops when the lots held are up this much on their average entry. Off means the grid runs until the range stop.",
+  sl_grid_turn_on: "Turn on",
+  sl_grid_turn_off: "Turn off",
+  sl_grid_stop_below: "Stop below the range by",
+  sl_grid_stop_below_help: "Sells every lot and stops once price falls this far under the lower bound. The one loss a grid can take.",
+  sl_grid_cycle: "Check every",
+  sl_grid_cycle_help: "Levels are checked each cycle and filled at the price then, not rested as orders. A faster cycle catches more touches.",
+  sl_grid_fee_warning:
+    "The narrowest level earns {pct}% a cycle; a round trip costs about 0.3% in fees before slippage. Fewer levels or a wider range would leave more of each cycle.",
+  sl_grid_how:
+    "There are no entry rules and no per-position exits on a grid — the levels decide every buy and sell. Describe the grid in the sentence above, or set the numbers here.",
+  sl_grid_describe: "{symbol} grid ${lower} to ${upper}, {levels} levels, {perLevel} a level",
+  sl_grid_describe_auto: "{symbol} grid on the recent high and low, {levels} levels, {perLevel} a level",
 } as const;

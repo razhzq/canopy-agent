@@ -30,6 +30,14 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_macdHistPct: "最低 MACD 柱",
   rule_macdHistPct_help:
     "MACD（12/26/9），以价格百分比衡量，因此同一套设置在黄金和股票上都适用。大于 0 表示金叉已经发生。",
+  rule_barChangePct: "上一根 K 线至少下跌",
+  rule_barChangePct_help: "上一根已收盘 K 线的涨跌幅（收盘价对前一收盘价）。负值即买入阴线：−1 表示上一根下跌 1% 或更多。这是策略周期上的一根 K 线，不是当日——当日涨跌请用“日涨跌幅”。",
+  rule_barChangePctMin: "上一根 K 线至少上涨",
+  rule_barChangePctMin_help: "上一根已收盘 K 线至少上涨这么多。“价格涨了 1%”而未指明时间窗即为此：最近的一次波动，而非当日。",
+  rule_volatilityChangePct: "波动率至少上升",
+  rule_volatilityChangePct_help: "14 周期平均真实波幅相对 5 根 K 线前的变化百分比。20 表示典型 K 线幅度比之前宽了五分之一——波动率在上升。波动率的水平是“最大 ATR”；这里是它的变化。",
+  rule_volatilityChangePctMax: "波动率至少下降",
+  rule_volatilityChangePctMax_help: "上限形式：−20 只允许最近 5 根 K 线内平均波幅收窄五分之一的资产——波动率在回落。",
   rule_atrPct: "最大 ATR",
   rule_atrPct_help:
     "14 根 K 线的平均真实波幅，以价格百分比表示 — 也就是该代币在一根 K 线内通常的波动幅度，含跳空。调低只会放行更平稳的代币。",
