@@ -83,6 +83,11 @@ export const enStrategy = {
   // ── Rule labelling ─────────────────────────────────────────────
   // "Max RSI (14d)" / "Max RSI (14 × 15m)" — the window is what makes the
   // number mean something, and it changes with the chart.
+  rule_period: "period",
+  rule_period_fast: "fast",
+  rule_period_slow: "slow",
+  rule_period_vs: "vs",
+  rule_deviations: "width",
   rule_window_daily: "{label} ({periods}d)",
   rule_window_bars: "{label} ({periods} × {timeframe})",
   rule_basis_change:

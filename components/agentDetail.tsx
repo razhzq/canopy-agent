@@ -31,6 +31,7 @@ import {
 } from "@/components/kit";
 import type { UniverseSelection } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { periodsText } from "@/lib/rulePeriods";
 import { useLocale, useT, type Locale, type Translate, dateLocale } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
@@ -50,6 +51,7 @@ import {
   fmt,
   ruleBasisNote,
   ruleLabel,
+  withRuleParams,
   type Timeframe,
 } from "@/components/buildStrategy";
 import {
@@ -1801,7 +1803,8 @@ function RuleChip({
   timeframe?: Timeframe;
 }) {
   const t = useT();
-  const spec = RWA_RULES.find((r) => r.key === rule.key);
+  const base = RWA_RULES.find((r) => r.key === rule.key);
+  const spec = base ? withRuleParams(base, rule) : undefined;
   // A rule that does not follow the strategy's bar size says so HERE too, not
   // only in the builder. Someone reading a running 15-minute agent sees "Max
   // change on the day ≤ −4%" beside rules measured in minutes, and nothing on
@@ -1841,7 +1844,8 @@ function AnyOfChip({
   return (
     <Chip>
       {group.map((rule, i) => {
-        const spec = RWA_RULES.find((r) => r.key === rule.key);
+        const base = RWA_RULES.find((r) => r.key === rule.key);
+  const spec = base ? withRuleParams(base, rule) : undefined;
         return (
           <span key={rule.key}>
             {i > 0 ? (
@@ -1896,10 +1900,12 @@ function entryHeadline(
     return t("ad_headline_drop", { who, pct: Math.abs(entry.value) });
   }
   const spec = RWA_RULES.find((r) => r.key === entry.key);
+  const own = entry.period !== undefined || !!entry.periods || entry.deviations !== undefined;
+  const window = spec && own ? periodsText(withRuleParams(spec, entry)) : undefined;
   // `spec.label` comes from the builder's own rule table, which carries its
   // own translation. The operator is a mathematical symbol either way.
   return t("ad_headline_rule", {
-    label: spec ? t(spec.labelKey) : entry.key,
+    label: spec ? `${t(spec.labelKey)}${window ? ` (${window})` : ""}` : entry.key,
     op: entry.op === "gte" ? "≥" : "≤",
     value: entry.value,
   });
