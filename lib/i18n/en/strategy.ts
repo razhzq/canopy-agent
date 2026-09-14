@@ -46,6 +46,18 @@ export const enStrategy = {
   rule_macdHistPct: "Min MACD histogram",
   rule_macdHistPct_help:
     "MACD (12/26/9), measured as a percent of price so one setting works across gold and equities. Above 0 means the crossover has already happened.",
+  rule_barChangePct: "Last bar down at least",
+  rule_barChangePct_help:
+    "How much the last closed bar moved, close over the previous close. Negative buys a red bar: −1 means the last bar fell 1% or more. One bar at the strategy's timeframe — for the day, use the daily change.",
+  rule_barChangePctMin: "Last bar up at least",
+  rule_barChangePctMin_help:
+    "The last closed bar rose at least this much. 'Price went up 1%' with no window named is this: the most recent move, not the day.",
+  rule_volatilityChangePct: "Volatility up at least",
+  rule_volatilityChangePct_help:
+    "The 14-bar average true range now against five bars ago, as a percent of the earlier reading. 20 means the typical bar is a fifth wider than it was — volatility picking up. A level of volatility is Max ATR; this is its change.",
+  rule_volatilityChangePctMax: "Volatility down at least",
+  rule_volatilityChangePctMax_help:
+    "The ceiling form: −20 admits only assets whose average range has narrowed by a fifth over the last five bars — volatility calming down.",
   rule_atrPct: "Max ATR",
   rule_atrPct_help:
     "Average True Range over 14 bars, as a percent of price — how much this token typically moves in a bar, gaps included. Lower admits only calmer tokens.",

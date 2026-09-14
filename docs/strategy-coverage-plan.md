@@ -211,7 +211,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
    entry, basket take-profit on the whole ladder, "cumulative range covered"
    as the stop. A different executor, not a rule; the composer routes a grid
    sentence to it. The largest ask in the ledger.
-4. **Volatility-change and bar-change keys (1 day).** ATR / bandwidth change
+4. **Volatility-change and bar-change keys (1 day) — shipped 14 Sep 2026:** barChangePct / barChangePctMin (the last closed bar's move) and volatilityChangePct / volatilityChangePctMax (ATR now against five bars ago). "Price went up 1%" with no window is the last bar; "volatility up 20%" is the ATR change. ATR / bandwidth change
    over N bars, current-bar change.
 5. **Parameterised indicators (3 days).** Period on RSI, MA pairs, Bollinger,
    ATR; middle band as SMA 20. The battery computes from bars already; the
