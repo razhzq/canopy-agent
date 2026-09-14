@@ -32,6 +32,10 @@ export const PERIOD_KEYS: Record<string, { default: number; min: number; max: nu
   priceCrossEmaDownBars: { default: 20, min: 2, max: 300 },
   priceCrossSmaUpBars: { default: 20, min: 2, max: 300 },
   priceCrossSmaDownBars: { default: 20, min: 2, max: 300 },
+  relativeStrengthBtcPct: { default: 20, min: 2, max: 300 },
+  relativeStrengthBtcPctMax: { default: 20, min: 2, max: 300 },
+  relativeStrengthSolPct: { default: 20, min: 2, max: 300 },
+  relativeStrengthSolPctMax: { default: 20, min: 2, max: 300 },
 };
 
 export const PAIR_KEYS: Record<string, { default: [number, number]; min: number; max: number }> = {

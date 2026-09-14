@@ -220,7 +220,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
    low over N bars, cross-above / below over any two series.
 7. **Session and calendar facts (half a day) — shipped 14 Sep 2026.** hourOfDayMin / hourOfDay and dayOfWeekMin / dayOfWeek from the tick's clock in the strategy's timezone (CANOPY_110, read from "New York time", "Singapore", "GMT"; UTC when none is named). Hour, weekday, timezone.
 8. **Candle patterns (2 days) — shipped 14 Sep 2026.** bullishEngulfingBars, bearishEngulfingBars, hammerBars, shootingStarBars, dojiBars, insideBarBars — events aged in bars over the stored OHLC, crypto only; the pattern's name is the rule. Engulfing, pin bar, doji, inside bar.
-9. **Cross-asset facts (2 days).** BTC / SOL trend and relative strength.
+9. **Cross-asset facts (2 days) — shipped 14 Sep 2026.** BTC and SOL as reference series beside every candidate (one fetch a tick, only when a rule reads them): trend (20/50 spread), day change, and relative strength (the token's change minus the reference's over a window) — each with its floor/ceiling twin. BTC / SOL trend and relative strength.
 10. **Multi-timeframe (1 week).** A second series per market, facts keyed by
     timeframe, "on the 1h" in the composer.
 11. **Perp state history (1 day).** OI, funding, borrow per tick so change
