@@ -44,4 +44,13 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   positions_perp_long: "多",
   positions_perp_short: "空",
   positions_perp_leg: "{lev}× · 清算价 {liq}",
+
+  // ── 代币悬浮卡 ──────────────────────────────────────────────────
+  token_peek_daily: "今日",
+  token_peek_market_cap: "市值",
+  token_peek_fdv: "完全稀释市值",
+  token_peek_liquidity: "流动性",
+  token_peek_volume_24h: "24h 成交量",
+  token_peek_last_24h: "过去 24 小时",
+  token_peek_no_chart: "暂无价格历史",
 };

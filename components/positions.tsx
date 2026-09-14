@@ -18,6 +18,7 @@ import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
 import { Tick, TxLink } from "@/components/kit";
 import { ClosePositionModal } from "@/components/closePosition";
+import { TokenPeek } from "@/components/tokenPeek";
 import { useLocale } from "@/lib/i18n";
 
 /**
@@ -329,6 +330,9 @@ function OpenTable({
   const [visible, setVisible] = useState(OPEN_PAGE);
   const { t, locale } = useLocale();
   const holdings = aggregate(positions, universe, swapCost);
+  // Same lookup `aggregate` priced the row from, so the hover card and the
+  // row it hangs off never describe two different tokens.
+  const assetOf = (symbol: string) => universe.find((a) => a.symbol === symbol);
 
   // A different agent is a different book, and the reveal must not carry over
   // — otherwise opening a second agent shows it already expanded to wherever
@@ -391,14 +395,16 @@ function OpenTable({
                       just as well for equities ("TSLAx" → TSLA) and is the only
                       one of the two that identifies a gold position, where the
                       underlying is XAU for both issuers. */}
-                    <AssetLogo
-                      symbol={h.symbol}
-                      issuer={h.issuer}
-                      src={h.logoSrc}
-                    />
-                    <span className="truncate font-mono text-[13px] text-text-primary">
-                      {h.symbol}
-                    </span>
+                    <TokenPeek symbol={h.symbol} mint={h.mint} asset={assetOf(h.symbol)}>
+                      <AssetLogo
+                        symbol={h.symbol}
+                        issuer={h.issuer}
+                        src={h.logoSrc}
+                      />
+                      <span className="truncate font-mono text-[13px] text-text-primary">
+                        {h.symbol}
+                      </span>
+                    </TokenPeek>
                   </span>
                   <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
                     {h.perp ? (
@@ -844,14 +850,16 @@ function FillRow({
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
-          <AssetLogo
-            symbol={f.symbol}
-            issuer={asset?.issuer}
-            src={asset?.iconUrl}
-          />
-          <span className="truncate font-mono text-[13px] text-text-primary">
-            {f.symbol}
-          </span>
+          <TokenPeek symbol={f.symbol} mint={f.mint} asset={asset}>
+            <AssetLogo
+              symbol={f.symbol}
+              issuer={asset?.issuer}
+              src={asset?.iconUrl}
+            />
+            <span className="truncate font-mono text-[13px] text-text-primary">
+              {f.symbol}
+            </span>
+          </TokenPeek>
           {/* Labelled, not hidden. Every agent is paper today, so a history
               that silently implied real fills would mislead every reader. */}
           {f.is_paper ? (

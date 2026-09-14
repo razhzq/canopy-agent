@@ -150,6 +150,23 @@ export function tokenPrice(value: number | null | undefined): PriceParts {
  * one exception is an amount that rounds away: "<$0.01" rather than "$0.00",
  * which would read as nothing held at all.
  */
+/**
+ * A dollar figure at headline precision: "$1.2B", "$48.3M", "$912k", "$40".
+ *
+ * For market caps, liquidity and volume — figures a reader compares by order
+ * of magnitude, where every digit past the first two is noise. Prices and
+ * balances keep going through `usd`; a token worth $0.0042 is not "$0".
+ */
+export function compactUsd(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "−" : "";
+  if (abs >= 1e9) return `${sign}$${trim((abs / 1e9).toFixed(2))}B`;
+  if (abs >= 1e6) return `${sign}$${trim((abs / 1e6).toFixed(1))}M`;
+  if (abs >= 1e3) return `${sign}$${Math.round(abs / 1e3)}k`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
 export function usd(value: number | null | undefined, opts: { sign?: boolean } = {}): string {
   if (value == null || !Number.isFinite(value)) return DASH;
   const abs = Math.abs(value);

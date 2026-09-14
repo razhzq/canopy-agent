@@ -474,6 +474,12 @@ export interface DetectionRule {
   key: string;
   op: "gte" | "lte" | "eq";
   value: number;
+  /** A period other than the key's own: "RSI 7" is { key: "rsi14", period: 7 }. Mirror of agent-contracts. */
+  period?: number;
+  /** A pair for the moving-average keys: "the 50 crosses the 200" is [50, 200]. */
+  periods?: [number, number];
+  /** Bollinger width in standard deviations, when not 2. */
+  deviations?: number;
 }
 
 /**
@@ -1039,6 +1045,23 @@ interface CryptoPickerMarket {
 export const searchUniverse = (token: string, q: string) =>
   request<{ assets: UniverseAsset[] }>(
     `/agents/universe/search?q=${encodeURIComponent(q)}`,
+    token,
+  );
+
+/**
+ * A day of hourly closes for one token, oldest first. Empty when there is
+ * nothing to draw — a perp, an RWA wrapper, or a token with no resolved pool.
+ * The hover card on the book reads this; nothing decides on it.
+ */
+export interface TokenSparkline {
+  closes: number[];
+  /** Unix seconds, one per close. */
+  at: number[];
+}
+
+export const getTokenSparkline = (token: string, mint: string) =>
+  request<TokenSparkline>(
+    `/agents/universe/sparkline?mint=${encodeURIComponent(mint)}`,
     token,
   );
 

@@ -46,4 +46,13 @@ export const trPositions: Record<keyof typeof enPositions, string> = {
   positions_perp_long: "Long",
   positions_perp_short: "Short",
   positions_perp_leg: "{lev}× · tasfiye {liq}",
+
+  // ── Token bilgi kartı ───────────────────────────────────────────
+  token_peek_daily: "Bugün",
+  token_peek_market_cap: "Piyasa değeri",
+  token_peek_fdv: "FDV",
+  token_peek_liquidity: "Likidite",
+  token_peek_volume_24h: "24s hacim",
+  token_peek_last_24h: "Son 24 saat",
+  token_peek_no_chart: "Henüz fiyat geçmişi yok",
 };
