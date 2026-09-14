@@ -8,6 +8,7 @@ import { benchmarkOverlay } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
+import { TokenPeek } from "@/components/tokenPeek";
 import { DeployModal } from "@/components/deployModal";
 import {
   FOCUS,
@@ -868,14 +869,19 @@ function PositionRow({
           {/* The mark's own icon when the universe has one — there are five
               hundred-odd tokens and only a dozen ship a bundled ticker file.
               AssetLogo falls back to a monogram, so a row is never iconless. */}
-          <AssetLogo
-            symbol={p.symbol}
-            issuer={asset?.issuer}
-            src={asset?.iconUrl}
-          />
-          <span className="truncate font-mono text-[13px] text-text-primary">
-            {p.symbol}
-          </span>
+          {/* The record withholds mints on purpose, so the card keys its line
+              on the universe row's mint — which a crypto row carries and an
+              RWA or perp row does not, leaving those with facts and no chart. */}
+          <TokenPeek symbol={p.symbol} mint={asset?.mint ?? null} asset={asset}>
+            <AssetLogo
+              symbol={p.symbol}
+              issuer={asset?.issuer}
+              src={asset?.iconUrl}
+            />
+            <span className="truncate font-mono text-[13px] text-text-primary">
+              {p.symbol}
+            </span>
+          </TokenPeek>
         </span>
       </span>
       <Money value={qty === 0 ? "—" : tokenQty(qty, mark)} />
@@ -931,14 +937,16 @@ function TradeRow({ tr, marks }: { tr: RecordTrade; marks: UniverseAsset[] }) {
     >
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
-          <AssetLogo
-            symbol={tr.symbol}
-            issuer={asset?.issuer}
-            src={asset?.iconUrl}
-          />
-          <span className="truncate font-mono text-[13px] text-text-primary">
-            {tr.symbol}
-          </span>
+          <TokenPeek symbol={tr.symbol} mint={asset?.mint ?? null} asset={asset}>
+            <AssetLogo
+              symbol={tr.symbol}
+              issuer={asset?.issuer}
+              src={asset?.iconUrl}
+            />
+            <span className="truncate font-mono text-[13px] text-text-primary">
+              {tr.symbol}
+            </span>
+          </TokenPeek>
           {tr.underlying ? (
             <span className="shrink-0 font-mono text-[10px] text-text-dim">
               {tr.underlying}
