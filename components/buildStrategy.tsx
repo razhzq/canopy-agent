@@ -714,6 +714,20 @@ export const RWA_RULES: RuleSpec[] = [
     unit: "%",
     scale: "dispersion",
   },
+  // THE ANOMALY. The last bar's move in σ of the asset's own recent moves.
+  {
+    key: "moveSigma",
+    labelKey: "rule_moveSigma",
+    basis: "bars",
+    periods: "33",
+    helpKey: "rule_moveSigma_help",
+    op: "gte",
+    value: 2,
+    min: 0.5,
+    max: 10,
+    step: 0.5,
+    unit: "σ",
+  },
   // THE CHANGE KEYS. The last bar's own move, and volatility's own change —
   // the two things the ledger asked for that no level could express.
   {

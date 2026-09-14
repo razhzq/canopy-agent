@@ -88,6 +88,8 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_macdHistPct: "最低 MACD 柱",
   rule_macdHistPct_help:
     "MACD（12/26/9），以价格百分比衡量，因此同一套设置在黄金和股票上都适用。大于 0 表示金叉已经发生。",
+  rule_moveSigma: "波动至少（自身波动率的 σ）",
+  rule_moveSigma_help: "上一根 K 线的涨跌幅相对该资产自身近期波动（最近 33 根，不含被判断的那根）的标准差倍数，不分方向。2 即一根 K 线的波动是平常的两倍——异常值。日线上即相对日波动率的异常。",
   rule_barChangePct: "上一根 K 线至少下跌",
   rule_barChangePct_help: "上一根已收盘 K 线的涨跌幅（收盘价对前一收盘价）。负值即买入阴线：−1 表示上一根下跌 1% 或更多。这是策略周期上的一根 K 线，不是当日——当日涨跌请用“日涨跌幅”。",
   rule_barChangePctMin: "上一根 K 线至少上涨",

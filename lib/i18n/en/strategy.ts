@@ -108,6 +108,9 @@ export const enStrategy = {
   rule_macdHistPct: "Min MACD histogram",
   rule_macdHistPct_help:
     "MACD (12/26/9), measured as a percent of price so one setting works across gold and equities. Above 0 means the crossover has already happened.",
+  rule_moveSigma: "Move of at least, in σ of its own moves",
+  rule_moveSigma_help:
+    "How big the last bar's move is against the asset's own recent moves (the last 33 bars, excluding the bar judged), in standard deviations, either direction. 2 means twice what it normally moves in a bar — the anomaly. On daily bars this is the move against its daily volatility.",
   rule_barChangePct: "Last bar down at least",
   rule_barChangePct_help:
     "How much the last closed bar moved, close over the previous close. Negative buys a red bar: −1 means the last bar fell 1% or more. One bar at the strategy's timeframe — for the day, use the daily change.",
