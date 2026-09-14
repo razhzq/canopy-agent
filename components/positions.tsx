@@ -383,11 +383,19 @@ function OpenTable({
                 button inside a button — invalid, and every click on it would
                 also toggle the row underneath the dialog it opened. */}
             <div className="flex items-center gap-3">
+              {/* NOT `disabled` on a single-lot row. A disabled button
+                  swallows every mouse event inside it, and the token's hover
+                  card lives inside it — so the row stays live and just does
+                  nothing on press when there is nothing to expand into. */}
               <button
                 type="button"
-                disabled={!canExpand}
-                onClick={() => setOpen(expanded ? null : rowKey)}
-                className="grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto]"
+                aria-disabled={!canExpand}
+                onClick={() => {
+                  if (canExpand) setOpen(expanded ? null : rowKey);
+                }}
+                className={`grid flex-1 grid-cols-2 items-center gap-3 py-3 text-left sm:grid-cols-[1.4fr_repeat(4,1fr)_auto] ${
+                  canExpand ? "" : "cursor-default"
+                }`}
               >
                 <span className="min-w-0">
                   <span className="flex items-center gap-2">

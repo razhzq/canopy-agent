@@ -83,7 +83,7 @@ export function DepositModal({
   onClose,
 }: {
   address: string;
-  onClose: () => void;
+  onClose: () => void; 
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
