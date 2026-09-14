@@ -25,6 +25,7 @@ import {
   rulesForClass,
   timeframesForClass,
   toPayload,
+  withRuleParams,
   type RuleSpec,
   type Timeframe,
 } from "@/components/buildStrategy";
@@ -144,7 +145,7 @@ export function EditStrategyModal({
     const base = rulesForClass(klass).map((spec) => {
       const hit = stored.find((s) => s.key === spec.key && s.op !== "eq");
       return hit
-        ? { ...spec, op: hit.op as "gte" | "lte", value: hit.value, enabled: true }
+        ? { ...withRuleParams(spec, hit), op: hit.op as "gte" | "lte", value: hit.value, enabled: true }
         : { ...spec, enabled: false };
     });
     const extra = stored
@@ -155,7 +156,7 @@ export function EditStrategyModal({
         const spec = RWA_RULES.find((r) => r.key === s.key);
         return spec
           ? {
-              ...spec,
+              ...withRuleParams(spec, s),
               op: s.op as "gte" | "lte",
               value: s.value,
               enabled: true,

@@ -1,5 +1,6 @@
 "use client";
 
+import { paramsOf, periodsText } from "@/lib/rulePeriods";
 import { useState } from "react";
 import { Pill, PillRow, PillTag, StepHead } from "@/components/wizard";
 import { InfoDot, LABEL } from "@/components/kit";
@@ -67,6 +68,15 @@ export interface RuleSpec {
   basis: RuleBasis;
   /** Window in PERIODS, e.g. "14" or "20 vs 50". Only meaningful for `bars`. */
   periods?: string;
+  /**
+   * A period the user set, other than the catalogue's: "RSI 7". Numeric,
+   * beside the catalogue's `periods` string, and carried to the API as
+   * `period`. `pair` is the moving-average pair, `deviations` the Bollinger
+   * width. See lib/rulePeriods.ts for which keys honour each.
+   */
+  period?: number;
+  pair?: [number, number];
+  deviations?: number;
   /**
    * Whether this rule applies. Undefined means on, so the older two-step
    * builder keeps working unchanged.
@@ -1128,7 +1138,7 @@ export function rescaleRuleValue(rule: RuleSpec, from: Timeframe, to: Timeframe)
  */
 export function ruleSpan(spec: RuleSpec, timeframe: Timeframe, t: Translate): string | null {
   if (spec.basis !== "bars" || !spec.periods || timeframe === "1d") return null;
-  const bars = Number(spec.periods);
+  const bars = Number(spec.period ?? spec.periods);
   if (!Number.isFinite(bars) || bars <= 0) return null;
   const minutes = (bars * 1440) / BARS_PER_DAY[timeframe];
   if (minutes < 60) return t("rule_span_minutes", { n: Math.round(minutes) });
@@ -1161,11 +1171,12 @@ export function ruleLabel(
   t: Translate,
 ): string {
   const label = t(spec.labelKey);
-  if (spec.basis !== "bars" || !spec.periods) return label;
+  const periods = periodsText(spec);
+  if (spec.basis !== "bars" || !periods) return label;
   // "14d" reads better than "14 × 1d" and is what every chart calls it.
   return timeframe === "1d"
-    ? t("rule_window_daily", { label, periods: spec.periods })
-    : t("rule_window_bars", { label, periods: spec.periods, timeframe });
+    ? t("rule_window_daily", { label, periods })
+    : t("rule_window_bars", { label, periods, timeframe });
 }
 
 /** One line stating what a rule is measured against. Pairs with the label. */
@@ -1274,7 +1285,17 @@ export function fmt(v: number, unit: string): string {
 }
 
 export const toPayload = (rules: RuleSpec[]): DetectionRule[] =>
-  rules.map((r) => ({ key: r.key, op: r.op, value: r.value }));
+  rules.map((r) => ({ key: r.key, op: r.op, value: r.value, ...paramsOf(r) }));
+
+/** A stored rule's parameters, onto the catalogue spec it renders with. */
+export function withRuleParams(spec: RuleSpec, rule: DetectionRule): RuleSpec {
+  return {
+    ...spec,
+    ...(rule.period !== undefined ? { period: rule.period } : {}),
+    ...(rule.periods ? { pair: rule.periods } : {}),
+    ...(rule.deviations !== undefined ? { deviations: rule.deviations } : {}),
+  };
+}
 
 export function StrategyStep({
   rules,

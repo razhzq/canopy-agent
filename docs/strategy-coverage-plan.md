@@ -213,7 +213,7 @@ the card says); a grid on a perp market; Bollinger-derived spacing.
    sentence to it. The largest ask in the ledger.
 4. **Volatility-change and bar-change keys (1 day) — shipped 14 Sep 2026:** barChangePct / barChangePctMin (the last closed bar's move) and volatilityChangePct / volatilityChangePctMax (ATR now against five bars ago). "Price went up 1%" with no window is the last bar; "volatility up 20%" is the ATR change. ATR / bandwidth change
    over N bars, current-bar change.
-5. **Parameterised indicators (3 days).** Period on RSI, MA pairs, Bollinger,
+5. **Parameterised indicators (3 days) — shipped 14 Sep 2026.** The rule carries `period` (RSI, ATR, ADX, CCI, MFI, stochastic, Bollinger, the MA-distance keys, VWAP, volatility change), `periods` [fast, slow] on the MA pair keys, and `deviations` on Bollinger; the key stays the family and the battery emits the parameterised reading beside the default. The builder chip has a period box; the composer sets a period the sentence names instead of refusing it. Period on RSI, MA pairs, Bollinger,
    ATR; middle band as SMA 20. The battery computes from bars already; the
    change is the key grammar, the catalogue and the builder's chips.
 6. **Windows and breakouts (2 days).** Change over any window, new high /

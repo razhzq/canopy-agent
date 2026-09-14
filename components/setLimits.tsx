@@ -20,6 +20,7 @@ import {
   type GridPlan,
 } from "@/lib/api";
 import { gridMinSpacingPct, gridTotalUsd } from "@/lib/grid";
+import { DEVIATION_KEYS, PAIR_KEYS, PERIOD_KEYS } from "@/lib/rulePeriods";
 import {
   AddPlanCard,
   CADENCES,
@@ -31,6 +32,7 @@ import {
   rescaleRuleValue,
   rulesForClasses,
   toPayload,
+  withRuleParams,
   ruleBasisNote,
   ruleLabel,
   ruleSpan,
@@ -657,7 +659,7 @@ export function SetLimits({
           // size just moved that number no longer means what it meant — so it
           // is rescaled, exactly as the pill path does. Off either way until
           // something asks for it, but off with a number that still reads.
-          if (hit) return { ...r, value: hit.value, enabled: true };
+          if (hit) return { ...withRuleParams(r, hit), value: hit.value, enabled: true };
           const moved = nextTf && nextTf !== prevTf;
           return {
             ...r,
@@ -3106,7 +3108,7 @@ export function ComposedOnly({
   const label = (r: DetectionRule) => {
     const spec = catalogue.find((c) => c.key === r.key);
     return spec
-      ? `${ruleLabel(spec, timeframe, t)} ${r.op === "lte" ? "≤" : "≥"} ${r.value}${spec.unit}`
+      ? `${ruleLabel(withRuleParams(spec, r), timeframe, t)} ${r.op === "lte" ? "≤" : "≥"} ${r.value}${spec.unit}`
       : `${r.key} ${r.op === "lte" ? "≤" : "≥"} ${r.value}`;
   };
 
@@ -3318,6 +3320,53 @@ const PRESETS: { labelKey: TranslationKey; promptKey: TranslationKey }[] = [
   { labelKey: "preset_deep", promptKey: "preset_deep_prompt" },
 ];
 
+/** A small number box for a period: the reading's window, not its threshold. */
+function PeriodEntry({
+  value,
+  min,
+  max,
+  step = 1,
+  suffix,
+  label,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  label: string;
+  onChange: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const n = Number(draft);
+    setDraft(null);
+    if (!Number.isFinite(n)) return;
+    const snapped = Math.round(Math.min(Math.max(n, min), max) / step) * step;
+    onChange(Number(snapped.toFixed(2)));
+  };
+  return (
+    <label className="inline-flex items-center gap-1 rounded-full border border-grid px-2 py-0.5 font-ui text-[11px] text-text-dim" title={label}>
+      <span>{label}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft ?? String(value)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        aria-label={label}
+        className="tnum w-9 bg-transparent text-center font-mono text-[11.5px] text-text-primary outline-none"
+      />
+      {suffix ? <span>{suffix}</span> : null}
+    </label>
+  );
+}
+
 export function RuleChip({
   rule: r,
   timeframe = DEFAULT_TIMEFRAME,
@@ -3351,9 +3400,12 @@ export function RuleChip({
   // What the window is in wall-clock time. The label says "14 × 15m"; this says
   // what nobody should have to work out from it.
   const span = ruleSpan(r, timeframe, t);
+  const pk = PERIOD_KEYS[r.key];
+  const pair = PAIR_KEYS[r.key];
+  const dev = DEVIATION_KEYS.has(r.key);
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <p
           className={`min-w-0 font-ui text-[13px] font-medium ${on ? "text-text-primary" : "text-text-muted"}`}
         >
@@ -3381,6 +3433,37 @@ export function RuleChip({
             <span className="block pt-1.5 text-text-dim">{basisNote}</span>
           ) : null}
         </InfoDot>
+        {/* THE PERIOD, WHERE THE KEY HONOURS ONE. A compact entry beside the
+            name: "RSI 7" is a different reading from RSI 14, and the label
+            above restates whichever is set. Absent on keys with a fixed
+            window, so nothing is offered that does nothing. */}
+        {on && pk ? (
+          <PeriodEntry
+            value={r.period ?? pk.default}
+            min={pk.min}
+            max={pk.max}
+            label={t("rule_period")}
+            onChange={(n) => onChange({ period: n === pk.default ? undefined : n })}
+          />
+        ) : null}
+        {on && pair ? (
+          <span className="flex items-center gap-1">
+            <PeriodEntry value={(r.pair ?? pair.default)[0]} min={pair.min} max={pair.max} label={t("rule_period_fast")} onChange={(n) => onChange({ pair: [n, (r.pair ?? pair.default)[1]] })} />
+            <span className="font-ui text-[11px] text-text-dim">{t("rule_period_vs")}</span>
+            <PeriodEntry value={(r.pair ?? pair.default)[1]} min={pair.min} max={pair.max} label={t("rule_period_slow")} onChange={(n) => onChange({ pair: [(r.pair ?? pair.default)[0], n] })} />
+          </span>
+        ) : null}
+        {on && dev ? (
+          <PeriodEntry
+            value={r.deviations ?? 2}
+            min={0.5}
+            max={5}
+            step={0.5}
+            suffix="σ"
+            label={t("rule_deviations")}
+            onChange={(n) => onChange({ deviations: n === 2 ? undefined : n })}
+          />
+        ) : null}
       </div>
       <input
         type="range"

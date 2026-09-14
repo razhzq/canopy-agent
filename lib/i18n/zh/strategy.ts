@@ -62,6 +62,11 @@ export const zhStrategy: Record<keyof typeof enStrategy, string> = {
   rule_supertrendFlipDownBars_help:
     "Supertrend 转为看空是在几根 K 线之前。很少作为入场条件 — 适合刻意买入弱势的策略。",
 
+  rule_period: "周期",
+  rule_period_fast: "快线",
+  rule_period_slow: "慢线",
+  rule_period_vs: "对",
+  rule_deviations: "带宽",
   rule_window_daily: "{label}（{periods} 日）",
   rule_window_bars: "{label}（{periods} × {timeframe}）",
   rule_basis_change:
