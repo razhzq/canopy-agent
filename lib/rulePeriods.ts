@@ -56,13 +56,33 @@ export const DEVIATION_KEYS = new Set([
   "bollingerBandwidthPctMin",
 ]);
 
+/** The bar-based keys, which may read another chart. Mirror of agent-contracts TIMEFRAME_KEYS. */
+export const TIMEFRAME_KEYS: ReadonlySet<string> = new Set([
+  "rsi14", "rsi14Min", "smaSpreadPct", "smaCrossUpBars", "smaCrossDownBars",
+  "macdHistPct", "macdCrossUpBars", "macdCrossDownBars",
+  "bollingerPctB", "bollingerPctBMin", "bollingerBandwidthPct", "bollingerBandwidthPctMin",
+  "priceVsSma5Pct", "priceVsSma10Pct", "priceVsEma20Pct", "priceVsEma50Pct",
+  "momentum20dPct", "momentum20dPctMax", "belowHigh60dPct", "aboveLow60dPct",
+  "atrPct", "volatilityChangePct", "volatilityChangePctMax", "barChangePct", "barChangePctMin",
+  "supertrendDistancePct", "supertrendFlipUpBars", "supertrendFlipDownBars",
+  "adx", "stochasticK", "stochasticKMin", "cci", "mfi", "vwapDistPct",
+  "volumeRatio", "buyPressurePct", "barVolumeUsd", "avgBarVolumeUsd",
+  "breakHighPct", "breakLowPct",
+  "priceCrossEmaUpBars", "priceCrossEmaDownBars", "priceCrossSmaUpBars", "priceCrossSmaDownBars",
+  "bullishEngulfingBars", "bearishEngulfingBars", "hammerBars", "shootingStarBars", "dojiBars", "insideBarBars",
+]);
+
+export type Chart = "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
+
 /** The parameters a rule carries, in the shape the API takes; nothing when it reads the defaults. */
-export function paramsOf(r: { key: string; period?: number; pair?: [number, number]; deviations?: number }): {
+export function paramsOf(r: { key: string; period?: number; pair?: [number, number]; deviations?: number; chart?: Chart }): {
   period?: number;
   periods?: [number, number];
   deviations?: number;
+  timeframe?: Chart;
 } {
-  const out: { period?: number; periods?: [number, number]; deviations?: number } = {};
+  const out: { period?: number; periods?: [number, number]; deviations?: number; timeframe?: Chart } = {};
+  if (r.chart && TIMEFRAME_KEYS.has(r.key)) out.timeframe = r.chart;
   const pk = PERIOD_KEYS[r.key];
   if (pk && typeof r.period === "number" && r.period !== pk.default) out.period = r.period;
   const pair = PAIR_KEYS[r.key];

@@ -146,6 +146,8 @@ export const enStrategy = {
   // "Max RSI (14d)" / "Max RSI (14 × 15m)" — the window is what makes the
   // number mean something, and it changes with the chart.
   rule_period: "period",
+  rule_chart: "chart",
+  rule_chart_own: "strategy",
   rule_period_fast: "fast",
   rule_period_slow: "slow",
   rule_period_vs: "vs",

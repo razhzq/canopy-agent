@@ -20,7 +20,7 @@ import {
   type GridPlan,
 } from "@/lib/api";
 import { gridMinSpacingPct, gridTotalUsd } from "@/lib/grid";
-import { DEVIATION_KEYS, PAIR_KEYS, PERIOD_KEYS } from "@/lib/rulePeriods";
+import { DEVIATION_KEYS, PAIR_KEYS, PERIOD_KEYS, TIMEFRAME_KEYS } from "@/lib/rulePeriods";
 import {
   AddPlanCard,
   CADENCES,
@@ -3406,6 +3406,7 @@ export function RuleChip({
   const pk = PERIOD_KEYS[r.key];
   const pair = PAIR_KEYS[r.key];
   const dev = DEVIATION_KEYS.has(r.key);
+  const chartable = TIMEFRAME_KEYS.has(r.key) && r.basis === "bars";
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -3455,6 +3456,26 @@ export function RuleChip({
             <span className="font-ui text-[11px] text-text-dim">{t("rule_period_vs")}</span>
             <PeriodEntry value={(r.pair ?? pair.default)[1]} min={pair.min} max={pair.max} label={t("rule_period_slow")} onChange={(n) => onChange({ pair: [(r.pair ?? pair.default)[0], n] })} />
           </span>
+        ) : null}
+        {/* THE CHART, for bar-based keys: "the 1h RSI" on a 15m strategy.
+            Blank is the strategy's own chart. */}
+        {on && chartable ? (
+          <label className="inline-flex items-center gap-1 rounded-full border border-grid px-2 py-0.5 font-ui text-[11px] text-text-dim">
+            <span>{t("rule_chart")}</span>
+            <select
+              value={r.chart ?? ""}
+              onChange={(e) => onChange({ chart: (e.target.value || undefined) as Timeframe | undefined })}
+              aria-label={t("rule_chart")}
+              className="bg-transparent font-mono text-[11.5px] text-text-primary outline-none"
+            >
+              <option value="">{t("rule_chart_own")}</option>
+              {(["1m", "5m", "15m", "30m", "1h", "1d"] as const).map((tf) => (
+                <option key={tf} value={tf}>
+                  {tf}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
         {on && dev ? (
           <PeriodEntry

@@ -77,6 +77,8 @@ export interface RuleSpec {
   period?: number;
   pair?: [number, number];
   deviations?: number;
+  /** A chart other than the strategy's, for the bar-based keys: "the 1h RSI". Sent as `timeframe`. */
+  chart?: Timeframe;
   /**
    * Whether this rule applies. Undefined means on, so the older two-step
    * builder keeps working unchanged.
@@ -1573,10 +1575,12 @@ export function ruleLabel(
   const label = t(spec.labelKey);
   const periods = periodsText(spec);
   if (spec.basis !== "bars" || !periods) return label;
+  // A rule on another chart names that chart, not the strategy's.
+  const tf = spec.chart ?? timeframe;
   // "14d" reads better than "14 × 1d" and is what every chart calls it.
-  return timeframe === "1d"
+  return tf === "1d"
     ? t("rule_window_daily", { label, periods })
-    : t("rule_window_bars", { label, periods, timeframe });
+    : t("rule_window_bars", { label, periods, timeframe: tf });
 }
 
 /** One line stating what a rule is measured against. Pairs with the label. */
@@ -1694,6 +1698,7 @@ export function withRuleParams(spec: RuleSpec, rule: DetectionRule): RuleSpec {
     ...(rule.period !== undefined ? { period: rule.period } : {}),
     ...(rule.periods ? { pair: rule.periods } : {}),
     ...(rule.deviations !== undefined ? { deviations: rule.deviations } : {}),
+    ...(rule.timeframe ? { chart: rule.timeframe } : {}),
   };
 }
 

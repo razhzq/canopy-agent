@@ -482,6 +482,8 @@ export interface DetectionRule {
   periods?: [number, number];
   /** Bollinger width in standard deviations, when not 2. */
   deviations?: number;
+  /** A chart other than the strategy's own: "the 1h RSI". Mirror of agent-contracts. */
+  timeframe?: "1d" | "1h" | "30m" | "15m" | "5m" | "1m";
 }
 
 /**
