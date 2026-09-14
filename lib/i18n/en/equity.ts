@@ -70,4 +70,9 @@ export const enEquity = {
   close_sold_body: "The position is closed and the proceeds are back in the agent's wallet as USDC.",
   close_done: "Done",
   close_sign_in: "Sign in to close this position.",
+  close_waiting: "Still selling…",
+  close_dropped:
+    "The connection dropped before the sale finished and the wallet still holds the token. Check the agent's activity before trying again.",
+  close_sold_body_unlinked:
+    "The connection dropped while the sale was settling, but the wallet no longer holds the token: the position is closed and the receipt is in the agent's activity.",
 } as const;

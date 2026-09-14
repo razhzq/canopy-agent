@@ -64,4 +64,7 @@ export const zhEquity: Record<keyof typeof enEquity, string> = {
   close_sold_body: "持仓已平掉，所得已以 USDC 形式回到智能体钱包。",
   close_done: "完成",
   close_sign_in: "登录后才能平掉这笔持仓。",
+  close_waiting: "仍在卖出…",
+  close_dropped: "连接在卖出完成前中断，钱包仍持有该代币。请先查看智能体的活动记录，再重试。",
+  close_sold_body_unlinked: "连接在结算时中断，但钱包已不再持有该代币：持仓已平掉，凭证见智能体的活动记录。",
 };

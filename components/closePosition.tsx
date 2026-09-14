@@ -134,12 +134,44 @@ export function ClosePositionModal({
       : (shownPnl / costBasis) * 100;
   const priced = valueUsd !== null;
 
+  /**
+   * The request died before the server answered, while the server kept going.
+   *
+   * A live close can outlast the connection in front of the API: a slow RPC
+   * confirmation ran 49 s on TRUMP (agent 150, 2026-09-14), the proxy cut the
+   * request at its own limit, the browser reported "Failed to fetch" — and the
+   * sale had already settled and been booked. Showing that as a failure sends
+   * the owner back to click again on a position that is gone. So a dropped
+   * connection is not an answer: the wallet is asked instead, every few
+   * seconds, until it no longer holds the token (sold) or the wait runs out.
+   */
+  const [waiting, setWaiting] = useState(false);
+  async function settleAfterDrop(token: string): Promise<boolean> {
+    const deadline = Date.now() + 90_000;
+    setWaiting(true);
+    try {
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 4_000));
+        try {
+          const p = await closePreview(token, agentId, holding.mint);
+          if (p.heldQty !== null && p.heldQty <= 0) return true;
+        } catch {
+          // The API may still be busy with the sale; keep asking.
+        }
+      }
+      return false;
+    } finally {
+      setWaiting(false);
+    }
+  }
+
   async function confirm() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    let token: string | null = null;
     try {
-      const token = await getAccessToken();
+      token = await getAccessToken();
       if (!token) throw new Error(t("close_sign_in"));
       const result = await closePosition(token, agentId, holding.mint, holding.perp?.side);
       onClosed();
@@ -150,6 +182,19 @@ export function ClosePositionModal({
         onClose();
       }
     } catch (err) {
+      const dropped = err instanceof TypeError || /failed to fetch|load failed|network/i.test(String(err));
+      if (dropped && token) {
+        const gone = await settleAfterDrop(token);
+        if (gone) {
+          onClosed();
+          setSold("");
+          setBusy(false);
+          return;
+        }
+        setError(t("close_dropped"));
+        setBusy(false);
+        return;
+      }
       // Left OPEN on failure, showing why. Most failures here are temporary —
       // the agent is mid-cycle, or the price went unreadable — and closing the
       // dialog would hide the reason and lose the click.
@@ -160,14 +205,14 @@ export function ClosePositionModal({
 
   const signed = (v: number) => `${v >= 0 ? "+" : "−"}$${Math.abs(v).toFixed(2)}`;
 
-  if (sold) {
+  if (sold !== null) {
     return (
       <Modal title={t("close_title", { symbol: holding.symbol })} onClose={onClose}>
         <div className="space-y-4 px-6 py-6">
           <StatusLine tone="good">{t("close_sold")}</StatusLine>
-          <FieldNote tone="dim">{t("close_sold_body")}</FieldNote>
+          <FieldNote tone="dim">{sold ? t("close_sold_body") : t("close_sold_body_unlinked")}</FieldNote>
           <div className="flex items-center gap-4">
-            <TxLink signature={sold} label={t("common_view_transaction")} />
+            {sold ? <TxLink signature={sold} label={t("common_view_transaction")} /> : null}
             <button type="button" onClick={onClose} className={QUIET}>
               {t("close_done")}
             </button>
@@ -263,7 +308,7 @@ export function ClosePositionModal({
             className={`flex-1 gap-2 ${PRIMARY}`}
           >
             {busy ? <Spinner /> : null}
-            {t(busy ? "close_closing" : "close_confirm")}
+            {t(waiting ? "close_waiting" : busy ? "close_closing" : "close_confirm")}
           </button>
           {/* Quiet, and second. Keeping is the safe direction and does not
               need to compete for the eye with the one action that sells. */}

@@ -69,4 +69,9 @@ export const trEquity: Record<keyof typeof enEquity, string> = {
   close_sold_body: "Pozisyon kapatıldı ve gelir USDC olarak ajanın cüzdanına döndü.",
   close_done: "Tamam",
   close_sign_in: "Bu pozisyonu kapatmak için giriş yapın.",
+  close_waiting: "Hâlâ satılıyor…",
+  close_dropped:
+    "Satış tamamlanmadan bağlantı koptu ve cüzdan hâlâ bu tokenı tutuyor. Yeniden denemeden önce ajanın etkinliğine bakın.",
+  close_sold_body_unlinked:
+    "Satış sonuçlanırken bağlantı koptu, ancak cüzdan artık bu tokenı tutmuyor: pozisyon kapatıldı ve makbuz ajanın etkinliğinde.",
 };
