@@ -1511,6 +1511,14 @@ export const createStrategy = (
   body: {
     name: string;
     strategyClass: string;
+    /**
+     * The paper book the builder's dollar figures are stated against. The
+     * server converts `positionUsd` to a share of THIS, so it must match the
+     * `capitalUsd` the paper run starts with.
+     */
+    paperCapitalUsd?: number;
+    /** A Copy LP strategy: the leader wallet and the copy's limits. Needs strategyClass "lp". */
+    copyLp?: CopyLpInput;
     rules: DetectionRule[];
     /** Either/or groups, ANDed with `rules`. Omitted means none. */
     anyOf?: DetectionRule[][];
@@ -3879,3 +3887,42 @@ export const setUsername = (token: string, privyId: string, username: string) =>
     method: "PATCH",
     body: JSON.stringify({ privyId, username }),
   });
+
+/* ------------------------------------------------------------ copy LP -- */
+
+export interface CopyLpInput {
+  leader: string;
+  maxPositionUsd?: number;
+  maxOpenPositions?: number;
+  minPoolTvlUsd?: number;
+  verifiedTokensOnly?: boolean;
+  followRebalances?: boolean;
+  maxSlippagePct?: number;
+}
+
+export interface LeaderPreview {
+  leader: string;
+  readAt: string;
+  /** Wallet tokens plus every DLMM position. Null when it could not be read in full. */
+  capitalUsd: number | null;
+  inDlmmUsd: number;
+  pools: number;
+  /** Largest first. */
+  positions: {
+    position: string;
+    pool: string;
+    pair: string;
+    lowerBinId: number;
+    upperBinId: number;
+    valueUsd: number;
+    /** The share of capital a copy is sized by; null without a capital figure. */
+    sharePct: number | null;
+    inRange: boolean | null;
+  }[];
+  /** Copies below this are skipped by the engine. */
+  minCopyUsd: number;
+}
+
+/** A wallet read as a Copy LP leader: its DLMM positions and capital, from the chain. */
+export const getLeaderPreview = (token: string, address: string) =>
+  request<LeaderPreview>(`/agents/copy-lp/leader/${encodeURIComponent(address)}`, token);

@@ -25,7 +25,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { DEFAULT_RISK_CAPS,
-  CAPITAL_USD,
+  bookOf,
   RWA_RULES,
   SetLimits,
   defaultPerp,
@@ -50,6 +50,16 @@ import {
   type ModelChoice,
 } from "@/components/pickModel";
 import { FundNewAgent } from "@/components/fundNewAgent";
+import { KIND_TITLE, PickType, formatUsd, type AgentKind } from "@/components/buildType";
+import {
+  CopyLimitsStep,
+  DEFAULT_COPY_LIMITS,
+  PickLeader,
+  copyLpPayload,
+  shortAddress,
+  useLeaderPreview,
+  type CopyLimits,
+} from "@/components/copyLpSteps";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -122,13 +132,20 @@ function classesIn(assets: UniverseAsset[]): ("rwa" | "spot")[] {
 const DRAFT_KEY = "canopy_build_draft_v1";
 
 interface Draft {
-  /** 2 added `instrument`. A v1 draft reads as spot, which is all it could be. */
-  v: 1 | 2;
+  /**
+   * 2 added `instrument`. A v1 draft reads as spot, which is all it could be.
+   * 3 added the type step: `kind`, `phase` and the Copy LP limits; the paper
+   * book rides on `limits.capitalUsd`.
+   */
+  v: 1 | 2 | 3;
   savedAt: number;
   name: string;
   named: boolean;
   step: number;
   instrument?: "spot" | "perp";
+  kind?: AgentKind;
+  phase?: "type" | "build";
+  copy?: CopyLimits;
   markets: UniverseAsset[];
   discovery: DiscoverySpec | undefined;
   limits: Limits;
@@ -139,6 +156,12 @@ const STEPS: { index: string; labelKey: TranslationKey }[] = [
   { index: "01", labelKey: "build_step_market" },
   { index: "02", labelKey: "build_step_limits" },
   { index: "03", labelKey: "build_step_model" },
+];
+
+/** A copy agent has no market, no strategy and no model: who, and how much. */
+const COPY_STEPS: { index: string; labelKey: TranslationKey }[] = [
+  { index: "01", labelKey: "cl_step_leader" },
+  { index: "02", labelKey: "cl_step_limits" },
 ];
 
 const DEFAULT_LIMITS: Limits = {
@@ -152,6 +175,8 @@ const DEFAULT_LIMITS: Limits = {
   // The guardrails, visible from the first render rather than applied
   // silently at deploy. Same figures the lifecycle falls back to.
   riskCaps: DEFAULT_RISK_CAPS,
+  // The paper book, chosen on the type step: any amount from $100.
+  capitalUsd: 10_000,
 };
 
 /**
@@ -200,6 +225,18 @@ export function BuildAgent() {
   // Spot or perps. Step 01's first control; kept here because the draft
   // persists it and step 02 reads it.
   const [instrument, setInstrument] = useState<"spot" | "perp">("spot");
+  /**
+   * WHAT THE AGENT IS, asked before anything else (canopyatlas.pen, Build —
+   * 00 Type). `phase` is the type screen in front of the per-type steps; the
+   * spot and perp steps are the ones this builder always had, and a copy
+   * agent gets its own two.
+   */
+  const [kind, setKind] = useState<AgentKind>("spot");
+  const [phase, setPhase] = useState<"type" | "build">("type");
+  const [copy, setCopy] = useState<CopyLimits>(DEFAULT_COPY_LIMITS);
+  /** False while the paper book field holds something that is not a book. */
+  const [bookOk, setBookOk] = useState(true);
+  const leaderPreview = useLeaderPreview(kind === "copyLp" ? copy.leader : "");
   const asset = markets[0] ?? null;
   /**
    * The screen, when the author asked the agent to find its own markets.
@@ -211,6 +248,7 @@ export function BuildAgent() {
    */
   const [discovery, setDiscovery] = useState<DiscoverySpec | undefined>(undefined);
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  const book = bookOf(limits);
   // What the council will reason with. Canopy's model until someone chooses
   // otherwise — the state every agent built before step 3 existed is in.
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
@@ -302,16 +340,20 @@ export function BuildAgent() {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw) as Draft;
-        if (d && (d.v === 1 || d.v === 2)) {
+        if (d && (d.v === 1 || d.v === 2 || d.v === 3)) {
           setName(d.name ?? "");
           setNamed(!!d.named);
           setStep(d.step ?? 0);
           setInstrument(d.instrument ?? "spot");
+          setKind(d.kind ?? d.instrument ?? "spot");
+          // A draft from before the type step was already past it.
+          setPhase(d.phase ?? "build");
+          setCopy(d.copy ?? DEFAULT_COPY_LIMITS);
           setMarkets(d.markets ?? []);
           setDiscovery(d.discovery);
           setLimits(d.limits ?? DEFAULT_LIMITS);
           setModel(d.model ?? DEFAULT_MODEL);
-          if ((d.name ?? "").trim() !== "" || (d.markets ?? []).length > 0 || d.discovery) {
+          if ((d.name ?? "").trim() !== "" || (d.markets ?? []).length > 0 || d.discovery || (d.copy?.leader ?? "") !== "") {
             setRestoredAt(d.savedAt);
             setNaming("done");
           }
@@ -321,7 +363,10 @@ export function BuildAgent() {
       /* a corrupt draft is dropped, not fatal */
     }
     hydrated.current = true;
-    setNaming((n) => n ?? "open");
+    // The name lives in the header from the first frame: the type step is the
+    // first question now, and a name is suggested once there is something to
+    // name (see the effects below).
+    setNaming((n) => n ?? "done");
   }, []);
 
   /**
@@ -351,14 +396,14 @@ export function BuildAgent() {
     }, 220);
   }
 
-  const dirty = name.trim() !== "" || markets.length > 0 || !!discovery;
+  const dirty = name.trim() !== "" || markets.length > 0 || !!discovery || copy.leader !== "" || kind !== "spot";
 
   useEffect(() => {
     if (!hydrated.current) return;
     if (!dirty) return;
     const id = setTimeout(() => {
       try {
-        const d: Draft = { v: 2, savedAt: Date.now(), name, named, step, instrument, markets, discovery, limits, model };
+        const d: Draft = { v: 3, savedAt: Date.now(), name, named, step, instrument, kind, phase, copy, markets, discovery, limits, model };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
         setSaved(true);
         if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -368,7 +413,7 @@ export function BuildAgent() {
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [dirty, name, named, step, instrument, markets, discovery, limits, model]);
+  }, [dirty, name, named, step, instrument, kind, phase, copy, markets, discovery, limits, model]);
 
   // Leaving with an unfinished draft asks first. The draft is saved
   // either way; this is for the tab closed by accident mid-sentence.
@@ -385,7 +430,11 @@ export function BuildAgent() {
   // The name, suggested once the agent is a thing: on reaching the model step
   // with the field still empty, from the market picked (or the screen).
   useEffect(() => {
-    if (step !== 2 || name.trim() !== "") return;
+    if (kind === "copyLp" && phase === "build" && step === 1 && name.trim() === "" && copy.leader) {
+      setName(t("cl_name_suggest", { short: shortAddress(copy.leader) }));
+      return;
+    }
+    if (kind === "copyLp" || step !== 2 || name.trim() !== "") return;
     if (markets.length === 1) setName(t("build_name_suggest_one", { symbol: markets[0].symbol }));
     else if (markets.length > 1) {
       setName(t("build_name_suggest_many", { symbol: markets[0].symbol, count: markets.length - 1 }));
@@ -408,13 +457,17 @@ export function BuildAgent() {
     setNamed(false);
     setStep(0);
     setInstrument("spot");
+    setKind("spot");
+    setPhase("type");
+    setCopy(DEFAULT_COPY_LIMITS);
+    setBookOk(true);
     setMarkets([]);
     setDiscovery(undefined);
     setLimits(DEFAULT_LIMITS);
     setModel(DEFAULT_MODEL);
     setPending(null);
     setError(null);
-    setNaming("open");
+    setNaming("done");
   }
 
   /**
@@ -430,7 +483,9 @@ export function BuildAgent() {
     // deploys the agent, so the button does what it says rather than leaving a
     // half-made thing behind.
     setStage("starting");
-    const { agentId } = await startPaperRun(token, strategyId);
+    // The book chosen on the type step — the same figure the strategy's dollar
+    // limits were converted against.
+    const { agentId } = await startPaperRun(token, strategyId, { capitalUsd: book });
     // The agent exists. Whatever happens next, this draft is done.
     clearDraft();
     setStage(null);
@@ -515,6 +570,63 @@ export function BuildAgent() {
     }
   }
 
+  /**
+   * The type chosen on step 00. Spot and perps share the market, strategy and
+   * model steps and differ by instrument, which switches exactly as the old
+   * in-picker toggle did; a copy agent keeps whatever market work exists
+   * untouched in the draft, since it uses none of it.
+   */
+  function onKindChange(next: AgentKind): void {
+    if (next === kind) return;
+    setKind(next);
+    setStep(0);
+    if (next !== "copyLp") onInstrumentChange(next);
+  }
+
+  /** The paper book: any amount from $100. A budget above the book comes down to it. */
+  function onCapitalChange(next: number | null): void {
+    if (next === null) return void setBookOk(false);
+    setBookOk(true);
+    setLimits((l) => ({ ...l, capitalUsd: next, positionUsd: Math.min(l.positionUsd, next) }));
+  }
+
+  /** The leader is readable: an address that resolved to a book, positions or not. */
+  const leaderReady = leaderPreview.phase === "ready";
+
+  /** A Copy LP strategy, created and started on paper. */
+  async function submitCopy() {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error(t("error_not_signed_in"));
+      if (!leaderReady) throw new Error(t("cl_enter_leader"));
+      setStage("saving");
+      const { strategy, warnings } = await createStrategy(token, {
+        name: name.trim() || t("build_untitled"),
+        strategyClass: "lp",
+        rules: [],
+        paperCapitalUsd: book,
+        copyLp: copyLpPayload(copy),
+        safetyFloor: { minLiquidityUsd: 0, maxSlippagePct: copy.maxSlippagePct, requireSafetyScreen: false },
+        feePct: 10,
+        // Maintenance only: marks, the equity reading and the breaker. The
+        // copying itself runs as the leader acts, not on this clock.
+        tickIntervalSec: 300,
+        riskCaps: limits.riskCaps,
+      });
+      // The copy's warnings are statements of fact (paper only, start flat),
+      // not a plan that might be a mistake — nothing to stop for.
+      void warnings;
+      await start(token, strategy.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+      setStage(null);
+    }
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
@@ -531,6 +643,7 @@ export function BuildAgent() {
       setStage("saving");
       const { strategy, warnings } = await createStrategy(token, {
         name: name.trim() || t("build_untitled"),
+        paperCapitalUsd: book,
         // Still ONE value, because the column is one value — but it is no
         // longer what decides the specialist. The tick reads the UNIVERSE and
         // runs a specialist per class present (MultiSme), so this is the
@@ -720,6 +833,25 @@ export function BuildAgent() {
    * it came from, so "that is wrong" has somewhere to go.
    */
   function reviewRows() {
+    if (kind === "copyLp") {
+      const data = leaderPreview.phase === "ready" ? leaderPreview.data : null;
+      return [
+        { label: t("cl_review_type"), value: t("bt_copy"), step: "00" },
+        { label: t("build_row_paper_book"), value: formatUsd(book), tone: "accent" as const, step: "00" },
+        {
+          label: t("cl_review_leader"),
+          value: `${shortAddress(copy.leader)}${data ? ` · ${t("cl_positions_count", { count: data.positions.length })}` : ""}`,
+          step: "01",
+        },
+        { label: t("cl_row_max_position"), value: copy.maxPositionUsd === null ? t("cl_off") : formatUsd(copy.maxPositionUsd), step: "02" },
+        { label: t("cl_row_max_open"), value: String(copy.maxOpenPositions), step: "02" },
+        { label: t("cl_row_tvl"), value: copy.minPoolTvlUsd === null ? t("cl_off") : formatUsd(copy.minPoolTvlUsd), step: "02" },
+        { label: t("cl_row_slippage"), value: `${copy.maxSlippagePct}%`, step: "02" },
+        { label: t("cl_row_verified"), value: t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower"), step: "02" },
+        { label: t("cl_row_range"), value: t(copy.followRebalances ? "cl_followed" : "cl_not_followed"), step: "02" },
+        { label: t("cl_row_starts"), value: t("cl_row_starts_value"), step: "02" },
+      ];
+    }
     return [
       {
         label: t("review_row_markets"),
@@ -960,8 +1092,56 @@ export function BuildAgent() {
           busy={busy}
           error={error}
           warnings={pending?.warnings ?? []}
-          onStart={() => void (pending ? confirmPending() : submit())}
+          onStart={() => void (pending ? confirmPending() : kind === "copyLp" ? submitCopy() : submit())}
         />
+      );
+    }
+
+    if (phase === "type") {
+      return (
+        <BuildFrame
+          step={null}
+          title={t("build_title")}
+          onBack={() => router.replace(lastRoute())}
+          cta={
+            <BuildCta
+              label={bookOk ? t("bt_continue", { type: t(KIND_TITLE[kind]) }) : t("bt_book_first")}
+              disabled={!bookOk}
+              onClick={() => {
+                setStep(0);
+                setPhase("build");
+              }}
+            />
+          }
+        >
+          <div className="px-[18px] pb-6">
+            <PickType kind={kind} onKindChange={onKindChange} capitalUsd={bookOk ? book : null} onCapitalChange={onCapitalChange} />
+          </div>
+        </BuildFrame>
+      );
+    }
+
+    if (kind === "copyLp") {
+      const copyCta =
+        step === 0
+          ? { label: t(leaderReady ? "cl_continue_limits" : "cl_enter_leader"), disabled: !leaderReady, onClick: () => setStep(1) }
+          : { label: t("build_cta_review"), hint: t("build_cta_review_hint"), disabled: !leaderReady, onClick: () => setReviewing(true) };
+      return (
+        <BuildFrame
+          step={step + 1}
+          steps={COPY_STEPS.length}
+          title={t("build_title")}
+          onBack={() => (step === 0 ? setPhase("type") : setStep(0))}
+          cta={<BuildCta {...copyCta} />}
+        >
+          <div className="px-[18px] pb-6">
+            {step === 0 ? (
+              <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+            ) : (
+              <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+            )}
+          </div>
+        </BuildFrame>
       );
     }
 
@@ -992,7 +1172,7 @@ export function BuildAgent() {
         step={step + 1}
         steps={STEPS.length}
         title={t("build_title")}
-        onBack={() => (step === 0 ? router.replace(lastRoute()) : setStep(step - 1))}
+        onBack={() => (step === 0 ? setPhase("type") : setStep(step - 1))}
         cta={<BuildCta {...stepCta} />}
       >
         <div className="px-[18px] pb-6">
@@ -1008,7 +1188,6 @@ export function BuildAgent() {
               onDiscoveryChange={onDiscoveryChange}
               onNext={() => setStep(1)}
               instrument={instrument}
-              onInstrumentChange={onInstrumentChange}
             />
           ) : step === 1 ? (
             <SetLimits
@@ -1075,9 +1254,20 @@ export function BuildAgent() {
         </div>
 
         <StepPill
-          step={step}
-          labels={STEPS.map((s) => ({ index: s.index, label: t(s.labelKey) }))}
-          onSelect={goTo}
+          // Type is segment 00; the type's own steps follow it. Once past the
+          // type step it shows as the type chosen, the way a done step would.
+          step={phase === "type" ? 0 : step + 1}
+          labels={[
+            { index: "00", label: phase === "type" ? t("bt_step_type") : t(KIND_TITLE[kind]) },
+            ...(kind === "copyLp" ? COPY_STEPS : STEPS).map((s) => ({ index: s.index, label: t(s.labelKey) })),
+          ]}
+          onSelect={(i) => {
+            setPending(null);
+            if (i === 0) {
+              dir.current = "back";
+              setPhase("type");
+            } else goTo(i - 1);
+          }}
           ariaLabel={t("build_steps_aria")}
         />
       </section>
@@ -1100,7 +1290,7 @@ export function BuildAgent() {
           <div className="flex min-h-[calc(100vh-64px-53px)] flex-col">
           <div className="flex-1 px-5 sm:px-8 py-8">
           <div
-            key={step}
+            key={`${phase}-${kind}-${step}`}
             className={dir.current === "back" ? "step-enter-back" : "step-enter-fwd"}
           >
             {step === 0 && naming !== null && naming !== "done" ? (
@@ -1133,7 +1323,15 @@ export function BuildAgent() {
                 </div>
               </div>
             ) : null}
-            {step === 0 || (!asset && !discovery) ? (
+            {phase === "type" ? (
+              <PickType kind={kind} onKindChange={onKindChange} capitalUsd={bookOk ? book : null} onCapitalChange={onCapitalChange} />
+            ) : kind === "copyLp" ? (
+              step === 0 ? (
+                <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+              ) : (
+                <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+              )
+            ) : step === 0 || (!asset && !discovery) ? (
               <div
                 aria-hidden={naming !== "done"}
                 className={`transition-[opacity,transform] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
@@ -1146,7 +1344,6 @@ export function BuildAgent() {
                   discovery={discovery}
                   onDiscoveryChange={onDiscoveryChange}
                   instrument={instrument}
-                  onInstrumentChange={onInstrumentChange}
                 />
               </div>
             ) : step === 1 ? (
@@ -1232,7 +1429,19 @@ export function BuildAgent() {
               white pill on the right, and the gate is the pill's own label. */}
           <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-grid bg-bg/85 px-5 py-3.5 backdrop-blur-md sm:px-8">
             <div className="flex items-center gap-5">
-              {step > 0 ? (
+              {phase === "build" && step === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPending(null);
+                    dir.current = "back";
+                    setPhase("type");
+                  }}
+                  className={QUIET}
+                >
+                  ← {t("bt_step_type")}
+                </button>
+              ) : phase === "build" && step > 0 ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1241,7 +1450,7 @@ export function BuildAgent() {
                   }}
                   className={QUIET}
                 >
-                  ← {t("build_back_to", { step: t(STEPS[step - 1].labelKey) })}
+                  ← {t("build_back_to", { step: t((kind === "copyLp" ? COPY_STEPS : STEPS)[step - 1].labelKey) })}
                 </button>
               ) : (
                 <button
@@ -1254,18 +1463,48 @@ export function BuildAgent() {
                   ← {t("common_cancel")}
                 </button>
               )}
-              <span className="font-ui text-[12.5px] text-text-muted">
-                {t("wiz_step_of", { step: step + 1, total: STEPS.length })}
-              </span>
+              {phase === "build" ? (
+                <span className="font-ui text-[12.5px] text-text-muted">
+                  {t("wiz_step_of", { step: step + 1, total: (kind === "copyLp" ? COPY_STEPS : STEPS).length })}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-4">
-              {step === 2 ? (
+              {phase === "build" && (kind === "copyLp" ? step === 1 : step === 2) ? (
                 <span className="hidden font-ui text-[12.5px] text-text-muted md:inline">
-                  {t("build_paper_note_short")}
+                  {t(kind === "copyLp" ? "cl_paper_note" : "build_paper_note_short")}
                 </span>
               ) : null}
-              {step === 0 && naming !== "done" ? (
+              {phase === "type" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dir.current = "fwd";
+                    setStep(0);
+                    setPhase("build");
+                  }}
+                  disabled={!bookOk}
+                  className={`${PRIMARY} px-5`}
+                >
+                  {bookOk ? t("bt_continue", { type: t(KIND_TITLE[kind]) }) : t("bt_book_first")}
+                </button>
+              ) : kind === "copyLp" && step === 0 ? (
+                <button type="button" onClick={() => goTo(1)} disabled={!leaderReady} className={`${PRIMARY} px-5`}>
+                  {t(leaderReady ? "cl_continue_limits" : "cl_enter_leader")}
+                </button>
+              ) : kind === "copyLp" ? (
+                ready && !authenticated ? (
+                  <button type="button" onClick={login} className={`${PRIMARY} px-5`}>
+                    {t("build_sign_in_to_start")}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => void submitCopy()} disabled={busy || !ready || !leaderReady} className={`${PRIMARY} px-5`}>
+                    {busy ? <Spinner className="mr-2" /> : null}
+                    {t(stage === "saving" ? "build_stage_saving" : stage === "starting" ? "build_stage_starting" : "cl_run_paper")}
+                  </button>
+                )
+              ) : step === 0 && naming !== "done" ? (
                 // The one pill commits the name while the field is the page.
                 <button
                   type="button"
@@ -1331,6 +1570,44 @@ export function BuildAgent() {
                 stays visible while the next thing is being decided. */}
             <div className="px-5 sm:px-8 py-7">
               <h3 className="pb-4 font-ui text-[13px] font-medium text-text-primary">{t("build_so_far")}</h3>
+              {phase === "type" ? (
+                <>
+                  <Trail done={false} here label={t("bt_step_type")} value={t("bt_trail_this", { value: t(KIND_TITLE[kind]) })} />
+                  {(kind === "copyLp" ? COPY_STEPS : STEPS).map((s) => (
+                    <Trail key={s.index} done={false} label={t(s.labelKey)} value={t("bt_trail_next")} />
+                  ))}
+                  <div className="mt-5 space-y-2 border-t border-grid pt-4">
+                    <Row label={t("build_row_paper_book")} value={bookOk ? money(book) : "—"} tone="accent" />
+                  </div>
+                </>
+              ) : kind === "copyLp" ? (
+                <>
+                  <Trail done label={t("bt_step_type")} value={t("bt_copy")} />
+                  <Trail
+                    done={step > 0 && leaderReady}
+                    here={step === 0}
+                    label={t("cl_step_leader")}
+                    value={
+                      copy.leader
+                        ? `${shortAddress(copy.leader)}${leaderPreview.phase === "ready" ? ` · ${t("cl_positions_count", { count: leaderPreview.data.positions.length })}` : ""}`
+                        : t("build_trail_this_step")
+                    }
+                  />
+                  <Trail done={false} here={step === 1} label={t("cl_step_limits")} value={step === 1 ? t("build_trail_this_step") : t("bt_trail_next")} />
+                  <div className="mt-5 space-y-2 border-t border-grid pt-4">
+                    <Row label={t("build_row_paper_book")} value={money(book)} tone="accent" />
+                    <Row label={t("cl_row_max_position")} value={copy.maxPositionUsd === null ? t("cl_off") : money(copy.maxPositionUsd)} />
+                    <Row label={t("cl_row_max_open")} value={String(copy.maxOpenPositions)} />
+                    <Row label={t("cl_row_tvl")} value={copy.minPoolTvlUsd === null ? t("cl_off") : money(copy.minPoolTvlUsd)} />
+                    <Row label={t("cl_row_slippage")} value={`${copy.maxSlippagePct}%`} />
+                    <Row label={t("cl_row_verified")} value={t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower")} />
+                    <Row label={t("cl_row_range")} value={t(copy.followRebalances ? "cl_followed" : "cl_not_followed")} />
+                    <Row label={t("cl_row_model")} value={t("cl_none")} />
+                  </div>
+                </>
+              ) : (
+              <>
+              <Trail done label={t("bt_step_type")} value={t(KIND_TITLE[kind])} />
               <Trail
                 // A screen answers this step as completely as a pick does, so
                 // the rail must count it as answered — otherwise a
@@ -1403,7 +1680,7 @@ export function BuildAgent() {
                   />
                   <Row
                     label={t("build_row_paper_book")}
-                    value={money(CAPITAL_USD)}
+                    value={money(book)}
                   />
                   {/* Where it fills. Stated, not chosen — the market settled
                       it back in step 1, and a row is what that deserves. */}
@@ -1416,6 +1693,8 @@ export function BuildAgent() {
                   ) : null}
                 </div>
               ) : null}
+              </>
+              )}
             </div>
 
           </>

@@ -65,6 +65,12 @@ import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
 export interface Limits {
   /**
+   * The paper book this agent starts with, chosen on the type step. Any
+   * amount from MIN_PAPER_BOOK_USD. Absent reads as CAPITAL_USD, the fixed book
+   * every draft saved before the choice existed was sized against.
+   */
+  capitalUsd?: number;
+  /**
    * Rules or a price grid. Absent reads as rules, which is every strategy
    * built before the grid existed. A grid is spot only: the ladder buys and
    * sells one token, and rules, exits and the add plan play no part in it.
@@ -260,6 +266,12 @@ const OPPOSITE_HELP = { close: "sl_opposite_close_help", hold: "sl_opposite_hold
 
 /** Verification capital. The budget is expressed against it. */
 const CAPITAL_USD = 10_000;
+/** The smallest paper book the server accepts; below it the flat network fee is most of every trade. */
+export const MIN_PAPER_BOOK_USD = 100;
+/** The book a set of limits is sized against. */
+export function bookOf(limits: Pick<Limits, "capitalUsd">): number {
+  return limits.capitalUsd !== undefined && limits.capitalUsd >= MIN_PAPER_BOOK_USD ? limits.capitalUsd : CAPITAL_USD;
+}
 
 /**
  * Smallest position the builder will set, and the step it moves in.
@@ -1532,7 +1544,7 @@ export function SetLimits({
           do. Entries commit on blur or Enter — clamping every keystroke made
           typing "1" on the way to "1000" snap to the floor. */}
       <section>
-        <SectionLabel title={t("sl_budget")} note={t("sl_budget_note", { book: money(CAPITAL_USD) })} />
+        <SectionLabel title={t("sl_budget")} note={t("sl_budget_note", { book: money(bookOf(value)) })} />
         <div className="overflow-hidden rounded-xl border border-border">
           <BudgetRow
             label={t(isPerp ? "sl_collateral" : "sl_position_limit")}
@@ -1541,14 +1553,14 @@ export function SetLimits({
               isPerp
                 ? t("sl_notional", { notional: money(value.positionUsd * perp.leverage), lev: perp.leverage })
                 : t("sl_position_consequence", {
-                    pct: ((value.positionUsd / CAPITAL_USD) * 100).toFixed(0),
-                    positions: Math.max(1, Math.floor(CAPITAL_USD / value.positionUsd)),
+                    pct: ((value.positionUsd / bookOf(value)) * 100).toFixed(0),
+                    positions: Math.max(1, Math.floor(bookOf(value) / value.positionUsd)),
                   })
             }
           >
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
               <div className="flex items-center gap-1">
-                {QUICK_SIZES.map((n) => (
+                {QUICK_SIZES.filter((n) => n <= bookOf(value)).map((n) => (
                   <button
                     key={n}
                     type="button"
@@ -1567,7 +1579,7 @@ export function SetLimits({
               <NumberEntry
                 value={value.positionUsd}
                 min={MIN_POSITION_USD}
-                max={CAPITAL_USD}
+                max={bookOf(value)}
                 step={MIN_POSITION_USD}
                 unit="$"
                 label={t("sl_position_limit")}
@@ -1604,7 +1616,7 @@ export function SetLimits({
           <BudgetRow
             label={t("sl_cap_breaker")}
             info={t("sl_cap_breaker_info")}
-            help={t("sl_cap_breaker_help", { usd: money((CAPITAL_USD * (caps.maxDrawdownPct ?? 20)) / 100) })}
+            help={t("sl_cap_breaker_help", { usd: money((bookOf(value) * (caps.maxDrawdownPct ?? 20)) / 100) })}
           >
             <NumberEntry
               value={caps.maxDrawdownPct ?? 20}
@@ -1639,7 +1651,7 @@ export function SetLimits({
             info={t("sl_cap_daily_info")}
             help={
               caps.dailyLossLimitPct !== null
-                ? t("sl_cap_daily_help", { usd: money((CAPITAL_USD * (caps.dailyLossLimitPct ?? 5)) / 100) })
+                ? t("sl_cap_daily_help", { usd: money((bookOf(value) * (caps.dailyLossLimitPct ?? 5)) / 100) })
                 : undefined
             }
           >
@@ -2930,7 +2942,7 @@ function requirements(
       }),
       ask: t("req_size_ask", {
         amount: money(limits.positionUsd),
-        book: money(CAPITAL_USD),
+        book: money(bookOf(limits)),
       }),
       chips: [t("req_size_chip_1"), t("req_size_chip_2"), t("req_size_chip_3")],
     },
@@ -2973,7 +2985,7 @@ function readSizing(text: string, limits: Limits): Limits | null {
       Math.round(usd / MIN_POSITION_USD) * MIN_POSITION_USD,
       MIN_POSITION_USD,
     ),
-    CAPITAL_USD,
+    bookOf(limits),
   );
   return { ...limits, positionUsd: clamped };
 }
