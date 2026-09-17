@@ -2717,6 +2717,49 @@ export function exitCostUsd(valueUsd: number, cost?: SwapCost): number {
   return (Math.max(valueUsd, 0) * cost.feeBps) / 10_000 + cost.networkFeeUsd;
 }
 
+/** A liquidity position valued now, server-side — the figures a close would book. */
+export interface LpValuation {
+  activeBinId: number;
+  inRange: boolean;
+  /** Quote token per base token. Absent on an older backend. */
+  prices?: { active: number; min: number; max: number; xUsd: number; yUsd: number };
+  holds: { x: number; y: number; xUsd: number; yUsd: number };
+  valueUsd: number;
+  unclaimedFeesUsd: number;
+  claimedFeesUsd: number;
+  closeCostUsd: number;
+  proceedsUsd: number;
+  depositedUsd: number;
+  pnlUsd: number;
+  vsHodlPct: number | null;
+  feesEstimated: boolean;
+}
+
+/** A liquidity position's leg, as the agent detail route sends it. */
+export interface AgentLpLeg {
+  venue: string;
+  pool: string;
+  /** Absent on an older backend. */
+  token_x_mint?: string;
+  token_y_mint?: string;
+  /** From the token universe cache; null when it has not seen the mint. */
+  token_x_icon?: string | null;
+  token_y_icon?: string | null;
+  range: { minBinId: number; maxBinId: number };
+  binStepBps: number;
+  deposited_usd: number;
+  costs_usd: number;
+  claimed_fees_usd: number;
+  rebalance_count: number;
+  out_of_range_since: string | null;
+  last_rebalance_at: string | null;
+  last_claim_at: string | null;
+  /** Paper fee figures are estimates. */
+  fees_estimated: boolean;
+  now: LpValuation | null;
+  last_mark_usd: number | null;
+}
+
 export interface AgentDetail {
   agent: AgentRow;
   /** Absent on an older backend — see {@link SwapCost}. */
@@ -2746,6 +2789,13 @@ export interface AgentDetail {
       mark_borrow_fees_usd: string | null;
       mark_pnl_after_fees_usd: string | null;
     };
+    /**
+     * The liquidity leg, on an LP position only. `qty` is then 1 and
+     * `cost_basis_usd` the deposit. `now` is the position valued server-side
+     * this request — null when the pool could not be read, and the page then
+     * falls back to `last_mark_usd`, labelled as such.
+     */
+    lp?: AgentLpLeg;
   }[];
   lastRun: {
     id: string;
@@ -3799,7 +3849,64 @@ export interface ClosePreview {
   bookQty: number;
   heldQty: number | null;
   sellQty: number;
+  /** On an LP position: what the close would return, valued now. */
+  lp?: LpValuation;
 }
+
+/** One closed liquidity position — a round trip, not a fill. */
+export interface ClosedLpPosition {
+  id: number;
+  venue: string;
+  pool: string;
+  symbol: string;
+  token_x_mint: string;
+  token_y_mint: string;
+  bin_step_bps: number | null;
+  range: { min_bin_id: number; max_bin_id: number };
+  /** Quote per base, off the price the position was last priced at. Null when unknown. */
+  price_range: { min: number | null; max: number | null };
+  /** Basis at close — lowered by any partial removal. */
+  deposited_usd: number;
+  /** Everything that ever went in: the deposit plus every top-up. Absent on an older backend. */
+  invested_usd?: number;
+  /** Claimed plus unclaimed fees at close. Null when closed before this was recorded. */
+  fees_earned_usd?: number | null;
+  fees_estimated?: boolean;
+  /** Realised against invested. Null with nothing invested. */
+  return_pct?: number | null;
+  token_x_icon?: string | null;
+  token_y_icon?: string | null;
+  claimed_fees_usd: number;
+  costs_usd: number;
+  realized_pnl_usd: number;
+  closed_value_usd: number | null;
+  rebalance_count: number;
+  close_reason: string | null;
+  leader_position: string | null;
+  opened_at: string;
+  closed_at: string;
+}
+
+export interface ClosedLpPage {
+  book: "paper" | "live";
+  page: number;
+  pageSize: number;
+  total: number;
+  positions: ClosedLpPosition[];
+}
+
+/** An LP agent's closed positions on one book, newest first. Offset-paged. */
+export const getClosedLpPositions = (
+  token: string,
+  agentId: number,
+  page: number,
+  pageSize: number,
+  book?: "paper" | "live",
+) =>
+  request<ClosedLpPage>(
+    `/agents/${agentId}/lp-positions/closed?page=${page}&pageSize=${pageSize}` + (book ? `&book=${book}` : ""),
+    token,
+  );
 
 export const closePreview = (token: string, agentId: number, mint: string) =>
   request<ClosePreview>(`/agents/${agentId}/positions/close-preview`, token, {

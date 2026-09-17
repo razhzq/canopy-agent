@@ -1,5 +1,6 @@
 "use client";
 
+import { LpPositions } from "@/components/lpPositions";
 import { GridLadder } from "@/components/gridLadder";
 import type { GridPlan } from "@/lib/api";
 
@@ -524,7 +525,18 @@ export function AgentDetailMobile({
             {positions.length}
           </span>
         </div>
-        {positions.length === 0 ? (
+        {/* A liquidity book is ranges and fees, not quantities at a price. */}
+        {agent.strategy_class === "lp" || positions.some((p) => !!p.lp) ? (
+          <div className="px-[18px] pb-4">
+            <LpPositions
+              agentId={agent.id}
+              positions={positions}
+              universe={assets}
+              book={detail.book}
+              onChanged={onChanged}
+            />
+          </div>
+        ) : positions.length === 0 ? (
           <p className="px-[18px] pb-4 font-ui text-[12.5px] text-text-dim">
             {t("agent_nothing_open")}
           </p>

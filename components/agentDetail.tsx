@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { ActivityLog } from "@/components/activity";
 import { Positions } from "@/components/positions";
+import { LpPositions } from "@/components/lpPositions";
 import { GridLadder } from "@/components/gridLadder";
 import { AddMarketModal } from "@/components/addMarket";
 import { EditStrategyModal } from "@/components/editStrategy";
@@ -847,6 +848,15 @@ export function AgentDetailView({
           {/* markets */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label={t("ad_sec_positions")} />
+            {agent.strategy_class === "lp" || positions.some((p) => !!p.lp) ? (
+              <LpPositions
+                agentId={agentId}
+                positions={positions}
+                universe={marked}
+                book={detail.book}
+                onChanged={() => void load()}
+              />
+            ) : (
             <Positions
               agentId={agentId}
               positions={positions}
@@ -857,6 +867,7 @@ export function AgentDetailView({
               swapCost={detail.swapCost}
               onChanged={() => void load()}
             />
+            )}
           </section>
 
           {/* the grid, when the strategy is one */}
