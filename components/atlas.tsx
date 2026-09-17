@@ -375,17 +375,6 @@ function LpCard({ state }: { state: RecordState }) {
         ))}
       </dl>
 
-      <a
-        href={`https://solscan.io/account/${lp.address}`}
-        target="_blank"
-        rel="noreferrer"
-        className={`mt-auto flex items-center justify-between font-ui text-[11.5px] text-text-muted hover:text-text-primary ${FOCUS}`}
-      >
-        <span>{t("atlas_lp_wallet")}</span>
-        <span className="tnum font-mono">
-          {lp.address.slice(0, 4)}…{lp.address.slice(-4)}
-        </span>
-      </a>
     </Card>
   );
 }

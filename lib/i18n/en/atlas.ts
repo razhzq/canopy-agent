@@ -37,7 +37,6 @@ export const enAtlas = {
   atlas_lp_fees: "Fees earned",
   atlas_lp_positions: "Open positions",
   atlas_lp_days: "Days",
-  atlas_lp_wallet: "Wallet",
   atlas_lp_error: "The on-chain record did not load.",
   atlas_lp_retry: "Retry",
 

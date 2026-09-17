@@ -33,7 +33,6 @@ export const zhAtlas: Record<keyof typeof enAtlas, string> = {
   atlas_lp_fees: "已赚手续费",
   atlas_lp_positions: "持仓中",
   atlas_lp_days: "天数",
-  atlas_lp_wallet: "钱包",
   atlas_lp_error: "链上记录未能加载。",
   atlas_lp_retry: "重试",
 
