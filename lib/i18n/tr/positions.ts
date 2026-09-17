@@ -108,4 +108,7 @@ export const trPositions: Record<keyof typeof enPositions, string> = {
   lp_close_done: "Zincirde çekildi",
   lp_close_done_body: "Likidite ve ücretler çekildi, USDC olarak ajanın cüzdanına döndü.",
   lp_close_dropped: "Kapatırken bağlantı koptu. Kapatma yine de gerçekleşmiş olabilir — tablo yenilendi, tekrar denemeden önce kontrol et.",
+  lp_shape_spot: "Spot",
+  lp_shape_curve: "Eğri",
+  lp_shape_bid_ask: "Alış-Satış",
 };

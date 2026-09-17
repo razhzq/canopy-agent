@@ -106,4 +106,7 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   lp_close_done: "已在链上提取",
   lp_close_done_body: "流动性和手续费已提取，并以 USDC 返回代理钱包。",
   lp_close_dropped: "平仓时连接中断。平仓可能已完成——表格已刷新，请先查看再重试。",
+  lp_shape_spot: "均匀",
+  lp_shape_curve: "曲线",
+  lp_shape_bid_ask: "买卖价差",
 };

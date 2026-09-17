@@ -2717,12 +2717,24 @@ export function exitCostUsd(valueUsd: number, cost?: SwapCost): number {
   return (Math.max(valueUsd, 0) * cost.feeBps) / 10_000 + cost.networkFeeUsd;
 }
 
+/**
+ * How a position's liquidity sits across its range. Values are in QUOTE units,
+ * which a bin keeps as the price crosses it — so the shape does not drift.
+ * `shape` is read from the spread; null when it fits none of the three.
+ */
+export interface LpDistribution {
+  bins: { binId: number; x: number; y: number }[];
+  shape: "spot" | "curve" | "bidAsk" | null;
+}
+
 /** A liquidity position valued now, server-side — the figures a close would book. */
 export interface LpValuation {
   activeBinId: number;
   inRange: boolean;
   /** Quote token per base token. Absent on an older backend. */
   prices?: { active: number; min: number; max: number; xUsd: number; yUsd: number };
+  /** Liquidity per bin and the shape it makes. Absent on an older backend. */
+  distribution?: LpDistribution | null;
   holds: { x: number; y: number; xUsd: number; yUsd: number };
   valueUsd: number;
   unclaimedFeesUsd: number;
@@ -3865,6 +3877,8 @@ export interface ClosedLpPosition {
   range: { min_bin_id: number; max_bin_id: number };
   /** Quote per base, off the price the position was last priced at. Null when unknown. */
   price_range: { min: number | null; max: number | null };
+  /** Absent on an older backend. */
+  distribution?: LpDistribution | null;
   /** Basis at close — lowered by any partial removal. */
   deposited_usd: number;
   /** Everything that ever went in: the deposit plus every top-up. Absent on an older backend. */

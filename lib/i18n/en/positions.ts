@@ -115,4 +115,7 @@ export const enPositions = {
   lp_close_done: "Withdrawn on-chain",
   lp_close_done_body: "The liquidity and fees are out and back in the agent's wallet as USDC.",
   lp_close_dropped: "The connection dropped while closing. The close may still have gone through — the table has been refreshed, so check it before trying again.",
+  lp_shape_spot: "Spot",
+  lp_shape_curve: "Curve",
+  lp_shape_bid_ask: "Bid-Ask",
 } as const;

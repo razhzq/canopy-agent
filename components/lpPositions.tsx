@@ -7,6 +7,7 @@ import {
   type AgentDetail,
   type AgentLpLeg,
   type ClosedLpPosition,
+  type LpDistribution,
   type UniverseAsset,
 } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -230,7 +231,7 @@ function OpenLp({
 
           {rows.map((r) => (
             <div key={r.id} className={`grid ${OPEN_COLS} items-center gap-3 border-b border-grid py-3`}>
-              <PoolCell symbol={r.symbol} leg={r.leg} universe={universe} />
+              <PoolCell symbol={r.symbol} leg={{ ...r.leg, shape: r.leg.now?.distribution?.shape }} universe={universe} />
               <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">{compactAge(r.openedAt, t)}</span>
               <Money main={usd(r.investedUsd)} />
               <Tick value={r.valueUsd} className="text-right">
@@ -253,7 +254,7 @@ function OpenLp({
                 />
               </Tick>
               <div className="pl-2">
-                <RangeBar leg={r.leg} />
+                <RangeBar leg={r.leg} symbol={r.symbol} />
               </div>
               <CloseButton symbol={r.symbol} onClick={() => setClosing(asClosable(r))} />
             </div>
@@ -279,7 +280,7 @@ function OpenLp({
         {rows.map((r) => (
           <div key={r.id} className="border-t border-grid py-3">
             <div className="flex items-start justify-between gap-3">
-              <PoolCell symbol={r.symbol} leg={r.leg} universe={universe} />
+              <PoolCell symbol={r.symbol} leg={{ ...r.leg, shape: r.leg.now?.distribution?.shape }} universe={universe} />
               <CloseButton symbol={r.symbol} onClick={() => setClosing(asClosable(r))} />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3">
@@ -297,7 +298,7 @@ function OpenLp({
               />
             </div>
             <div className="pt-3">
-              <RangeBar leg={r.leg} />
+              <RangeBar leg={r.leg} symbol={r.symbol} />
             </div>
           </div>
         ))}
@@ -369,6 +370,7 @@ interface PoolFacts {
   token_y_mint?: string;
   token_x_icon?: string | null;
   token_y_icon?: string | null;
+  shape?: LpDistribution["shape"];
 }
 
 function PoolCell({ symbol, leg, universe }: { symbol: string; leg: PoolFacts; universe: UniverseAsset[] }) {
@@ -396,7 +398,7 @@ function PoolCell({ symbol, leg, universe }: { symbol: string; leg: PoolFacts; u
           {x}
           {y ? <span className="text-text-muted"> / {y}</span> : null}
         </span>
-        <span className="flex items-center gap-1.5 pt-0.5 font-ui text-[11px] text-text-dim">
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 whitespace-nowrap pt-0.5 font-ui text-[11px] text-text-dim">
           <span className="inline-flex h-[17px] items-center rounded border border-border px-1 font-mono text-[10px] text-text-secondary">
             {dlmm ? "DLMM" : t("lp_venue_damm")}
           </span>
@@ -409,6 +411,11 @@ function PoolCell({ symbol, leg, universe }: { symbol: string; leg: PoolFacts; u
           >
             {leg.pool.slice(0, 4)}…{leg.pool.slice(-4)}
           </a>
+          {leg.shape ? (
+            <span className="inline-flex h-[17px] items-center rounded border border-border px-1 font-ui text-[10px] text-text-secondary">
+              {t(leg.shape === "spot" ? "lp_shape_spot" : leg.shape === "curve" ? "lp_shape_curve" : "lp_shape_bid_ask")}
+            </span>
+          ) : null}
           {leg.binStepBps ? <span className="font-mono">{t("lp_bin_step", { bps: leg.binStepBps })}</span> : null}
         </span>
       </span>
@@ -423,7 +430,7 @@ function PoolCell({ symbol, leg, universe }: { symbol: string; leg: PoolFacts; u
  * edge it left through turns red — the one fact on the row that says the
  * position has stopped earning.
  */
-function RangeBar({ leg }: { leg: AgentLpLeg }) {
+function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
   const { t } = useLocale();
   const now = leg.now;
   const prices = now?.prices;
@@ -441,6 +448,8 @@ function RangeBar({ leg }: { leg: AgentLpLeg }) {
   const below = raw < 0;
   const above = raw > 1;
   const out = below || above;
+  const dist = now.distribution;
+  const [x, y] = pairOf(symbol);
 
   return (
     <span className="block" title={t("lp_range_title", { price: quotePrice(prices.active) })}>
@@ -448,15 +457,19 @@ function RangeBar({ leg }: { leg: AgentLpLeg }) {
         <span>{quotePrice(prices.min)}</span>
         <span>{quotePrice(prices.max)}</span>
       </span>
-      <span className="relative mt-1.5 block h-1.5">
-        <span className={`absolute inset-y-0 left-0 right-0 rounded-full ${out ? "bg-grid-strong" : "bg-accent/35"}`} />
-        {below ? <span className="absolute inset-y-0 left-0 w-1 rounded-l-full bg-negative" /> : null}
-        {above ? <span className="absolute inset-y-0 right-0 w-1 rounded-r-full bg-negative" /> : null}
-        <span
-          className={`absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-bg ${out ? "bg-negative" : "bg-accent"}`}
-          style={{ left: `${at * 100}%` }}
-        />
-      </span>
+      {dist && dist.bins.length > 0 ? (
+        <LiquidityBars dist={dist} at={at} out={out} below={below} above={above} base={x} quote={y} />
+      ) : (
+        <span className="relative mt-1.5 block h-1.5">
+          <span className={`absolute inset-y-0 left-0 right-0 rounded-full ${out ? "bg-grid-strong" : "bg-accent/35"}`} />
+          {below ? <span className="absolute inset-y-0 left-0 w-1 rounded-l-full bg-negative" /> : null}
+          {above ? <span className="absolute inset-y-0 right-0 w-1 rounded-r-full bg-negative" /> : null}
+          <span
+            className={`absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-bg ${out ? "bg-negative" : "bg-accent"}`}
+            style={{ left: `${at * 100}%` }}
+          />
+        </span>
+      )}
       <span className={`block pt-1 font-ui text-[11px] ${out ? "text-negative" : "text-text-dim"}`}>
         {out
           ? leg.out_of_range_since
@@ -464,6 +477,68 @@ function RangeBar({ leg }: { leg: AgentLpLeg }) {
             : t("lp_out_of_range")
           : t("lp_in_range_at", { price: quotePrice(prices.active) })}
       </span>
+    </span>
+  );
+}
+
+/** More columns than this and bins are summed in groups: a 150px cell cannot draw 1,400 bars. */
+const MAX_BARS = 48;
+
+/**
+ * The liquidity, bin by bin — the picture that says spot, curve or bid-ask.
+ *
+ * Each bar is one bin (or a group of neighbours on a wide range), its height
+ * the bin's value, split into the base token on top and the quote token below.
+ * Heights are in quote units, so the picture does not change as price moves.
+ * The line is where the pool's price is now.
+ */
+function LiquidityBars({
+  dist,
+  at,
+  out,
+  below,
+  above,
+  base,
+  quote,
+}: {
+  dist: LpDistribution;
+  at: number;
+  out: boolean;
+  below: boolean;
+  above: boolean;
+  base: string;
+  quote: string | null;
+}) {
+  const group = Math.ceil(dist.bins.length / MAX_BARS);
+  const bars: { x: number; y: number }[] = [];
+  for (let i = 0; i < dist.bins.length; i += group) {
+    const slice = dist.bins.slice(i, i + group);
+    bars.push({ x: slice.reduce((s, b) => s + b.x, 0), y: slice.reduce((s, b) => s + b.y, 0) });
+  }
+  const peak = Math.max(...bars.map((b) => b.x + b.y), 0);
+
+  return (
+    <span className="relative mt-1.5 block h-7" aria-label={`${base} / ${quote ?? ""}`}>
+      <span className="flex h-full items-end gap-px">
+        {bars.map((b, i) => {
+          const total = b.x + b.y;
+          const h = peak > 0 ? (total / peak) * 100 : 0;
+          return (
+            <span key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={undefined}>
+              <span className="flex w-full flex-col overflow-hidden rounded-t-[1px]" style={{ height: `${Math.max(h, total > 0 ? 4 : 0)}%` }}>
+                <span className={out ? "bg-text-muted/60" : "bg-accent"} style={{ flexGrow: b.x }} />
+                <span className="bg-text-secondary/45" style={{ flexGrow: b.y }} />
+              </span>
+            </span>
+          );
+        })}
+      </span>
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-grid-strong" />
+      {below ? <span className="absolute bottom-0 left-0 top-0 w-0.5 bg-negative" /> : null}
+      {above ? <span className="absolute bottom-0 right-0 top-0 w-0.5 bg-negative" /> : null}
+      {out ? null : (
+        <span className="pointer-events-none absolute -top-0.5 bottom-0 w-px bg-text-primary" style={{ left: `${at * 100}%` }} />
+      )}
     </span>
   );
 }
@@ -554,6 +629,7 @@ function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" 
                   token_y_mint: r.token_y_mint,
                   token_x_icon: r.token_x_icon,
                   token_y_icon: r.token_y_icon,
+                  shape: r.distribution?.shape,
                 }}
                 universe={universe}
               />
