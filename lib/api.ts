@@ -3888,6 +3888,46 @@ export const setUsername = (token: string, privyId: string, username: string) =>
     body: JSON.stringify({ privyId, username }),
   });
 
+/* ----------------------------------------------------------------- atlas -- */
+
+/**
+ * The on-chain record of one Canopy LP strategy wallet, as Atlas shows it.
+ *
+ * Every figure is computed by canopy-be from the chain and Meteora's data API.
+ * The browser only formats. USD values are numbers of dollars, `netReturnPct`
+ * is a percent (2.4 means +2.4%), timestamps are ISO strings.
+ */
+export interface LpRecord {
+  address: string;
+  /** Pools the wallet has provided liquidity to, e.g. "STONK/SOL". */
+  pairs: string[];
+  venue: string;
+  startedAt: string;
+  asOf: string;
+  daysLive: number;
+  /** External SOL sent in / out, priced at the hour each landed. */
+  depositedUsd: number;
+  withdrawnUsd: number;
+  valueUsd: number;
+  valueSol: number;
+  /** (value + withdrawn − deposited) / deposited, in USD and in SOL. */
+  netReturnPct: number;
+  netReturnSolPct: number;
+  pnlUsd: number;
+  /** Gross fees earned, closed positions at claim time plus unclaimed. */
+  feesUsd: number;
+  openPositions: number;
+  positionsOpened: number;
+  /** Transactions the wallet signed. */
+  actions: number;
+  /** P&L at each UTC midnight, oldest first; the last point is now. */
+  series: { t: string; pnlUsd: number }[];
+}
+
+export function getLpRecord(token: string, address: string): Promise<LpRecord> {
+  return request<LpRecord>(`/atlas/lp-record/${encodeURIComponent(address)}`, token);
+}
+
 /* ------------------------------------------------------------ copy LP -- */
 
 export interface CopyLpInput {

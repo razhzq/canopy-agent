@@ -10,6 +10,7 @@ export const zhPages: Record<keyof typeof enPages, string> = {
   page_title_portfolio: "投资组合 · Canopy",
   page_title_notifications: "通知 · Canopy",
   page_title_agents: "智能体 · Canopy",
+  page_title_atlas: "Atlas · Canopy",
   page_title_workspace: "我的智能体 · Canopy",
 
   page_eyebrow_portfolio: "投资组合",

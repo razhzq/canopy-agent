@@ -4,6 +4,7 @@ export const enNav = {
   // ── Top bar ────────────────────────────────────────────────────
   nav_portfolio: "Portfolio",
   nav_explore: "Explore",
+  nav_atlas: "Atlas",
   nav_create_agent: "Create agent",
   nav_home_aria: "Canopy — home",
   nav_primary_aria: "Primary",

@@ -3,6 +3,7 @@ import type { enNav } from "../en/nav";
 export const zhNav: Record<keyof typeof enNav, string> = {
   nav_portfolio: "投资组合",
   nav_explore: "探索",
+  nav_atlas: "Atlas",
   nav_create_agent: "创建智能体",
   nav_home_aria: "Canopy — 首页",
   nav_primary_aria: "主导航",

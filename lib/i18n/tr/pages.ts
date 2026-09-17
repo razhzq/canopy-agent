@@ -11,6 +11,7 @@ export const trPages: Record<keyof typeof enPages, string> = {
   page_title_portfolio: "Portföy · Canopy",
   page_title_notifications: "Bildirimler · Canopy",
   page_title_agents: "Ajanlar · Canopy",
+  page_title_atlas: "Atlas · Canopy",
   page_title_workspace: "Ajanlarım · Canopy",
 
   page_eyebrow_portfolio: "Portföy",

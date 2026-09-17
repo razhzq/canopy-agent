@@ -3,6 +3,7 @@ import type { enNav } from "../en/nav";
 export const trNav: Record<keyof typeof enNav, string> = {
   nav_portfolio: "Portföy",
   nav_explore: "Keşfet",
+  nav_atlas: "Atlas",
   nav_create_agent: "Ajan oluştur",
   nav_home_aria: "Canopy — ana sayfa",
   nav_primary_aria: "Ana menü",

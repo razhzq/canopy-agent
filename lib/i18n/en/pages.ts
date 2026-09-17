@@ -15,6 +15,7 @@ export const enPages = {
   page_title_portfolio: "Portfolio · Canopy",
   page_title_notifications: "Notifications · Canopy",
   page_title_agents: "Agents · Canopy",
+  page_title_atlas: "Atlas · Canopy",
   page_title_workspace: "My agents · Canopy",
 
   // ── Section eyebrows ───────────────────────────────────────────

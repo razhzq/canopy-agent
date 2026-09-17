@@ -14,6 +14,7 @@
 // `positions_none` + `for` + `agent`.
 
 import { enCommon } from "./common";
+import { enAtlas } from "./atlas";
 import { enNav } from "./nav";
 import { enAgent } from "./agent";
 import { enAgentDetail } from "./agentDetail";
@@ -42,6 +43,7 @@ import { enProfile } from "./profile";
 
 export const en = {
   ...enCommon,
+  ...enAtlas,
   ...enNav,
   ...enAccount,
   ...enActivity,

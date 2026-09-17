@@ -12,6 +12,7 @@
 
 import type { TranslationKey } from "../en";
 import { zhCommon } from "./common";
+import { zhAtlas } from "./atlas";
 import { zhNav } from "./nav";
 import { zhAgent } from "./agent";
 import { zhAgentDetail } from "./agentDetail";
@@ -40,6 +41,7 @@ import { zhProfile } from "./profile";
 
 export const zh: Record<TranslationKey, string> = {
   ...zhCommon,
+  ...zhAtlas,
   ...zhNav,
   ...zhAccount,
   ...zhActivity,
