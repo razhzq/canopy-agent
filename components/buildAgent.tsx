@@ -843,8 +843,8 @@ export function BuildAgent() {
           value: `${shortAddress(copy.leader)}${data ? ` · ${t("cl_positions_count", { count: data.positions.length })}` : ""}`,
           step: "01",
         },
-        { label: t("cl_row_max_position"), value: copy.maxPositionUsd === null ? t("cl_off") : formatUsd(copy.maxPositionUsd), step: "02" },
-        { label: t("cl_row_max_open"), value: String(copy.maxOpenPositions), step: "02" },
+        { label: t("cl_row_copy_pct"), value: `${copy.copyPct}%`, step: "02" },
+        { label: t("cl_row_max_increase"), value: copy.maxIncreaseUsd === null ? t("cl_off") : formatUsd(copy.maxIncreaseUsd), step: "02" },
         { label: t("cl_row_tvl"), value: copy.minPoolTvlUsd === null ? t("cl_off") : formatUsd(copy.minPoolTvlUsd), step: "02" },
         { label: t("cl_row_slippage"), value: `${copy.maxSlippagePct}%`, step: "02" },
         { label: t("cl_row_verified"), value: t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower"), step: "02" },
@@ -1596,8 +1596,8 @@ export function BuildAgent() {
                   <Trail done={false} here={step === 1} label={t("cl_step_limits")} value={step === 1 ? t("build_trail_this_step") : t("bt_trail_next")} />
                   <div className="mt-5 space-y-2 border-t border-grid pt-4">
                     <Row label={t("build_row_paper_book")} value={money(book)} tone="accent" />
-                    <Row label={t("cl_row_max_position")} value={copy.maxPositionUsd === null ? t("cl_off") : money(copy.maxPositionUsd)} />
-                    <Row label={t("cl_row_max_open")} value={String(copy.maxOpenPositions)} />
+                    <Row label={t("cl_row_copy_pct")} value={`${copy.copyPct}%`} />
+                    <Row label={t("cl_row_max_increase")} value={copy.maxIncreaseUsd === null ? t("cl_off") : money(copy.maxIncreaseUsd)} />
                     <Row label={t("cl_row_tvl")} value={copy.minPoolTvlUsd === null ? t("cl_off") : money(copy.minPoolTvlUsd)} />
                     <Row label={t("cl_row_slippage")} value={`${copy.maxSlippagePct}%`} />
                     <Row label={t("cl_row_verified")} value={t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower")} />

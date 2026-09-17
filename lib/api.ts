@@ -4053,8 +4053,10 @@ export function getLpRecord(token: string, address: string): Promise<LpRecord> {
 
 export interface CopyLpInput {
   leader: string;
-  maxPositionUsd?: number;
-  maxOpenPositions?: number;
+  /** Percent of the leader's capital share to copy, 1–500. 100 mirrors it exactly. */
+  copyPct?: number;
+  /** Most USD one open or one add may deposit. */
+  maxIncreaseUsd?: number;
   minPoolTvlUsd?: number;
   verifiedTokensOnly?: boolean;
   followRebalances?: boolean;

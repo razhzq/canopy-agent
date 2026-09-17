@@ -20,9 +20,10 @@ import { useT } from "@/lib/i18n";
 
 export interface CopyLimits {
   leader: string;
-  /** Null is no cap: capital share alone decides. */
-  maxPositionUsd: number | null;
-  maxOpenPositions: number;
+  /** Percent of the leader's capital share to copy. 100 mirrors it exactly. */
+  copyPct: number;
+  /** Most USD one open or one add deposits. Null is no cap. */
+  maxIncreaseUsd: number | null;
   /** Null is no floor. */
   minPoolTvlUsd: number | null;
   verifiedTokensOnly: boolean;
@@ -32,8 +33,8 @@ export interface CopyLimits {
 
 export const DEFAULT_COPY_LIMITS: CopyLimits = {
   leader: "",
-  maxPositionUsd: null,
-  maxOpenPositions: 10,
+  copyPct: 100,
+  maxIncreaseUsd: null,
   minPoolTvlUsd: null,
   verifiedTokensOnly: true,
   followRebalances: true,
@@ -41,18 +42,18 @@ export const DEFAULT_COPY_LIMITS: CopyLimits = {
 };
 
 /** The engine's bounds (agent-contracts COPY_LP_BOUNDS), mirrored for the controls. */
-const MAX_OPEN = { min: 1, max: 50 };
+const COPY_PCT = { min: 1, max: 500 };
 const MIN_CAP_USD = 5;
 const SLIPPAGES = [0.5, 1, 2];
 
 export function copyLpPayload(c: CopyLimits): CopyLpInput {
   return {
     leader: c.leader.trim(),
-    maxOpenPositions: c.maxOpenPositions,
+    copyPct: c.copyPct,
     verifiedTokensOnly: c.verifiedTokensOnly,
     followRebalances: c.followRebalances,
     maxSlippagePct: c.maxSlippagePct,
-    ...(c.maxPositionUsd !== null ? { maxPositionUsd: c.maxPositionUsd } : {}),
+    ...(c.maxIncreaseUsd !== null ? { maxIncreaseUsd: c.maxIncreaseUsd } : {}),
     ...(c.minPoolTvlUsd !== null ? { minPoolTvlUsd: c.minPoolTvlUsd } : {}),
   };
 }
@@ -80,13 +81,14 @@ export function isSolanaAddress(value: string): boolean {
 export function copySize(
   position: { valueUsd: number; sharePct: number | null },
   bookUsd: number,
-  limits: Pick<CopyLimits, "maxPositionUsd">,
+  limits: Pick<CopyLimits, "copyPct" | "maxIncreaseUsd">,
   minCopyUsd: number,
 ): { shareUsd: number; usd: number; capped: boolean; skipped: boolean } | null {
   if (position.sharePct === null) return null;
-  const shareUsd = (position.sharePct / 100) * bookUsd;
-  const capped = limits.maxPositionUsd !== null && shareUsd > limits.maxPositionUsd;
-  const usd = capped ? limits.maxPositionUsd! : shareUsd;
+  // The engine's arithmetic (agent-stack copyLp/plan.ts): share × equity × copy %, then the per-deposit cap.
+  const shareUsd = (position.sharePct / 100) * bookUsd * (limits.copyPct / 100);
+  const capped = limits.maxIncreaseUsd !== null && shareUsd > limits.maxIncreaseUsd;
+  const usd = capped ? limits.maxIncreaseUsd! : shareUsd;
   return { shareUsd, usd, capped, skipped: usd < minCopyUsd };
 }
 
@@ -149,13 +151,10 @@ export function PickLeader({
   const [all, setAll] = useState(false);
   const data = preview.phase === "ready" ? preview.data : null;
   const copyable = data
-    ? Math.min(
-        data.positions.filter((p) => {
-          const s = copySize(p, bookUsd, value, data.minCopyUsd);
-          return s !== null && !s.skipped;
-        }).length,
-        value.maxOpenPositions,
-      )
+    ? data.positions.filter((p) => {
+        const s = copySize(p, bookUsd, value, data.minCopyUsd);
+        return s !== null && !s.skipped;
+      }).length
     : null;
   const shown = data ? (all ? data.positions : data.positions.slice(0, 7)) : [];
 
@@ -356,11 +355,13 @@ export function CopyLimitsStep({
             <Calc label={t("cl_calc_share")} value={`${largest.sharePct?.toFixed(1)}%`} />
             <Op>×</Op>
             <Calc label={t("cl_calc_equity")} value={formatUsd(bookUsd)} />
+            <Op>×</Op>
+            <Calc label={t("cl_calc_copy_pct")} value={`${value.copyPct}%`} />
             <Op>=</Op>
             <Calc
               label={t("cl_calc_copy")}
               value={formatUsd(Math.round(size.shareUsd))}
-              sub={size.capped && value.maxPositionUsd !== null ? t("cl_calc_capped", { usd: formatUsd(value.maxPositionUsd) }) : undefined}
+              sub={size.capped && value.maxIncreaseUsd !== null ? t("cl_calc_capped", { usd: formatUsd(value.maxIncreaseUsd) }) : undefined}
             />
             <Op>→</Op>
             <Calc
@@ -379,39 +380,23 @@ export function CopyLimitsStep({
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border border-grid">
           <h2 className="border-b border-grid px-5 py-4 font-ui text-[14px] font-medium text-text-primary">{t("cl_limits")}</h2>
-          <Field label={t("cl_max_position")} help={t("cl_max_position_help")}>
-            <OptionalAmount
-              value={value.maxPositionUsd}
-              min={MIN_CAP_USD}
-              onChange={(n) => onChange({ ...value, maxPositionUsd: n })}
-              offLabel={t("cl_off")}
-              aria={t("cl_max_position")}
+          <Field label={t("cl_copy_pct")} help={t("cl_copy_pct_help")}>
+            <Percent
+              value={value.copyPct}
+              min={COPY_PCT.min}
+              max={COPY_PCT.max}
+              onChange={(n) => onChange({ ...value, copyPct: n })}
+              aria={t("cl_copy_pct")}
             />
           </Field>
-          <Field label={t("cl_max_open")} help={t("cl_max_open_help")}>
-            <div className="flex h-9 items-center rounded-[10px] border border-grid">
-              <button
-                type="button"
-                aria-label="−"
-                disabled={value.maxOpenPositions <= MAX_OPEN.min}
-                onClick={() => onChange({ ...value, maxOpenPositions: Math.max(MAX_OPEN.min, value.maxOpenPositions - 1) })}
-                className={`flex size-9 items-center justify-center text-text-secondary hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
-              >
-                <Minus className="size-3.5" />
-              </button>
-              <span className="tnum flex h-full w-11 items-center justify-center border-x border-grid font-mono text-[14px] text-text-primary">
-                {value.maxOpenPositions}
-              </span>
-              <button
-                type="button"
-                aria-label="+"
-                disabled={value.maxOpenPositions >= MAX_OPEN.max}
-                onClick={() => onChange({ ...value, maxOpenPositions: Math.min(MAX_OPEN.max, value.maxOpenPositions + 1) })}
-                className={`flex size-9 items-center justify-center text-text-secondary hover:text-text-primary disabled:opacity-40 ${FOCUS}`}
-              >
-                <Plus className="size-3.5" />
-              </button>
-            </div>
+          <Field label={t("cl_max_increase")} help={t("cl_max_increase_help")}>
+            <OptionalAmount
+              value={value.maxIncreaseUsd}
+              min={MIN_CAP_USD}
+              onChange={(n) => onChange({ ...value, maxIncreaseUsd: n })}
+              offLabel={t("cl_off")}
+              aria={t("cl_max_increase")}
+            />
           </Field>
           <Field label={t("cl_tvl")} help={t("cl_tvl_help")}>
             <OptionalAmount
@@ -523,6 +508,49 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) 
     >
       <span className="size-4 rounded-full bg-white" />
     </button>
+  );
+}
+
+/** A whole percentage, clamped to the engine's bounds. Commits on blur or Enter. */
+function Percent({
+  value,
+  onChange,
+  min,
+  max,
+  aria,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min: number;
+  max: number;
+  aria: string;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+  const commit = () => {
+    const n = parseAmount(text);
+    if (n === null) return setText(String(value));
+    const next = Math.round(Math.min(Math.max(n, min), max));
+    setText(String(next));
+    onChange(next);
+  };
+  return (
+    <label className="flex h-9 w-[132px] items-center gap-1 rounded-[10px] border border-grid px-3 focus-within:border-accent">
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+        inputMode="numeric"
+        aria-label={aria}
+        className="tnum w-full min-w-0 bg-transparent font-mono text-[14px] text-text-primary outline-none"
+      />
+      <span className="font-mono text-[13px] text-text-muted">%</span>
+    </label>
   );
 }
 
