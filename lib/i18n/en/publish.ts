@@ -78,7 +78,6 @@ export const enPublish = {
   sd_vs_benchmark: "vs holding {symbol}",
   sd_dotted_line: "dotted: holding {symbol}",
   sd_col_asset: "Asset",
-  sd_cycle_n: "Cycle {seq}",
   sd_fact_class: "Asset class",
   sd_fact_status: "Status",
   sd_status_listed: "Listed",

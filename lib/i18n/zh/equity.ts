@@ -32,7 +32,6 @@ export const zhEquity: Record<keyof typeof enEquity, string> = {
   equity_vs_benchmark: "对比持有 {symbol}",
   equity_benchmark_return: "持有：{pct}",
   equity_dotted_line: "虚点线：持有 {symbol}",
-  equity_cycle_n: "第 {seq} 周期",
   equity_readout_head: "第 {seq} 周期 · {when}",
   equity_readout_pnl: "{pnl} · {pct}",
   equity_readout_cash: "现金 {amount}",

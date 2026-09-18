@@ -34,7 +34,6 @@ export const trEquity: Record<keyof typeof enEquity, string> = {
   equity_vs_benchmark: "{symbol} tutmaya kıyasla",
   equity_benchmark_return: "tutma: {pct}",
   equity_dotted_line: "noktalı: {symbol} tutmak",
-  equity_cycle_n: "Döngü {seq}",
   equity_readout_head: "Döngü {seq} · {when}",
   equity_readout_pnl: "{pnl} · {pct}",
   equity_readout_cash: "{amount} nakit",

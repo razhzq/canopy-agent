@@ -124,6 +124,17 @@ export function EquityView({
       ? t("equity_against", { capital: money(deployedCapital) })
       : t("equity_since", { when: when(first.at, locale) });
 
+  /**
+   * How much time the drawn window covers, which decides what its ends say.
+   *
+   * Inside a day, a date at both ends would print the same word twice and the
+   * reader would learn nothing; past a day, a clock time is the part that stops
+   * mattering. Measured on the POINTS actually drawn rather than on the range
+   * button, because "all" on a young agent is often an afternoon.
+   */
+  const axisSpan =
+    Date.parse(windowed[windowed.length - 1].at) - Date.parse(windowed[0].at);
+
   const ranges: { key: Range; label: string; ok: boolean }[] = [
     { key: "24h", label: t("equity_range_24h"), ok: pointsIn(all, "24h").length >= 2 },
     { key: "7d", label: t("equity_range_7d"), ok: pointsIn(all, "7d").length >= 2 },
@@ -289,13 +300,20 @@ export function EquityView({
           />
         </div>
         <div className="flex items-center justify-between px-5 pb-4 font-ui text-[11.5px] text-text-muted">
-          <span>{t("equity_cycle_n", { seq: windowed[0].tickSeq })}</span>
+          {/* WHEN, NOT WHICH CYCLE. The ends of the axis said "cycle 41" and
+              "cycle 388", which is the agent's own counter: it answers how many
+              times the thing has woken up, not what period the curve covers.
+              Nobody reads a chart to learn a sequence number, and a cadence
+              that varies between agents makes the same two numbers span an
+              afternoon on one and three weeks on another. The cycle is still
+              on the scrub readout, where it names one reading. */}
+          <span>{axisWhen(windowed[0].at, locale, axisSpan)}</span>
           {series.benchmark ? (
             <span className={`transition-colors ${focus === "benchmark" ? "text-text-primary" : ""}`}>
               {t("equity_dotted_line", { symbol: series.benchmark.symbol })}
             </span>
           ) : null}
-          <span>{t("equity_cycle_n", { seq: windowed[windowed.length - 1].tickSeq })}</span>
+          <span>{axisWhen(windowed[windowed.length - 1].at, locale, axisSpan)}</span>
         </div>
       </div>
     </div>
@@ -584,6 +602,28 @@ function when(at: string, locale: Locale): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * An end of the x-axis: a time within a day, a date beyond one.
+ *
+ * Deliberately shorter than {@link when}, which labels ONE reading under the
+ * pointer and can afford both. These two sit under the corners of the chart at
+ * 11.5px and are read at a glance, so they carry the half that varies.
+ */
+export function axisWhen(at: string, locale: Locale, spanMs: number): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(
+    dateLocale(locale),
+    spanMs < 24 * 3_600_000
+      ? { hour: "2-digit", minute: "2-digit" }
+      : // A year only once the window crosses one: until then it is noise on
+        // every reading, and after it the date alone is genuinely ambiguous.
+        spanMs > 365 * 24 * 3_600_000
+        ? { year: "numeric", month: "short", day: "numeric" }
+        : { month: "short", day: "numeric" },
+  );
 }
 
 /** A ratio with a real minus, so it reads like every other signed figure. */

@@ -35,7 +35,6 @@ export const enEquity = {
   equity_vs_benchmark: "vs holding {symbol}",
   equity_benchmark_return: "holding {pct}",
   equity_dotted_line: "dotted: holding {symbol}",
-  equity_cycle_n: "Cycle {seq}",
   equity_readout_head: "Cycle {seq} · {when}",
   equity_readout_pnl: "{pnl} · {pct}",
   equity_readout_cash: "{amount} cash",

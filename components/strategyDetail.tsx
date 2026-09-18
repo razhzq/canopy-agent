@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
-import { benchmarkOverlay } from "@/components/equity";
+import { axisWhen, benchmarkOverlay } from "@/components/equity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
@@ -248,6 +248,13 @@ export function StrategyDetail({
     const keep = range === "30d" ? 30 * 24 : 90 * 24;
     return points.slice(Math.max(points.length - keep, 0));
   }, [points, range]);
+
+  /** The drawn window's span, which decides whether its ends read as a time or
+   *  a date. See axisWhen in components/equity.tsx. */
+  const axisSpan =
+    windowed.length > 1
+      ? Date.parse(windowed[windowed.length - 1].at) - Date.parse(windowed[0].at)
+      : 0;
 
   /**
    * The slice of the open book on screen, and where it sits in the whole.
@@ -575,16 +582,14 @@ export function StrategyDetail({
               height={220}
             />
             <div className="flex items-center justify-between pt-3 font-ui text-[11.5px] text-text-muted">
-              <span>{t("sd_cycle_n", { seq: windowed[0].tickSeq })}</span>
+              {/* Dates, not the agent's wake counter — same as the owner's
+                  chart. See axisWhen in components/equity.tsx. */}
+              <span>{axisWhen(windowed[0].at, locale, axisSpan)}</span>
               <span className="text-text-muted">
                 {t("sd_dashed_line")}
                 {ready?.benchmark ? ` · ${t("sd_dotted_line", { symbol: ready.benchmark.symbol })}` : ""}
               </span>
-              <span>
-                {t("sd_cycle_n", {
-                  seq: windowed[windowed.length - 1].tickSeq,
-                })}
-              </span>
+              <span>{axisWhen(windowed[windowed.length - 1].at, locale, axisSpan)}</span>
             </div>
           </div>
         )}

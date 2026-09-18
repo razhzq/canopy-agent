@@ -74,7 +74,6 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   sd_vs_benchmark: "对比持有 {symbol}",
   sd_dotted_line: "虚点线：持有 {symbol}",
   sd_col_asset: "标的",
-  sd_cycle_n: "第 {seq} 周期",
   sd_fact_class: "资产类别",
   sd_fact_status: "状态",
   sd_status_listed: "已上架",
