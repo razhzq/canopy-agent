@@ -92,6 +92,12 @@ export const enPositions = {
   lp_in_range_at: "In range · {price}",
   lp_out_of_range: "Out of range — not earning",
   lp_out_of_range_since: "Out of range for {age} — not earning",
+  // The edges, labelled, and how far outside the price has gone. Read together
+  // with the line above: that one says it stopped earning, these say by how far.
+  lp_range_min: "min",
+  lp_range_max: "max",
+  lp_above_by: "{pct} above",
+  lp_below_by: "{pct} below",
   lp_history_empty: "No closed positions yet.",
   lp_rebalances: "{count} rebalances",
   lp_reason_manual: "Closed by you",

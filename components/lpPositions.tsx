@@ -424,11 +424,21 @@ function PoolCell({ symbol, leg, universe }: { symbol: string; leg: PoolFacts; u
 }
 
 /**
- * The range, drawn: its two edges as prices, the pool's price as a marker.
+ * The range, drawn: its two edges as prices, the liquidity between them, and
+ * where the pool's price sits against it.
  *
- * The marker is clamped to the bar when the price has left the range, and the
- * edge it left through turns red — the one fact on the row that says the
- * position has stopped earning.
+ * WHAT THIS REPLACED, AND WHY. The liquidity used to be 48 flex children with a
+ * 1px gap. In a 150px cell that is a 2px bar, and at the heights a real curve
+ * produces most of them rounded to the same hairline — so the shape came out as
+ * a faint dotted diagonal that read as decoration rather than as data. Worse,
+ * the price marker was drawn ONLY while in range, so the moment the answer
+ * mattered most the picture lost its subject and left an unexplained red edge.
+ *
+ * Now: one filled area (two stacked, base over quote) that survives at any
+ * width, a marker that is always drawn — clamped to the edge, with a caret
+ * pointing out through it — and, when outside, how far outside in percent.
+ * That last figure is the difference between "not earning" and "not earning,
+ * and it is 2% away" — one of those is a shrug and the other is a decision.
  */
 function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
   const { t } = useLocale();
@@ -451,14 +461,42 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
   const dist = now.distribution;
   const [x, y] = pairOf(symbol);
 
+  /**
+   * How far outside, as a percentage of the edge it left through.
+   *
+   * In PRICE, not in bins: "12% above" is a fact about the market, where "0.3
+   * bins past the edge" is a fact about Meteora. Undefined while in range,
+   * where the question does not arise.
+   */
+  const awayPct = above
+    ? (prices.active / prices.max - 1) * 100
+    : below
+      ? (1 - prices.active / prices.min) * 100
+      : null;
+
   return (
-    <span className="block" title={t("lp_range_title", { price: quotePrice(prices.active) })}>
-      <span className="tnum flex justify-between font-mono text-[11px] text-text-dim">
-        <span>{quotePrice(prices.min)}</span>
-        <span>{quotePrice(prices.max)}</span>
+    <span className="@container block" title={t("lp_range_title", { price: quotePrice(prices.active) })}>
+      {/* The edges, each said to be an edge. Two bare numbers over a drawing
+          left the reader to infer which was which and of what.
+
+          The words go at the table's 150px column, where a label and a price
+          cannot both fit and the price is the part worth keeping — a container
+          query, because what matters is the width of THIS cell, not the page's:
+          the same component is a narrow column on desktop and a full-width card
+          on a phone, which is the exact case a media query gets backwards. */}
+      <span className="tnum flex items-baseline justify-between gap-2 font-mono text-[11px] text-text-dim">
+        <span className="truncate">
+          <span className="hidden pr-1 font-ui text-text-muted @[200px]:inline">{t("lp_range_min")}</span>
+          {quotePrice(prices.min)}
+        </span>
+        <span className="truncate text-right">
+          <span className="hidden pr-1 font-ui text-text-muted @[200px]:inline">{t("lp_range_max")}</span>
+          {quotePrice(prices.max)}
+        </span>
       </span>
+
       {dist && dist.bins.length > 0 ? (
-        <LiquidityBars dist={dist} at={at} out={out} below={below} above={above} base={x} quote={y} />
+        <LiquidityShape dist={dist} at={at} out={out} below={below} above={above} base={x} quote={y} />
       ) : (
         <span className="relative mt-1.5 block h-1.5">
           <span className={`absolute inset-y-0 left-0 right-0 rounded-full ${out ? "bg-grid-strong" : "bg-accent/35"}`} />
@@ -470,6 +508,7 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
           />
         </span>
       )}
+
       <span className={`block pt-1 font-ui text-[11px] ${out ? "text-negative" : "text-text-dim"}`}>
         {out
           ? leg.out_of_range_since
@@ -477,22 +516,35 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
             : t("lp_out_of_range")
           : t("lp_in_range_at", { price: quotePrice(prices.active) })}
       </span>
+
+      {/* The distance, on its own line and NOT in the alarm colour: the fact
+          that it is out is the warning, and how far is the detail under it. */}
+      {awayPct !== null ? (
+        <span className="tnum block font-mono text-[11px] text-text-muted">
+          {t(above ? "lp_above_by" : "lp_below_by", { pct: awayPct < 0.1 ? "<0.1%" : `${awayPct.toFixed(awayPct < 10 ? 1 : 0)}%` })}
+        </span>
+      ) : null}
     </span>
   );
 }
 
-/** More columns than this and bins are summed in groups: a 150px cell cannot draw 1,400 bars. */
-const MAX_BARS = 48;
+/** Columns sampled from the bins. Beyond this the detail is finer than a pixel. */
+const MAX_COLUMNS = 64;
 
 /**
- * The liquidity, bin by bin — the picture that says spot, curve or bid-ask.
+ * The liquidity across the range — the picture that says spot, curve or bid-ask.
  *
- * Each bar is one bin (or a group of neighbours on a wide range), its height
- * the bin's value, split into the base token on top and the quote token below.
- * Heights are in quote units, so the picture does not change as price moves.
- * The line is where the pool's price is now.
+ * ONE FILLED AREA, NOT N BARS. Two stacked areas, in fact: the lower band is
+ * the quote token, the upper the base, so the same picture also shows how the
+ * position has converted as price moved through it. Drawn in an SVG with a
+ * `viewBox` and `preserveAspectRatio="none"`, so the shape stretches to
+ * whatever width the column gives it and keeps its silhouette at 150px or 400.
+ *
+ * Nothing is stroked. A stroke under a non-uniform scale comes out thicker on
+ * one axis than the other, and the markers that DO need crisp edges are drawn
+ * as ordinary elements over the top instead.
  */
-function LiquidityBars({
+function LiquidityShape({
   dist,
   at,
   out,
@@ -509,36 +561,80 @@ function LiquidityBars({
   base: string;
   quote: string | null;
 }) {
-  const group = Math.ceil(dist.bins.length / MAX_BARS);
-  const bars: { x: number; y: number }[] = [];
+  const group = Math.ceil(dist.bins.length / MAX_COLUMNS);
+  const cols: { x: number; y: number }[] = [];
   for (let i = 0; i < dist.bins.length; i += group) {
     const slice = dist.bins.slice(i, i + group);
-    bars.push({ x: slice.reduce((s, b) => s + b.x, 0), y: slice.reduce((s, b) => s + b.y, 0) });
+    cols.push({ x: slice.reduce((s, b) => s + b.x, 0), y: slice.reduce((s, b) => s + b.y, 0) });
   }
-  const peak = Math.max(...bars.map((b) => b.x + b.y), 0);
+  const peak = Math.max(...cols.map((c) => c.x + c.y), 0);
+  if (peak <= 0) return null;
+
+  const W = 100;
+  const H = 28;
+  // A single column would have no width to sweep, so it is drawn as a full-width
+  // block — which is what one bin holding everything actually looks like.
+  const step = cols.length > 1 ? W / (cols.length - 1) : 0;
+  const px = (i: number) => (cols.length > 1 ? i * step : W / 2);
+  const py = (v: number) => H - (v / peak) * H;
+
+  /** A closed area under the series, from the baseline up. */
+  const area = (values: number[]): string => {
+    if (cols.length === 1) {
+      const top = py(values[0]);
+      return `M0 ${H} L0 ${top} L${W} ${top} L${W} ${H} Z`;
+    }
+    const line = values.map((v, i) => `${i === 0 ? "L" : "L"}${px(i).toFixed(2)} ${py(v).toFixed(2)}`).join(" ");
+    return `M0 ${H} ${line} L${W} ${H} Z`;
+  };
+
+  const totals = cols.map((c) => c.x + c.y);
+  const quotes = cols.map((c) => c.y);
 
   return (
-    <span className="relative mt-1.5 block h-7" aria-label={`${base} / ${quote ?? ""}`}>
-      <span className="flex h-full items-end gap-px">
-        {bars.map((b, i) => {
-          const total = b.x + b.y;
-          const h = peak > 0 ? (total / peak) * 100 : 0;
-          return (
-            <span key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={undefined}>
-              <span className="flex w-full flex-col overflow-hidden rounded-t-[1px]" style={{ height: `${Math.max(h, total > 0 ? 4 : 0)}%` }}>
-                <span className={out ? "bg-text-muted/60" : "bg-accent"} style={{ flexGrow: b.x }} />
-                <span className="bg-text-secondary/45" style={{ flexGrow: b.y }} />
-              </span>
-            </span>
-          );
-        })}
-      </span>
+    <span
+      className="relative mt-1.5 block h-7"
+      role="img"
+      aria-label={`${base} / ${quote ?? ""}`}
+    >
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="absolute inset-0 size-full"
+        aria-hidden
+      >
+        {/* Total first, quote over it: the visible upper band is the base token,
+            which is the half that changes as price crosses the range. Out of
+            range the whole shape steps back to a readable grey rather than the
+            near-invisible one it used to fade to. */}
+        <path d={area(totals)} className={out ? "fill-text-secondary/55" : "fill-accent/70"} />
+        <path d={area(quotes)} className={out ? "fill-text-muted/30" : "fill-accent/30"} />
+      </svg>
+
       <span className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-grid-strong" />
+
+      {/* The edge price left through, and a caret pointing the way it went. The
+          bar alone said "something happened here"; the caret says which way. */}
       {below ? <span className="absolute bottom-0 left-0 top-0 w-0.5 bg-negative" /> : null}
       {above ? <span className="absolute bottom-0 right-0 top-0 w-0.5 bg-negative" /> : null}
-      {out ? null : (
-        <span className="pointer-events-none absolute -top-0.5 bottom-0 w-px bg-text-primary" style={{ left: `${at * 100}%` }} />
-      )}
+      {/* INSIDE the plot, against the edge, pointing out through it. Hung
+          outside, it was the first thing a scrolling table clipped — and the
+          arrow that says which way price went is not an ornament. */}
+      {out ? (
+        <span
+          className={`pointer-events-none absolute top-1/2 size-0 -translate-y-1/2 border-y-[4px] border-y-transparent ${
+            below ? "left-1 border-r-[5px] border-r-negative" : "right-1 border-l-[5px] border-l-negative"
+          }`}
+          aria-hidden
+        />
+      ) : null}
+
+      {/* ALWAYS DRAWN, clamped when outside. A picture of a range with no price
+          on it is the one thing this column exists to show. */}
+      <span
+        className={`pointer-events-none absolute -top-0.5 bottom-0 w-px ${out ? "bg-negative" : "bg-text-primary"}`}
+        style={{ left: `${at * 100}%` }}
+      />
     </span>
   );
 }
