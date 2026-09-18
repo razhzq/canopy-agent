@@ -127,6 +127,14 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   es_saving: "保存中…",
   es_cancel: "取消",
   es_sign_in: "登录后才能修改该智能体。",
+
+  ec_title: "编辑复制设置",
+  ec_intro: "此智能体复制谁，以及复制多少。更改自下一次轮询起生效；已开的仓位不受影响。",
+  ec_leader_change: "您正在更换被复制的钱包",
+  ec_leader_change_open:
+    "自下一次轮询起，此智能体将改为镜像新钱包。此前从 {from} 复制开出的仓位会保持开启，并不再作为复制仓位跟踪 — 如不想保留，请自行平仓。",
+  ec_leader_change_flat: "自下一次轮询起，此智能体将镜像新钱包，而不再是 {from}。它当前没有持仓，因此无需处理。",
+  ec_leader_change_ack: "我已了解",
   ad_anyof_or: "或",
 
   ad_universe: "标的池",

@@ -374,6 +374,14 @@ export interface StrategyRow {
   add_plan?: AddPlan | null;
   /** The cyclic price grid, when the strategy is one. */
   grid?: GridPlan | null;
+  /**
+   * The leader and the copy's limits, when the strategy copies a wallet.
+   *
+   * Mutually exclusive with `lp`, which names a pool outright: the engine
+   * resolves a copy block first, so a row carrying both would run the copy and
+   * leave the pool plan dead. Arrives on the detail route, which selects s.*.
+   */
+  copy_lp?: CopyLpInput | null;
   created_at?: string;
 }
 
@@ -3096,6 +3104,14 @@ export const updateAgentStrategy = (
     perp?: PerpConfig;
     /** The grid block, replaced whole. */
     grid?: GridPlan;
+    /**
+     * The copy block, replaced whole — leader included.
+     *
+     * Refused by the server on a strategy that does not already copy: a copy
+     * block cannot be bolted onto a pool or rules strategy, only edited on one
+     * that was built as a copy.
+     */
+    copyLp?: CopyLpInput;
   },
 ) =>
   request<{ agentId: number; changed: string[] }>(

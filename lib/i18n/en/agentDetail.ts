@@ -145,6 +145,19 @@ export const enAgentDetail = {
   es_saving: "Saving…",
   es_cancel: "Cancel",
   es_sign_in: "Sign in to change this agent.",
+
+  // ── Edit strategy · Copy LP ────────────────────────────────────
+  // A copy agent has no rules, exits or timeframe. Its own dialog, in its own
+  // words — see components/editCopyLp.tsx.
+  ec_title: "Edit copy",
+  ec_intro:
+    "Who this agent copies, and how much of them it takes. Changes apply from the next poll; nothing already open is touched.",
+  ec_leader_change: "You are changing the leader",
+  ec_leader_change_open:
+    "From the next poll this agent mirrors the new wallet instead. Positions it already opened from {from} stay open and stop being tracked as copies — close them yourself if you do not want them.",
+  ec_leader_change_flat:
+    "From the next poll this agent mirrors the new wallet instead of {from}. It holds nothing right now, so there is nothing to unwind.",
+  ec_leader_change_ack: "I understand",
   ad_anyof_or: "or",
 
   // ── Universe ───────────────────────────────────────────────────

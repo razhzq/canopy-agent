@@ -141,11 +141,18 @@ export function PickLeader({
   onChange,
   preview,
   bookUsd,
+  compact,
 }: {
   value: CopyLimits;
   onChange: (next: CopyLimits) => void;
   preview: LeaderState;
   bookUsd: number;
+  /**
+   * Drop the page heading. The builder is a full page and needs one; inside the
+   * edit dialog the modal's own title is the heading, and a second 28px line
+   * under it reads as a page that lost its way into a box.
+   */
+  compact?: boolean;
 }) {
   const t = useT();
   const [all, setAll] = useState(false);
@@ -160,7 +167,9 @@ export function PickLeader({
 
   return (
     <div className="space-y-6">
-      <h1 className="font-ui text-[28px] font-light leading-tight tracking-[-0.02em] text-text-primary">{t("cl_title_leader")}</h1>
+      {compact ? null : (
+        <h1 className="font-ui text-[28px] font-light leading-tight tracking-[-0.02em] text-text-primary">{t("cl_title_leader")}</h1>
+      )}
 
       <div className="space-y-2">
         <label htmlFor="copy-leader" className="block font-ui text-[12.5px] text-text-muted">
@@ -320,6 +329,7 @@ export function CopyLimitsStep({
   bookUsd,
   name,
   onNameChange,
+  compact,
 }: {
   value: CopyLimits;
   onChange: (next: CopyLimits) => void;
@@ -340,8 +350,10 @@ export function CopyLimitsStep({
    * but it is now a value in a field that can be typed over, on the step where
    * everything else about the copy is decided.
    */
-  name: string;
-  onNameChange: (next: string) => void;
+  name?: string;
+  onNameChange?: (next: string) => void;
+  /** As on {@link PickLeader}: no page heading inside a dialog. */
+  compact?: boolean;
 }) {
   const t = useT();
   const data = preview.phase === "ready" ? preview.data : null;
@@ -358,12 +370,17 @@ export function CopyLimitsStep({
 
   return (
     <div className="space-y-6">
-      <h1 className="font-ui text-[28px] font-light leading-tight tracking-[-0.02em] text-text-primary">{t("cl_title_limits")}</h1>
+      {compact ? null : (
+        <h1 className="font-ui text-[28px] font-light leading-tight tracking-[-0.02em] text-text-primary">{t("cl_title_limits")}</h1>
+      )}
 
+      {/* The name is a BUILD question. In the edit dialog the agent already has
+          one and renaming belongs with the agent, not with its copy limits. */}
+      {onNameChange ? (
       <section className="overflow-hidden rounded-2xl border border-grid">
         <Field label={t("cl_name")} help={t("cl_name_help")} last>
           <input
-            value={name}
+            value={name ?? ""}
             onChange={(e) => onNameChange(e.target.value)}
             placeholder={t("build_name_placeholder")}
             spellCheck={false}
@@ -372,6 +389,7 @@ export function CopyLimitsStep({
           />
         </Field>
       </section>
+      ) : null}
 
       <section className="rounded-2xl border border-grid px-5 py-5">
         <div className="flex items-center justify-between gap-4">

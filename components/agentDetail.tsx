@@ -11,6 +11,7 @@ import { LpPositions } from "@/components/lpPositions";
 import { GridLadder } from "@/components/gridLadder";
 import { AddMarketModal } from "@/components/addMarket";
 import { EditStrategyModal } from "@/components/editStrategy";
+import { EditCopyLpModal } from "@/components/editCopyLp";
 import { describeScreen } from "@/components/discoveryFilters";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
@@ -630,7 +631,20 @@ export function AgentDetailView({
   // agent, and the switch that promotes could not even be shown.
   const dialogs = (
     <>
-  {editing && strategy ? (
+  {/* TWO EDITORS, CHOSEN BY WHAT THE STRATEGY IS. A copy agent has no entry
+      rules, no exits and no timeframe, so the recipe dialog had nothing true to
+      show it and nothing to offer but chips it does not evaluate — while the
+      copy's own six settings were unreachable after deploy. */}
+  {editing && strategy?.copy_lp ? (
+    <EditCopyLpModal
+      agentId={agentId}
+      strategy={strategy}
+      bookUsd={equity?.points.at(-1)?.equityUsd ?? Number(agent.mandate?.capitalUsd ?? 0)}
+      hasOpenPositions={detail.positions.length > 0}
+      onSaved={() => void load()}
+      onClose={() => setEditing(false)}
+    />
+  ) : editing && strategy ? (
     <EditStrategyModal
       agentId={agentId}
       strategy={strategy}
