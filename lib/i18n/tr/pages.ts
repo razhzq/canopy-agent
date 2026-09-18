@@ -30,4 +30,14 @@ export const trPages: Record<keyof typeof enPages, string> = {
 
   notifications_page_title: "Bildirimler",
   notifications_page_body: "Ajanlarınız ne yaptı ve sizden ne bekliyor.",
+
+  crash_title: "Bu sayfada bir şey bozuldu",
+  crash_body:
+    "Sayfa, arkasında duramayacağı rakamları göstermek yerine durdu. Yeniden denemek genellikle yeterli olur.",
+  crash_retry: "Yeniden dene",
+  crash_home: "Ajanlarım",
+  crash_reset: "Kayıtlı taslakları temizle ve yeniden dene",
+  crash_reset_note:
+    "Bu tarayıcıda kayıtlı yarım kalmış bir taslak buna yol açmış olabilir. Temizlemek yalnızca o taslağı siler — ajan, bakiye ve ayarlar etkilenmez.",
+  crash_ref: "Referans {digest}",
 };

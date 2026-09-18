@@ -27,4 +27,13 @@ export const zhPages: Record<keyof typeof enPages, string> = {
 
   notifications_page_title: "通知",
   notifications_page_body: "您的智能体做了什么，以及它们需要您做什么。",
+
+  crash_title: "此页面出错了",
+  crash_body: "页面已停止渲染，而不是显示它无法保证准确的数据。重试通常就能恢复。",
+  crash_retry: "重试",
+  crash_home: "我的智能体",
+  crash_reset: "清除已保存的草稿并重试",
+  crash_reset_note:
+    "此浏览器中保存的未完成草稿可能是原因。清除只会丢失该草稿 — 不影响智能体、资金和设置。",
+  crash_ref: "参考编号 {digest}",
 };

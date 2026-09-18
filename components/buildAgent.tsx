@@ -179,6 +179,185 @@ const DEFAULT_LIMITS: Limits = {
   capitalUsd: 10_000,
 };
 
+/* --------------------------------------------------- reading a draft back --
+   A DRAFT IS UNTRUSTED INPUT, and the reason is worth stating plainly: it was
+   written by a BUILD THAT NO LONGER EXISTS. It sits in localStorage for as long
+   as the browser keeps it, while the types it was written from keep moving —
+   `riskCaps`, `capitalUsd`, the grid and the Copy LP limits all arrived after
+   drafts were already being saved.
+
+   The old reader checked `d.v` and then spread the rest straight into state.
+   `JSON.parse` was wrapped, so a TRUNCATED draft was survivable; a well-formed
+   draft missing a field added since was not. It restored, and the first render
+   that reached for `limits.riskCaps.maxDailyLossPct` threw — during render, in
+   a client component, with no error boundary above it. The whole page became
+   Next's "This page couldn't load", on every load, because the draft that
+   caused it was still there on the next one. The only way out was clearing the
+   key by hand from the console.
+
+   So: every field is checked, and anything that fails falls back to the default
+   rather than to whatever was on disk. A draft that cannot be made sense of at
+   all is dropped. The most work anyone loses is one unfinished draft; the bug
+   it replaces cost them the page itself. */
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+const num = (v: unknown, fallback: number): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
+const numOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+/** Every rule today's catalogue knows, by key. A saved rule is repaired against it. */
+const RULES_BY_KEY = new Map(RWA_RULES.map((r) => [r.key, r]));
+
+/**
+ * Saved rules, re-seated on the current catalogue.
+ *
+ * The catalogue row is the source of truth for everything DESCRIPTIVE — label,
+ * help, bounds, step, basis, unit — because those are code, and a draft holding
+ * a copy of them from three deploys ago would render a stale slider or none at
+ * all. Only what the AUTHOR chose is carried across: whether it is on, the
+ * threshold, the direction, and any period they set. A key the catalogue has
+ * since dropped is dropped with it.
+ */
+function repairRules(v: unknown): Limits["rules"] {
+  if (!Array.isArray(v)) return DEFAULT_LIMITS.rules;
+  const out = v.flatMap((r) => {
+    if (!isObj(r) || typeof r.key !== "string") return [];
+    const spec = RULES_BY_KEY.get(r.key);
+    if (!spec) return [];
+    return [{
+      ...spec,
+      value: num(r.value, spec.value),
+      op: r.op === "gte" || r.op === "lte" ? r.op : spec.op,
+      enabled: typeof r.enabled === "boolean" ? r.enabled : true,
+      ...(typeof r.period === "number" && Number.isFinite(r.period) ? { period: r.period } : {}),
+      ...(Array.isArray(r.pair) &&
+        r.pair.length === 2 &&
+        r.pair.every((n) => typeof n === "number" && Number.isFinite(n))
+        ? { pair: [r.pair[0], r.pair[1]] as [number, number] }
+        : {}),
+      ...(typeof r.deviations === "number" && Number.isFinite(r.deviations)
+        ? { deviations: r.deviations }
+        : {}),
+    }];
+  });
+  // Every rule unknown today means a draft from a catalogue this build cannot
+  // read. The default set is a better starting point than an empty one.
+  return out.length > 0 ? out : DEFAULT_LIMITS.rules;
+}
+
+/**
+ * Limits, field by field, over today's defaults.
+ *
+ * Optional fields are carried only when they are the right TYPE — an absent one
+ * reads as "the author never chose", which every consumer already handles. The
+ * required ones (`rules`, `exits`, `positionUsd`, `tradesPerCycle`, `riskCaps`)
+ * are the ones the old reader could leave undefined, and they are exactly the
+ * ones render dereferences without asking.
+ */
+function repairLimits(v: unknown): Limits {
+  if (!isObj(v)) return DEFAULT_LIMITS;
+  const exits = isObj(v.exits) ? v.exits : {};
+  const caps = isObj(v.riskCaps) ? v.riskCaps : {};
+  return {
+    ...DEFAULT_LIMITS,
+    ...v,
+    rules: repairRules(v.rules),
+    exits: {
+      ...DEFAULT_LIMITS.exits,
+      takeProfitPct: num(exits.takeProfitPct, DEFAULT_LIMITS.exits.takeProfitPct),
+      stopLossPct: num(exits.stopLossPct, DEFAULT_LIMITS.exits.stopLossPct),
+      maxHoldDays: num(exits.maxHoldDays, DEFAULT_LIMITS.exits.maxHoldDays ?? 0),
+    },
+    positionUsd: num(v.positionUsd, DEFAULT_LIMITS.positionUsd),
+    tradesPerCycle: num(v.tradesPerCycle, DEFAULT_LIMITS.tradesPerCycle),
+    // The `??` is for the optional TYPE; DEFAULT_LIMITS always carries a book.
+    capitalUsd: num(v.capitalUsd, DEFAULT_LIMITS.capitalUsd ?? 10_000),
+    riskCaps: { ...DEFAULT_RISK_CAPS, ...caps },
+  };
+}
+
+/** The leader and the sizing, over today's defaults. Same rules as the limits. */
+function repairCopy(v: unknown): CopyLimits {
+  if (!isObj(v)) return DEFAULT_COPY_LIMITS;
+  return {
+    ...DEFAULT_COPY_LIMITS,
+    ...v,
+    leader: typeof v.leader === "string" ? v.leader : "",
+    copyPct: num(v.copyPct, DEFAULT_COPY_LIMITS.copyPct),
+    maxIncreaseUsd: numOrNull(v.maxIncreaseUsd),
+    minPoolTvlUsd: numOrNull(v.minPoolTvlUsd),
+    maxSlippagePct: num(v.maxSlippagePct, DEFAULT_COPY_LIMITS.maxSlippagePct),
+    verifiedTokensOnly: v.verifiedTokensOnly !== false,
+    followRebalances: v.followRebalances !== false,
+  };
+}
+
+/**
+ * A picked market is kept only if it still has an IDENTITY and a label.
+ *
+ * A row missing either cannot be rendered and cannot be sent, so keeping it
+ * would only move the crash: a token with no mint resolves to nothing, and the
+ * chip has nothing to print. Dropping it puts the author back on the picker,
+ * which is a step they can see and redo.
+ */
+function isMarket(v: unknown): v is UniverseAsset {
+  if (!isObj(v)) return false;
+  if (v.kind !== "rwa" && v.kind !== "crypto" && v.kind !== "perp") return false;
+  if (typeof v.symbol !== "string" || v.symbol === "") return false;
+  return v.kind === "rwa" ? typeof v.underlying === "string" : typeof v.mint === "string";
+}
+
+/** The model, which the rail and the review both label without refetching. */
+function repairModel(v: unknown): ModelChoice {
+  if (!isObj(v)) return DEFAULT_MODEL;
+  if (typeof v.modelId !== "string" || typeof v.label !== "string") return DEFAULT_MODEL;
+  if (v.provider !== "canopy" && v.provider !== "pod") return DEFAULT_MODEL;
+  return { ...v, modelId: v.modelId, label: v.label, provider: v.provider } as ModelChoice;
+}
+
+/** A saved draft, repaired against today's code — or nothing at all. */
+function readDraft(raw: string | null): Draft | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isObj(parsed)) return null;
+  const v = parsed.v;
+  if (v !== 1 && v !== 2 && v !== 3) return null;
+
+  const discovery = isObj(parsed.discovery) && Array.isArray(parsed.discovery.filters)
+    ? (parsed.discovery as unknown as DiscoverySpec)
+    : undefined;
+
+  return {
+    v,
+    savedAt: num(parsed.savedAt, Date.now()),
+    name: typeof parsed.name === "string" ? parsed.name : "",
+    named: parsed.named === true,
+    // A step past the end of a wizard that has since lost one is a blank page.
+    step: Math.min(Math.max(Math.trunc(num(parsed.step, 0)), 0), STEPS.length - 1),
+    instrument: parsed.instrument === "perp" ? "perp" : "spot",
+    kind:
+      parsed.kind === "spot" || parsed.kind === "perp" || parsed.kind === "copyLp"
+        ? parsed.kind
+        : undefined,
+    phase: parsed.phase === "type" ? "type" : "build",
+    copy: repairCopy(parsed.copy),
+    markets: Array.isArray(parsed.markets) ? parsed.markets.filter(isMarket) : [],
+    discovery,
+    limits: repairLimits(parsed.limits),
+    model: repairModel(parsed.model),
+  };
+}
+
 /**
  * How a cadence reads in the review rail.
  *
@@ -337,26 +516,23 @@ export function BuildAgent() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw) as Draft;
-        if (d && (d.v === 1 || d.v === 2 || d.v === 3)) {
-          setName(d.name ?? "");
-          setNamed(!!d.named);
-          setStep(d.step ?? 0);
-          setInstrument(d.instrument ?? "spot");
-          setKind(d.kind ?? d.instrument ?? "spot");
-          // A draft from before the type step was already past it.
-          setPhase(d.phase ?? "build");
-          setCopy(d.copy ?? DEFAULT_COPY_LIMITS);
-          setMarkets(d.markets ?? []);
-          setDiscovery(d.discovery);
-          setLimits(d.limits ?? DEFAULT_LIMITS);
-          setModel(d.model ?? DEFAULT_MODEL);
-          if ((d.name ?? "").trim() !== "" || (d.markets ?? []).length > 0 || d.discovery || (d.copy?.leader ?? "") !== "") {
-            setRestoredAt(d.savedAt);
-            setNaming("done");
-          }
+      const d = readDraft(localStorage.getItem(DRAFT_KEY));
+      if (d) {
+        setName(d.name);
+        setNamed(d.named);
+        setStep(d.step);
+        setInstrument(d.instrument ?? "spot");
+        setKind(d.kind ?? d.instrument ?? "spot");
+        // A draft from before the type step was already past it.
+        setPhase(d.phase ?? "build");
+        setCopy(d.copy ?? DEFAULT_COPY_LIMITS);
+        setMarkets(d.markets);
+        setDiscovery(d.discovery);
+        setLimits(d.limits);
+        setModel(d.model);
+        if (d.name.trim() !== "" || d.markets.length > 0 || d.discovery || (d.copy?.leader ?? "") !== "") {
+          setRestoredAt(d.savedAt);
+          setNaming("done");
         }
       }
     } catch {
@@ -1138,7 +1314,7 @@ export function BuildAgent() {
             {step === 0 ? (
               <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
             ) : (
-              <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+              <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} name={name} onNameChange={setName} />
             )}
           </div>
         </BuildFrame>
@@ -1329,7 +1505,7 @@ export function BuildAgent() {
               step === 0 ? (
                 <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
               ) : (
-                <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+                <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} name={name} onNameChange={setName} />
               )
             ) : step === 0 || (!asset && !discovery) ? (
               <div

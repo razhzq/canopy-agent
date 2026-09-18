@@ -318,11 +318,30 @@ export function CopyLimitsStep({
   onChange,
   preview,
   bookUsd,
+  name,
+  onNameChange,
 }: {
   value: CopyLimits;
   onChange: (next: CopyLimits) => void;
   preview: LeaderState;
   bookUsd: number;
+  /**
+   * What the agent is called.
+   *
+   * ASKED HERE BECAUSE IT WAS ASKED NOWHERE. The Copy LP flow is two steps —
+   * the leader, then this — and neither had a name field: the header field
+   * beside "New draft" is the desktop layout's, and the mobile frame has none
+   * at all. So the only name a copy agent ever got was the one suggested on
+   * arriving at this step, "7xKX…gAsU LP copy", and the first anyone saw of it
+   * was a notification that read like an address, about an agent they thought
+   * they had named.
+   *
+   * The suggestion stays — an unnamed agent is worse than an autonamed one —
+   * but it is now a value in a field that can be typed over, on the step where
+   * everything else about the copy is decided.
+   */
+  name: string;
+  onNameChange: (next: string) => void;
 }) {
   const t = useT();
   const data = preview.phase === "ready" ? preview.data : null;
@@ -340,6 +359,19 @@ export function CopyLimitsStep({
   return (
     <div className="space-y-6">
       <h1 className="font-ui text-[28px] font-light leading-tight tracking-[-0.02em] text-text-primary">{t("cl_title_limits")}</h1>
+
+      <section className="overflow-hidden rounded-2xl border border-grid">
+        <Field label={t("cl_name")} help={t("cl_name_help")} last>
+          <input
+            value={name}
+            onChange={(e) => onNameChange(e.target.value)}
+            placeholder={t("build_name_placeholder")}
+            spellCheck={false}
+            aria-label={t("cl_name")}
+            className={`w-[220px] max-w-full border-b border-grid-strong bg-transparent pb-1 text-right font-ui text-[13.5px] pointer-coarse:text-[16px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent ${FOCUS}`}
+          />
+        </Field>
+      </section>
 
       <section className="rounded-2xl border border-grid px-5 py-5">
         <div className="flex items-center justify-between gap-4">

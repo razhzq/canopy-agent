@@ -39,4 +39,17 @@ export const enPages = {
   // ── Notifications ──────────────────────────────────────────────
   notifications_page_title: "Notifications",
   notifications_page_body: "What your agents did, and what they need from you.",
+
+  // ── Crash recovery ─────────────────────────────────────────────
+  // Shown by the error boundary over every signed-in page. The wording avoids
+  // blaming the reader for state they never knew was being kept.
+  crash_title: "Something broke on this page",
+  crash_body:
+    "The page stopped rather than show you figures it could not stand behind. Trying again usually works.",
+  crash_retry: "Try again",
+  crash_home: "My agents",
+  crash_reset: "Clear saved drafts and retry",
+  crash_reset_note:
+    "An unfinished draft saved in this browser can be the cause. Clearing it loses that draft and nothing else — no agent, no funds, no settings.",
+  crash_ref: "Reference {digest}",
 } as const;

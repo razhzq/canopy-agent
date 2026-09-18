@@ -280,6 +280,8 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   cl_calc_opens: "实际开仓",
   cl_calc_skipped: "跳过：低于 {min}",
   cl_sizing_empty: "对方暂无可参照的仓位。复制仓位将按其下一个仓位占资金的比例，乘以您的复制比例开仓。",
+  cl_name: "智能体名称",
+  cl_name_help: "此智能体在各处显示的名称 — 包括通知。",
   cl_limits: "限额",
   cl_copy_pct: "复制比例",
   cl_copy_pct_help: "按对方资金占比复制。100% 为完全一致，50% 为一半规模。",

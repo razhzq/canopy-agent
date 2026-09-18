@@ -299,6 +299,10 @@ export const enBuild = {
   cl_calc_opens: "Opens with",
   cl_calc_skipped: "Skipped: under {min}",
   cl_sizing_empty: "The leader holds nothing to size against yet. A copy opens at the share of capital its next position takes, times your copy percentage.",
+  // The name lives on the limits step: the two Copy LP steps had no name
+  // field between them, so the suggestion below was the only name an agent got.
+  cl_name: "Agent name",
+  cl_name_help: "What this agent is called everywhere — notifications included.",
   cl_limits: "Limits",
   cl_copy_pct: "Copy percentage",
   cl_copy_pct_help: "Of the leader's share of capital. 100% copies it exactly, 50% at half size.",
