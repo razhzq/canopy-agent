@@ -95,6 +95,11 @@ export const enAgentDetail = {
 
   // ── Edit strategy dialog ───────────────────────────────────────
   es_title: "Edit strategy",
+  es_name: "Name",
+  // Said plainly because the two names diverge for a deployer, and the dialog
+  // is the only place anyone learns that they do.
+  es_name_help:
+    "What you call this agent. Yours alone — renaming it here never renames the strategy for anyone else who deployed it. If the strategy is your own, its name follows.",
   es_intro:
     "These are the rules this agent is running right now. Changes apply in place — same agent, same positions, same record — from its next cycle.",
   es_entry: "Entry rules",

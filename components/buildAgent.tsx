@@ -560,6 +560,36 @@ export function BuildAgent() {
     if (typeof window !== "undefined" && window.scrollY > 0) window.scrollTo({ top: 0 });
   }
 
+  /**
+   * Leaving the type step, which is where the name is asked.
+   *
+   * THE NAMING MOMENT HAD NO MOMENT. It was built for the flow where naming
+   * WAS the first screen: a fresh builder opened on one large field with the
+   * caret in it. Then the type step went in front of it, and the mount effect
+   * kept resolving `naming` to "done" — so the field below and the phone's
+   * whole `BuildName` screen became unreachable, and the only name an agent
+   * ever got was the one suggested three steps later. Every agent since has
+   * been named by us.
+   *
+   * So the question moves to where it now belongs: immediately after the type
+   * is chosen, with the type known and nothing else asked yet. The two layouts
+   * ask it the way each already knew how — the phone on its own screen, the
+   * desktop on the big field over a dimmed picker (kit rule 12: the step
+   * underneath stays drawn, so the reader can see what naming leads to).
+   *
+   * NOT FOR A RESUMED DRAFT. Someone returning to a half-built agent has
+   * already answered this, and re-asking would read as the draft having lost
+   * it.
+   */
+  function leaveTypeStep(): void {
+    dir.current = "fwd";
+    setStep(0);
+    setPhase("build");
+    if (name.trim() !== "") return;
+    if (mobile) setNamed(false);
+    else setNaming("open");
+  }
+
   /** The field hands over: it slides up and out, then the picker takes focus. */
   function commitName(): void {
     if (naming !== "open") return;
@@ -1283,10 +1313,7 @@ export function BuildAgent() {
             <BuildCta
               label={bookOk ? t("bt_continue", { type: t(KIND_TITLE[kind]) }) : t("bt_book_first")}
               disabled={!bookOk}
-              onClick={() => {
-                setStep(0);
-                setPhase("build");
-              }}
+              onClick={leaveTypeStep}
             />
           }
         >
@@ -1503,17 +1530,14 @@ export function BuildAgent() {
               <PickType kind={kind} onKindChange={onKindChange} capitalUsd={bookOk ? book : null} onCapitalChange={onCapitalChange} />
             ) : kind === "copyLp" ? (
               step === 0 ? (
-                <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+                <Behind naming={naming}>
+                  <PickLeader value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} />
+                </Behind>
               ) : (
                 <CopyLimitsStep value={copy} onChange={setCopy} preview={leaderPreview} bookUsd={book} name={name} onNameChange={setName} />
               )
             ) : step === 0 || (!asset && !discovery) ? (
-              <div
-                aria-hidden={naming !== "done"}
-                className={`transition-[opacity,transform] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
-                  naming === "done" ? "" : "pointer-events-none translate-y-3 select-none opacity-30"
-                }`}
-              >
+              <Behind naming={naming}>
                 <PickMarket
                   value={markets}
                   onChange={onMarketsChange}
@@ -1521,7 +1545,7 @@ export function BuildAgent() {
                   onDiscoveryChange={onDiscoveryChange}
                   instrument={instrument}
                 />
-              </div>
+              </Behind>
             ) : step === 1 ? (
               <SetLimits
                 markets={markets}
@@ -1655,11 +1679,7 @@ export function BuildAgent() {
               {phase === "type" ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    dir.current = "fwd";
-                    setStep(0);
-                    setPhase("build");
-                  }}
+                  onClick={leaveTypeStep}
                   disabled={!bookOk}
                   className={`${PRIMARY} px-5`}
                 >
@@ -1891,6 +1911,42 @@ export function BuildAgent() {
  * other language is simply a wider fill. Selecting a step is not committing to
  * anything, so the fill is a surface, not green.
  */
+/**
+ * The step waiting behind the naming field.
+ *
+ * DIMMED AND BLURRED, NOT HIDDEN. Kit rule 12: the thing you are about to be
+ * asked stays drawn, so naming reads as the first of two questions rather than
+ * as the only screen there is. What it needs to say is "this is next", not
+ * "read this now" — and at 30% opacity alone it stayed perfectly legible, so
+ * the eye kept going to the market list instead of the caret blinking above
+ * it. A 3px blur settles that: the shape of the step survives, the words stop
+ * competing, and the one sharp thing on the screen is the field.
+ *
+ * `pointer-events-none` and `aria-hidden` for the same reason in two
+ * modalities — a control nobody can see must not be tabbable or clickable, and
+ * a screen reader should not be offered a market picker while the page is
+ * asking for a name.
+ */
+function Behind({
+  naming,
+  children,
+}: {
+  naming: "open" | "leaving" | "done" | null;
+  children: React.ReactNode;
+}) {
+  const back = naming !== null && naming !== "done";
+  return (
+    <div
+      aria-hidden={back}
+      className={`transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
+        back ? "pointer-events-none translate-y-3 select-none opacity-30 blur-[3px]" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function StepPill({
   step,
   labels,

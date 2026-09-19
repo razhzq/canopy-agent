@@ -30,7 +30,7 @@ import {
   type Timeframe,
 } from "@/components/buildStrategy";
 import { Pill, PillRow } from "@/components/wizard";
-import { FieldNote, InfoDot, PRIMARY, SECONDARY } from "@/components/kit";
+import { FieldNote, FOCUS, InfoDot, PRIMARY, SECONDARY } from "@/components/kit";
 import { useT } from "@/lib/i18n";
 import {
   getAgentFunding,
@@ -73,6 +73,7 @@ import {
  */
 export function EditStrategyModal({
   agentId,
+  agentName,
   strategy,
   mandate,
   isPaper = true,
@@ -81,6 +82,13 @@ export function EditStrategyModal({
   onSaved,
 }: {
   agentId: number;
+  /**
+   * What this agent is called right now — its own name, or its strategy's when
+   * it has never been renamed. The field below edits THIS, not
+   * `strategy.name`: since CANOPY_122 the two are different rows, and a
+   * deployer renaming their copy must not rename the author's recipe.
+   */
+  agentName: string;
   /** The strategy as `getStrategy` returned it — s.*, so the recipe is whole. */
   strategy: StrategyRow;
   /**
@@ -103,6 +111,7 @@ export function EditStrategyModal({
 }) {
   const t = useT();
   const { getAccessToken } = usePrivy();
+  const [name, setName] = useState(agentName);
 
   // Every market in a strategy shares one class, and the strategy carries it —
   // so this does not have to be inferred from the resolved universe, which may
@@ -300,9 +309,14 @@ export function EditStrategyModal({
       maxPositionPct?: number;
       maxTradesPerTick?: number;
       grid?: GridPlan;
+      name?: string;
     } = {};
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+    // Trimmed on both sides of the comparison, so trailing whitespace is not
+    // an edit; empty is not a rename at all, it is a field somebody cleared.
+    if (name.trim() && name.trim() !== agentName.trim()) p.name = name.trim();
 
     if (positionPct !== initialPct) p.maxPositionPct = positionPct;
     if (tradesPerTick !== initialTrades) p.maxTradesPerTick = tradesPerTick;
@@ -352,8 +366,26 @@ export function EditStrategyModal({
           {t("es_intro")}
         </p>
 
+
+        {/* ------------------------------------------------------- name */}
+        {/* FIRST, BECAUSE IT IS THE CHEAPEST THING TO GET WRONG. Everything
+            below changes how the agent trades and wants reading; this is the
+            one field somebody opens this dialog just to fix, and burying it
+            under the rule chips would mean scrolling past six thresholds to
+            correct a typo. */}
+        <Section title={t("es_name")} help={t("es_name_help")} />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={120}
+          spellCheck={false}
+          aria-label={t("es_name")}
+          placeholder={agentName}
+          className={`w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 font-ui text-[13.5px] pointer-coarse:text-[16px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent ${FOCUS}`}
+        />
+
         {/* ------------------------------------------------------- entry */}
-        <div className="-mt-1">
+        <div>
           <Section title={t("es_entry")} help={t("es_entry_help")} />
         </div>
 

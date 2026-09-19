@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Modal } from "@/components/modal";
 import { Callout, WarnIcon } from "@/components/ui";
-import { FieldNote, PRIMARY, SECONDARY } from "@/components/kit";
+import { FieldNote, FOCUS, PRIMARY, SECONDARY } from "@/components/kit";
 import {
   CopyLimitsStep,
   DEFAULT_COPY_LIMITS,
@@ -37,6 +37,7 @@ import { useT } from "@/lib/i18n";
  */
 export function EditCopyLpModal({
   agentId,
+  agentName,
   strategy,
   bookUsd,
   hasOpenPositions,
@@ -44,6 +45,8 @@ export function EditCopyLpModal({
   onSaved,
 }: {
   agentId: number;
+  /** What this agent is called now. See EditStrategyModal — same two names. */
+  agentName: string;
   /** The strategy as `getStrategy` returned it, carrying `copy_lp`. */
   strategy: StrategyRow;
   /**
@@ -66,6 +69,7 @@ export function EditCopyLpModal({
 
   const stored = fromPlan(strategy.copy_lp);
   const [copy, setCopy] = useState<CopyLimits>(stored);
+  const [name, setName] = useState(agentName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Set once the owner has been shown what changing the leader does. */
@@ -76,7 +80,9 @@ export function EditCopyLpModal({
   const leaderChanged = copy.leader.trim() !== stored.leader;
 
   const next = copyLpPayload(copy);
-  const dirty = JSON.stringify(next) !== JSON.stringify(copyLpPayload(stored));
+  const renamed = name.trim() !== "" && name.trim() !== agentName.trim();
+  const dirty =
+    renamed || JSON.stringify(next) !== JSON.stringify(copyLpPayload(stored));
   // A leader that has not resolved is not saveable: the preview IS the check
   // that the address is a wallet with a readable book, and saving past it would
   // leave the agent following nothing until someone noticed.
@@ -91,7 +97,11 @@ export function EditCopyLpModal({
       if (!token) throw new Error(t("es_sign_in"));
       // The block is replaced whole, which is what the route does with it —
       // there is no partial copy block, and a merge could not turn a cap off.
-      await updateAgentStrategy(token, agentId, { copyLp: next });
+      // The name rides on the same request so one press is one change.
+      await updateAgentStrategy(token, agentId, {
+        copyLp: next,
+        ...(renamed ? { name: name.trim() } : {}),
+      });
       onSaved();
       onClose();
     } catch (err) {
@@ -109,6 +119,24 @@ export function EditCopyLpModal({
         </p>
 
         <div className="space-y-8 pt-5">
+          {/* Same field, same place, as the strategy editor: the one thing
+              somebody opens this dialog just to fix goes first. */}
+          <div className="space-y-2">
+            <label htmlFor="copy-name" className="block font-ui text-[12.5px] text-text-muted">
+              {t("es_name")}
+            </label>
+            <input
+              id="copy-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              spellCheck={false}
+              placeholder={agentName}
+              className={`w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 font-ui text-[13.5px] pointer-coarse:text-[16px] text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent ${FOCUS}`}
+            />
+            <FieldNote>{t("es_name_help")}</FieldNote>
+          </div>
+
           <PickLeader value={copy} onChange={setCopy} preview={preview} bookUsd={bookUsd} compact />
 
           {/* WHAT A NEW LEADER DOES, before it is possible to save one. The

@@ -1749,7 +1749,20 @@ export interface AgentMandate {
 export interface AgentRow {
   id: number;
   strategy_id: number;
+  /**
+   * What to call this agent: its own name when it has one, its strategy's when
+   * it does not. Resolved server-side (CANOPY_122), so every surface showing an
+   * agent shows the same word without each of them remembering to coalesce.
+   */
   strategy_name: string;
+  /**
+   * The RECIPE's name, which is no longer always this agent's.
+   *
+   * For the one sentence that means the strategy rather than the deployment —
+   * what comes off Explore when the last agent on it goes. Absent on an older
+   * backend, which is why every reader falls back to `strategy_name`.
+   */
+  strategy_source_name?: string;
   strategy_class: string;
   /** `liquidating` is winding down after a drawdown breach — still ticking, but only to close. */
   /**

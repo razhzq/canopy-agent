@@ -639,6 +639,7 @@ export function AgentDetailView({
   {editing && strategy?.copy_lp ? (
     <EditCopyLpModal
       agentId={agentId}
+      agentName={agent.strategy_name}
       strategy={strategy}
       bookUsd={equity?.points.at(-1)?.equityUsd ?? Number(agent.mandate?.capitalUsd ?? 0)}
       hasOpenPositions={detail.positions.length > 0}
@@ -648,6 +649,7 @@ export function AgentDetailView({
   ) : editing && strategy ? (
     <EditStrategyModal
       agentId={agentId}
+      agentName={agent.strategy_name}
       strategy={strategy}
       mandate={agent.mandate}
       isPaper={agent.is_paper}
@@ -1460,7 +1462,9 @@ function DeleteAgentModal({
                 line on. */}
             {agent.delists_strategy ? (
               <Step n="4">
-                {t("ad_delete_4", { name: agent.strategy_name })}
+                {/* The STRATEGY's name here, not the agent's: this sentence is about
+                    what comes off Explore, and since CANOPY_122 the two can differ. */}
+                {t("ad_delete_4", { name: agent.strategy_source_name ?? agent.strategy_name })}
               </Step>
             ) : null}
           </ol>

@@ -73,6 +73,9 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_edit_strategy: "修改策略",
 
   es_title: "修改策略",
+  es_name: "名称",
+  es_name_help:
+    "您对这个智能体的称呼。仅属于您 — 在此重命名不会影响其他部署了该策略的人。若该策略本就是您创建的，策略名称也会一并更新。",
   es_intro:
     "以下是该智能体当前运行的规则。修改就地生效——同一个智能体、同样的持仓、同一份记录——从下一个周期开始执行。",
   es_entry: "入场规则",
