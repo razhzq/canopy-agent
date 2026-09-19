@@ -41,7 +41,8 @@ import { EquityView } from "@/components/equity";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
-import { AssetLogo } from "@/components/ui";
+import { AssetLogo, Rule } from "@/components/ui";
+import { AgentRail } from "@/components/agentRail";
 import { ModelBadge } from "@/components/modelBadge";
 import { ModelPanel } from "@/components/modelPanel";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
@@ -707,6 +708,12 @@ export function AgentDetailView({
           paperDisabledReason={paperDisabledReason}
           liveDisabledReason={liveDisabledReason}
           onEdit={strategy ? () => setEditing(true) : null}
+          // The facts the rail carries on a desktop and the phone carried
+          // nowhere: the same owner could read how their agent runs at a desk
+          // and not on a train. Computed here already, so this is prop passing.
+          screen={screen}
+          cadenceSec={cadenceSec}
+          positionCap={positionCap}
         />
         {dialogs}
       </>
@@ -781,6 +788,22 @@ export function AgentDetailView({
                 <ModelBadge model={agent.model} />
               </button>
               <StatusChip status={agent.status} />
+              {/* THE LIVE READOUT, BESIDE THE STATE IT QUALIFIES.
+                  It used to head a "Watching now" section whose body restated
+                  the rail's entry rules and exits; the section went, and this is
+                  the one thing in it that existed nowhere else. It belongs here
+                  anyway: "active" and "checked 1m ago · next in 4 min" are the
+                  same sentence, and they were being said two screens apart.
+                  `live`, because this is a thing happening rather than a state
+                  that is true — the agent is between ticks right now. */}
+              {agent.status === "active" ? (
+                <StatusLine tone="good" live>
+                  {agent.last_tick_at
+                    ? t("ad_checked", { when: relativeTime(agent.last_tick_at, t) })
+                    : t("ad_starting")}
+                  {agent.next_tick_at ? t("ad_next", { when: ahead(agent.next_tick_at, t) }) : ""}
+                </StatusLine>
+              ) : null}
             </div>
 
             {/* Always both halves, so the reader can see that an agent has two
@@ -894,111 +917,6 @@ export function AgentDetailView({
             </section>
           ) : null}
 
-          {/* watching now */}
-          <section className="border-b border-grid px-5 sm:px-8 py-6">
-            <Rule
-              label={t("ad_sec_watching")}
-              right={
-                agent.status === "active" ? (
-                  // `live`, because this is a thing happening rather than a
-                  // state that is true — the agent is between ticks right now.
-                  <StatusLine tone="good" live>
-                    {agent.last_tick_at
-                      ? t("ad_checked", {
-                          when: relativeTime(agent.last_tick_at, t),
-                        })
-                      : t("ad_starting")}
-                    {agent.next_tick_at
-                      ? t("ad_next", { when: ahead(agent.next_tick_at, t) })
-                      : ""}
-                  </StatusLine>
-                ) : (
-                  <StatusLine tone="pending">{t("ad_not_ticking")}</StatusLine>
-                )
-              }
-            />
-
-            {entry ? (
-              <>
-                <h2 className="pt-4 font-ui text-[20px] font-medium leading-tight tracking-[-0.01em] text-text-primary">
-                  {entryHeadline(entry, t, markets[0]?.asset?.symbol)}
-                </h2>
-                <p className={`pt-1.5 ${BODY}`}>{t("ad_entry_note")}</p>
-              </>
-            ) : (
-              <p className={`pt-4 ${BODY}`}>{t("ad_rules_unreadable")}</p>
-            )}
-
-            {/* exits are the other half of the contract and are always real */}
-            <div className="grid grid-cols-1 gap-2.5 pt-5 sm:grid-cols-2">
-              {/* The percentages lose their <Num> treatment here: they sit
-                  mid-sentence, and Chinese puts them somewhere English does
-                  not — a wrapper cannot travel with a number across a
-                  reordering. The figures are still tabular in the rail chips
-                  below, which is where they are compared. */}
-              <ExitCard
-                label={t("ad_exit_take_profit")}
-                body={
-                  exits
-                    ? exits.takeProfitPct > 0
-                      ? t("ad_tp_body", { pct: exits.takeProfitPct })
-                      : // A strategy that sells on a SIGNAL often has no
-                        // percentage target at all, and "+0%" would read as a
-                        // target of nothing rather than as no target.
-                        t("ad_tp_body_off")
-                    : t("ad_exit_unset")
-                }
-              />
-              {/* THE ONLY EXIT THAT ASKS ABOUT THE MARKET. Shown next to the
-                  levels because an owner reading "take profit: none" needs the
-                  next card to say what DOES sell this position. */}
-              {sells ? (
-                <ExitCard label={t("ad_exit_sell_signal")} body={t("ad_sell_body", { rule: sells })} />
-              ) : null}
-              <ExitCard
-                label={t("ad_exit_stop_loss")}
-                body={
-                  exits
-                    ? exits.maxHoldDays
-                      ? t("ad_sl_body_hold", {
-                          pct: exits.stopLossPct,
-                          days: exits.maxHoldDays,
-                        })
-                      : t("ad_sl_body", { pct: exits.stopLossPct })
-                    : t("ad_exit_unset")
-                }
-              />
-            </div>
-
-            {constraints.maxDrawdownPct ? (
-              <p className={`pt-3.5 ${BODY}`}>
-                {t("ad_breaker_note", { pct: constraints.maxDrawdownPct })}
-              </p>
-            ) : null}
-            {/* The account-level caps, when set. Entries only — the sentence
-                says so, because "stops for the day" reads as "cannot sell". */}
-            {constraints.dailyLossLimitPct || constraints.maxOpenPositions || constraints.cooldownAfterLosses ? (
-              <p className={`pt-2 ${BODY}`}>
-                {[
-                  constraints.dailyLossLimitPct
-                    ? t("ad_cap_daily", { pct: constraints.dailyLossLimitPct })
-                    : null,
-                  constraints.maxOpenPositions
-                    ? t("ad_cap_positions", { n: constraints.maxOpenPositions })
-                    : null,
-                  constraints.cooldownAfterLosses
-                    ? t("ad_cap_cooldown", {
-                        losses: constraints.cooldownAfterLosses.losses,
-                        minutes: constraints.cooldownAfterLosses.minutes,
-                      })
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}{" "}
-                {t("ad_cap_tail")}
-              </p>
-            ) : null}
-          </section>
 
           {/* activity */}
           <section className="px-5 sm:px-8 py-6">
@@ -1026,258 +944,31 @@ export function AgentDetailView({
           </section>
         </div>
 
-        {/* ------------------------------------------------------- rail -- */}
-        <aside className="min-w-0 border-t border-grid px-5 sm:px-8 py-6 lg:border-t-0">
-          <Rule label={t("ad_sec_strategy")} />
-
-          {/* THE WATCH LEG, ABOVE THE ENTRY RULES AND VISUALLY BEFORE THEM.
-              A two-stage strategy does not evaluate the rules below until this
-              has happened on an earlier bar. Rendering them as one flat list
-              would read as "all of these at once", which is the single-stage
-              strategy this exists to be different from. */}
-          {setup ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
-              <p className="border-b border-grid px-3.5 py-2 font-ui text-[11.5px] font-medium text-accent">
-                {t("ad_first_wait")}
-              </p>
-              <div className="flex flex-wrap gap-2 p-3.5">
-                {setup.arm.map((r) => (
-                  <RuleChip key={r.key} rule={r} timeframe={timeframe} />
-                ))}
-              </div>
-              <p className="border-t border-grid px-3.5 py-2 font-ui text-[12px] text-text-muted">
-                {t("ad_then_bars", { bars: setup.expiresAfterBars })}
-                {setup.invalidateIf?.length ? t("ad_then_bars_invalidate") : ""}
-              </p>
-            </div>
-          ) : null}
-
-          <div className={`mt-4 overflow-hidden ${SURFACE}`}>
-            {setup ? (
-              <p className={`border-b border-grid px-3.5 py-2 ${LABEL}`}>
-                {t("ad_then_buy")}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2 p-3.5">
-              {rules.length === 0 && anyOf.length === 0 ? (
-                <span className="font-ui text-[12.5px] text-text-muted">
-                  {t("ad_no_rules")}
-                </span>
-              ) : (
-                rules.map((r) => (
-                  <RuleChip key={r.key} rule={r} timeframe={timeframe} />
-                ))
-              )}
-              {/* Rendered as one chip per GROUP, not per member. Splitting a
-                  group into loose chips would show an either/or as a row of
-                  conditions indistinguishable from the ANDed ones above — the
-                  owner would read their strategy as stricter than it is. */}
-              {anyOf.map((group) => (
-                <AnyOfChip
-                  key={group.map((g) => g.key).join("|")}
-                  group={group}
-                  timeframe={timeframe}
-                />
-              ))}
-              {exits ? (
-                <>
-                  {exits.takeProfitPct > 0 ? (
-                    <Chip>
-                      {t("ad_chip_take_profit")}{" "}
-                      <Num>+{exits.takeProfitPct}%</Num>
-                    </Chip>
-                  ) : null}
-                  <Chip>
-                    {t("ad_chip_stop_loss")} <Num>−{exits.stopLossPct}%</Num>
-                  </Chip>
-                  {sells ? (
-                    <Chip>
-                      {t("ad_chip_sell_signal")} {sells}
-                    </Chip>
-                  ) : null}
-                </>
-              ) : null}
-              {/* The chart the rules above are measured on. Each rule label
-                  already carries it, but a strategy whose rules are all
-                  liquidity and margin would otherwise never state it. */}
-              <Chip>
-                {t("ad_chip_chart")} <Num>{timeframe}</Num>
-              </Chip>
-            </div>
-            {planSummary ? (
-              <div className="border-t border-grid px-3.5 py-2.5">
-                <p className={LABEL}>{t("ad_accumulation")}</p>
-                <p className="pt-1 font-ui text-[12.5px] leading-relaxed text-text-primary">
-                  {planSummary}
-                </p>
-                {/* The part nobody expects, and the reason the exits above are
-                    not what they look like: a position averaged into three
-                    times exits as ONE, on the blended cost. */}
-                <div className="pt-1">
-                  <FieldNote tone="warn">
-                    {t("ad_accumulation_warning")}
-                  </FieldNote>
-                </div>
-              </div>
-            ) : null}
-            {/* justify-end because the caption that used to sit here was the
-                flex spacer holding the button to the right. */}
-            <div className="flex items-center justify-end gap-3 border-t border-grid px-3.5 py-2.5">
-              {/* Disabled until the strategy has actually loaded: the dialog
-                  edits a diff against what was fetched, and opening it against
-                  nothing would present an empty recipe as this agent's. */}
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                disabled={!strategy}
-                className={`shrink-0 ${SECONDARY} disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                {t("ad_edit_strategy")}
-              </button>
-            </div>
-          </div>
-
-          {/* THE UNIVERSE, UNDER THE STRATEGY IT IS SCREENED BY.
-              It sat in the main column as a two-up grid of cards, which put the
-              markets a long way from the only control that changes them. Here it
-              reads as what it is — the list this one strategy is pointed at —
-              and + Add market is the next thing under it rather than a button
-              floating with nothing above it to explain what it adds to.
-
-              A list, not cards: the rail is one column wide, and a card's second
-              dimension was being spent on air. */}
-          <div className="mt-6 border-t border-grid pt-5">
-            <Rule
-              label={
-                markets.length === 0
-                  ? screen
-                    ? t("dsc_title")
-                    : t("ad_universe")
-                  : markets.length === 1
-                    ? t("ad_screening_one")
-                    : t("ad_screening_many", { count: markets.length })
-              }
-            />
-            {/* The screen, above the markets it produced.
-                For a discovery agent the list below is a RESULT — what matched
-                this hour — rather than a configuration, so the sentence that
-                chose it belongs above it. Without this the panel answers "what
-                does it hold" and silently drops "and why those". */}
-            {screen ? (
-              <p className={`pt-3 ${BODY}`}>{describeScreen(screen, t)}</p>
-            ) : null}
-            {markets.length === 0 && !screen ? (
-              <p className={`pt-3 ${BODY}`}>
-                {t("ad_no_universe", { class: agent.strategy_class })}
-              </p>
-            ) : markets.length === 0 ? null : (
-              <div className={`mt-3 overflow-hidden ${SURFACE}`}>
-                {markets.map((m) => (
-                  <MarketRow
-                    key={selectionKey(m.sel)}
-                    label={
-                      m.asset ? `${m.asset.symbol}/USDC` : selectionLabel(m.sel)
-                    }
-                    asset={m.asset}
-                    selection={m.sel}
-                    entry={entry}
-                    // Not offered on the last one. An empty list means "every
-                    // market in the class", so removing it would widen the
-                    // agent rather than narrow it — the backend refuses, and
-                    // offering a button that always fails is worse than not
-                    // offering one.
-                    onRemove={
-                      markets.length > 1
-                        ? () => void removeMarket(m.sel)
-                        : undefined
-                    }
-                    removing={removingKey === selectionKey(m.sel)}
-                  />
-                ))}
-              </div>
-            )}
-            {removeError ? (
-              <div className="pt-3" role="alert">
-                <FieldNote tone="bad">{removeError}</FieldNote>
-              </div>
-            ) : null}
-
-            {/* Attached to the list rather than spaced off it: adding a market
-                is the same act as the rows above, not a separate section. */}
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className={`mt-2.5 w-full text-center ${SECONDARY}`}
-            >
-              {t("ad_add_market")}
-            </button>
-          </div>
-
-          {/* AGENT-LEVEL FACTS, and now the only place they are stated.
-              A four-cell band used to sit under the status pill carrying
-              Markets, the book's capital, "Live since" and Cadence. Every one
-              of them was already on the page: the markets are the list above,
-              the capital is the equity header's "against $10,000", and the
-              cadence cell's own note ("last ran … · next …") is the live
-              readout in the Watching now rule. It was a row of panels restating
-              the page back to itself.
-
-              What only the band carried was three plain facts — the tick
-              interval, the deployed size and the deploy date — so they are
-              rows here rather than a panel each. */}
-          <div className="mt-6 border-t border-grid pt-5">
-            <Rule label={t("ad_sec_agent_level")} />
-            <div className="pt-3">
-              <RailRow
-                label={t("ad_row_book")}
-                value={t(
-                  agent.is_paper ? "ad_book_paper_value" : "ad_book_live_value",
-                )}
-              />
-              <RailRow label={t("ad_row_capital")} value={money(capital)} />
-              <RailRow
-                label={t("ad_row_cadence")}
-                value={cadenceSec ? cadence(cadenceSec, t) : "—"}
-              />
-              <RailRow
-                label={t("ad_row_deployed")}
-                value={absolute(agent.created_at, locale)}
-              />
-              {/* The autonomy level is a backend enum the product uses as its
-                  own vocabulary, de-underscored. */}
-              <RailRow
-                label={t("ad_row_autonomy")}
-                value={agent.autonomy.replace(/_/g, " ")}
-              />
-              <RailRow
-                label={t("ad_row_position_cap")}
-                value={
-                  positionCap === null
-                    ? "—"
-                    : t("ad_position_cap_value", { amount: money(positionCap) })
-                }
-              />
-              <RailRow
-                label={t("ad_row_open_positions")}
-                value={
-                  constraints.maxTradesPerTick
-                    ? `${positions.length} / ${constraints.maxTradesPerTick}`
-                    : String(positions.length)
-                }
-              />
-              {/* What the reasoning costs, where the other per-agent facts are.
-                  Only for a bought model: a Canopy agent has no balance, and a
-                  row reading "—" would imply one it is missing. */}
-              {agent.model && agent.model.provider === "pod" ? (
-                <RailRow label="Reasons with" value={agent.model.label} />
-              ) : null}
-              <RailRow
-                label={t("ad_row_compliance")}
-                value={constraints.complianceProfile ?? "—"}
-              />
-            </div>
-          </div>
-        </aside>
+        {/* ------------------------------------------------------- rail --
+            Extracted to components/agentRail.tsx: it is a self-contained
+            surface, both layouts want pieces of it, and this file was 2,200
+            lines. */}
+        <AgentRail
+          agent={agent}
+          strategy={strategy}
+          rules={rules}
+          anyOf={anyOf}
+          setup={setup}
+          exits={exits}
+          sells={sells}
+          timeframe={timeframe}
+          planSummary={planSummary}
+          markets={markets}
+          screen={screen}
+          entry={entry}
+          cadenceSec={cadenceSec}
+          positionCap={positionCap}
+          onEdit={() => setEditing(true)}
+          onAddMarket={() => setAdding(true)}
+          onRemoveMarket={(sel: UniverseSelection) => void removeMarket(sel)}
+          removingKey={removingKey}
+          removeError={removeError}
+        />
       </div>
 
       <Controls
@@ -1466,31 +1157,6 @@ function Controls({
 
 /* ---------------------------------------------------------------- pieces -- */
 
-/**
- * A section heading.
- *
- * The rule is what carries the eye from the label to whatever sits on the
- * right — a link, a live readout. With `right` absent it has nothing to carry
- * the eye TO, so it draws a line to the edge of the section for its own sake:
- * `line` turns it off for a heading that is only a label.
- */
-function Rule({
-  label,
-  right,
-  line = true,
-}: {
-  label: string;
-  right?: React.ReactNode;
-  line?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-4">
-      <span className="shrink-0 font-ui text-[14px] font-medium text-text-primary">{label}</span>
-      {line ? <span className="h-px min-w-0 flex-1 bg-grid" /> : null}
-      {right ? <span className="shrink-0">{right}</span> : null}
-    </div>
-  );
-}
 
 function StatusChip({ status }: { status: string }) {
   const t = useT();
@@ -1676,286 +1342,21 @@ function Half({
   );
 }
 
-/**
- * One market: the live mark, today's move, and how far that move is from the
- * entry trigger.
- *
- * The meter fills as the move approaches the threshold and turns negative when
- * it is there — the wireframe's "MSTRx is close to firing", carried by the
- * only price data this API actually serves.
- */
-/**
- * One screened market, as a row in the rail.
- *
- * Was a card in a two-up grid in the main column. The rail is a single narrow
- * column, so the card's horizontal half was air and its border was drawing a
- * box around one line of text — the rows share one border instead and divide
- * themselves.
- *
- * WHAT SURVIVED THE MOVE, AND WHAT DID NOT
- *
- * The price, the change and the proximity meter are the reason this list is
- * called "screening" rather than "universe", so all three stayed. The card's
- * "waiting on: <rule>" fallback did not: it restated the entry rule for every
- * row, and in the rail those rules are literally the chips directly above this
- * list. The meter still only renders for a dip rule, because "distance to the
- * trigger" is only one-dimensional for one.
- */
-function MarketRow({
-  label,
-  asset,
-  selection,
-  entry,
-  onRemove,
-  removing,
-}: {
-  label: string;
-  asset: UniverseAsset | null;
-  /** The universe selection, so the logo resolves exactly the way the
-      universe did — issuer and identity come from the same source the rest
-      of the page uses. */
-  selection: UniverseSelection;
-  entry: DetectionRule | null;
-  /** Absent when removal is not offered — the last market, or a shared strategy. */
-  onRemove?: () => void;
-  removing?: boolean;
-}) {
-  const t = useT();
-  const change = asset ? num(asset.changePct) : null;
-  const price = asset ? num(asset.priceUsd) : null;
 
-  // `changePct <= -4` — progress is how much of the fall has happened.
-  const target = entry && entry.op === "lte" ? entry.value : null;
-  const pct =
-    target !== null && target < 0 && change !== null
-      ? Math.max(0, Math.min(1, change / target))
-      : null;
-  const fired = pct !== null && pct >= 1;
 
-  return (
-    <div className="group border-b border-grid px-3 py-2.5 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <AssetLogo
-            symbol={selectionLabel(selection)}
-            issuer={selectionIssuer(selection) ?? asset?.issuer}
-            src={asset?.iconUrl}
-            size={16}
-          />
-          <span className="truncate font-mono text-[12px] text-text-primary">
-            {label}
-          </span>
-        </span>
-        <span
-          className={`tnum shrink-0 font-mono text-[12px] ${
-            change === null
-              ? "text-text-muted"
-              : change >= 0
-                ? "text-accent"
-                : "text-negative"
-          }`}
-        >
-          {change === null
-            ? "—"
-            : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}%`}
-          {target !== null ? (
-            <span className="pl-1 text-text-dim">
-              {t("ad_of_target", { target })}
-            </span>
-          ) : null}
-        </span>
-      </div>
 
-      <div className="flex items-baseline justify-between gap-2 pt-0.5">
-        <span className="truncate font-ui text-[11.5px] text-text-dim">
-          {price === null ? t("ad_not_priced") : tokenPrice(price).display}
-        </span>
-        {/* Quiet until pointed at. A destructive control on every row competes
-            with the prices, which are what the list is for. It holds the second
-            line's right edge so revealing it never reflows the row. */}
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removing}
-            aria-label={t("ad_remove_aria", { label })}
-            title={t("ad_remove_title")}
-            // MICRO's size and tracking, but a destructive hover instead of the
-            // accent one — the kit's hover colour means "this is the way
-            // forward", and this is the opposite.
-            className="shrink-0 font-ui text-[11px] text-text-dim opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-negative disabled:opacity-40"
-          >
-            {t(removing ? "ad_removing" : "ad_remove")}
-          </button>
-        ) : null}
-      </div>
 
-      {pct !== null ? (
-        <span className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-grid">
-          <span
-            className={`block h-1 rounded-full ${fired ? "bg-negative" : "bg-accent"}`}
-            style={{ width: `${pct * 100}%` }}
-          />
-        </span>
-      ) : null}
-    </div>
-  );
-}
 
-function ExitCard({ label, body }: { label: string; body: React.ReactNode }) {
-  return (
-    <div className={`${SURFACE} p-4`}>
-      <p className={LABEL}>{label}</p>
-      <p className="pt-1.5 font-ui text-[13px] text-text-primary">{body}</p>
-    </div>
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className={CHIP}>{children}</span>;
-}
-
-function Num({ children }: { children: React.ReactNode }) {
-  return <span className={NUM}>{children}</span>;
-}
-
-/** A stored rule, labelled with the spec the builder set it from. */
-function RuleChip({
-  rule,
-  timeframe = DEFAULT_TIMEFRAME,
-}: {
-  rule: DetectionRule;
-  timeframe?: Timeframe;
-}) {
-  const t = useT();
-  const base = RWA_RULES.find((r) => r.key === rule.key);
-  const spec = base ? withRuleParams(base, rule) : undefined;
-  // A rule that does not follow the strategy's bar size says so HERE too, not
-  // only in the builder. Someone reading a running 15-minute agent sees "Max
-  // change on the day ≤ −4%" beside rules measured in minutes, and nothing on
-  // the page tells them that one is still asking about the last 24 hours.
-  const basisNote = spec ? ruleBasisNote(spec, timeframe, t) : null;
-  return (
-    <Chip>
-      {spec ? ruleLabel(spec, timeframe, t) : rule.key}{" "}
-      {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
-      <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
-      {basisNote ? (
-        <span className="pl-1.5 text-text-muted" title={basisNote}>
-          · {rule.key === "changePct" ? "24h" : "daily"}
-        </span>
-      ) : null}
-    </Chip>
-  );
-}
-
-/**
- * An "either of these" group.
- *
- * One chip for the whole group, with the alternatives joined by "or" and the
- * word itself given the accent — the entire difference between this and the
- * chips beside it is that ANY one of these satisfies the strategy, and that
- * distinction has to survive a glance. A group rendered as separate chips reads
- * as additional requirements, which is the opposite of what it means.
- */
-function AnyOfChip({
-  group,
-  timeframe = DEFAULT_TIMEFRAME,
-}: {
-  group: DetectionRule[];
-  timeframe?: Timeframe;
-}) {
-  const t = useT();
-  return (
-    <Chip>
-      {group.map((rule, i) => {
-        const base = RWA_RULES.find((r) => r.key === rule.key);
-  const spec = base ? withRuleParams(base, rule) : undefined;
-        return (
-          <span key={rule.key}>
-            {i > 0 ? (
-              <span className="px-1 text-accent uppercase">
-                {t("ad_anyof_or")}
-              </span>
-            ) : null}
-            {spec ? ruleLabel(spec, timeframe, t) : rule.key}{" "}
-            {rule.op === "gte" ? "≥" : rule.op === "lte" ? "≤" : "="}{" "}
-            <Num>{spec ? fmt(rule.value, spec.unit) : rule.value}</Num>
-          </span>
-        );
-      })}
-    </Chip>
-  );
-}
-
-function RailRow({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-grid py-2.5 last:border-b-0">
-      <span className="shrink-0 font-ui text-[12.5px] text-text-dim">
-        {label}
-      </span>
-      <span
-        className={`tnum truncate font-mono text-[12.5px] ${
-          strong ? "text-accent" : "text-text-primary"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
 
 /* --------------------------------------------------------------- figures -- */
 
-function entryHeadline(
-  entry: DetectionRule,
-  t: Translate,
-  symbol?: string,
-): string {
-  const who = symbol ?? t("ad_headline_market");
-  if (entry.key === "changePct" && entry.op === "lte") {
-    return t("ad_headline_drop", { who, pct: Math.abs(entry.value) });
-  }
-  const spec = RWA_RULES.find((r) => r.key === entry.key);
-  const own = entry.period !== undefined || !!entry.periods || entry.deviations !== undefined;
-  const window = spec && own ? periodsText(withRuleParams(spec, entry)) : undefined;
-  // `spec.label` comes from the builder's own rule table, which carries its
-  // own translation. The operator is a mathematical symbol either way.
-  return t("ad_headline_rule", {
-    label: spec ? `${t(spec.labelKey)}${window ? ` (${window})` : ""}` : entry.key,
-    op: entry.op === "gte" ? "≥" : "≤",
-    value: entry.value,
-  });
-}
 
-function cadence(sec: number, t: Translate): string {
-  if (sec % 86_400 === 0) return t("ad_cadence_days", { n: sec / 86_400 });
-  if (sec % 3600 === 0) return t("ad_cadence_hours", { n: sec / 3600 });
-  return t("ad_cadence_minutes", { n: Math.round(sec / 60) });
-}
 
 function money(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-/** The deploy timestamp, in the reader's calendar conventions. */
-function absolute(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleString(dateLocale(locale), {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 // `when` moved to lib/format as `relativeTime`.
 

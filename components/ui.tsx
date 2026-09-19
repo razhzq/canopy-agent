@@ -181,9 +181,62 @@ export function StatRail({
   );
 }
 
+/**
+ * A section heading with a hairline running to the edge, and an optional
+ * right-hand slot.
+ *
+ * LIVES HERE BECAUSE BOTH COLUMNS USE IT. It was local to the agent page, which
+ * was fine while the agent page was one file; the rail now has its own, and a
+ * heading defined in one of two siblings is how the two stop agreeing about
+ * what a heading looks like.
+ *
+ * The `right` slot is the section's one action or status — "All cycles →", a
+ * `StatusLine`, "Edit". Rule 5: an action that operates on a section belongs
+ * beside its name, not inside the block describing the thing.
+ */
+export function Rule({
+  label,
+  right,
+  line = true,
+}: {
+  label: string;
+  right?: ReactNode;
+  line?: boolean;
+}) {
+  return (
+    // `justify-between` so the right slot holds the edge with or without the
+    // rule. Without it, a heading that drops the hairline collapses into
+    // "Strategy [Edit strategy]" — the label and its control touching, which
+    // reads as a field with a button stuck to it rather than as a section.
+    <div className="flex items-center justify-between gap-4">
+      <span className="shrink-0 font-ui text-[14px] font-medium text-text-primary">
+        {label}
+      </span>
+      {line ? <span className="h-px min-w-0 flex-1 bg-grid" /> : null}
+      {right ? <span className="shrink-0">{right}</span> : null}
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------- rails ---- */
 
-/** `LABEL ....................... value` — the sidebar summary row. */
+/**
+ * `Label ....................... value` — the one sidebar summary row.
+ *
+ * THERE WERE TWO OF THESE. `agentDetail.tsx` carried its own `RailRow`, same
+ * name and same job, at a different type scale: 12.5px sentence-case labels
+ * against this one's 10px uppercase mono. Neither looked wrong on its own page,
+ * which is exactly the symptom kit.tsx warns about — one of them was
+ * hand-written instead of imported, and the product ended up with two
+ * definitions of a label.
+ *
+ * The surviving treatment is the one the rest of the app converged on for a
+ * fact: `LABEL` on the left, `tnum font-mono` on the right (rule 9), baselines
+ * aligned, hairline between rows — the same pattern as the close dialog's `Row`
+ * and go-live's `Ledger`. The uppercase mono label went because it is the
+ * loudest label treatment in the kit, and a list of eight of them competes with
+ * the values it is supposed to be introducing.
+ */
 export function RailRow({
   label,
   value,
@@ -196,12 +249,13 @@ export function RailRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-grid py-3.5">
-      <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
-        {label}
-      </span>
+    <div className="flex items-baseline justify-between gap-4 border-b border-grid py-2.5 last:border-b-0">
+      {/* Spans rather than dt/dd: the rows are used inside plain containers in
+          both callers, and a definition pair outside a `dl` is markup that
+          validates nowhere and reads as a list to nothing in a screen reader. */}
+      <span className="shrink-0 font-ui text-[12.5px] text-text-muted">{label}</span>
       <span
-        className={`tnum text-right text-[12px] ${mono ? "font-mono" : "font-ui"} ${TONE_TEXT[tone]}`}
+        className={`tnum truncate text-right text-[12.5px] ${mono ? "font-mono" : "font-ui"} ${TONE_TEXT[tone]}`}
       >
         {value}
       </span>

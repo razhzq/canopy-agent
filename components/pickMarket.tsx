@@ -26,6 +26,7 @@ import {
   SURFACE,
 } from "@/components/kit";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
+import { AssetCategory } from "@/components/tokenCategory";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { Check, Search, X } from "lucide-react";
 
@@ -789,6 +790,9 @@ export function PickMarket({
                 {/* Where it settles and who fills it. Per row, because that
                     stops being one answer as soon as a second chain lands. */}
                 <RouteBadge {...routeOf(a)} size={15} />
+                {/* And what kind of thing it is — the question a reader asks
+                    before "where does it fill" on a ticker they do not know. */}
+                <AssetCategory asset={a} />
                 {/*
                   The asset class used to lead this line — "Crypto", "Tokenized
                   commodity". It went because the class is already the tab the

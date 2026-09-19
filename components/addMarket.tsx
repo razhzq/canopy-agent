@@ -33,6 +33,7 @@ import {
 } from "@/lib/api";
 import { AssetLogo } from "@/components/ui";
 import { RouteBadge, routeOf, type Router } from "@/components/routeBadge";
+import { AssetCategory } from "@/components/tokenCategory";
 
 /**
  * Whether two rows are the same market.
@@ -702,6 +703,7 @@ export function AddMarketModal({
                         source — this list adds markets to a running agent, so
                         it must not describe an asset differently. */}
                     <RouteBadge {...routeOf(a)} size={15} />
+                    <AssetCategory asset={a} />
                     {/* The class no longer leads this line — see pickMarket.
                         The issuer is what varies between two rows in the same
                         list; the class is the tab you are already in. */}

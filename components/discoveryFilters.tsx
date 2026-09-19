@@ -739,6 +739,26 @@ export function describeScreen(
   spec: DiscoverySpec,
   t: (k: TranslationKey, vars?: Record<string, string | number>) => string,
 ): string {
+  return screenClauses(spec, t).join(" · ");
+}
+
+/**
+ * The same screen, as its separate clauses.
+ *
+ * ONE SENTENCE IS THE WRONG SHAPE IN A COLUMN. Six thresholds joined by middots
+ * are readable across a page and unreadable down a 420px rail, where the line
+ * wraps wherever it runs out of room — "Volume against / depth ≥ 0.3" — and a
+ * reader looking for one threshold has to parse the whole string to find it.
+ * They are label-and-figure pairs, and the rail renders them as the chips it
+ * already uses for every other threshold on the same screen.
+ *
+ * `describeScreen` is this joined, so the two can never disagree about what a
+ * screen says.
+ */
+export function screenClauses(
+  spec: DiscoverySpec,
+  t: (k: TranslationKey, vars?: Record<string, string | number>) => string,
+): string[] {
   const parts: string[] = [];
 
   // Grouped by metric so a range reads as one clause. Two separate clauses —
@@ -767,7 +787,36 @@ export function describeScreen(
   if (spec.require?.socials) parts.push(t("dsc_summary_socials"));
   if (spec.require?.sellable) parts.push(t("dsc_summary_sellable"));
   parts.push(t(`dsc_tier_${spec.minTier}` as TranslationKey));
-  return parts.join(" · ");
+  return parts;
+}
+
+/**
+ * The screen as chips, which is the shape a column can actually read.
+ *
+ * One chip per clause, each `whitespace-nowrap`, so wrapping happens BETWEEN
+ * thresholds rather than inside one — the sentence version broke after
+ * "Volume against" and left "depth ≥ 0.3" starting the next line. The middots
+ * go with it: a gap already separates two things (kit rule 10).
+ *
+ * Chips rather than a label/value list because a screen clause IS an entry
+ * condition, one level up — it decides what gets considered at all — and the
+ * rail states entry conditions as chips a few rows above this. A `dl` would
+ * claim these are configured properties of the agent, like its cadence.
+ *
+ * Bare on the ground, no surface: the markets list below is the section's one
+ * bordered object and it is the one holding the interactive rows (rule 3).
+ */
+export function ScreenChips({ spec }: { spec: DiscoverySpec }) {
+  const t = useT();
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {screenClauses(spec, t).map((clause) => (
+        <span key={clause} className={`${CHIP} whitespace-nowrap`}>
+          {clause}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** One bound, in the unit its metric is measured in. */

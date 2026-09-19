@@ -19,6 +19,7 @@ import { AssetLogo } from "@/components/ui";
 import { Tick, TxLink } from "@/components/kit";
 import { ClosePositionModal } from "@/components/closePosition";
 import { TokenPeek } from "@/components/tokenPeek";
+import { AssetCategory } from "@/components/tokenCategory";
 import { useLocale } from "@/lib/i18n";
 
 /**
@@ -413,6 +414,7 @@ function OpenTable({
                         {h.symbol}
                       </span>
                     </TokenPeek>
+                    <AssetCategory asset={assetOf(h.symbol)} />
                   </span>
                   <span className="block pt-0.5 font-ui text-[11px] text-text-dim">
                     {h.perp ? (

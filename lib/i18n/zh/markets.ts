@@ -188,4 +188,14 @@ export const zhMarkets: Record<keyof typeof enMarkets, string> = {
   mk_col_max_lev: "最高杠杆",
   mk_col_borrow: "借款利率 多 / 空",
   mk_col_util: "池使用率",
+
+  tcat_meme: "meme 币",
+  tcat_defi: "DeFi",
+  tcat_stablecoin: "稳定币",
+  tcat_lst: "质押 SOL",
+  tcat_rwa: "现实资产",
+  tcat_ai: "AI",
+  tcat_gaming: "游戏",
+  tcat_depin: "DePIN",
+  tcat_yield: "收益型",
 };

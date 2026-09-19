@@ -39,10 +39,14 @@ import {
   type ActivityCycle,
   type AgentDetail,
   type AgentRow,
+  type DiscoverySpec,
   type EquitySeries,
   type UniverseAsset,
   type UniverseSelection,
 } from "@/lib/api";
+import { AgentFacts } from "@/components/agentFacts";
+import { AssetCategory } from "@/components/tokenCategory";
+import { ScreenChips } from "@/components/discoveryFilters";
 import { markAgent } from "@/lib/perf";
 import { ModelBadge } from "@/components/modelBadge";
 import { ModelPanel } from "@/components/modelPanel";
@@ -91,6 +95,9 @@ export function AgentDetailMobile({
   liveDisabledReason,
   onEdit,
   grid = null,
+  screen,
+  cadenceSec,
+  positionCap,
 }: {
   agent: AgentRow;
   detail: AgentDetail;
@@ -134,6 +141,12 @@ export function AgentDetailMobile({
   liveDisabledReason: string | null;
   /** Opens the strategy editor. Null while the strategy is still loading. */
   onEdit: (() => void) | null;
+  /** The screen, when this agent finds its own markets rather than being pinned to some. */
+  screen?: DiscoverySpec;
+  /** Seconds between cycles — the strategy's, or the mandate's snapshot of it. */
+  cadenceSec: number | null;
+  /** The mandate's position cap in dollars, or null when it cannot be resolved. */
+  positionCap: number | null;
 }) {
   const { getAccessToken } = usePrivy();
   const t = useT();
@@ -590,6 +603,20 @@ export function AgentDetailMobile({
           </span>
         </div>
 
+        {/* THE SCREEN, ABOVE THE MARKETS IT PRODUCED. For a discovery agent
+            the list below is a RESULT — what matched this hour — rather than a
+            configuration, so what chose it belongs above it. Without this the
+            phone answered "what may it trade" and silently dropped "and why
+            those", which on a screened agent is the whole answer. */}
+        {screen ? (
+          <div className="px-[18px] pb-3">
+            <SectionLabel>{t("ad_group_screen")}</SectionLabel>
+            <div className="pt-2">
+              <ScreenChips spec={screen} />
+            </div>
+          </div>
+        ) : null}
+
         {/* The mandate, not the book. A market can sit here with nothing open
             against it — that is the agent having looked and declined, which is
             a different fact from not being allowed to look. */}
@@ -603,6 +630,13 @@ export function AgentDetailMobile({
               <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">
                 {selectionLabel(sel)}
               </span>
+              {/* Same tag as the desktop rail and the pickers. A phone is
+                  where a ticker is least likely to be recognised. */}
+              <AssetCategory
+                asset={assets.find((a) =>
+                  sel.kind === "crypto" ? a.mint === sel.mint : a.symbol === selectionLabel(sel),
+                )}
+              />
               {/* Same pair as the pickers — where this one settles and fills.
                   Derived from the selection's own mint rather than hardcoded:
                   a saved KalqiX pick carries a "kalqix:" identity, and showing
@@ -627,6 +661,19 @@ export function AgentDetailMobile({
             <Plus className="size-4" aria-hidden />
             <span className="font-ui text-[13px]">{t("agent_add_market")}</span>
           </button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------ how it runs -- */}
+      {/* LAST, AND QUIET. These are the facts that do not change between
+          cycles, none of them actionable, so they sit under everything that
+          reports behaviour and above the CTA — which belongs to the page, not
+          to a section (rule 6). The phone had none of them: cadence, autonomy,
+          the position cap and the deploy date were desktop-only. */}
+      <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+        <SectionLabel>{t("ad_sec_setup")}</SectionLabel>
+        <div className="pt-1">
+          <AgentFacts agent={agent} cadenceSec={cadenceSec} positionCap={positionCap} />
         </div>
       </div>
 

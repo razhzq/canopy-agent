@@ -235,4 +235,17 @@ export const enMarkets = {
   mk_col_max_lev: "Max lev",
   mk_col_borrow: "Borrow L / S",
   mk_col_util: "Pool used",
+
+  // ── Token categories ───────────────────────────────────────────────────
+  // What KIND of token, in one word, beside the symbol. Lower case on purpose:
+  // it is a quiet property of the row, not a status.
+  tcat_meme: "meme",
+  tcat_defi: "defi",
+  tcat_stablecoin: "stablecoin",
+  tcat_lst: "staked SOL",
+  tcat_rwa: "real-world",
+  tcat_ai: "AI",
+  tcat_gaming: "gaming",
+  tcat_depin: "depin",
+  tcat_yield: "yield",
 } as const;

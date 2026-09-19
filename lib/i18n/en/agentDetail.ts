@@ -40,10 +40,17 @@ export const enAgentDetail = {
   ad_grid_note: "Each level buys when price reaches it and sells one level up. The whole ladder closes {stop}% below the range{tp}.",
   ad_grid_note_tp: ", or once the lots held are up {tp}% on their average entry",
   ad_grid_levels_held: "{held} of {levels} levels held",
-  ad_sec_watching: "Watching now",
   ad_sec_activity: "Activity",
-  ad_sec_strategy: "Strategy · applies to every market",
-  ad_sec_agent_level: "Agent-level",
+  // A LABEL, NOT A SENTENCE. This read "Strategy · applies to every market",
+  // which made one heading a different shape from every sibling on the page
+  // ("Performance", "Positions", "Watching now"). The qualifier it was carrying
+  // is a fact about the recipe, so it moved under the heading as body copy —
+  // where it also gives the markets section below it an antecedent.
+  ad_sec_strategy: "Strategy",
+  ad_strategy_applies: "One recipe, applied to every market below.",
+  ad_sec_markets: "Markets",
+  // "Agent-level" was our word for it, not the reader's.
+  ad_sec_setup: "How it runs",
 
   // ── Watching now ───────────────────────────────────────────────
   ad_checked: "checked {when}",
@@ -53,30 +60,9 @@ export const enAgentDetail = {
   ad_model_unfunded:
     "Waiting for its model balance. {model} is prepaid — fund it and this agent starts on its own, no restart needed.",
   ad_model_generic: "The model",
-  ad_entry_note: "Entry condition. Nothing is bought until this is met.",
-  ad_rules_unreadable:
-    "This strategy's rules are not readable — the detail route returned no rule set.",
   // The headline sentence. `who` is a ticker or the generic subject below.
-  ad_headline_drop: "{who} drops {pct}%+ on the day",
-  ad_headline_rule: "{label} {op} {value}",
-  ad_headline_market: "The market",
 
-  ad_exit_take_profit: "Exit — take profit",
-  ad_exit_stop_loss: "Exit — stop-loss",
-  ad_exit_unset: "Not set — platform default for the posture.",
-  ad_tp_body: "Sell at +{pct}% from entry",
-  ad_tp_body_off: "No target — a winner runs until something else closes it",
-  ad_exit_sell_signal: "Exit — sell signal",
-  ad_sell_body: "Sell when {rule}",
   ad_chip_sell_signal: "Sell signal:",
-  ad_sl_body: "Sell at −{pct}% from entry",
-  ad_sl_body_hold: "Sell at −{pct}% from entry, or after {days}d",
-  ad_breaker_note:
-    "Agent-wide breaker at −{pct}% from the high-water mark: past that it liquidates and stops on its own.",
-  ad_cap_daily: "No new positions once down {pct}% on the day",
-  ad_cap_positions: "at most {n} positions open",
-  ad_cap_cooldown: "{minutes} min pause after {losses} losses in a row",
-  ad_cap_tail: "— exits always run.",
 
   // ── Activity ───────────────────────────────────────────────────
   ad_all_cycles: "All cycles →",
@@ -96,6 +82,12 @@ export const enAgentDetail = {
   ad_chip_take_profit: "Take profit:",
   ad_chip_stop_loss: "Stop-loss:",
   ad_chip_chart: "Chart:",
+  // The bands inside the strategy card. Entry, exit and the bar size were one
+  // undifferentiated pile of chips before.
+  ad_group_entry: "Buys when",
+  ad_group_exit: "Sells when",
+  ad_group_measured: "Measured on",
+  ad_group_screen: "Picks markets that are",
   ad_accumulation: "Accumulation",
   ad_accumulation_warning:
     "Take profit and stop-loss measure the blend of every entry, not each one separately.",
@@ -161,9 +153,11 @@ export const enAgentDetail = {
   ad_anyof_or: "or",
 
   // ── Universe ───────────────────────────────────────────────────
-  ad_universe: "Universe",
-  ad_screening_one: "Screening 1 market",
-  ad_screening_many: "Screening {count} markets",
+  // The four-way heading these came from is gone: one heading, and the
+  // pinned-vs-screened distinction it was groping at is said here, in body copy
+  // where a distinction belongs.
+  ad_markets_screened: "Found by the screen each cycle, not pinned.",
+  ad_markets_pinned: "Only these. It adds nothing on its own.",
   ad_no_universe:
     "No universe is pinned, so the agent screens the whole {class} class each cycle.",
   ad_add_market: "+ Add market",
@@ -175,16 +169,27 @@ export const enAgentDetail = {
   ad_of_target: "/ {target}%",
 
   // ── Agent-level rail ───────────────────────────────────────────
-  ad_row_book: "Book",
-  ad_book_paper_value: "Paper · simulated fills",
-  ad_book_live_value: "Live · real capital",
-  ad_row_capital: "Capital",
   ad_row_cadence: "Cadence",
   ad_row_deployed: "Deployed",
   ad_row_autonomy: "Autonomy",
   ad_row_position_cap: "Position cap",
   ad_position_cap_value: "≤ {amount} per market",
-  ad_row_open_positions: "Open positions",
+  // The same cap before there is a book to measure it against. A percent is
+  // the cap the owner actually set; the dollar figure is it resolved.
+  ad_position_cap_pct: "≤ {pct}% per market",
+  ad_row_model: "Reasons with",
+  // The caps, moved out of the prose under "Watching now". They are limits on
+  // BUYING, which is what the note under them exists to keep saying.
+  ad_row_breaker: "Breaker",
+  ad_breaker_value: "−{pct}% from peak",
+  ad_row_open_at_once: "Open at once",
+  ad_row_daily_loss: "Daily loss limit",
+  ad_row_cooldown: "Cooldown",
+  ad_cooldown_value: "{losses} losses · {minutes} min",
+  ad_caps_note: "Caps stop new entries. Exits always run.",
+  // The act, not the enum — this row used to print "execute with caps".
+  ad_autonomy_caps: "Trades within your caps",
+  ad_autonomy_propose: "Asks before every trade",
   ad_row_compliance: "Compliance",
   ad_cadence_days: "{n}d",
   ad_cadence_hours: "{n}h",

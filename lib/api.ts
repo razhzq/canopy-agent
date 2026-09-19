@@ -684,6 +684,20 @@ export interface UniverseAsset {
   isStablecoin?: boolean;
   isSolDerivative?: boolean;
   impersonatesRwa?: boolean;
+  /**
+   * What KIND of token this is — "meme", "defi", "lst", "rwa", "stablecoin",
+   * "ai", "gaming", "depin", "yield" — ranked most specific first.
+   *
+   * From the vendors we already call: Jupiter's tags on every token it names,
+   * CoinGecko's categories backfilled behind them. Normalised server-side, so
+   * "Liquid Staking Tokens" and "lst" arrive as one word and every surface
+   * renders the same token the same way.
+   *
+   * ABSENT IS ORDINARY. About two thirds of the long tail carries no category
+   * at all, and a row with none is not a row with a problem — nothing is drawn
+   * rather than guessed.
+   */
+  categories?: string[];
 }
 
 /**
