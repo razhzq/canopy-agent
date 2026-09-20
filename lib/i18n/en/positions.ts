@@ -86,7 +86,14 @@ export const enPositions = {
   lp_fees_estimated_title: "Paper fees are estimated from the pool's fee rate.",
   lp_last_mark: "last mark",
   lp_venue_damm: "DAMM",
-  lp_bin_step: "{bps} bps",
+  // THE NOUN, NOT THE UNIT. This read "100 bps", which is four characters of
+  // unit with nothing saying what was measured — the three chips beside it name
+  // themselves (DLMM, the pool, the shape) and this one assumed the reader
+  // already knew Meteora's model. "Bin step" is what Meteora calls it too, so
+  // the row and the pool's own page now agree. The width in percent, which is
+  // the part that says how coarse the range is, rides on the hover.
+  lp_bin_step: "bin step {bps}",
+  lp_bin_step_title: "{bps} bps — each bin is {pct}% of price",
   lp_bins: "bins {min} → {max}",
   lp_range_title: "Pool price now: {price}",
   lp_in_range_at: "In range · {price}",
@@ -124,4 +131,14 @@ export const enPositions = {
   lp_shape_spot: "Spot",
   lp_shape_curve: "Curve",
   lp_shape_bid_ask: "Bid-Ask",
+
+  // ── What the copy did not do ───────────────────────────────────
+  // A copy agent holding nothing is usually configured, not broken. These
+  // sentences are written when the decision is taken; they just never used to
+  // reach a screen.
+  lp_not_copied: "Not copied",
+  lp_not_copied_note: "Positions the leader holds now that this agent is not in.",
+  lp_not_copied_held_before: "The leader already held this when copying started.",
+  lp_leader: "Copying {leader}",
+  lp_none_yet: "Nothing copied yet. This agent opens a position when the leader does.",
 } as const;

@@ -362,7 +362,7 @@ type Focus = "drawdown" | "benchmark" | "last" | null;
  * A value the record cannot support yet is `null`, and `pending` takes its
  * place in the dim tone: the cell keeps its place and says why (rule 12).
  */
-function Fig({
+export function Fig({
   cell,
   label,
   value,
@@ -372,6 +372,7 @@ function Fig({
   watch,
   focus,
   onFocus,
+  edges,
 }: {
   /** Position in the strip, 0–9: five across on wide screens, two on narrow. */
   cell: number;
@@ -383,6 +384,15 @@ function Fig({
   watch?: number | null;
   focus?: Exclude<Focus, null>;
   onFocus?: (f: Focus) => void;
+  /**
+   * The hairlines, when the caller's layout is not this strip's grid.
+   *
+   * `cell` positions a figure in a five-across / two-across grid and derives
+   * its edges from that. The LP panel stacks its figures in a single column,
+   * where those rules land in the wrong places — so it passes the one edge it
+   * wants and the arithmetic below is skipped.
+   */
+  edges?: string;
 }) {
   const interactive = focus !== undefined && value !== null;
   const inner = (
@@ -418,13 +428,13 @@ function Fig({
   // that is not first in its row, a top edge on every row but the first.
   // Two columns on a phone, five on a desktop, so the rule is computed for
   // both and the wide one overrides.
-  const edges = [
+  const computed = [
     cell % 2 === 1 ? "border-l" : "",
     cell >= 2 ? "border-t" : "",
     cell % 5 === 0 ? "md:border-l-0" : "md:border-l",
     cell >= 5 ? "md:border-t" : "md:border-t-0",
   ].join(" ");
-  const cls = `group/fig min-w-0 space-y-1.5 border-grid px-4 pt-3.5 pb-2.5 text-left transition-colors duration-150 hover:bg-surface-2 motion-reduce:transition-none ${edges}`;
+  const cls = `group/fig min-w-0 space-y-1.5 border-grid px-4 pt-3.5 pb-2.5 text-left transition-colors duration-150 hover:bg-surface-2 motion-reduce:transition-none ${edges ?? computed}`;
   if (!interactive) return <div className={cls}>{inner}</div>;
   return (
     <button
@@ -487,10 +497,8 @@ function ReadableCurve({
     onScrub(i);
   };
   const track = (clientX: number, el: HTMLElement) => {
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-    set(Math.round(frac * (values.length - 1)));
+    const i = trackIndex(clientX, el, values.length);
+    if (i !== null) set(i);
   };
 
   const i = hover === null ? null : Math.min(hover, values.length - 1);
@@ -602,6 +610,22 @@ function when(at: string, locale: Locale): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * Which reading the pointer is over.
+ *
+ * SNAPPING IS TO A READING, never to a position along the line: a chart reports
+ * what was recorded, and a tooltip halfway between two readings would state a
+ * figure nobody measured. Exported because the LP profit chart snaps to its
+ * columns by the same rule, and a second copy of this arithmetic is how one
+ * chart ends up half a column out from the other.
+ */
+export function trackIndex(clientX: number, el: HTMLElement, count: number): number | null {
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 || count === 0) return null;
+  const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+  return Math.round(frac * (count - 1));
 }
 
 /**

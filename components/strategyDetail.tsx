@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { EquityCurve } from "@/components/charts";
 import { axisWhen, benchmarkOverlay } from "@/components/equity";
+import { LpEquityCompact } from "@/components/lpEquity";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail, SkeletonPanel } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
@@ -329,6 +330,14 @@ export function StrategyDetail({
   // from a missing field would be the page inventing a fact.
   const daily = Array.isArray(ready?.daily) ? ready.daily : null;
   const capital = ready?.capitalUsd ?? 0;
+  /**
+   * A liquidity strategy, by class alone.
+   *
+   * The positions fallback the owner's page uses is unavailable here — a
+   * visitor is not served anyone's open legs — so the class is the whole test,
+   * which is also what it is set to at creation for every LP and copy-LP.
+   */
+  const isLp = strategy.strategy_class === "lp";
 
   // Which book is on screen, and whether there is another one to offer.
   //
@@ -575,6 +584,20 @@ export function StrategyDetail({
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-surface p-5">
+            {/* A LIQUIDITY RECORD IS READ DIFFERENTLY. An equity line against a
+                buy-and-hold benchmark asks "did picking these tokens beat
+                holding them", which is not what a visitor is deciding about a
+                pool: they want the shape of the yield and what it charged to
+                earn it. Chart only — a month grid is a reconciliation tool for
+                whoever owns the book, not a pitch. */}
+            {isLp ? (
+              <LpEquityCompact
+                points={windowed}
+                capitalUsd={capital}
+                lp={ready?.lp}
+              />
+            ) : (
+              <>
             <EquityCurve
               values={windowed.map((p) => p.equityUsd)}
               baseline={capital}
@@ -591,6 +614,8 @@ export function StrategyDetail({
               </span>
               <span>{axisWhen(windowed[windowed.length - 1].at, locale, axisSpan)}</span>
             </div>
+              </>
+            )}
           </div>
         )}
       </section>

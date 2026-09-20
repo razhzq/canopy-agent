@@ -400,3 +400,22 @@ export function movedOverUsd(points: readonly EquityPoint[], sinceMs: number): n
   if (!base) return null;
   return points[points.length - 1].equityUsd - base.equityUsd;
 }
+
+/**
+ * Is this a liquidity book?
+ *
+ * The class is the answer for an agent built as one; the positions are the
+ * answer for anything that has ended up holding an LP leg. Both, because a
+ * copy-LP agent carries the class before it holds anything, and an older
+ * agent can hold a leg the class does not mention.
+ *
+ * EXPORTED so the three surfaces that ask cannot drift. It was written inline
+ * twice before this — in the desktop page and the phone's — and a third copy
+ * was about to go into the performance slot beside the first.
+ */
+export function isLpBook(
+  agent: { strategy_class?: string } | null | undefined,
+  positions: readonly { lp?: unknown }[],
+): boolean {
+  return agent?.strategy_class === "lp" || positions.some((p) => !!p.lp);
+}

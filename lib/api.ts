@@ -2807,8 +2807,29 @@ export interface AgentLpLeg {
   last_mark_usd: number | null;
 }
 
+/**
+ * A leader position this copy agent is NOT in, and why.
+ *
+ * LIVE STATE, NOT HISTORY. The row is deleted the moment the leader exits the
+ * position, so this is "what the leader holds right now that we are not in" —
+ * the question somebody staring at an empty book is actually asking.
+ */
+export interface CopyNotCopied {
+  leaderPosition: string;
+  pool: string;
+  /** "WOW-SOL" when the pool is in the cache; null when it is not. */
+  poolName: string | null;
+  /** `skipped` is a refusal with a reason; `ignored` was held before copying began. */
+  status: "skipped" | "ignored";
+  /** A sentence, written when the decision was taken. Null on older rows. */
+  reason: string | null;
+  at: string;
+}
+
 export interface AgentDetail {
   agent: AgentRow;
+  /** Present on a copy agent only. Absent on an older backend. */
+  copy?: { leader: string | null; notCopied: CopyNotCopied[] };
   /** Absent on an older backend — see {@link SwapCost}. */
   swapCost?: SwapCost;
   positions: {
@@ -3203,6 +3224,9 @@ export const getCycle = (token: string, agentId: number, runId: string) =>
       latency_ms: number | null;
       cost_usd: string | null;
     }[];
+    /** See {@link ActivityPage} — the transcript narrates the same rows. */
+    strategy_class?: string | null;
+    pools?: Record<string, string>;
   }>(`/agents/${agentId}/cycles/${runId}`, token);
 
 /* --------------------------------------------------------------- activity -- */
@@ -3290,10 +3314,38 @@ export const getActivity = (
   limit = 5,
   book?: "paper" | "live",
 ) =>
-  request<{ cycles: ActivityCycle[] }>(
+  request<ActivityPage>(
     `/agents/${agentId}/activity?limit=${limit}${book ? `&book=${book}` : ""}`,
     token,
   );
+
+/**
+ * A page of cycles, plus the two things the narrator cannot read off a decision.
+ *
+ * `strategy_class` decides which vocabulary the cycles are told in — a
+ * liquidity agent copying a wallet is not running a trading desk, and its desk
+ * row carries no marker of its own to say so.
+ *
+ * `pools` maps a Meteora pool address to the pair an owner recognises. It rides
+ * beside the decisions rather than inside them because the decision rows are
+ * the audit trail, served exactly as the agent wrote them; a name resolved
+ * afterwards is not something the agent decided.
+ */
+export interface ActivityPage {
+  cycles: ActivityCycle[];
+  strategy_class?: string | null;
+  pools?: Record<string, string>;
+  /**
+   * What the agent is holding right now — sent only where the feed is filtered
+   * to events.
+   *
+   * A liquidity agent marks its book every tick and copies its leader rarely,
+   * so listing every mark buried the copies. The marks still happen and still
+   * drive the equity curve; this is the latest one, shown once above the feed
+   * instead of restated in it.
+   */
+  book?: { equityUsd: number; cashUsd: number; openPositions: number } | null;
+}
 
 /* ----------------------------------------------------------------- equity -- */
 
@@ -3342,6 +3394,42 @@ export interface Benchmark {
   returnPct: number | null;
 }
 
+/**
+ * An LP book's lifetime figures, aggregated server-side.
+ *
+ * ON AN LP AGENT ONLY, and absent on an older backend. Every figure is for ONE
+ * book — paper and live are different records of different money — and they are
+ * aggregates because the closed history is paged twenty at a time: a browser
+ * adding up "fees earned, ever" would have to walk every page to reach a number
+ * one scan produces.
+ */
+export interface LpBook {
+  closed: number;
+  winners: number;
+  /** Realised across the book, partial removals included. */
+  realizedUsd: number;
+  /** Fees banked by closed positions. See `feesKnown` before trusting it whole. */
+  feesEarnedUsd: number;
+  /**
+   * How many closed positions actually carry a fee figure.
+   *
+   * `fees_earned_usd` landed in CANOPY_120, so anything closed before it is
+   * null and the sum above is over a subset. When this is below `closed`, the
+   * panel says so rather than under-reporting a lifetime total.
+   */
+  feesKnown: number;
+  /** Mean invested per CLOSED position. Null when nothing has closed. */
+  avgInvestedUsd: number | null;
+  openCount: number;
+  openInvestedUsd: number;
+  /** Fees already claimed on positions still open. */
+  claimedFeesUsd: number;
+  /** True when any position's fees are modelled rather than observed. */
+  feesEstimated: boolean;
+  /** The first position ever opened, which is when this book started earning. */
+  firstOpenedAt: string | null;
+}
+
 export interface EquitySeries {
   capitalUsd: number;
   isPaper: boolean;
@@ -3352,6 +3440,8 @@ export interface EquitySeries {
   /** Absent on an older backend. */
   stats?: PerfStats;
   benchmark?: Benchmark | null;
+  /** The LP aggregates, on an LP agent only. Absent on an older backend. */
+  lp?: LpBook;
 }
 
 /** One day of a public record. */
@@ -3429,6 +3519,8 @@ export interface StrategyRecord {
   trades30?: number;
   winRatePct: number | null;
   daily: RecordDay[];
+  /** The LP aggregates, on an LP strategy only. Absent on an older backend. */
+  lp?: LpBook;
   /**
    * The open book, in full.
    *

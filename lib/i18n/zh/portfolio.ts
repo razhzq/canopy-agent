@@ -55,6 +55,7 @@ export const zhPortfolio: Record<keyof typeof enPortfolio, string> = {
   po_row_sub_cycle: "{class} · {book} · 第 {cycle} 周期",
   po_deployed_suffix: "已部署 {amount}",
   po_no_readings: "暂无数据",
+  po_lp_fees: "手续费 {amount}",
   po_label_24h: "24 小时 ",
   po_label_return: "收益率 ",
 

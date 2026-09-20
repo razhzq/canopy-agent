@@ -30,6 +30,23 @@ export const trActivity: Record<keyof typeof enActivity, string> = {
   activity_headline_blocked: "risk kapısı {count} tanesini engelledi",
   activity_headline_nothing: "Evren tarandı, hiçbir öneri çıkmadı",
 
+  activity_headline_mirrored: "{count} pozisyon kopyalandı",
+  activity_headline_copy_closed: "{count} pozisyon kapatıldı",
+  activity_headline_followed: "{count} pozisyonda takip edildi",
+  activity_headline_not_copied: "{count} pozisyon kopyalanmadı",
+  activity_headline_copy_nothing: "Kopyalanacak bir şey yok",
+  activity_headline_baseline: "Sıfırdan başlandı",
+  activity_headline_join: " · ",
+
+  activity_book_at_work: "{positions} içinde {amount} çalışıyor",
+  activity_book_one: "1 pozisyon",
+  activity_book_many: "{count} pozisyon",
+  activity_book_flat: "Şu anda açık pozisyon yok — lider bekleniyor",
+  activity_book_note: "Her döngüde güncellenir",
+  activity_copy_empty_title: "Lider henüz hareket etmedi",
+  activity_copy_empty_body:
+    "Bu ajan, takip ettiği cüzdanın bundan sonra ne yapacağını kopyalar; hâlihazırda tuttuklarını değil. Her açılış, kapanış ve kopyalanmayan pozisyon burada görünecek.",
+
   feed_empty_title: "Henüz bir şey yok",
   feed_empty_no_agents:
     "Bir ajan devreye alın; çalıştırdığı her döngü burada görünsün — hiçbir şey yapmamaya karar verdikleri dahil.",

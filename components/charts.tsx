@@ -796,3 +796,140 @@ export function MiniCurve({
   );
 }
 
+
+/* ------------------------------------------------------- profit history -- */
+
+/**
+ * What a liquidity book made, period by period, with the running total over it.
+ *
+ * TWO SERIES, ONE SCALE, AND THAT IS THE POINT. The bars are what each day
+ * earned; the line is those bars added up. They are the same quantity — dollars
+ * of profit — at two resolutions, so putting them on a second axis would let
+ * the two imply a relationship that does not exist. The consequence is honest
+ * and worth stating: once a book has run for a month the line towers over the
+ * bars, because a month of profit IS larger than any day of it.
+ *
+ * ZERO IS PINNED, via `equityScale(..., 0, ...)`. Bars grow from zero and a
+ * losing day hangs below it, so a scale that cropped zero off the canvas would
+ * have nowhere to draw either.
+ *
+ * BARS IN HTML, LINE IN SVG, one container. It is the house pattern: the bar
+ * charts above are percentage-height divs and the curves are stretched SVG, and
+ * the annotations on the agent page already layer absolutely-positioned HTML
+ * over a viewBox drawn the same way. `vector-effect` keeps the stroke honest
+ * under `preserveAspectRatio="none"`, which is not optional — without it the
+ * line thickens on one axis as the container widens.
+ */
+export function ProfitBarsLine({
+  bars,
+  cumulative,
+  /** False where the day has no reading yet — nothing is drawn for it. */
+  present,
+  height = 220,
+  hover = null,
+}: {
+  /** One value per column — what that period earned, positive or negative. */
+  bars: number[];
+  /** The running total after each column. Same length as `bars`. */
+  cumulative: number[];
+  present?: boolean[];
+  height?: number;
+  /** The column under the pointer, drawn brighter. Null when nothing is. */
+  hover?: number | null;
+}) {
+  if (bars.length === 0) return null;
+  const has = (i: number) => present === undefined || present[i];
+  // Only the days that exist take part in the scale. A window of thirty on a
+  // five-day-old book must not be scaled by twenty-five absences.
+  const real = cumulative.filter((_, i) => has(i));
+  const { W, H, x, y } = equityScale(
+    real.length > 0 ? real : cumulative,
+    0,
+    bars.filter((_, i) => has(i)),
+  );
+  const zero = y(0);
+
+  // x() indexes the values it was built from, and those are only the days with
+  // readings — so positions are computed against the FULL column count here.
+  const px = (i: number) => (bars.length === 1 ? W / 2 : (i / (bars.length - 1)) * W);
+
+  const drawn = cumulative.map((v, i) => ({ v, i })).filter(({ i }) => has(i));
+
+  return (
+    <span className="relative block" style={{ height }}>
+      {bars.map((v, i) => {
+        // A DAY THAT HAS NOT HAPPENED GETS NOTHING. Not a zero-height bar,
+        // which would sit on the axis looking like a day that earned nothing.
+        if (!has(i)) return null;
+        const top = Math.min(y(v), zero);
+        const bottom = Math.max(y(v), zero);
+        // A day that earned almost nothing still earned something; a bar of
+        // zero height would say it did not run.
+        const h = Math.max(((bottom - top) / H) * 100, v === 0 ? 0 : 0.8);
+        // Centred on the line's own x, so the two geometries cannot disagree
+        // and a tooltip can point at one place for both.
+        const width = Math.min(bars.length > 60 ? 100 / bars.length : (100 / bars.length) * 0.72, 4.5);
+        return (
+          <span
+            key={i}
+            className={`absolute -translate-x-1/2 rounded-[1px] transition-colors ${
+              v < 0 ? "bg-negative" : "bg-accent"
+            } ${hover === null || hover === i ? "" : "opacity-45"}`}
+            style={{
+              left: `${(px(i) / W) * 100}%`,
+              width: `${width}%`,
+              maxWidth: "34px",
+              top: `${(top / H) * 100}%`,
+              height: `${h}%`,
+            }}
+          />
+        );
+      })}
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="absolute inset-0 size-full"
+        aria-hidden
+      >
+        <line
+          x1="0"
+          x2={W}
+          y1={zero}
+          y2={zero}
+          stroke="var(--color-grid-strong)"
+          strokeWidth="1"
+          strokeDasharray="4 4"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* ONE READING IS A POINT, NOT A LINE. A path needs two places to go
+            between; drawing one across the panel from a single reading would
+            describe a history that has not happened yet. The dot below is the
+            whole chart on an agent's first day. */}
+        {drawn.length > 1 ? (
+          <path
+            d={curvePath(drawn.map(({ v, i }) => [px(i), y(v)]))}
+            fill="none"
+            stroke="var(--color-warning)"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
+      </svg>
+
+      {/* The end of the line, in ordinary pixels so it stays round under the
+          stretched viewBox. */}
+      {drawn.length > 0 ? (
+        <span
+          className="pointer-events-none absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-warning"
+          style={{
+            left: `${(px(drawn[drawn.length - 1].i) / W) * 100}%`,
+            top: `${(y(drawn[drawn.length - 1].v) / H) * 100}%`,
+          }}
+        />
+      ) : null}
+    </span>
+  );
+}

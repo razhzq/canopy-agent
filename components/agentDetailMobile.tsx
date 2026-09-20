@@ -45,6 +45,8 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { AgentFacts } from "@/components/agentFacts";
+import { LpEquityMobile } from "@/components/lpEquity";
+import { isLpBook } from "@/lib/perf";
 import { AssetCategory } from "@/components/tokenCategory";
 import { ScreenChips } from "@/components/discoveryFilters";
 import { markAgent } from "@/lib/perf";
@@ -183,6 +185,8 @@ export function AgentDetailMobile({
     };
   }, [agent.id, getAccessToken]);
 
+  /** Whether this book is liquidity rather than lots at a price. */
+  const isLp = isLpBook(agent, positions);
   const mark = useMemo(
     () => markAgent(equity, positions, assets),
     [equity, positions, assets],
@@ -411,6 +415,14 @@ export function AgentDetailMobile({
           </div>
         </div>
 
+        {/* A LIQUIDITY BOOK IS A DIFFERENT PANEL. The four cells below are a
+            trading agent's — return, win rate, drawdown, realised — and three
+            of them describe a distribution of entries and exits that an LP
+            book does not have. See components/lpEquity.tsx. */}
+        {isLp ? (
+          <LpEquityMobile series={equity} positions={positions} universe={assets} />
+        ) : (
+          <>
         <div className="h-[168px]">
           {shown.length > 1 ? (
             <EquityCurve
@@ -458,6 +470,8 @@ export function AgentDetailMobile({
             tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"}
           />
         </div>
+          </>
+        )}
       </div>
 
       {/* -------------------------------------------------- live cycle -- */}
@@ -539,13 +553,14 @@ export function AgentDetailMobile({
           </span>
         </div>
         {/* A liquidity book is ranges and fees, not quantities at a price. */}
-        {agent.strategy_class === "lp" || positions.some((p) => !!p.lp) ? (
+        {isLp ? (
           <div className="px-[18px] pb-4">
             <LpPositions
               agentId={agent.id}
               positions={positions}
               universe={assets}
               book={detail.book}
+              copy={detail.copy}
               onChanged={onChanged}
             />
           </div>

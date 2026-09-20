@@ -38,6 +38,8 @@ import { useLocale, useT, type Locale, type Translate, dateLocale } from "@/lib/
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
+import { LpEquityView } from "@/components/lpEquity";
+import { isLpBook } from "@/lib/perf";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
@@ -588,6 +590,8 @@ export function AgentDetailView({
   // second wording of the same conditions would eventually disagree with them.
   const sells = sellSignalText((exits?.exitWhen ?? []) as SellCondition[], t);
   const constraints = agent.mandate?.constraints ?? {};
+  /** Whether this agent's book is liquidity rather than lots at a price. */
+  const isLp = isLpBook(agent, positions);
 
   const capital = Number(agent.capital_usd) || 0;
   // The nearest real thing to a per-market budget: the mandate's position cap,
@@ -876,23 +880,26 @@ export function AgentDetailView({
           <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label={t("ad_sec_performance")} line={false} />
             <div className="pt-4">
-              <EquityView
-                series={equity}
-                positions={positions}
-                universe={marked}
-              />
+              {/* A liquidity book is fees and a range, not a distribution of
+                  bets — see components/lpEquity.tsx for what changes and why. */}
+              {isLp ? (
+                <LpEquityView series={equity} positions={positions} universe={marked} />
+              ) : (
+                <EquityView series={equity} positions={positions} universe={marked} />
+              )}
             </div>
           </section>
 
           {/* markets */}
           <section className="border-b border-grid px-5 sm:px-8 py-6">
             <Rule label={t("ad_sec_positions")} />
-            {agent.strategy_class === "lp" || positions.some((p) => !!p.lp) ? (
+            {isLp ? (
               <LpPositions
                 agentId={agentId}
                 positions={positions}
                 universe={marked}
                 book={detail.book}
+                copy={detail.copy}
                 onChanged={() => void load()}
               />
             ) : (

@@ -3,8 +3,8 @@
 import { ChevronRight } from "lucide-react";
 import { LABEL, BODY, QUIET, SURFACE } from "@/components/kit";
 import { useEffect, useId, useRef, useState } from "react";
-import { getActivity, type ActivityCycle } from "@/lib/api";
-import { narrateCycle, type SeatedLine } from "@/lib/narrate";
+import { getActivity, type ActivityCycle, type ActivityPage } from "@/lib/api";
+import { narrateCycle, type NarrateContext, type SeatedLine } from "@/lib/narrate";
 import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
@@ -58,10 +58,18 @@ export function ActivityLog({
   // screen and is simply replaced by the newer copy when it lands. Written
   // during render on purpose — it caches a value already in hand, so an effect
   // would only make it arrive one frame late.
-  const lastGood = useRef<ActivityCycle[] | null>(null);
-  if (state.phase === "ready") lastGood.current = state.data.cycles;
-  const cycles =
-    state.phase === "ready" ? state.data.cycles : (lastGood.current ?? []);
+  //
+  // The WHOLE page is held, not just its cycles: the class and the pool names
+  // travel with them, and a refetch that dropped those would re-narrate a
+  // liquidity agent as a trading desk for one frame.
+  const lastGood = useRef<ActivityPage | null>(null);
+  if (state.phase === "ready") lastGood.current = state.data;
+  const page = state.phase === "ready" ? state.data : lastGood.current;
+  const cycles = page?.cycles ?? [];
+  const narration: NarrateContext = {
+    strategyClass: page?.strategy_class,
+    pools: page?.pools,
+  };
 
   // Which cycle ids we have already shown. A cycle animates in only the first
   // time it appears — without this the whole list would re-animate on every
@@ -153,24 +161,35 @@ export function ActivityLog({
   if (state.phase === "error" && lastGood.current === null)
     return <ErrorState message={state.message} onRetry={state.reload} />;
 
+  // NAMED FOR THE THING, not for the prop above it: `book` here is already
+  // "paper or live". This is what the agent is holding.
+  const holding = page?.book ?? null;
+
   if (cycles.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-grid bg-panel px-5 py-12 text-center sm:px-8">
-        <p className="font-mono text-[14px] text-text-primary">
-          {t("activity_empty_title")}
-        </p>
-        <p className={`max-w-[48ch] ${BODY}`}>{t("activity_empty_body")}</p>
-        <p className={LABEL}>{t("activity_checking")}</p>
+      <div className="space-y-4">
+        {holding ? <BookLine book={holding} /> : null}
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-grid bg-panel px-5 py-12 text-center sm:px-8">
+          <p className="font-mono text-[14px] text-text-primary">
+            {holding ? t("activity_copy_empty_title") : t("activity_empty_title")}
+          </p>
+          <p className={`max-w-[48ch] ${BODY}`}>
+            {holding ? t("activity_copy_empty_body") : t("activity_empty_body")}
+          </p>
+          <p className={LABEL}>{t("activity_checking")}</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {holding ? <BookLine book={holding} /> : null}
       {cycles.map((c, i) => (
         <Cycle
           key={c.id}
           cycle={c}
+          narration={narration}
           defaultOpen={i === 0}
           flash={flashing.has(c.id)}
           fresh={freshIds.has(c.id)}
@@ -274,13 +293,54 @@ function useDisclosure(defaultOpen: boolean) {
   return { open, setOpen, mounted, expanded };
 }
 
+/**
+ * What the agent is holding, standing above the feed.
+ *
+ * THIS IS WHAT THE QUIET CYCLES USED TO SAY. A liquidity agent marks its book
+ * every tick and copies its leader rarely — 93% of its runs were a mark and
+ * nothing else — so the log was the same sentence about an unchanged book with
+ * the actual copies lost between them. The feed now lists only what the leader
+ * did; the book it produced is stated once, here, where a figure that changes
+ * slowly belongs.
+ *
+ * "At work" rather than "invested": it is equity less the cash sitting idle,
+ * which is the number an owner of a liquidity book is actually watching.
+ */
+function BookLine({
+  book,
+}: {
+  book: { equityUsd: number; cashUsd: number; openPositions: number };
+}) {
+  const t = useT();
+  const atWork = Math.max(book.equityUsd - book.cashUsd, 0);
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg border border-grid bg-panel px-5 py-3.5">
+      <span className="font-ui text-[13px] text-text-secondary">
+        {book.openPositions === 0
+          ? t("activity_book_flat")
+          : t("activity_book_at_work", {
+              amount: `$${atWork.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+              positions:
+                book.openPositions === 1
+                  ? t("activity_book_one")
+                  : t("activity_book_many", { count: book.openPositions }),
+            })}
+      </span>
+      <span className={LABEL}>{t("activity_book_note")}</span>
+    </div>
+  );
+}
+
 function Cycle({
   cycle,
+  narration,
   defaultOpen,
   flash,
   fresh,
 }: {
   cycle: ActivityCycle;
+  /** Strategy class and pool names — see NarrateContext. */
+  narration: NarrateContext;
   defaultOpen: boolean;
   /** Show the one-shot "new cycle arrived" border flash (~1.4s). */
   flash: boolean;
@@ -290,8 +350,9 @@ function Cycle({
   const { open, setOpen, mounted, expanded } = useDisclosure(defaultOpen);
   const panelId = useId();
   const t = useT();
-  const lines = narrateCycle(cycle, t);
+  const lines = narrateCycle(cycle, t, narration);
   const running = cycle.status === "running";
+  const isLp = narration.strategyClass === "lp";
 
   // The reveal counts DECISIONS, not the working notes beneath them. A screen
   // that touched forty tickers records most of that as `secondary` steps the log
@@ -338,9 +399,16 @@ function Cycle({
         }`}
       >
         <span className="flex min-w-0 items-center gap-4">
-          <span className="tnum shrink-0 font-mono text-[11px] text-text-dim">
-            #{cycle.tick_seq}
-          </span>
+          {/* A COPY AGENT HAS NO CYCLE WORTH CITING. Its entries are the
+              leader's moves, which are found by when they happened — and its
+              own tick numbers count the marks in between, most of which are
+              not in this list at all, so the sequence would read as if
+              cycles had gone missing. */}
+          {isLp ? null : (
+            <span className="tnum shrink-0 font-mono text-[11px] text-text-dim">
+              #{cycle.tick_seq}
+            </span>
+          )}
           {running ? (
             <span
               aria-hidden
@@ -407,6 +475,7 @@ function Cycle({
                 <SeatRun
                   key={r}
                   run={run}
+                  seats={!isLp}
                   revealed={revealed}
                   // Only while the replay is actually moving. A finished cycle
                   // has no active step — every one of them is complete.
@@ -533,10 +602,21 @@ function Step({
 
 function SeatRun({
   run,
+  seats,
   revealed,
   active,
 }: {
   run: { role: SeatedLine["role"]; lines: SeatedLine[] };
+  /**
+   * Whether to show which seat spoke.
+   *
+   * A trading agent runs a council and the attribution is the point — the
+   * label is the speaker's name before a line of dialogue. A copy agent has no
+   * council: the same two role names are an artefact of the table its rows are
+   * stored in, and labelling a mirrored position "TRADER" invites the reader
+   * to look for a trader who decided it. Nobody did; the leader did.
+   */
+  seats: boolean;
   revealed: Set<SeatedLine>;
   /** The line the replay is currently on, if it is in this seat. */
   active: SeatedLine | null;
@@ -555,12 +635,18 @@ function SeatRun({
   const body = open ? run.lines : decisions;
 
   return (
-    <li className="grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 sm:grid-cols-[68px_minmax(0,1fr)]">
+    <li
+      className={`grid grid-cols-1 gap-x-3.5 border-b border-grid px-5 py-3 last:border-b-0 ${
+        seats ? "sm:grid-cols-[68px_minmax(0,1fr)]" : ""
+      }`}
+    >
       {/* On a phone the seat sits above its run: 68px of gutter is a fifth of
           the width there, and the lines are what matter. */}
-      <span className="pb-1.5 sm:pt-0.5 sm:pb-0">
-        <SeatTag role={run.role} variant="rail" />
-      </span>
+      {seats ? (
+        <span className="pb-1.5 sm:pt-0.5 sm:pb-0">
+          <SeatTag role={run.role} variant="rail" />
+        </span>
+      ) : null}
       <ol className="min-w-0 space-y-2">
         {body.map((line, i) => (
           // Keyed by content, not index, so expanding the notes slots them in
@@ -629,6 +715,47 @@ export function headline(c: ActivityCycle, t: Translate): string {
     // an enum value the reader has no way to interpret.
     const key = SKIP_LABEL_KEY[c.skip_reason ?? ""];
     return key ? t(key) : t("activity_headline_skipped");
+  }
+
+  /*
+   * A COPY AGENT'S CYCLE IS NAMED BY THE LEADER'S VERB.
+   *
+   * The fill counter below reads every copy cycle as "nothing": a mirrored
+   * position records `usd` and `sharePct`, not `filledUsd`, so none of these
+   * rows matched and every entry in a liquidity agent's log collapsed to the
+   * same empty summary. Counting by `action` is what the engine actually
+   * wrote, and the verb is the useful half of the header — an owner scanning
+   * the list wants "skipped 2", not a count of events.
+   */
+  // Recognised from the `pm` row as well as the traders', so a pass that
+  // planned something and executed none of it is still summarised as a copy
+  // cycle rather than falling through to "screened the universe" — a sentence
+  // about a screen this agent does not run.
+  const isCopy = c.decisions.some(
+    (d) => d.output?.copyLp === true || d.output?.stage === "copyLp",
+  );
+  const copy = c.decisions.filter((d) => d.role === "trader" && d.output?.copyLp === true);
+  if (isCopy) {
+    const n = (action: string) =>
+      copy.filter((d) => d.output?.action === action && d.output?.executed !== false).length;
+    const mirrored = n("open");
+    const closed = n("close");
+    const followed = n("resize") + n("rerange");
+    const skipped = n("skip");
+    // One clause per verb that happened, in the order they matter. A cycle
+    // that both mirrored and skipped did both, and saying only the first would
+    // hide the refusal — which is the half an owner is more likely checking.
+    const parts: string[] = [];
+    if (mirrored > 0) parts.push(t("activity_headline_mirrored", { count: mirrored }));
+    if (closed > 0) parts.push(t("activity_headline_copy_closed", { count: closed }));
+    if (followed > 0) parts.push(t("activity_headline_followed", { count: followed }));
+    if (skipped > 0) parts.push(t("activity_headline_not_copied", { count: skipped }));
+    if (parts.length > 0) return parts.join(t("activity_headline_join"));
+    if (copy.some((d) => d.output?.action === "start")) return t("activity_headline_baseline");
+    // NOT "screened the universe, proposed nothing" — a copy agent screens no
+    // universe and proposes nothing to anyone. It looked, and the leader's
+    // book gave it nothing to do.
+    return t("activity_headline_copy_nothing");
   }
 
   const closes = c.decisions.filter(

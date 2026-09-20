@@ -82,6 +82,27 @@ export interface NarratableDecision {
   latency_ms?: number | null;
 }
 
+/**
+ * What the narrator needs that a single decision row cannot tell it.
+ *
+ * Both fields are optional and both surfaces may omit them — a narrator that
+ * required context would be a narrator no caller could use without plumbing.
+ *
+ * `strategyClass` exists for ONE row: the desk's. A copy-LP `pm` or `trader`
+ * row says what it is in its own output (`stage: "copyLp"`, `copyLp: true`),
+ * but the desk row a liquidity agent writes is byte-for-byte a trading desk's,
+ * and narrating it as one is how a wallet-copying agent ended up announcing its
+ * high-water mark every five minutes.
+ *
+ * `pools` turns a Meteora pool address into the pair an owner recognises. The
+ * mirror records the address because the address is all it knows when it acts;
+ * resolving the name is the reader's concern, not the record's.
+ */
+export interface NarrateContext {
+  strategyClass?: string | null;
+  pools?: Record<string, string>;
+}
+
 /** One seat at the council table. */
 export type Seat = "desk" | "analyst" | "risk" | "trader" | "pm";
 
@@ -177,9 +198,21 @@ export const SEAT_PURPOSE_KEY: Record<string, TranslationKey> = {
  * silent, so the log could show the circuit breaker failing and never show it
  * working — which is the direction an owner is actually checking.
  */
-export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLine[] {
+export function narrateDecision(
+  d: NarratableDecision,
+  t: Translate,
+  ctx: NarrateContext = {},
+): NarratedLine[] {
   const lines: NarratedLine[] = [];
   const o = d.output ?? {};
+
+  // COPYING A WALLET IS NOT RUNNING A TRADING DESK, and until this branch
+  // existed it was narrated as one. A copy agent's `trader` rows matched none
+  // of the shapes below — no `exit`, no `filledUsd` — so every mirror, close
+  // and refusal produced no line at all, while its `pm` rows fell through to
+  // the mark-the-book sentence and stated "$0 value against $0 cost" as fact.
+  // The rows say what they are; this reads them.
+  if (o.copyLp === true || o.stage === "copyLp") return narrateCopyLp(d, o, t, ctx);
 
   if (d.role === "desk") {
     if (o.skipped === "not_active") {
@@ -208,6 +241,24 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
       // the one that already exists is shown as it stands.
       lines.push({ outcome: "drop", detail: t("narrate_desk_skipped", { reason: str(o.reason) }) });
     } else if (o.opened) {
+      /*
+       * A LIQUIDITY BOOK IS NOT NARRATED CYCLE BY CYCLE.
+       *
+       * This row is the mark: the agent priced what it holds and wrote down
+       * the total. On a trading agent that is the opening line of a cycle that
+       * then goes on to do something. On a liquidity agent it IS the cycle —
+       * measured on the live agents, 93% of their runs are this row and
+       * nothing else — so narrating it turned the log into the same sentence
+       * about an unchanged book, repeated every five minutes, with the real
+       * copy events buried between them.
+       *
+       * The figures are not lost: the equity curve is built from exactly these
+       * rows, and the book's current state is shown standing above the feed
+       * rather than restated once per tick. What belongs in a log is what
+       * changed, and a mark is not a change.
+       */
+      if (ctx.strategyClass === "lp") return lines;
+
       const open = num(o.openPositions);
       const realized = num(o.realizedPnlUsd);
       lines.push({
@@ -689,6 +740,195 @@ export function narrateDecision(d: NarratableDecision, t: Translate): NarratedLi
 }
 
 /**
+ * A copy-LP row, in the vocabulary of copying a wallet.
+ *
+ * ONE VERB PER LINE, and the verb is the leader's. Every sentence here answers
+ * "what did the wallet I follow do, and what did I do about it" — which is the
+ * only question a copy agent's owner has. There is no screen to report, no
+ * thesis, no council: the engine reads the leader's book, takes a share of it,
+ * and the share is arithmetic.
+ *
+ * REFUSALS ARE QUOTED, NOT REWRITTEN. `reason` on a skip arrives as a finished
+ * sentence written where the decision was made ("Verified tokens only, and RIM
+ * is not verified.") and is shown as it stands, for the same reason a hard
+ * flag's detail is: the alternative is a second wording of the same rule, kept
+ * in step by hand, in an audit trail.
+ */
+function narrateCopyLp(
+  d: NarratableDecision,
+  o: Record<string, unknown>,
+  t: Translate,
+  ctx: NarrateContext,
+): NarratedLine[] {
+  const lines: NarratedLine[] = [];
+  const symbol = poolName(o.pool, ctx) || undefined;
+
+  if (d.role === "pm") {
+    const plan = Array.isArray(o.plan) ? o.plan : [];
+    // A poll that found nothing changed is not an event. The trader rows below
+    // are the cycle's content; this row only sets the scene for them, so with
+    // an empty plan there is no scene to set.
+    if (plan.length === 0) return lines;
+
+    const held = Array.isArray(o.leaderPositions) ? o.leaderPositions.length : 0;
+    const positions =
+      held === 1 ? t("narrate_clp_leader_one") : t("narrate_clp_leader_many", { count: held });
+    lines.push({
+      outcome: "info",
+      // `trigger` is either the word "poll" or the signature of the leader's
+      // own transaction — the difference between noticing on the next sweep
+      // and being woken by the move itself, which is worth saying.
+      detail:
+        str(o.trigger) === "poll"
+          ? t("narrate_clp_polled", { positions, capital: money(o.leaderCapitalUsd) })
+          : t("narrate_clp_leader_moved", {
+              positions,
+              capital: money(o.leaderCapitalUsd),
+            }),
+    });
+    return lines;
+  }
+
+  if (d.role !== "trader") return lines;
+
+  const action = str(o.action);
+
+  // Not a verdict on the position — the pool could not be read this pass, and
+  // the mirror will look again. Kept separate from a skip, which is a refusal.
+  if (o.executed === false) {
+    lines.push({
+      outcome: "drop",
+      symbol,
+      detail: t("narrate_clp_failed", { error: str(o.error) }),
+    });
+    return lines;
+  }
+
+  if (action === "start") {
+    const left = num(o.leftAlone);
+    lines.push({
+      outcome: "info",
+      detail:
+        left === 0
+          ? t("narrate_clp_start_flat")
+          : left === 1
+            ? t("narrate_clp_start_one")
+            : t("narrate_clp_start_many", { count: left }),
+    });
+    return lines;
+  }
+
+  if (action === "skip") {
+    lines.push({
+      outcome: "drop",
+      symbol,
+      detail: str(o.reason)
+        ? t("narrate_clp_skip_reason", { reason: str(o.reason) })
+        : t("narrate_clp_skip"),
+    });
+    return lines;
+  }
+
+  if (action === "open") {
+    lines.push({
+      outcome: "pass",
+      symbol,
+      detail: t("narrate_clp_open", {
+        share: pct(o.sharePct),
+        size: money(o.usd),
+        cost: costClause(o, t),
+      }),
+    });
+    return lines;
+  }
+
+  if (action === "close") {
+    const pnl = num(o.realizedPnlUsd);
+    lines.push({
+      outcome: pnl >= 0 ? "pass" : "drop",
+      symbol,
+      detail: t("narrate_clp_close", {
+        // The engine's own sentence for why the copy ended — almost always
+        // "The leader closed this position.", which is the whole point.
+        reason: str(o.reason) || t("narrate_clp_close_reason"),
+        size: money(o.filledUsd),
+        pnl: signedSmall(pnl),
+        fees: feeClause(o, t),
+      }),
+    });
+    return lines;
+  }
+
+  if (action === "resize" || action === "rerange") {
+    const added = num(o.addedUsd);
+    const returned = num(o.returnedUsd);
+    // The two ways a follow can be incomplete, and they mean different things:
+    // one is the agent running out of money, the other is a cap its owner set.
+    const limit = o.limitedByCash
+      ? t("narrate_clp_limited_cash")
+      : o.capped
+        ? t("narrate_clp_capped")
+        : "";
+    if (action === "rerange") {
+      lines.push({ outcome: "pass", symbol, detail: t("narrate_clp_rerange", { limit }) });
+    } else if (added > 0) {
+      lines.push({
+        outcome: "pass",
+        symbol,
+        detail: t("narrate_clp_added", { size: money(added), limit }),
+      });
+    } else if (returned > 0) {
+      lines.push({
+        outcome: "pass",
+        symbol,
+        detail: t("narrate_clp_reduced", {
+          size: money(returned),
+          pnl: signedSmall(num(o.realizedPnlUsd)),
+        }),
+      });
+    }
+    return lines;
+  }
+
+  return lines;
+}
+
+/**
+ * The pair a pool trades, or a short form of its address.
+ *
+ * Never the full base58 — 44 characters in the symbol slot of a log line is
+ * not an identifier the reader uses, it is a wall.
+ */
+function poolName(v: unknown, ctx: NarrateContext): string {
+  const address = str(v);
+  if (!address) return "";
+  const named = ctx.pools?.[address];
+  if (named) return named;
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+/**
+ * A signed figure that keeps its cents while it still has any.
+ *
+ * The desk's `signed` rounds to whole dollars, which is right for a book
+ * measured in thousands and wrong here: a copy agent closes positions worth a
+ * few hundred dollars and realises tens of cents on them, and every one of
+ * them read "+$0 realised" — a line saying nothing happened about a line whose
+ * entire purpose is to say what did.
+ */
+function signedSmall(n: number): string {
+  const abs = Math.abs(n);
+  const body = `$${abs.toLocaleString("en-US", { maximumFractionDigits: abs < 100 ? 2 : 0 })}`;
+  return n < 0 ? `−${body}` : `+${body}`;
+}
+
+/** What entering a position cost in fees and slippage, when it cost anything. */
+function costClause(o: Record<string, unknown>, t: Translate): string {
+  const cost = num(o.costUsd);
+  return cost > 0 ? t("narrate_clp_cost", { cost: usd(cost, 2) }) : "";
+}
+
+/**
  * The drawdown breaker's verdict, on every cycle rather than only on a breach.
  *
  * `maxDrawdownPct` is read defensively because rows written before it was
@@ -739,10 +979,11 @@ export function narrateCycle(
     decisions: (NarratableDecision & { seq?: number })[];
   },
   t: Translate,
+  ctx: NarrateContext = {},
 ): SeatedLine[] {
   const ordered = [...cycle.decisions].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
   const lines: SeatedLine[] = ordered.flatMap((d) =>
-    narrateDecision(d, t).map((line) => ({ ...line, role: d.role })),
+    narrateDecision(d, t, ctx).map((line) => ({ ...line, role: d.role })),
   );
   if (cycle.status === "error" && cycle.error) {
     // `cycle.error` is the runtime's own message — quoted, never rewritten.

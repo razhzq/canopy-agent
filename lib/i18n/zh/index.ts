@@ -21,6 +21,7 @@ import { zhActivity } from "./activity";
 import { zhBuild } from "./build";
 import { zhCycles } from "./cycles";
 import { zhEquity } from "./equity";
+import { zhLpPerf } from "./lpPerf";
 import { zhGoLive } from "./golive";
 import { zhHome } from "./home";
 import { zhLanding } from "./landing";
@@ -50,6 +51,7 @@ export const zh: Record<TranslationKey, string> = {
   ...zhBuild,
   ...zhCycles,
   ...zhEquity,
+  ...zhLpPerf,
   ...zhGoLive,
   ...zhHome,
   ...zhLanding,

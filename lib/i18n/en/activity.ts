@@ -39,6 +39,26 @@ export const enActivity = {
   activity_headline_blocked: "{count} blocked by the risk gate",
   activity_headline_nothing: "Screened the universe, proposed nothing",
 
+  // A copy agent's header names the leader's verb. Not "fills": a mirrored
+  // position is not a fill, and counting them as one read 0 on every cycle.
+  activity_headline_mirrored: "Mirrored {count}",
+  activity_headline_copy_closed: "Closed {count}",
+  activity_headline_followed: "Followed {count}",
+  activity_headline_not_copied: "Didn't copy {count}",
+  activity_headline_copy_nothing: "Nothing to copy",
+  activity_headline_baseline: "Started flat",
+  activity_headline_join: " · ",
+
+  // ── A liquidity book, above its feed ───────────────────────────
+  activity_book_at_work: "{amount} at work across {positions}",
+  activity_book_one: "1 position",
+  activity_book_many: "{count} positions",
+  activity_book_flat: "Nothing open right now — waiting on the leader",
+  activity_book_note: "Updated every cycle",
+  activity_copy_empty_title: "The leader hasn't moved yet",
+  activity_copy_empty_body:
+    "This agent copies what the wallet it follows does next, not what that wallet already holds. Every open, close and refusal will appear here.",
+
   // ── Account-wide feed ──────────────────────────────────────────
   feed_empty_title: "Nothing yet",
   feed_empty_no_agents:

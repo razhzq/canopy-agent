@@ -23,6 +23,7 @@ import { enActivity } from "./activity";
 import { enBuild } from "./build";
 import { enCycles } from "./cycles";
 import { enEquity } from "./equity";
+import { enLpPerf } from "./lpPerf";
 import { enGoLive } from "./golive";
 import { enHome } from "./home";
 import { enLanding } from "./landing";
@@ -52,6 +53,7 @@ export const en = {
   ...enBuild,
   ...enCycles,
   ...enEquity,
+  ...enLpPerf,
   ...enGoLive,
   ...enHome,
   ...enLanding,

@@ -8,7 +8,7 @@ import { NarratedLineBody, OutcomeMark, SeatTag } from "@/components/seat";
 import { SkeletonLog, SkeletonRows } from "@/components/skeleton";
 import { getCycle, listCycles, type CycleRow } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { narrateDecision, sourceLabel } from "@/lib/narrate";
+import { narrateDecision, sourceLabel, type NarrateContext } from "@/lib/narrate";
 import { relativeTime } from "@/lib/format";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -154,7 +154,7 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
       </>
     );
 
-  const { run, decisions } = state.data;
+  const { run, decisions, strategy_class, pools } = state.data;
 
   return (
     <div className="space-y-6 px-8 pb-10">
@@ -196,7 +196,16 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
       </section>
 
       {decisions.map((d, i) => (
-        <Seat key={i} index={i} decision={d} />
+        <Seat
+          key={i}
+          index={i}
+          decision={d}
+          // The transcript narrates the same rows as the activity log, so it
+          // needs the same context — otherwise one surface tells a copy
+          // agent's story and the other tells a trading desk's, about the
+          // same tick.
+          narration={{ strategyClass: strategy_class, pools }}
+        />
       ))}
     </div>
   );
@@ -206,13 +215,15 @@ export function CycleTrace({ agentId, runId }: { agentId: number; runId: string 
 function Seat({
   index,
   decision: d,
+  narration,
 }: {
   index: number;
   decision: Awaited<ReturnType<typeof getCycle>>["decisions"][number];
+  narration: NarrateContext;
 }) {
   const [raw, setRaw] = useState(false);
   const t = useT();
-  const lines = narrateDecision(d, t);
+  const lines = narrateDecision(d, t, narration);
 
   return (
     <section className="border border-grid">

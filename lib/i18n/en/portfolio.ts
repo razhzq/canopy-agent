@@ -62,6 +62,7 @@ export const enPortfolio = {
   po_row_sub_cycle: "{class} · {book} · cycle {cycle}",
   po_deployed_suffix: "{amount} deployed",
   po_no_readings: "no readings",
+  po_lp_fees: "{amount} in fees",
   // Inline gutter labels on the mobile card, where the figure follows the word.
   po_label_24h: "24h ",
   po_label_return: "return ",

@@ -641,7 +641,7 @@ function AgentRowLine({
   holding: Holding;
   onChanged: () => void;
 }) {
-  const { agent, mark } = holding;
+  const { agent, mark, series } = holding;
   const t = useT();
   const { getAccessToken } = usePrivy();
   const [busy, setBusy] = useState(false);
@@ -734,6 +734,21 @@ function AgentRowLine({
       })
     : t("po_row_sub", { class: agent.strategy_class, book });
   const equity = mark ? money(mark.equityUsd) : "—";
+  /**
+   * What a liquidity agent has EARNED, which its return does not say.
+   *
+   * A pool position's return nets fees against impermanent loss, so an LP row
+   * showing +0.4% has not told the reader whether it collected nothing or
+   * collected a great deal and gave most of it back. The fee figure is the
+   * half that is theirs either way, and it is the reason the agent exists.
+   *
+   * Only on the row, and only for LP: the rest of this page is one column set
+   * across mixed books, and a fees column would be empty for most of it.
+   */
+  const lpFees =
+    series?.lp !== undefined
+      ? money(series.lp.feesEarnedUsd + series.lp.claimedFeesUsd)
+      : null;
   const deployed = money(num(agent.capital_usd) ?? 0);
   const movedText = moved === null ? "—" : signed(moved);
   const movedTone =
@@ -789,6 +804,12 @@ function AgentRowLine({
             </p>
             <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
               {sub}
+              {lpFees ? (
+                <span className="text-accent">
+                  {" · "}
+                  {t("po_lp_fees", { amount: lpFees })}
+                </span>
+              ) : null}
             </p>
           </div>
           {status}
@@ -827,6 +848,12 @@ function AgentRowLine({
         </p>
         <p className="truncate pt-1 font-mono text-[11px] text-text-dim">
           {sub}
+          {lpFees ? (
+            <span className="text-accent">
+              {" · "}
+              {t("po_lp_fees", { amount: lpFees })}
+            </span>
+          ) : null}
         </p>
       </div>
       <span className="tnum hidden text-right font-mono text-[13px] text-text-secondary lg:block">

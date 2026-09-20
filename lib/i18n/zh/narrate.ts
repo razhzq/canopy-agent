@@ -45,6 +45,32 @@ export const zhNarrate: Record<keyof typeof enNarrate, string> = {
   narrate_desk_unmarked_one: "{symbols} 我拿不到价格，所以上面这份估值没有算上它。",
   narrate_desk_unmarked_many: "{symbols} 我拿不到价格，所以上面这份估值没有算上它们。",
 
+  // ── 跟单流动性仓位 ─────────────────────────────────────────────
+  // 跟单代理没有自己的判断：它盯住一个钱包，按约定的比例跟着做。
+  // 这里每一句讲的都是领投钱包做了什么，以及我跟着做了什么。
+  narrate_clp_leader_one: "1 个仓位",
+  narrate_clp_leader_many: "{count} 个仓位",
+  narrate_clp_polled: "我照例查了领投的持仓 — {positions}，投入 {capital}。",
+  narrate_clp_leader_moved: "领投有动作了 — {positions}，投入 {capital}。",
+
+  narrate_clp_start_flat: "我从空仓开始：从现在起领投做什么我跟什么，之前已经持有的不补。",
+  narrate_clp_start_one: "我从空仓开始 — 领投原本持有的 1 个仓位是他自己的，我不跟。",
+  narrate_clp_start_many: "我从空仓开始 — 领投原本持有的 {count} 个仓位是他自己的，我不跟。",
+
+  narrate_clp_open: "我按领投这个仓位的 {share} 跟了一手 — 投入 {size}{cost}。",
+  narrate_clp_cost: "，手续费和滑点 {cost}",
+  narrate_clp_close: "{reason} 我撤回了 {size}，落袋 {pnl}{fees}。",
+  narrate_clp_close_reason: "领投把这个仓位平掉了。",
+  narrate_clp_added: "领投加仓了，我也加了 {size}{limit}。",
+  narrate_clp_reduced: "领投减仓了，我也撤回 {size}，落袋 {pnl}。",
+  narrate_clp_rerange: "领投挪了价格区间，我也跟着挪{limit}。",
+  narrate_clp_limited_cash: " — 现金只够到这里",
+  narrate_clp_capped: " — 到你设的上限为止",
+
+  narrate_clp_skip_reason: "这个我没跟 — {reason}",
+  narrate_clp_skip: "这个我没跟。",
+  narrate_clp_failed: "这个我没能跟上 — {error}",
+
   narrate_breaker_at_hwm: "我正好站在自己的历史高点 {hwm} 上。",
   narrate_breaker_off: "我比自己的历史高点 {hwm} 低了 {pct}。",
   narrate_breaker_off_limit: "我比自己的历史高点 {hwm} 低了 {pct} — 还在 {limit} 的回撤上限以内。",

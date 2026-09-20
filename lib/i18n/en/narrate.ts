@@ -94,6 +94,45 @@ export const enNarrate = {
   narrate_desk_unmarked_many:
     "I couldn't get a price for {symbols}, so the numbers above don't include them.",
 
+  // ── Copying a wallet's liquidity positions ─────────────────────
+  //
+  // A SEPARATE VOICE, because a copy agent does not have the desk's job. It
+  // holds no thesis and runs no screen: it watches one wallet, takes an agreed
+  // share of what that wallet does, and every line here is a sentence about
+  // the leader. The desk's vocabulary — equity against cash, the high-water
+  // mark, fills — describes work this agent never does.
+  //
+  // "the leader" throughout, never the address. Which wallet is being followed
+  // is settled on the agent's own page; repeating 44 characters of base58 in
+  // every line would say nothing the reader did not already know.
+  narrate_clp_leader_one: "1 position",
+  narrate_clp_leader_many: "{count} positions",
+  narrate_clp_polled: "I checked the leader's book — {positions}, {capital} at work.",
+  narrate_clp_leader_moved: "The leader moved — {positions}, {capital} at work.",
+
+  narrate_clp_start_flat:
+    "I'm starting flat: I copy what the leader does from here, not what they already hold.",
+  narrate_clp_start_one:
+    "I'm starting flat — the 1 position the leader already held is theirs, not mine to copy.",
+  narrate_clp_start_many:
+    "I'm starting flat — the {count} positions the leader already held are theirs, not mine to copy.",
+
+  narrate_clp_open: "I mirrored {share} of the leader's position — {size} in{cost}.",
+  narrate_clp_cost: ", {cost} in fees and slippage",
+  narrate_clp_close: "{reason} I took {size} back out, {pnl} realised{fees}.",
+  narrate_clp_close_reason: "The leader closed this position.",
+  narrate_clp_added: "The leader added, so I added {size}{limit}.",
+  narrate_clp_reduced: "The leader took some off, so I took {size} back out, {pnl} realised.",
+  narrate_clp_rerange: "The leader moved their range, so I moved mine{limit}.",
+  narrate_clp_limited_cash: " — as far as my cash would go",
+  narrate_clp_capped: " — up to the cap you set",
+
+  // The refusal is quoted verbatim: it is written where the rule lives, and a
+  // second wording of the same rule is how the two drift apart.
+  narrate_clp_skip_reason: "I didn't copy this one — {reason}",
+  narrate_clp_skip: "I didn't copy this one.",
+  narrate_clp_failed: "I couldn't follow this one — {error}",
+
   // ── The drawdown breaker, on every cycle ───────────────────────
   narrate_breaker_at_hwm: "I'm sitting right at my high-water mark of {hwm}.",
   narrate_breaker_off: "I'm {pct} off my high-water mark of {hwm}.",

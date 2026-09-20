@@ -77,7 +77,8 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   lp_fees_estimated_title: "模拟盘手续费按池子费率估算。",
   lp_last_mark: "上次估值",
   lp_venue_damm: "DAMM",
-  lp_bin_step: "{bps} bps",
+  lp_bin_step: "步长 {bps}",
+  lp_bin_step_title: "{bps} 个基点 — 每个价格区间为 {pct}%",
   lp_bins: "区间 {min} → {max}",
   lp_range_title: "当前池子价格：{price}",
   lp_in_range_at: "区间内 · {price}",
@@ -113,4 +114,10 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   lp_shape_spot: "均匀",
   lp_shape_curve: "曲线",
   lp_shape_bid_ask: "买卖价差",
+
+  lp_not_copied: "未复制",
+  lp_not_copied_note: "被复制钱包当前持有、而此智能体未跟进的仓位。",
+  lp_not_copied_held_before: "开始复制时，对方已持有该仓位。",
+  lp_leader: "正在复制 {leader}",
+  lp_none_yet: "尚未复制任何仓位。当对方开仓时，此智能体才会跟进。",
 };

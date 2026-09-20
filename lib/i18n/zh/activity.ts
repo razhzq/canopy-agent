@@ -30,6 +30,23 @@ export const zhActivity: Record<keyof typeof enActivity, string> = {
   activity_headline_blocked: "{count} 项被风控闸门拦截",
   activity_headline_nothing: "已筛选标的池，未提出任何方案",
 
+  activity_headline_mirrored: "跟了 {count} 笔",
+  activity_headline_copy_closed: "平了 {count} 笔",
+  activity_headline_followed: "跟着调了 {count} 笔",
+  activity_headline_not_copied: "有 {count} 笔没跟",
+  activity_headline_copy_nothing: "没有可跟的动作",
+  activity_headline_baseline: "从空仓开始",
+  activity_headline_join: " · ",
+
+  activity_book_at_work: "{positions}，投入 {amount}",
+  activity_book_one: "1 个仓位",
+  activity_book_many: "{count} 个仓位",
+  activity_book_flat: "当前没有持仓 — 等领投出手",
+  activity_book_note: "每个周期更新",
+  activity_copy_empty_title: "领投还没有动作",
+  activity_copy_empty_body:
+    "这个代理跟的是领投接下来做什么，而不是他现在已经持有的。之后每一次开仓、平仓和没跟的原因都会出现在这里。",
+
   feed_empty_title: "暂无记录",
   feed_empty_no_agents:
     "部署一个智能体后，它运行的每个周期都会显示在这里 — 包括那些它决定什么都不做的周期。",
