@@ -3826,6 +3826,36 @@ export interface FillPayload {
   costBasisUsd?: number;
   /** Why a rule closed it, when a rule did rather than the Analyst. */
   reason?: string;
+  /** Present when the fill is a liquidity position rather than a lot. */
+  lp?: LpFillFacts;
+}
+
+/**
+ * What an owner asks about a liquidity position.
+ *
+ * Mirrors `LpFillFacts` on the backend, which composes the Telegram sentence
+ * from the same object — so the chat message and this row cannot describe the
+ * same event differently.
+ *
+ * `pair` exists because the fill's `symbol` for a copied position is the
+ * engine's pseudo-mint (`lp:meteora-dlmm:<pool>:<position>`), which is what
+ * used to reach owners' phones.
+ */
+export interface LpFillFacts {
+  pair: string;
+  binStepBps?: number | null;
+  /** Claimed plus unclaimed, settled at close. */
+  feesEarnedUsd?: number;
+  /** Modelled from the pool's rate rather than observed — every paper book. */
+  feesEstimated?: boolean;
+  /** Everything that ever went in; the base the return is measured against. */
+  investedUsd?: number;
+  heldHours?: number;
+  /** A copy agent's share of the leader's position, at open. */
+  sharePct?: number;
+  addedUsd?: number;
+  returnedUsd?: number;
+  copied?: boolean;
 }
 
 export interface NotificationItem {

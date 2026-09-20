@@ -8,6 +8,25 @@ export const enNotifs = {
   nc_fill_sold: "Sold",
   nc_fill_added: "Added liquidity",
   nc_fill_removed: "Removed liquidity",
+  // ── A liquidity position ───────────────────────────────────────
+  // The verb, then the pair — never the pool address, which is what the
+  // engine keys the position by and what used to reach owners' phones.
+  nc_lp_mirrored: "Mirrored",
+  nc_lp_opened: "Opened",
+  nc_lp_closed: "Closed",
+  nc_lp_added: "Added to",
+  nc_lp_trimmed: "Trimmed",
+  nc_lp_profit: "profit",
+  nc_lp_loss: "loss",
+  nc_lp_in: "{amount} in",
+  nc_lp_more_in: "{amount} more in",
+  nc_lp_back_out: "{amount} back out",
+  nc_lp_share: "{pct}% of the leader",
+  nc_lp_fees: "{amount} fees",
+  // Said on every paper book: the fee figure is modelled from the pool's own
+  // rate, not observed on-chain.
+  nc_lp_fees_modelled: "{amount} fees (modelled)",
+  nc_lp_held: "held {time}",
   nc_fill_paper: "paper",
   nc_fill_realised: "Realised",
   nc_tab_all: "All",

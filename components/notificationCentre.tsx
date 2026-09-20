@@ -49,6 +49,7 @@ import {
   markNotificationsRead,
   setTelegramEnabled,
   type FillPayload,
+  type LpFillFacts,
   type NotificationItem,
   type NotificationKind,
 } from "@/lib/api";
@@ -610,8 +611,108 @@ function Panel({
  * memecoin at $0.00005835 renders as a price rather than as "$0.00" — and the
  * two surfaces cannot round the same token differently.
  */
+/**
+ * A liquidity position's notification row.
+ *
+ * SEPARATE FROM FillBody because the generic one is built for a lot bought at
+ * a price. Its middle line reads "$273.35 · 1 @ $273.35" for an LP close —
+ * the engine marks a whole position as one unit at its own value — which is
+ * three numbers, two of them identical, none of them what the owner asks.
+ *
+ * The figures here are the ones the positions table already shows: what it
+ * earned in fees, what it made, how wide the range was. Laid out rather than
+ * read as a sentence, because that is what having the payload is for; the
+ * backend composes the same facts into the Telegram line.
+ */
+function LpFillBody({ fill, lp }: { fill: FillPayload; lp: LpFillFacts }) {
+  const t = useT();
+  const pnl = fill.realizedPnlUsd;
+  const closing = pnl !== undefined;
+  const base = lp.investedUsd ?? fill.costBasisUsd ?? 0;
+  const pct = closing && base > 0 ? (pnl / base) * 100 : null;
+
+  const verb = closing
+    ? "nc_lp_closed"
+    : lp.addedUsd
+      ? "nc_lp_added"
+      : lp.returnedUsd
+        ? "nc_lp_trimmed"
+        : lp.copied
+          ? "nc_lp_mirrored"
+          : "nc_lp_opened";
+
+  // A figure that does not exist is absent, never zero — the same rule the
+  // sentence follows.
+  const facts = [
+    closing
+      ? null
+      : lp.addedUsd
+        ? t("nc_lp_more_in", { amount: usd(lp.addedUsd) })
+        : lp.returnedUsd
+          ? t("nc_lp_back_out", { amount: usd(lp.returnedUsd) })
+          : t("nc_lp_in", { amount: usd(fill.filledUsd) }),
+    !closing && lp.sharePct !== undefined
+      ? t("nc_lp_share", { pct: lp.sharePct.toFixed(1) })
+      : null,
+    closing && lp.feesEarnedUsd !== undefined
+      ? t(lp.feesEstimated ? "nc_lp_fees_modelled" : "nc_lp_fees", {
+          amount: usd(lp.feesEarnedUsd),
+        })
+      : null,
+    closing && lp.heldHours !== undefined
+      ? t("nc_lp_held", { time: heldFor(lp.heldHours) })
+      : null,
+    lp.binStepBps ? t("lp_bin_step", { bps: lp.binStepBps }) : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-1">
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-mono text-[12.5px] text-text-primary">{t(verb)}</span>
+        {/* The PAIR. Never the pool address — see LpFillFacts. */}
+        <span className="font-mono text-[12.5px] text-text-primary">{lp.pair}</span>
+        {fill.isPaper ? (
+          <span className="font-ui text-[11px] text-text-muted">{t("nc_fill_paper")}</span>
+        ) : null}
+      </p>
+
+      {closing ? (
+        <p
+          className={`tnum font-mono text-[11.5px] ${
+            pnl >= 0 ? "text-accent" : "text-negative"
+          }`}
+        >
+          {usd(pnl, { sign: true })}{" "}
+          {t(pnl >= 0 ? "nc_lp_profit" : "nc_lp_loss")}
+          {pct === null ? "" : ` (${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%)`}
+        </p>
+      ) : null}
+
+      {facts.length > 0 ? (
+        <p className="tnum font-mono text-[11.5px] text-text-dim">{facts.join(" · ")}</p>
+      ) : null}
+
+      {fill.reason ? (
+        <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{fill.reason}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** How long a position was held, at the coarseness a person reads. */
+function heldFor(hours: number): string {
+  if (hours < 1) return `${Math.max(Math.round(hours * 60), 1)}m`;
+  if (hours < 48) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${Math.round(hours / 24)}d`;
+}
+
 function FillBody({ fill }: { fill: FillPayload }) {
   const t = useT();
+  if (fill.lp) return <LpFillBody fill={fill} lp={fill.lp} />;
   const pnl = fill.realizedPnlUsd;
   const pct =
     pnl !== undefined && fill.costBasisUsd && fill.costBasisUsd > 0
