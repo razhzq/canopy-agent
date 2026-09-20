@@ -585,7 +585,21 @@ export function AgentDetailView({
     rules.find((r) => RWA_RULES.some((spec) => spec.key === r.key)) ??
     rules[0] ??
     null;
-  const exits = strategy?.exits ?? null;
+  /*
+   * A COPY AGENT HAS NO EXITS TO SHOW, whatever is stored against it.
+   *
+   * The engine closes a copy's positions only when its leader does —
+   * `deriveDirectives` returns before it ever reads this column. Strategy 228
+   * nonetheless carries `{takeProfitPct: 25, stopLossPct: 12}` from the first
+   * builder that wrote a copy strategy, and the rail was drawing both as
+   * chips: a take-profit and a stop this agent will never act on, stated to
+   * its owner as though they were live.
+   *
+   * Hidden rather than deleted. The stored row is inert and harmless, and a
+   * migration that rewrote an owner's saved settings to correct a display
+   * would be a worse trade than not displaying them.
+   */
+  const exits = strategy?.copy_lp ? null : (strategy?.exits ?? null);
   // Read back once, in the phrasing the builder and the edit dialog use — a
   // second wording of the same conditions would eventually disagree with them.
   const sells = sellSignalText((exits?.exitWhen ?? []) as SellCondition[], t);
