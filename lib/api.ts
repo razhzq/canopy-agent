@@ -3841,8 +3841,14 @@ export interface FillPayload {
  * engine's pseudo-mint (`lp:meteora-dlmm:<pool>:<position>`), which is what
  * used to reach owners' phones.
  */
+export type LpAction = "open" | "add" | "remove" | "rebalance" | "close" | "claim";
+
 export interface LpFillFacts {
+  /** What was done to the position — see the backend's LpAction. */
+  action: LpAction;
   pair: string;
+  /** Where a rebalance moved the range to. */
+  bins?: [number, number] | null;
   binStepBps?: number | null;
   /** Claimed plus unclaimed, settled at close. */
   feesEarnedUsd?: number;

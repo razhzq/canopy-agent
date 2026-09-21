@@ -50,6 +50,7 @@ import {
   setTelegramEnabled,
   type FillPayload,
   type LpFillFacts,
+  type LpAction,
   type NotificationItem,
   type NotificationKind,
 } from "@/lib/api";
@@ -627,48 +628,54 @@ function Panel({
 function LpFillBody({ fill, lp }: { fill: FillPayload; lp: LpFillFacts }) {
   const t = useT();
   const pnl = fill.realizedPnlUsd;
-  const closing = pnl !== undefined;
+  const closing = lp.action === "close";
   const base = lp.investedUsd ?? fill.costBasisUsd ?? 0;
-  const pct = closing && base > 0 ? (pnl / base) * 100 : null;
+  const pct = closing && pnl !== undefined && base > 0 ? (pnl / base) * 100 : null;
 
-  const verb = closing
-    ? "nc_lp_closed"
-    : lp.addedUsd
-      ? "nc_lp_added"
-      : lp.returnedUsd
-        ? "nc_lp_trimmed"
-        : lp.copied
-          ? "nc_lp_mirrored"
-          : "nc_lp_opened";
-
-  // A figure that does not exist is absent, never zero — the same rule the
-  // sentence follows.
-  const facts = [
-    closing
+  const net = (lp.addedUsd ?? 0) - (lp.returnedUsd ?? 0);
+  const fees =
+    lp.feesEarnedUsd === undefined
       ? null
-      : lp.addedUsd
-        ? t("nc_lp_more_in", { amount: usd(lp.addedUsd) })
-        : lp.returnedUsd
-          ? t("nc_lp_back_out", { amount: usd(lp.returnedUsd) })
-          : t("nc_lp_in", { amount: usd(fill.filledUsd) }),
-    !closing && lp.sharePct !== undefined
-      ? t("nc_lp_share", { pct: lp.sharePct.toFixed(1) })
-      : null,
-    closing && lp.feesEarnedUsd !== undefined
-      ? t(lp.feesEstimated ? "nc_lp_fees_modelled" : "nc_lp_fees", {
+      : t(lp.feesEstimated ? "nc_lp_fees_modelled" : "nc_lp_fees", {
           amount: usd(lp.feesEarnedUsd),
-        })
-      : null,
-    closing && lp.heldHours !== undefined
-      ? t("nc_lp_held", { time: heldFor(lp.heldHours) })
-      : null,
-    lp.binStepBps ? t("lp_bin_step", { bps: lp.binStepBps }) : null,
-  ].filter(Boolean);
+        });
+
+  // The facts that belong to THIS action — see the backend's lpFillMessage,
+  // which composes the same set into the Telegram line.
+  const facts = (
+    closing
+      ? [fees, lp.heldHours !== undefined ? t("nc_lp_held", { time: heldFor(lp.heldHours) }) : null]
+      : lp.action === "rebalance"
+        ? [
+            lp.bins ? t("lp_bins", { min: lp.bins[0], max: lp.bins[1] }) : null,
+            // Only a real change in what is committed. A rerange's two legs
+            // are the same money landing somewhere else.
+            Math.abs(net) < 1
+              ? null
+              : net > 0
+                ? t("nc_lp_more_in", { amount: usd(net) })
+                : t("nc_lp_back_out", { amount: usd(-net) }),
+          ]
+        : lp.action === "add"
+          ? [t("nc_lp_more_in", { amount: usd(lp.addedUsd ?? fill.filledUsd) }), leaderNote(lp, t)]
+          : lp.action === "remove"
+            ? [t("nc_lp_back_out", { amount: usd(lp.returnedUsd ?? fill.filledUsd) }), leaderNote(lp, t)]
+            : lp.action === "claim"
+              ? [fees]
+              : [t("nc_lp_in", { amount: usd(fill.filledUsd) }), leaderNote(lp, t)]
+  )
+    .concat(lp.binStepBps ? [t("lp_bin_step", { bps: lp.binStepBps })] : [])
+    .filter(Boolean);
 
   return (
     <div className="space-y-1">
       <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="font-mono text-[12.5px] text-text-primary">{t(verb)}</span>
+        {/* THE ACTION, NOT WHO DECIDED IT. "Mirrored" said a leader was being
+            followed and left opening, widening, re-ranging and withdrawing
+            indistinguishable — three of which can carry the same figure. */}
+        <span className="font-mono text-[12.5px] text-text-primary">
+          {t(LP_ACTION_KEY[lp.action])}
+        </span>
         {/* The PAIR. Never the pool address — see LpFillFacts. */}
         <span className="font-mono text-[12.5px] text-text-primary">{lp.pair}</span>
         {fill.isPaper ? (
@@ -676,14 +683,13 @@ function LpFillBody({ fill, lp }: { fill: FillPayload; lp: LpFillFacts }) {
         ) : null}
       </p>
 
-      {closing ? (
+      {closing && pnl !== undefined ? (
         <p
           className={`tnum font-mono text-[11.5px] ${
             pnl >= 0 ? "text-accent" : "text-negative"
           }`}
         >
-          {usd(pnl, { sign: true })}{" "}
-          {t(pnl >= 0 ? "nc_lp_profit" : "nc_lp_loss")}
+          {usd(pnl, { sign: true })} {t(pnl >= 0 ? "nc_lp_profit" : "nc_lp_loss")}
           {pct === null ? "" : ` (${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%)`}
         </p>
       ) : null}
@@ -698,6 +704,21 @@ function LpFillBody({ fill, lp }: { fill: FillPayload; lp: LpFillFacts }) {
     </div>
   );
 }
+
+/** Whose position this tracks, and how much of it. */
+function leaderNote(lp: LpFillFacts, t: ReturnType<typeof useT>): string | null {
+  if (lp.sharePct !== undefined) return t("nc_lp_share", { pct: lp.sharePct.toFixed(1) });
+  return lp.copied ? t("nc_lp_following") : null;
+}
+
+const LP_ACTION_KEY: Record<LpAction, TranslationKey> = {
+  open: "nc_lp_opened",
+  add: "nc_lp_added",
+  remove: "nc_lp_removed",
+  rebalance: "nc_lp_rebalanced",
+  close: "nc_lp_closed",
+  claim: "nc_lp_claimed",
+};
 
 /** How long a position was held, at the coarseness a person reads. */
 function heldFor(hours: number): string {

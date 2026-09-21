@@ -11,11 +11,13 @@ export const enNotifs = {
   // ── A liquidity position ───────────────────────────────────────
   // The verb, then the pair — never the pool address, which is what the
   // engine keys the position by and what used to reach owners' phones.
-  nc_lp_mirrored: "Mirrored",
-  nc_lp_opened: "Opened",
-  nc_lp_closed: "Closed",
-  nc_lp_added: "Added to",
-  nc_lp_trimmed: "Trimmed",
+  nc_lp_opened: "Opened position",
+  nc_lp_added: "Added liquidity",
+  nc_lp_removed: "Removed liquidity",
+  nc_lp_rebalanced: "Rebalanced range",
+  nc_lp_closed: "Closed position",
+  nc_lp_claimed: "Claimed fees",
+  nc_lp_following: "following the leader",
   nc_lp_profit: "profit",
   nc_lp_loss: "loss",
   nc_lp_in: "{amount} in",
