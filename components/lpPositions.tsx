@@ -425,7 +425,21 @@ function Money({
   return (
     <span className={`block text-right ${toneClass ?? (muted ? "text-text-muted" : "text-text-secondary")}`}>
       <span className="tnum block font-mono text-[13px]">{main}</span>
-      {sub ? <span className="tnum block truncate pt-0.5 font-mono text-[11px] opacity-70">{sub}</span> : null}
+      {/* IT WRAPS RATHER THAN TRUNCATES. The value cell's sub-line names what
+          the position actually holds — "7,488 JEANPHIL + 0.4 SOL" — and in a
+          column sized for a dollar figure that clipped to "7,488 JEANPHIL +…",
+          which is the half that says nothing. The row is already tall because
+          the range beside it draws a chart and three lines, so a second line
+          here costs no height at all. `title` for the pathological pair that
+          still overflows two lines. */}
+      {sub ? (
+        <span
+          title={sub}
+          className="tnum block pt-0.5 font-mono text-[11px] leading-[15px] opacity-70"
+        >
+          {sub}
+        </span>
+      ) : null}
     </span>
   );
 }
