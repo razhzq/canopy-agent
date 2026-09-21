@@ -117,6 +117,14 @@ export const enPositions = {
   lp_close_unreadable: "The pool can't be read right now — try again shortly.",
   lp_close_in_range: "In range and earning",
   lp_close_out_of_range: "Out of range — not earning",
+  // ── The range chart's hover and legend ───────────────────────────
+  // The chart shows the token split as an area; these carry the exact
+  // amounts, which a 150px cell has no line to spare for.
+  lp_holds_pair: "{quote} {quoteQty} ({quotePct}) · {base} {baseQty} ({basePct})",
+  // Out of range every bin sits on one side of the price, so the position is
+  // entirely one token. A sentence reads better than "(100%)" and "(0%)".
+  lp_all_in: "All in {token}",
+  lp_liquidity_aria: "Liquidity per bin — {quote} below the price, {base} above",
   lp_close_holds: "Holds now",
   lp_close_fees: "Fees inside (claimed + unclaimed)",
   lp_close_value: "Position value",

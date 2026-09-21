@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { compactAge, shortDate, tokenPrice, tokenQty, usd } from "@/lib/format";
 import {
   getClosedLpPositions,
@@ -135,10 +135,25 @@ function lpRows(positions: AgentDetail["positions"]): LpRow[] {
     .sort((a, b) => +new Date(b.openedAt) - +new Date(a.openedAt));
 }
 
-/** "WIF/SOL" → ["WIF", "SOL"]. A symbol without a slash is its own base. */
+/**
+ * "FLEX-SOL LP" → ["FLEX", "SOL"] — base first, quote second.
+ *
+ * IT SPLIT ON A SLASH, AND NOTHING EVER HAS ONE. The backend writes the symbol
+ * as `${base}-${quote} LP` (`lpSymbolFor`), so this returned the whole string
+ * as the base and null as the quote on every position ever rendered. Three
+ * callers were quietly wrong: the holds line read "1.2 FLEX-SOL LP + 340",
+ * the pool cell looked up a logo for a symbol no universe contains and never
+ * resolved the second token's at all, and the range chart's label named a pair
+ * that did not exist.
+ *
+ * Split on the LAST separator: the quote is one symbol, the base may itself
+ * carry a hyphen. The " LP" suffix goes first — it is a kind, not a name.
+ */
 function pairOf(symbol: string): [string, string | null] {
-  const [x, y] = symbol.split("/");
-  return [x ?? symbol, y ?? null];
+  const bare = symbol.replace(/\s+LP$/i, "").trim();
+  const cut = Math.max(bare.lastIndexOf("/"), bare.lastIndexOf("-"));
+  if (cut <= 0 || cut === bare.length - 1) return [bare, null];
+  return [bare.slice(0, cut), bare.slice(cut + 1)];
 }
 
 /** A price in the QUOTE token, so no dollar sign. */
@@ -526,15 +541,59 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
       </span>
     );
   }
-  // Bins are geometric, so position on the bar is measured in bins, not price.
-  const span = Math.log(prices.max / prices.min);
-  const raw = Math.log(prices.active / prices.min) / span;
-  const at = Math.min(1, Math.max(0, raw));
-  const below = raw < 0;
-  const above = raw > 1;
-  const out = below || above;
   const dist = now.distribution;
   const [x, y] = pairOf(symbol);
+
+  /*
+   * WHERE THE PRICE SITS, MEASURED IN BINS.
+   *
+   * The bins are geometric and the served array is dense and gap-filled, so
+   * index maps to position exactly linearly — no logarithm needed. The price
+   * interpolation below is kept only for the fallback that has no bins to
+   * count: it carries a half-bin ambiguity (an edge price against bin
+   * centres) and it degenerates on a one-bin position, where `max / min` is a
+   * single step and the ratio is meaningless.
+   */
+  const bins = dist?.bins ?? [];
+  const byBin = bins.length > 0;
+  const first = byBin ? bins[0].binId : 0;
+  const last = byBin ? bins[bins.length - 1].binId : 0;
+  const raw = byBin
+    ? (now.activeBinId - first + 0.5) / bins.length
+    : Math.log(prices.active / prices.min) / Math.log(prices.max / prices.min);
+  const at = Math.min(1, Math.max(0, raw));
+  const below = byBin ? now.activeBinId < first : raw < 0;
+  const above = byBin ? now.activeBinId > last : raw > 1;
+  const out = below || above;
+
+  /*
+   * THE FIGURES THE PICTURE DOES NOT PRINT.
+   *
+   * The chart answers "how much of each" by area; the exact amounts ride here
+   * rather than taking a line in a 150px cell. Read off `holds`, which the
+   * backend computed — the browser never does bin arithmetic.
+   */
+  const holds = now.holds;
+  const heldUsd = holds.xUsd + holds.yUsd;
+  const share = (part: number) =>
+    heldUsd > 0 ? `${Math.round((part / heldUsd) * 100)}%` : "—";
+  const hover = [
+    t("lp_range_title", { price: quotePrice(prices.active) }),
+    `${t("lp_close_holds")}: ${t("lp_holds_pair", {
+      quote: y ?? "—",
+      quoteQty: tokenQty(holds.y, holds.y ? holds.yUsd / holds.y : null),
+      quotePct: share(holds.yUsd),
+      base: x,
+      baseQty: tokenQty(holds.x, holds.x ? holds.xUsd / holds.x : null),
+      basePct: share(holds.xUsd),
+    })}`,
+    t("lp_bins", { min: leg.range.minBinId, max: leg.range.maxBinId }),
+    // Out of range every bin sits on one side of the price, so the position is
+    // entirely one token. "(100%)" and "(0%)" say it; a sentence says it better.
+    out ? t("lp_all_in", { token: below ? x : (y ?? "—") }) : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   /**
    * How far outside, as a percentage of the edge it left through.
@@ -550,7 +609,9 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
       : null;
 
   return (
-    <span className="@container block" title={t("lp_range_title", { price: quotePrice(prices.active) })}>
+    // The hover lives on the picture, not on the whole cell — one tooltip,
+    // and it appears where the reader is pointing when they ask.
+    <span className="@container block">
       {/* The edges, each said to be an edge. Two bare numbers over a drawing
           left the reader to infer which was which and of what.
 
@@ -560,18 +621,44 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
           the same component is a narrow column on desktop and a full-width card
           on a phone, which is the exact case a media query gets backwards. */}
       <span className="tnum flex items-baseline justify-between gap-2 font-mono text-[11px] text-text-dim">
+        {/* THE LEGEND IS POSITIONAL. Each symbol sits at the end where its
+            colour actually appears — quote low, base high — and is tinted to
+            match, so nothing needs a swatch or a second row.
+
+            It leaves at the same width the "min"/"max" words do, and for the
+            same reason: at 150px a symbol at each end pushes both prices into
+            an ellipsis, and an axis truncated to "0.0₄1…" has stopped being an
+            axis. Under that width the hover is the legend. */}
         <span className="truncate">
+          {byBin && y ? (
+            <span className="hidden max-w-[6ch] truncate pr-1 align-bottom text-[9.5px] text-accent @[200px]:inline-block">
+              {y}
+            </span>
+          ) : null}
           <span className="hidden pr-1 font-ui text-text-muted @[200px]:inline">{t("lp_range_min")}</span>
           {quotePrice(prices.min)}
         </span>
         <span className="truncate text-right">
           <span className="hidden pr-1 font-ui text-text-muted @[200px]:inline">{t("lp_range_max")}</span>
           {quotePrice(prices.max)}
+          {byBin ? (
+            <span className="hidden max-w-[6ch] truncate pl-1 align-bottom text-[9.5px] text-warning @[200px]:inline-block">
+              {x}
+            </span>
+          ) : null}
         </span>
       </span>
 
-      {dist && dist.bins.length > 0 ? (
-        <LiquidityShape dist={dist} at={at} out={out} below={below} above={above} base={x} quote={y} />
+      {dist && byBin ? (
+        <BinLiquidity
+          dist={dist}
+          at={at}
+          out={out}
+          below={below}
+          above={above}
+          title={hover}
+          label={t("lp_liquidity_aria", { quote: y ?? "—", base: x })}
+        />
       ) : (
         <span className="relative mt-1.5 block h-1.5">
           <span className={`absolute inset-y-0 left-0 right-0 rounded-full ${out ? "bg-grid-strong" : "bg-accent/35"}`} />
@@ -603,88 +690,178 @@ function RangeBar({ leg, symbol }: { leg: AgentLpLeg; symbol: string }) {
   );
 }
 
-/** Columns sampled from the bins. Beyond this the detail is finer than a pixel. */
-const MAX_COLUMNS = 64;
+/*
+ * BAR WIDTHS, AND WHY THERE ARE TWO COLUMN COUNTS.
+ *
+ * The same component is a 150px table cell and a ~344px card on a phone, and
+ * JavaScript cannot know which: there are dozens of these rows and measuring
+ * each one would cost a ResizeObserver per position. So both column sets are
+ * built and a container query picks — the mechanism already used for the
+ * min/max labels above.
+ *
+ * The counts are derived from a floor of 4px of PAINTED bar, not chosen. With
+ * a 1px gap, 48 columns in a 150px cell is 2.15px — which is exactly what
+ * failed before. 24 columns is 5.29px. The `@[260px]` switch is where 48
+ * columns first clear the floor (48 × 4 + 47 gaps ≈ 239px, rounded up).
+ */
+const NARROW_COLUMNS = 24;
+const WIDE_COLUMNS = 48;
 
 /**
- * The liquidity across the range — the picture that says spot, curve or bid-ask.
+ * The share of the plot a non-empty bin never drops below.
  *
- * ONE FILLED AREA, NOT N BARS. Two stacked areas, in fact: the lower band is
- * the quote token, the upper the base, so the same picture also shows how the
- * position has converted as price moved through it. Drawn in an SVG with a
- * `viewBox` and `preserveAspectRatio="none"`, so the shape stretches to
- * whatever width the column gives it and keeps its silhouette at 150px or 400.
- *
- * Nothing is stroked. A stroke under a non-uniform scale comes out thicker on
- * one axis than the other, and the markers that DO need crisp edges are drawn
- * as ordinary elements over the top instead.
+ * The other half of the old failure: "at the heights a real curve produces
+ * most of them rounded to the same hairline". A flat clamp would lose the
+ * ordering between small bins, so this is a floor WITH headroom — the
+ * remaining 88% stays linear in the real value, and a bin holding something
+ * can never render as one holding nothing.
  */
-function LiquidityShape({
+const FLOOR = 0.12;
+
+interface BinColumn {
+  /** Base token, in quote units. */
+  base: number;
+  /** Quote token, in quote units — directly comparable to `base`. */
+  quote: number;
+  /** Height, per bin rather than per column. See below. */
+  mean: number;
+  empty: boolean;
+}
+
+/**
+ * The bins, grouped into drawable columns.
+ *
+ * AN EVEN PARTITION, not `ceil`-sized slices: this always yields exactly
+ * `min(target, n)` columns whose bin counts differ by at most one, where
+ * slicing drops 30 bins to 15 columns and wastes half the width.
+ *
+ * HEIGHT IS THE MEAN PER BIN, the colour split is the sum. The even partition
+ * leaves some columns one bin wider than their neighbours — at 105 bins in 24
+ * columns the groups are 4 and 5 — and plotting the sum would draw that as a
+ * 25% sawtooth that is not in the data. Where the groups are equal, which is
+ * the ordinary case, mean and sum are proportional and nothing changes.
+ *
+ * The straddling column is left to fall where it falls. Because `x` and `y`
+ * are summed independently, the one column containing the active bin comes out
+ * mixed on its own — and the green area over the total is then exactly the
+ * position's quote share. Forcing the active bin into a column of its own
+ * would give that column a different bin width from its neighbours, which is a
+ * lie about the axis.
+ */
+function binColumns(bins: LpDistribution["bins"], target: number): BinColumn[] {
+  const n = bins.length;
+  const count = Math.min(target, n);
+  const out: BinColumn[] = [];
+  for (let c = 0; c < count; c++) {
+    const from = Math.floor((c * n) / count);
+    const to = Math.floor(((c + 1) * n) / count);
+    let base = 0;
+    let quote = 0;
+    for (let i = from; i < to; i++) {
+      base += bins[i].x;
+      quote += bins[i].y;
+    }
+    const held = Math.max(to - from, 1);
+    out.push({ base, quote, mean: (base + quote) / held, empty: base + quote <= 0 });
+  }
+  return out;
+}
+
+/**
+ * The liquidity across the range, one bar per bin — and which token each holds.
+ *
+ * WHAT THIS REPLACED, AND WHY IT IS BARS AGAIN. This was 48 flex children with
+ * a 1px gap, which in a 150px cell is a 2px bar; at the heights a real curve
+ * produces, most rounded to the same hairline and the shape read as a dotted
+ * diagonal rather than as data. It was then rewritten as one filled SVG area,
+ * which survived any width but threw away the per-bin reading entirely — and,
+ * because both bands were filled `accent`, threw away the token split too. The
+ * cell showed a solid green wedge and answered neither "what is in each bin"
+ * nor "what am I holding right now".
+ *
+ * Bars are safe again because the two causes are addressed separately rather
+ * than avoided: the column count is derived from a 4px bar floor (see
+ * NARROW_COLUMNS) and the heights carry a floor with headroom (see FLOOR).
+ *
+ * THE COLOUR IS THE WHOLE POINT. A DLMM bin below the active bin holds only
+ * the quote token and one above it holds only the base; only the active bin
+ * holds both. So the position's token ratio is not something to compute and
+ * print — it is the area split at the marker, and two hues make it readable at
+ * a glance. Green is the quote side, amber the base: amber is the leg exposed
+ * to price, which is why a position that falls out of range turns entirely
+ * amber and says so without a word.
+ */
+function BinLiquidity({
   dist,
   at,
   out,
   below,
   above,
-  base,
-  quote,
+  title,
+  label,
 }: {
   dist: LpDistribution;
+  /** 0..1 across the range, measured in BINS — see RangeBar. */
   at: number;
   out: boolean;
   below: boolean;
   above: boolean;
-  base: string;
-  quote: string | null;
+  /** The hover, carrying the figures the picture deliberately does not print. */
+  title: string;
+  /** The structural description, for a reader who cannot see the hues. */
+  label: string;
 }) {
-  const group = Math.ceil(dist.bins.length / MAX_COLUMNS);
-  const cols: { x: number; y: number }[] = [];
-  for (let i = 0; i < dist.bins.length; i += group) {
-    const slice = dist.bins.slice(i, i + group);
-    cols.push({ x: slice.reduce((s, b) => s + b.x, 0), y: slice.reduce((s, b) => s + b.y, 0) });
-  }
-  const peak = Math.max(...cols.map((c) => c.x + c.y), 0);
+  const { narrow, wide } = useMemo(
+    () => ({
+      narrow: binColumns(dist.bins, NARROW_COLUMNS),
+      wide: binColumns(dist.bins, WIDE_COLUMNS),
+    }),
+    [dist],
+  );
+
+  const peak = Math.max(...wide.map((c) => c.mean), 0);
   if (peak <= 0) return null;
 
-  const W = 100;
-  const H = 28;
-  // A single column would have no width to sweep, so it is drawn as a full-width
-  // block — which is what one bin holding everything actually looks like.
-  const step = cols.length > 1 ? W / (cols.length - 1) : 0;
-  const px = (i: number) => (cols.length > 1 ? i * step : W / 2);
-  const py = (v: number) => H - (v / peak) * H;
-
-  /** A closed area under the series, from the baseline up. */
-  const area = (values: number[]): string => {
-    if (cols.length === 1) {
-      const top = py(values[0]);
-      return `M0 ${H} L0 ${top} L${W} ${top} L${W} ${H} Z`;
-    }
-    const line = values.map((v, i) => `${i === 0 ? "L" : "L"}${px(i).toFixed(2)} ${py(v).toFixed(2)}`).join(" ");
-    return `M0 ${H} ${line} L${W} ${H} Z`;
-  };
-
-  const totals = cols.map((c) => c.x + c.y);
-  const quotes = cols.map((c) => c.y);
+  const row = (cols: BinColumn[], show: string) => (
+    <span className={`absolute inset-0 items-end gap-px ${show} ${out ? "opacity-45" : ""}`}>
+      {cols.map((c, i) => {
+        // DIM, DON'T HIDE. The backend gap-fills the range with zero bins
+        // precisely so an empty stretch can be drawn rather than closed up.
+        if (c.empty) {
+          return <span key={i} className="h-px min-w-0 flex-1 bg-grid-strong" />;
+        }
+        const q = c.quote / (c.base + c.quote);
+        return (
+          <span
+            key={i}
+            className="flex min-w-0 flex-1 flex-col-reverse"
+            style={{ height: `${(FLOOR + (1 - FLOOR) * (c.mean / peak)) * 100}%` }}
+          >
+            {/* Proportional grow rather than nested percentage heights, which
+                resolve differently once the parent's own height is a
+                percentage. Quote sits at the bottom of the column. */}
+            {q > 0 ? <span style={{ flex: q, backgroundColor: "var(--color-accent)" }} /> : null}
+            {q < 1 ? (
+              <span style={{ flex: 1 - q, backgroundColor: "var(--color-warning)" }} />
+            ) : null}
+          </span>
+        );
+      })}
+    </span>
+  );
 
   return (
     <span
-      className="relative mt-1.5 block h-7"
+      className="relative mt-1.5 block h-7 @[260px]:h-12"
       role="img"
-      aria-label={`${base} / ${quote ?? ""}`}
+      aria-label={label}
+      title={title}
     >
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="absolute inset-0 size-full"
-        aria-hidden
-      >
-        {/* Total first, quote over it: the visible upper band is the base token,
-            which is the half that changes as price crosses the range. Out of
-            range the whole shape steps back to a readable grey rather than the
-            near-invisible one it used to fade to. */}
-        <path d={area(totals)} className={out ? "fill-text-secondary/55" : "fill-accent/70"} />
-        <path d={area(quotes)} className={out ? "fill-text-muted/30" : "fill-accent/30"} />
-      </svg>
+      {/* Both sets are absolutely positioned in one box, so swapping them
+          cannot change the height and the overlays below stay in one
+          coordinate space. */}
+      {row(narrow, "flex @[260px]:hidden")}
+      {row(wide, "hidden @[260px]:flex")}
 
       <span className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-grid-strong" />
 
@@ -705,7 +882,9 @@ function LiquidityShape({
       ) : null}
 
       {/* ALWAYS DRAWN, clamped when outside. A picture of a range with no price
-          on it is the one thing this column exists to show. */}
+          on it is the one thing this column exists to show. Kept a 1px line
+          rather than a taller column: here height IS the data, so a raised
+          active bar would be a false reading. */}
       <span
         className={`pointer-events-none absolute -top-0.5 bottom-0 w-px ${out ? "bg-negative" : "bg-text-primary"}`}
         style={{ left: `${at * 100}%` }}
