@@ -18,6 +18,16 @@ export const zhLpPerf: Record<keyof typeof enLpPerf, string> = {
   lp_perf_per_position: "每个头寸平均",
   lp_perf_per_position_note: "已实现，按 {closed} 个已平仓计",
 
+  lp_perf_vs_hodl: "对比持币",
+  lp_perf_vs_hodl_note: "仅未平仓头寸，不含手续费",
+  lp_perf_vs_hodl_partial: "{open} 个未平仓中的 {covered} 个 · 不含手续费",
+  lp_perf_vs_hodl_pending: "有未平仓头寸后显示",
+  lp_perf_vs_hodl_footnote:
+    "“对比持币”把未平仓的流动性和单纯持有同样两种代币作比较，且不含手续费——这样手续费丰厚的头寸就无法掩盖已被单边成交的价格区间。已平仓头寸不在统计范围内。",
+  lp_perf_unpriced: "某个池子暂时读不到",
+  lp_perf_fees_partial_footnote:
+    "† 手续费合计只覆盖 {closed} 个已平仓头寸中的 {known} 个；其余头寸在手续费被记录之前就已平仓。",
+  lp_perf_week_reading: "{day} 当周",
   lp_perf_range_30d: "30天",
   lp_perf_caption_all: "自启动以来",
   lp_perf_caption_7d: "近 7 天",
@@ -37,7 +47,6 @@ export const zhLpPerf: Record<keyof typeof enLpPerf, string> = {
   lp_perf_bucket_week: "周",
   lp_perf_bucket_month: "月",
   lp_perf_total_in_view: "利润合计",
-  lp_perf_running: "累计 {amount}",
   lp_perf_month_total: "{month} 合计",
   lp_perf_day_reading: "{day} · {amount}",
   lp_perf_prev_month: "上个月",

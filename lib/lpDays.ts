@@ -33,7 +33,16 @@ export interface LpDay {
   day: string;
   /** What the book made that day: equity now minus equity at the last reading. */
   profitUsd: number;
-  /** Profit since the book began — the line drawn over the bars. */
+  /**
+   * Profit since the book began.
+   *
+   * NOTHING DRAWS THIS ANY MORE — the chart was bars with a cumulative line
+   * over them and is now bars only, because a running total takes the domain
+   * and crushes the days into the floor. It stays because the walk computes it
+   * for free, `mergeDays` needs a running sum regardless, and `LpDay` is the
+   * shape a per-position marks journal is meant to slot into. Delete it if a
+   * later pass finds it still idle.
+   */
   cumulativeUsd: number;
   /** True when the day had no reading of its own and carries the one before it. */
   carried: boolean;
@@ -135,27 +144,20 @@ export interface LpBucketRow {
   /** The first day in the bucket — what the axis labels and the grid key on. */
   day: string;
   profitUsd: number;
-  cumulativeUsd: number;
   days: number;
 }
 
 /**
- * Days rolled up.
+ * Days rolled up, so a long window stays drawable.
  *
- * Profit SUMS and cumulative takes the LAST value — the distinction that is
- * easy to get wrong and impossible to see once it is. Profit is a flow: a
- * week's profit is its days added together. Cumulative is a level: a week's
- * cumulative is where the book stood when the week ended, never the sum of
- * seven running totals.
+ * PROFIT SUMS, because profit is a flow: a week's profit is its days added
+ * together. There is deliberately no cumulative here — "the running total as
+ * of the last day in this bucket" is a level, not a flow, and mixing the two
+ * in one row is how a sum of seven running totals gets drawn as a week.
  */
 export function bucketDays(days: readonly LpDay[], bucket: Bucket): LpBucketRow[] {
   if (bucket === "day") {
-    return days.map((d) => ({
-      day: d.day,
-      profitUsd: d.profitUsd,
-      cumulativeUsd: d.cumulativeUsd,
-      days: 1,
-    }));
+    return days.map((d) => ({ day: d.day, profitUsd: d.profitUsd, days: 1 }));
   }
 
   const rows: LpBucketRow[] = [];
@@ -171,12 +173,11 @@ export function bucketDays(days: readonly LpDay[], bucket: Bucket): LpBucketRow[
           dayKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay()));
 
     if (!current || key !== currentKey) {
-      current = { day: key, profitUsd: 0, cumulativeUsd: 0, days: 0 };
+      current = { day: key, profitUsd: 0, days: 0 };
       currentKey = key;
       rows.push(current);
     }
     current.profitUsd += d.profitUsd;
-    current.cumulativeUsd = d.cumulativeUsd;
     current.days += 1;
   }
   return rows;

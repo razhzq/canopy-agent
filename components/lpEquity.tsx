@@ -7,7 +7,7 @@ import { SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Tick } from "@/co
 import { markOpenBook } from "@/lib/perf";
 import { dayKey, lpDaysFromEquity, type LpDay } from "@/lib/lpDays";
 import type { AgentDetail, EquitySeries, LpBook, UniverseAsset } from "@/lib/api";
-import { useLocale } from "@/lib/i18n";
+import { useLocale, dateLocale, type Locale } from "@/lib/i18n";
 
 /**
  * A liquidity agent's performance, which is not a trading agent's.
@@ -37,9 +37,10 @@ export function LpEquityView({
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [view, setView] = useState<"chart" | "calendar">("chart");
   const [range, setRange] = useState<LpRange>("all");
+  const [scrub, setScrub] = useState<number | null>(null);
 
   if (series === null || series.points.length === 0) return <NoRecord />;
 
@@ -59,6 +60,15 @@ export function LpEquityView({
     { key: "all", label: t("equity_range_all"), ok: true },
   ];
 
+  /**
+   * The reading follows the pointer, into the headline.
+   *
+   * The 34px net worth NEVER changes on a scrub — it is a now-figure, and
+   * animating it against a day three weeks ago would misstate what the book is
+   * worth. Only the line beneath it swaps.
+   */
+  const day = scrub === null ? null : shown[scrub];
+
   return (
     <div className="space-y-4">
       {/* THE HERO, and the same one the trading panel has: one large number and
@@ -75,22 +85,37 @@ export function LpEquityView({
             {money(f.netWorthUsd)}
           </Tick>
           <p className="flex flex-wrap items-baseline gap-x-2">
-            <Tick
-              value={windowProfit}
-              className={`tnum font-mono text-[13px] ${windowProfit >= 0 ? "text-accent" : "text-negative"}`}
-            >
-              {signed(windowProfit)} · {signedPct(windowPct)}
-            </Tick>
-            <span className="font-ui text-[12px] text-text-dim">
-              {view === "calendar"
-                ? t("lp_perf_caption_all")
-                : t(
-                    range === "all"
-                      ? "lp_perf_caption_all"
-                      : range === "7d"
-                        ? "lp_perf_caption_7d"
-                        : "lp_perf_caption_30d",
-                  )}
+            {/* NO `Tick` WHILE SCRUBBING. It animates on every value change, so
+                dragging across thirty columns would fire thirty count-ups in
+                the headline. The window figure keeps its animation at rest. */}
+            {day ? (
+              <span
+                className={`tnum font-mono text-[13px] ${
+                  day.day.profitUsd >= 0 ? "text-accent" : "text-negative"
+                }`}
+              >
+                {signed(day.day.profitUsd)}
+              </span>
+            ) : (
+              <Tick
+                value={windowProfit}
+                className={`tnum font-mono text-[13px] ${windowProfit >= 0 ? "text-accent" : "text-negative"}`}
+              >
+                {signed(windowProfit)} · {signedPct(windowPct)}
+              </Tick>
+            )}
+            <span className="inline-block min-w-[9ch] font-ui text-[12px] text-text-dim">
+              {day
+                ? shortDay(day.day.day, locale)
+                : view === "calendar"
+                  ? t("lp_perf_caption_all")
+                  : t(
+                      range === "all"
+                        ? "lp_perf_caption_all"
+                        : range === "7d"
+                          ? "lp_perf_caption_7d"
+                          : "lp_perf_caption_30d",
+                    )}
             </span>
           </p>
         </div>
@@ -143,11 +168,21 @@ export function LpEquityView({
           second — and two across on a phone, where the ten flow as one grid so
           no row is left with an orphan. */}
       <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-        <div className="grid grid-cols-2 border-b border-grid md:grid-cols-5">
+        <div className="grid grid-cols-2 border-b border-grid md:grid-cols-6">
+          {/* FEES · VS HOLDING · PROFIT, in that order and adjacent on
+              purpose: what the pool paid you, what the range cost you, and the
+              net. Those three cells ARE the impermanent-loss story, which
+              `lp_perf_fees_note` has had to explain in a sentence only because
+              the middle term was missing from the strip.
+              They do not reconcile arithmetically — vs-holding covers open
+              positions only, where the other two are book-wide — and the note
+              on the cell says so. */}
           <Fig
+            cols={6}
             cell={0}
-            label={`${t("lp_perf_fees")}${f.feesEstimated ? " *" : ""}`}
-            value={money(f.feesUsd)}
+            label={`${t("lp_perf_fees")}${f.feesEstimated ? " *" : ""}${f.feesPartial ? " \u2020" : ""}`}
+            value={f.feesUsd === null ? null : money(f.feesUsd)}
+            pending={t("lp_perf_unpriced")}
             tone="accent"
             note={
               f.feesPartial
@@ -156,25 +191,50 @@ export function LpEquityView({
             }
           />
           <Fig
+            cols={6}
             cell={1}
+            label={t("lp_perf_vs_hodl")}
+            value={f.vsHodlPct === null ? null : signedPct(f.vsHodlPct)}
+            pending={f.vsHodlUnreadable ? t("lp_perf_unpriced") : t("lp_perf_vs_hodl_pending")}
+            // A DEAD BAND ROUND ZERO. "+0.00%" printed in the gain colour
+            // claims a gain the figure does not have.
+            tone={
+              f.vsHodlPct === null || Math.abs(f.vsHodlPct) < 0.005
+                ? "neutral"
+                : f.vsHodlPct > 0
+                  ? "accent"
+                  : "negative"
+            }
+            note={
+              f.vsHodlCovered < f.vsHodlOpen
+                ? t("lp_perf_vs_hodl_partial", { covered: f.vsHodlCovered, open: f.vsHodlOpen })
+                : t("lp_perf_vs_hodl_note")
+            }
+          />
+          <Fig
+            cols={6}
+            cell={2}
             label={t("lp_perf_profit")}
             value={signed(f.profitUsd)}
             tone={f.profitUsd >= 0 ? "accent" : "negative"}
             note={t("lp_perf_profit_note", { realised: signed(f.realizedUsd) })}
           />
           <Fig
-            cell={2}
+            cols={6}
+            cell={3}
             label={t("lp_perf_open")}
             value={String(f.openCount)}
             note={f.openInvestedUsd > 0 ? t("lp_perf_open_note", { amount: money(f.openInvestedUsd) }) : undefined}
           />
           <Fig
-            cell={3}
+            cols={6}
+            cell={4}
             label={t("lp_perf_closed")}
             value={String(f.closed)}
           />
           <Fig
-            cell={4}
+            cols={6}
+            cell={5}
             label={t("lp_perf_win_rate")}
             value={f.winRatePct === null ? null : `${f.winRatePct.toFixed(1)}%`}
             pending={t("lp_perf_after_first_close")}
@@ -185,14 +245,16 @@ export function LpEquityView({
             }
           />
           <Fig
-            cell={5}
+            cols={6}
+            cell={6}
             label={t("lp_perf_avg_invested")}
             value={f.avgInvestedUsd === null ? null : money(f.avgInvestedUsd)}
             pending={t("lp_perf_after_first_close")}
             note={t("lp_perf_avg_invested_note")}
           />
           <Fig
-            cell={6}
+            cols={6}
+            cell={7}
             label={t("lp_perf_per_position")}
             value={f.perPositionUsd === null ? null : signed(f.perPositionUsd)}
             pending={t("lp_perf_after_first_close")}
@@ -204,7 +266,8 @@ export function LpEquityView({
             }
           />
           <Fig
-            cell={7}
+            cols={6}
+            cell={8}
             label={t("lp_perf_best_day")}
             value={f.bestDayUsd === null ? null : signed(f.bestDayUsd)}
             pending={t("lp_perf_after_a_day")}
@@ -212,14 +275,20 @@ export function LpEquityView({
             note={f.bestDay ? t("lp_perf_best_day_note", { day: f.bestDay }) : undefined}
           />
           <Fig
-            cell={8}
+            cols={6}
+            cell={9}
             label={t("lp_perf_earning_days")}
             value={f.days.length === 0 ? null : `${f.earningDays} / ${f.days.length}`}
             pending={t("lp_perf_after_a_day")}
             note={t("lp_perf_earning_days_note")}
           />
+          {/* ELEVEN FIGURES IN A SIX-TRACK GRID would leave this one alone on
+              a row; spanning two closes it at 6 + 6, and on a phone the same
+              span makes it a full-width final row. */}
           <Fig
-            cell={9}
+            cols={6}
+            cell={10}
+            span={2}
             label={t("lp_perf_monthly")}
             // GATED UNTIL THERE IS A MONTH. A six-day agent's profit multiplied
             // out to a month is the most misleading number this panel could
@@ -237,13 +306,28 @@ export function LpEquityView({
             present={shown.map((d) => d.present)}
             view={view}
             height={220}
+            onScrub={setScrub}
           />
         </div>
       </div>
 
+      {/* THE FOOTNOTES, one marker each rather than one marker meaning
+          "something is off": * is modelled, † is incomplete. The partial-fee
+          caveat used to live only in a hover-only note, so at rest the figure
+          looked whole. */}
       {f.feesEstimated ? (
         <p className="font-ui text-[11px] leading-relaxed text-text-muted">
           {t("lp_perf_estimated")}
+        </p>
+      ) : null}
+      {f.feesPartial ? (
+        <p className="font-ui text-[11px] leading-relaxed text-text-muted">
+          {t("lp_perf_fees_partial_footnote", { known: f.feesKnown, closed: f.closed })}
+        </p>
+      ) : null}
+      {f.vsHodlPct !== null ? (
+        <p className="font-ui text-[11px] leading-relaxed text-text-muted">
+          {t("lp_perf_vs_hodl_footnote")}
         </p>
       ) : null}
     </div>
@@ -273,8 +357,10 @@ function daysInRange(days: LpDay[], range: LpRange): { day: LpDay; present: bool
   cursor.setHours(0, 0, 0, 0);
   cursor.setDate(cursor.getDate() - (n - 1));
 
-  // Carry the running total across the empty stretch so the line resumes at the
-  // height it left off, rather than dropping to zero on the first quiet day.
+  // The running total is carried across the empty stretch so an absent day
+  // does not read as a book that went to zero. Nothing draws it now that the
+  // cumulative line is gone, but `LpDay` requires it and a synthesised day
+  // claiming zero would be a worse placeholder than the truth.
   let carried = 0;
   for (let i = 0; i < n; i += 1) {
     const key = dayKey(cursor);
@@ -301,9 +387,11 @@ export function LpEquityMobile({
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const [scrub, setScrub] = useState<number | null>(null);
   if (series === null || series.points.length === 0) return <NoRecord />;
   const f = lpFigures(series, positions, universe);
+  const day = scrub === null ? null : f.days[scrub];
 
   return (
     <div>
@@ -315,14 +403,44 @@ export function LpEquityMobile({
         >
           {money(f.netWorthUsd)}
         </Tick>
+        {/* THE PHONE NEEDS SOMEWHERE TO REPORT TOO. Without this line a touch
+            on the chart moves a marker and says nothing — and the finger is
+            already covering the column it would have labelled. */}
+        <p className="flex items-baseline gap-x-2 pt-1.5">
+          {day ? (
+            <>
+              <span
+                className={`tnum font-mono text-[13px] ${
+                  day.profitUsd >= 0 ? "text-accent" : "text-negative"
+                }`}
+              >
+                {signed(day.profitUsd)}
+              </span>
+              <span className="font-ui text-[12px] text-text-dim">
+                {shortDay(day.day, locale)}
+              </span>
+            </>
+          ) : (
+            <span className="font-ui text-[12px] text-text-dim">
+              {t("lp_perf_caption_all")}
+            </span>
+          )}
+        </p>
       </div>
       <div className="px-[18px] pt-4">
         {/* Chart only. A seven-column grid of dollar amounts does not survive a
             360px screen, and a calendar nobody can read is not a calendar. */}
-        <ProfitBody days={f.days} view="chart" height={168} />
+        <ProfitBody days={f.days} view="chart" height={168} onScrub={setScrub} />
       </div>
       <div className="mt-4 grid grid-cols-2 border-t border-grid">
-        <Fig cell={0} edges="" label={t("lp_perf_fees")} value={money(f.feesUsd)} tone="accent" />
+        <Fig
+          cell={0}
+          edges=""
+          label={t("lp_perf_fees")}
+          value={f.feesUsd === null ? null : money(f.feesUsd)}
+          pending={t("lp_perf_unpriced")}
+          tone="accent"
+        />
         <Fig
           cell={0}
           edges="border-l"
@@ -440,7 +558,8 @@ function Rail({ figures }: { figures: LpFigures }) {
         cell={0}
         edges="border-t"
         label={`${t("lp_perf_fees")}${f.feesEstimated ? " *" : ""}`}
-        value={money(f.feesUsd)}
+        value={f.feesUsd === null ? null : money(f.feesUsd)}
+        pending={t("lp_perf_unpriced")}
         tone="accent"
         note={
           f.feesPartial
@@ -510,8 +629,19 @@ interface LpFigures {
   netWorthUsd: number;
   profitUsd: number;
   realizedUsd: number;
-  feesUsd: number;
+  /** Null when a pool could not be read — see the note in `lpFigures`. */
+  feesUsd: number | null;
   feesKnown: number;
+  /**
+   * Open liquidity against having simply held the tokens. Negative is
+   * impermanent loss. Null when nothing is open, or nothing could be priced —
+   * `vsHodlUnreadable` tells those two apart.
+   */
+  vsHodlPct: number | null;
+  /** How many open positions the figure above actually covers. */
+  vsHodlCovered: number;
+  vsHodlOpen: number;
+  vsHodlUnreadable: boolean;
   feesPartial: boolean;
   feesEstimated: boolean;
   closed: number;
@@ -544,19 +674,28 @@ function lpFigures(
   const days = lpDaysFromEquity(points, baseline);
   const lp = series.lp;
 
-  // Unclaimed fees are only known per open position, valued this request — the
-  // aggregate cannot carry them because they are not stored anywhere.
-  const unclaimed = positions.reduce(
-    (s, p) => s + (p.lp?.now?.unclaimedFeesUsd ?? 0),
-    0,
-  );
+  /*
+   * Unclaimed fees are only known per open position, valued this request — the
+   * aggregate cannot carry them because they are not stored anywhere.
+   *
+   * NULL WHEN ANY POOL COULD NOT BE READ, matching the positions table's own
+   * `sum()` on the same page, which returns null unless every row has a value
+   * and renders a dash. This used to fold a failed read into the total as
+   * zero, so a panel quietly under-reporting fees sat directly above a table
+   * honestly showing "—", for the same book, on the same screen.
+   */
+  const openLegs = positions.filter((p) => !!p.lp);
+  const unclaimed = openLegs.every((p) => p.lp?.now)
+    ? openLegs.reduce((s, p) => s + (p.lp!.now!.unclaimedFeesUsd ?? 0), 0)
+    : null;
   // `markOpenBook` is what the rest of the app uses to price an open book; it
   // is called for its side effect of agreeing with the positions table.
   void markOpenBook(positions, universe);
 
   const closed = lp?.closed ?? series.closedPositions;
   const winners = lp?.winners ?? series.winningPositions;
-  const feesUsd = (lp?.feesEarnedUsd ?? 0) + (lp?.claimedFeesUsd ?? 0) + unclaimed;
+  const feesUsd =
+    unclaimed === null ? null : (lp?.feesEarnedUsd ?? 0) + (lp?.claimedFeesUsd ?? 0) + unclaimed;
   const realizedUsd = lp?.realizedUsd ?? series.realizedPnlUsd;
 
   const firstAt = lp?.firstOpenedAt ?? points[0]?.at ?? null;
@@ -573,9 +712,15 @@ function lpFigures(
     null,
   );
 
+  const hodl = vsHodl(openLegs);
+
   return {
     days,
     netWorthUsd: last.equityUsd,
+    vsHodlPct: hodl.pct,
+    vsHodlCovered: hodl.covered,
+    vsHodlOpen: hodl.open,
+    vsHodlUnreadable: hodl.unreadable,
     profitUsd,
     realizedUsd,
     feesUsd,
@@ -595,6 +740,58 @@ function lpFigures(
     bestDay: best ? best.day : null,
     earningDays: days.filter((d) => d.profitUsd > 0).length,
   };
+}
+
+/**
+ * Open liquidity against simply having held the same two tokens.
+ *
+ * THE QUESTION AN LP ACTUALLY ASKS, and the answer has been on the wire since
+ * the day the book shipped — `vsHodlPct` is computed for every open position
+ * and, until now, read by nothing at all. The panel implied it instead, by
+ * setting "fees earned" beside "total profit" and letting the gap between them
+ * be the loss.
+ *
+ * WEIGHTED BY LIQUIDITY, because a $5,000 position 3% under and a $50 one 3%
+ * up are not a wash and the reader is asking about their money. The weight
+ * excludes fees, because the ratio itself excludes them — weighting a
+ * fees-excluded figure by a fees-inclusive value would mix two bases.
+ *
+ * OPEN POSITIONS ONLY, and that is the wire's limit rather than a choice: the
+ * hodl dollars are never sent, and a closed position has no hodl column at all.
+ * So this can never be a book-wide figure and can never be shown in dollars.
+ */
+function vsHodl(openLegs: AgentDetail["positions"]): {
+  pct: number | null;
+  covered: number;
+  open: number;
+  unreadable: boolean;
+} {
+  const rows = openLegs.flatMap((p) => {
+    const now = p.lp?.now;
+    if (!now || now.vsHodlPct === null || now.vsHodlPct === undefined) return [];
+    const w = now.holds.xUsd + now.holds.yUsd;
+    return w > 0 ? [{ pct: now.vsHodlPct, w }] : [];
+  });
+  if (rows.length === 0) {
+    // Two different silences: nothing is open, or something is open and its
+    // pool would not read. They must not collapse into one dash.
+    return { pct: null, covered: 0, open: openLegs.length, unreadable: openLegs.length > 0 };
+  }
+  const total = rows.reduce((s, r) => s + r.w, 0);
+  return {
+    pct: rows.reduce((s, r) => s + r.pct * r.w, 0) / total,
+    covered: rows.length,
+    open: openLegs.length,
+    unreadable: false,
+  };
+}
+
+/** A day, named the way the chart's own axis names it. */
+function shortDay(day: string, locale: Locale): string {
+  return new Date(`${day}T00:00:00`).toLocaleDateString(dateLocale(locale), {
+    day: "numeric",
+    month: "short",
+  });
 }
 
 function money(n: number): string {

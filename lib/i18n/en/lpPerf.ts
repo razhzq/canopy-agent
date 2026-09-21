@@ -33,6 +33,20 @@ export const enLpPerf = {
   lp_perf_per_position: "Avg per position",
   lp_perf_per_position_note: "Realised, across {closed} closed",
 
+  // ── The impermanent-loss trio ──────────────────────────────────
+  // Fees earned, vs holding, total profit — adjacent on purpose. See the
+  // comment on the strip in lpEquity.tsx.
+  lp_perf_vs_hodl: "Vs holding",
+  lp_perf_vs_hodl_note: "Open positions, fees excluded",
+  lp_perf_vs_hodl_partial: "{covered} of {open} open · fees excluded",
+  lp_perf_vs_hodl_pending: "while a position is open",
+  lp_perf_vs_hodl_footnote:
+    "\u201cVs holding\u201d compares open liquidity against simply holding the same tokens, fees excluded \u2014 so a fee-rich position cannot hide a range that has been sold through. Closed positions are not covered.",
+  // A figure we could not compute, as distinct from one that does not apply.
+  lp_perf_unpriced: "a pool is unreadable",
+  lp_perf_fees_partial_footnote:
+    "\u2020 Fee totals cover {known} of {closed} closed positions; the rest closed before fees were recorded.",
+  lp_perf_week_reading: "Week of {day}",
   lp_perf_range_30d: "30d",
   lp_perf_caption_all: "since it started",
   lp_perf_caption_7d: "over 7 days",
@@ -53,7 +67,6 @@ export const enLpPerf = {
   lp_perf_bucket_week: "Week",
   lp_perf_bucket_month: "Month",
   lp_perf_total_in_view: "Total profit",
-  lp_perf_running: "{amount} total",
   lp_perf_month_total: "{month} total",
   lp_perf_day_reading: "{day} · {amount}",
   lp_perf_prev_month: "Previous month",

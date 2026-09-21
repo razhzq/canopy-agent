@@ -799,137 +799,123 @@ export function MiniCurve({
 
 /* ------------------------------------------------------- profit history -- */
 
+/** The share of the plot the empty side of a one-sided book keeps. */
+const ZERO_LANE = 0.06;
+/** Headroom above the tallest bar, so the peak is not welded to the frame. */
+const BAR_PAD = 0.08;
+
 /**
- * What a liquidity book made, period by period, with the running total over it.
+ * The vertical geometry of a signed bar chart, as percentages.
  *
- * TWO SERIES, ONE SCALE, AND THAT IS THE POINT. The bars are what each day
- * earned; the line is those bars added up. They are the same quantity — dollars
- * of profit — at two resolutions, so putting them on a second axis would let
- * the two imply a relationship that does not exist. The consequence is honest
- * and worth stating: once a book has run for a month the line towers over the
- * bars, because a month of profit IS larger than any day of it.
+ * SEPARATE FROM `equityScale`, and it must stay separate: that one pads 12% on
+ * both sides and four curves depend on it. A bar chart wants the padding
+ * asymmetric — headroom above the data, and only a thin lane on the side with
+ * nothing in it.
  *
- * ZERO IS PINNED, via `equityScale(..., 0, ...)`. Bars grow from zero and a
- * losing day hangs below it, so a scale that cropped zero off the canvas would
- * have nowhere to draw either.
- *
- * BARS IN HTML, LINE IN SVG, one container. It is the house pattern: the bar
- * charts above are percentage-height divs and the curves are stretched SVG, and
- * the annotations on the agent page already layer absolutely-positioned HTML
- * over a viewBox drawn the same way. `vector-effect` keeps the stroke honest
- * under `preserveAspectRatio="none"`, which is not optional — without it the
- * line thickens on one axis as the container widens.
+ * EXPORTED for the same reason `equityScale` is: the hover overlay has to place
+ * its crosshair and marker on the same geometry the bars were drawn with.
+ * Unlike `equityScale` it returns no `x` — horizontal position is a flex band,
+ * not arithmetic, so there is nothing for a caller to disagree with.
  */
-export function ProfitBarsLine({
-  bars,
-  cumulative,
-  /** False where the day has no reading yet — nothing is drawn for it. */
+export function barScale(values: number[]) {
+  const hi = Math.max(0, ...values);
+  const lo = Math.min(0, ...values);
+  // An all-zero book still needs a frame to draw a zero rule inside.
+  const span = hi - lo || 1;
+  const top = hi + span * (hi > 0 ? BAR_PAD : ZERO_LANE);
+  const bot = lo - span * (lo < 0 ? BAR_PAD : ZERO_LANE);
+  const pct = (v: number) => ((top - v) / (top - bot)) * 100;
+  return { pct, zero: pct(0) };
+}
+
+/**
+ * What a liquidity book earned, period by period. Bars, and nothing else.
+ *
+ * ONE SERIES, ONE SCALE. This drew the bars with the running total over them on
+ * a shared axis, because both are dollars of profit. The cost was structural: a
+ * cumulative series only grows, so it takes the domain — on a three-day book
+ * the total was already as large as the biggest day, which pinned the line to
+ * the ceiling, pushed zero to 90% of the panel, and left every bar squeezed
+ * into the bottom tenth. It also needed a second colour to tell the two series
+ * apart, and the only one left was amber, which this product spends on caution
+ * everywhere else and on the base token in the bin chart below. The running
+ * total is the panel's headline and a figure in its strip; it did not need a
+ * third telling, and it was charging the bars the whole canvas for it.
+ *
+ * ZERO FLOATS, AND IS ALWAYS DRAWN. On a bar chart the quantity is length from
+ * zero, not height up the frame — nobody reads dollars off where the rule sits.
+ * So pinning zero to a fixed fraction would buy nothing and would hand a third
+ * of the panel to an empty lane on a book that has only gained.
+ *
+ * LENGTH STAYS LINEAR. No floor with headroom: that belongs where height is a
+ * SHARE (see the bin chart), and here length is the money. A 12% floor would
+ * draw a five-cent day at 26px — a bar that reads as a quantity, on the one
+ * panel built to refuse exactly that (lib/lpDays.ts). Five cents beside four
+ * dollars is a nub, the nub is the truth, and the hover has the number.
+ *
+ * BANDS, NOT POINTS. Each column owns a slot and sits centred in it. The old
+ * scale put bar centres at i/(n-1) — right for a line, which needs its
+ * endpoints on the edges, and wrong for bars, which is why the first and last
+ * used to be half outside the container.
+ */
+export function ProfitBars({
+  values,
   present,
   height = 220,
   hover = null,
 }: {
-  /** One value per column — what that period earned, positive or negative. */
-  bars: number[];
-  /** The running total after each column. Same length as `bars`. */
-  cumulative: number[];
+  /** One value per column: what that period earned, positive or negative. */
+  values: number[];
+  /** False where a period has no reading — nothing at all is drawn for it. */
   present?: boolean[];
   height?: number;
-  /** The column under the pointer, drawn brighter. Null when nothing is. */
+  /** The column under the pointer, drawn brighter rather than dimming the rest. */
   hover?: number | null;
 }) {
-  if (bars.length === 0) return null;
+  if (values.length === 0) return null;
   const has = (i: number) => present === undefined || present[i];
-  // Only the days that exist take part in the scale. A window of thirty on a
-  // five-day-old book must not be scaled by twenty-five absences.
-  const real = cumulative.filter((_, i) => has(i));
-  const { W, H, x, y } = equityScale(
-    real.length > 0 ? real : cumulative,
-    0,
-    bars.filter((_, i) => has(i)),
-  );
-  const zero = y(0);
-
-  // x() indexes the values it was built from, and those are only the days with
-  // readings — so positions are computed against the FULL column count here.
-  const px = (i: number) => (bars.length === 1 ? W / 2 : (i / (bars.length - 1)) * W);
-
-  const drawn = cumulative.map((v, i) => ({ v, i })).filter(({ i }) => has(i));
+  // Only readings take part in the domain. The scale consumes values, never an
+  // index, so a filtered array cannot fall out of step with the columns.
+  const s = barScale(values.filter((_, i) => has(i)));
+  const cap = Math.round(height * 0.5);
 
   return (
-    <span className="relative block" style={{ height }}>
-      {bars.map((v, i) => {
-        // A DAY THAT HAS NOT HAPPENED GETS NOTHING. Not a zero-height bar,
-        // which would sit on the axis looking like a day that earned nothing.
-        if (!has(i)) return null;
-        const top = Math.min(y(v), zero);
-        const bottom = Math.max(y(v), zero);
-        // A day that earned almost nothing still earned something; a bar of
-        // zero height would say it did not run.
-        const h = Math.max(((bottom - top) / H) * 100, v === 0 ? 0 : 0.8);
-        // Centred on the line's own x, so the two geometries cannot disagree
-        // and a tooltip can point at one place for both.
-        const width = Math.min(bars.length > 60 ? 100 / bars.length : (100 / bars.length) * 0.72, 4.5);
+    <span className="relative flex items-stretch" style={{ height }}>
+      {/* The zero rule, behind the bars. Ordinary CSS — with no path left to
+          draw there is no viewBox to stretch a stroke through. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 border-t border-dashed border-grid-strong"
+        style={{ top: `${s.zero}%` }}
+      />
+      {values.map((v, i) => {
+        if (!has(i)) return <span key={i} className="min-w-0 flex-1" />;
+        // A DAY THAT EARNED NOTHING IS NOT A DAY THAT DID NOT HAPPEN. Zero used
+        // to draw zero height, which looks exactly like an absent column —
+        // telling those two apart is the whole job of `present`.
+        const flat = v === 0;
         return (
-          <span
-            key={i}
-            className={`absolute -translate-x-1/2 rounded-[1px] transition-colors ${
-              v < 0 ? "bg-negative" : "bg-accent"
-            } ${hover === null || hover === i ? "" : "opacity-45"}`}
-            style={{
-              left: `${(px(i) / W) * 100}%`,
-              width: `${width}%`,
-              maxWidth: "34px",
-              top: `${(top / H) * 100}%`,
-              height: `${h}%`,
-            }}
-          />
+          <span key={i} className="relative min-w-0 flex-1">
+            <span
+              className={`absolute left-1/2 -translate-x-1/2 rounded-[1px] ${
+                flat ? "bg-grid-strong" : v < 0 ? "bg-negative" : "bg-accent"
+              } ${hover === i ? "brightness-125" : ""}`}
+              style={{
+                // The cap is half the plot height rather than a fixed pixel
+                // count, so it travels with the mount: 110px in the desktop
+                // panel, 84px on a phone. Uncapped, three bars in a wide column
+                // read as a stacked area chart with two gaps in it.
+                width: `clamp(1.5px, 72%, ${cap}px)`,
+                top: `${Math.min(s.pct(v), s.zero)}%`,
+                // 3px is a RENDERING minimum, not an editorial one: sub-pixel
+                // truth cannot be drawn, and a nub reads as "about nothing",
+                // which is what it is.
+                height: flat ? "1px" : `max(${Math.abs(s.pct(v) - s.zero)}%, 3px)`,
+              }}
+            />
+          </span>
         );
       })}
-
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="absolute inset-0 size-full"
-        aria-hidden
-      >
-        <line
-          x1="0"
-          x2={W}
-          y1={zero}
-          y2={zero}
-          stroke="var(--color-grid-strong)"
-          strokeWidth="1"
-          strokeDasharray="4 4"
-          vectorEffect="non-scaling-stroke"
-        />
-        {/* ONE READING IS A POINT, NOT A LINE. A path needs two places to go
-            between; drawing one across the panel from a single reading would
-            describe a history that has not happened yet. The dot below is the
-            whole chart on an agent's first day. */}
-        {drawn.length > 1 ? (
-          <path
-            d={curvePath(drawn.map(({ v, i }) => [px(i), y(v)]))}
-            fill="none"
-            stroke="var(--color-warning)"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-      </svg>
-
-      {/* The end of the line, in ordinary pixels so it stays round under the
-          stretched viewBox. */}
-      {drawn.length > 0 ? (
-        <span
-          className="pointer-events-none absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-warning"
-          style={{
-            left: `${(px(drawn[drawn.length - 1].i) / W) * 100}%`,
-            top: `${(y(drawn[drawn.length - 1].v) / H) * 100}%`,
-          }}
-        />
-      ) : null}
     </span>
   );
 }

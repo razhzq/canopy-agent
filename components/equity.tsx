@@ -373,8 +373,13 @@ export function Fig({
   focus,
   onFocus,
   edges,
+  cols = 5,
+  span = 1,
 }: {
-  /** Position in the strip, 0–9: five across on wide screens, two on narrow. */
+  /**
+   * Position in the strip, as a TRACK index — a spanning cell consumes two.
+   * Five across on wide screens, two on narrow, unless `cols` says otherwise.
+   */
   cell: number;
   label: string;
   value: string | null;
@@ -393,6 +398,19 @@ export function Fig({
    * wants and the arithmetic below is skipped.
    */
   edges?: string;
+  /**
+   * Tracks on a wide screen. The equity strip runs five; the liquidity panel
+   * runs six, because its eleventh figure would otherwise sit alone on a row.
+   */
+  cols?: number;
+  /**
+   * Tracks this figure occupies, at both breakpoints.
+   *
+   * The way a strip absorbs a widow: eleven figures in a six-track grid fill
+   * twelve when the last one spans two, and on a phone the same span makes it
+   * a full-width final row.
+   */
+  span?: 1 | 2;
 }) {
   const interactive = focus !== undefined && value !== null;
   const inner = (
@@ -431,8 +449,9 @@ export function Fig({
   const computed = [
     cell % 2 === 1 ? "border-l" : "",
     cell >= 2 ? "border-t" : "",
-    cell % 5 === 0 ? "md:border-l-0" : "md:border-l",
-    cell >= 5 ? "md:border-t" : "md:border-t-0",
+    cell % cols === 0 ? "md:border-l-0" : "md:border-l",
+    cell >= cols ? "md:border-t" : "md:border-t-0",
+    span === 2 ? "col-span-2 md:col-span-2" : "",
   ].join(" ");
   const cls = `group/fig min-w-0 space-y-1.5 border-grid px-4 pt-3.5 pb-2.5 text-left transition-colors duration-150 hover:bg-surface-2 motion-reduce:transition-none ${edges ?? computed}`;
   if (!interactive) return <div className={cls}>{inner}</div>;
@@ -555,7 +574,7 @@ function ReadableCurve({
   );
 }
 
-function Marker({ left, top, ring, pulse = false }: { left: number; top: number; ring: string; pulse?: boolean }) {
+export function Marker({ left, top, ring, pulse = false }: { left: number; top: number; ring: string; pulse?: boolean }) {
   return (
     <div
       className={`pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-panel ${
@@ -626,6 +645,22 @@ export function trackIndex(clientX: number, el: HTMLElement, count: number): num
   if (rect.width === 0 || count === 0) return null;
   const frac = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
   return Math.round(frac * (count - 1));
+}
+
+/**
+ * Which COLUMN the pointer is over — the band that owns this x, not the
+ * nearest point.
+ *
+ * `trackIndex` rounds to `i/(n-1)`, which is right for a line: its readings
+ * are points and the ends sit on the edges. Bars own slots. Rounding a bar
+ * chart to points gives the first of three columns only the leftmost sixth of
+ * the panel, so the hit areas never line up with the marks.
+ */
+export function bandIndex(clientX: number, el: HTMLElement, count: number): number | null {
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 || count === 0) return null;
+  const frac = (clientX - rect.left) / rect.width;
+  return Math.min(count - 1, Math.max(0, Math.floor(frac * count)));
 }
 
 /**
