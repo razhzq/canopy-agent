@@ -6,6 +6,7 @@ export const trPages: Record<keyof typeof enPages, string> = {
     "Bir stratejiyi kendi ajanınız olarak devreye alın. Varlıklar sizde kalır. Her limiti siz belirlersiniz.",
 
   page_title_settings: "Ayarlar · Canopy",
+  page_title_earnings: "Üretici kazançları · Canopy",
   page_title_wallet_audit: "Cüzdan denetimi · Canopy",
   page_title_activity: "Hareketler · Canopy",
   page_title_portfolio: "Portföy · Canopy",

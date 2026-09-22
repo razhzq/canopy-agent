@@ -14,6 +14,7 @@
 // (PRIVY_APP_ID in canopy-be), so the two must not drift apart.
 
 import type { PrivyClientConfig } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
 
@@ -66,8 +67,26 @@ export const CLOB_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_CLOB_POLICY_ID || ""
 
 
 export const privyConfig: PrivyClientConfig = {
-  // Matches canopy-fe so the login experience is the one users already know.
-  loginMethods: ["email"],
+  /**
+   * Email, and now a wallet.
+   *
+   * THIS IS THE ONE PLACE THIS APP DIVERGES FROM canopy-fe's login, and it is
+   * deliberate. Creator earnings are owed to the LEADER WALLET a copy agent
+   * mirrors — somebody's real Solana LP, held in Phantom or Backpack. That
+   * person has no Canopy account and never will have one keyed to an email
+   * they used here. Logging in WITH the wallet is what proves they hold it, so
+   * without wallet login there is no path from "your wallet earned this" to
+   * "you can collect it".
+   *
+   * It also removes a whole ceremony: Privy already makes them sign to
+   * authenticate, so the address on the account is proven at login and no
+   * separate challenge/signature step is needed for the ordinary case.
+   *
+   * EMAIL STAYS FIRST. Almost everyone here is an agent owner arriving the way
+   * they always have; a creator coming to claim is the rarer case and one
+   * extra click on the modal is the right side of that trade.
+   */
+  loginMethods: ["email", "wallet"],
   appearance: {
     theme: "dark",
     // canopy-fe uses #5ED3B3; the agent stack's own accent is #3ddc91, lifted
@@ -111,5 +130,27 @@ export const privyConfig: PrivyClientConfig = {
     // covers what remains. Privy has no wallet delete, so accounts that already
     // accumulated wallets keep them either way.
     solana: { createOnLogin: "users-without-wallets" },
+  },
+  /**
+   * EXTERNAL SOLANA WALLETS — CONNECTED, NOT LOGGED IN WITH.
+   *
+   * `loginMethods` stays email-only above: how someone signs in is unchanged,
+   * and the login modal still looks like canopy-fe's. This adds the ability to
+   * LINK a wallet to an account that already exists, which is a different act
+   * with a different button (`linkWallet`).
+   *
+   * It exists for creator earnings. Canopy sets money aside for the leader
+   * wallet a copy agent mirrors, and that wallet is somebody's real Solana LP
+   * — held in Phantom or Backpack, never a Canopy embedded wallet. Without a
+   * connector there is no way for its owner to prove they control it: they
+   * would sign up with email, be given a fresh embedded wallet at a completely
+   * different address, and have no path to their own money.
+   *
+   * `shouldAutoConnect: false` on purpose. An extension that connects itself
+   * the moment the page loads is a prompt nobody asked for, and connecting is
+   * only ever wanted at the moment someone chooses to verify a wallet.
+   */
+  externalWallets: {
+    solana: { connectors: toSolanaWalletConnectors({ shouldAutoConnect: false }) },
   },
 };

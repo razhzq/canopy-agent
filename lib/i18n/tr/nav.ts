@@ -39,6 +39,10 @@ export const trNav: Record<keyof typeof enNav, string> = {
   account_group_settings: "Ayarlar",
   account_row_portfolio: "Portföy",
   account_row_deployed: "{amount} kullanımda",
+  account_row_creator_fees: "Üretici ücretleri",
+  account_claim: "Talep et",
+  account_claim_requested: "Talep edildi",
+  account_row_earnings: "Üretici kazançları",
   account_row_settings: "Plan ve bildirimler",
   account_sign_out: "Çıkış yap",
 

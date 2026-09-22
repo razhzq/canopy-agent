@@ -44,6 +44,10 @@ export const enNav = {
   // Suffix is load-bearing: a bare figure beside "Portfolio" reads as what the
   // portfolio is worth, which is a different number.
   account_row_deployed: "{amount} deployed",
+  account_row_creator_fees: "Creator fees",
+  account_claim: "Claim",
+  account_claim_requested: "Requested",
+  account_row_earnings: "Creator earnings",
   account_row_settings: "Plan & notifications",
   account_sign_out: "Sign out",
 

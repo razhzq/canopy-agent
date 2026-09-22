@@ -19,6 +19,8 @@ import {
   num,
   type AgentRow,
   type PersonalInvite,
+  getCreatorEarnings,
+  requestCreatorClaim,
 } from "@/lib/api";
 import { usd } from "@/lib/format";
 import { LanguageSwitcher } from "@/components/languageSwitcher";
@@ -377,6 +379,11 @@ function AccountMenu() {
   const [copied, setCopied] = useState<string | null>(null);
   const [invite, setInvite] = useState<PersonalInvite | null>(null);
   const [inviteFailed, setInviteFailed] = useState(false);
+  // Creator fees owed to a wallet on this account. Null until the menu has
+  // been opened once — see the effect below for why this is not fetched eagerly.
+  const [fees, setFees] = useState<{ availableUsd: number; address: string } | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
   const [agents, setAgents] = useState<AgentRow[] | null>(null);
   const [agentsFailed, setAgentsFailed] = useState(false);
   // Addresses registered to an agent. Used to keep agent wallets OUT of this
@@ -412,6 +419,37 @@ function AccountMenu() {
   // opens the menu. Loading it on demand keeps "has a code" meaning "wanted
   // one". Fetched once per session and kept; a code does not change, and the
   // referral count being a few minutes stale is not worth a request per open.
+  // Creator fees, read ONLY once the menu is open.
+  //
+  // NOT ON EVERY PAGE LOAD. The endpoint asks Privy which wallets are linked
+  // to this account, and almost nobody here is a copied leader — paying for
+  // that on every render, for every user, to show nothing, is the wrong trade.
+  // The menu being open is the moment the answer is wanted.
+  useEffect(() => {
+    if (!open || !authenticated || fees !== null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const data = await getCreatorEarnings(token);
+        // The wallet with the most owed. A creator with several is rare, and
+        // the menu is not the place to enumerate them — the page is.
+        const best = [...data.wallets].sort((a, b) => b.availableUsd - a.availableUsd)[0];
+        if (!cancelled) {
+          setFees({ availableUsd: best?.availableUsd ?? 0, address: best?.address ?? "" });
+        }
+      } catch {
+        // Silent: someone who is owed nothing and someone whose lookup failed
+        // both see the same menu, and neither needs telling.
+        if (!cancelled) setFees({ availableUsd: 0, address: "" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, authenticated, fees, getAccessToken]);
+
   useEffect(() => {
     if (!open || !authenticated || invite || inviteFailed) return;
 
@@ -1050,7 +1088,60 @@ function AccountMenu() {
           </div>
 
           <div className="border-b border-grid pb-1.5">
+            {/* Creator fees.
+                Shown ONLY when something is actually owed. A row reading
+                "$0.00" on every account would be noise for the ~everyone who
+                has never been copied, and the one person who has needs it to
+                stand out, not to blend into a list. */}
+            {fees && fees.availableUsd > 0 ? (
+              <div className="mx-1.5 mb-1 flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                <span className="flex items-center gap-2">
+                  <span className="size-[5px] rounded-full bg-accent" aria-hidden />
+                  <span className="font-ui text-[13px] text-text-primary">{t("account_row_creator_fees")}</span>
+                </span>
+                <span className="flex items-center gap-3">
+                  <span className="font-mono text-[13px] text-text-primary">
+                    ${fees.availableUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={claiming || claimed}
+                    onClick={async () => {
+                      setClaiming(true);
+                      try {
+                        const token = await getAccessToken();
+                        if (token) {
+                          await requestCreatorClaim(token, fees.address);
+                          setClaimed(true);
+                        }
+                      } catch {
+                        // The page carries the detail and the reason; the menu
+                        // is not where a failure gets explained.
+                      }
+                      setClaiming(false);
+                    }}
+                    className="rounded-full bg-text-primary px-3 py-1 font-ui text-[12px] font-medium text-bg disabled:opacity-40"
+                  >
+                    {claimed ? t("account_claim_requested") : t("account_claim")}
+                  </button>
+                </span>
+              </div>
+            ) : null}
+
             <MenuGroupLabel>{t("account_group_settings")}</MenuGroupLabel>
+            {/* Creator earnings.
+                Above Settings because it is money, and money outranks
+                preferences in a menu. It is shown to everyone rather than
+                gated on having a balance: the whole point is that most people
+                who are owed something do not know it yet, and a row that only
+                appears once you already know to look for it would be useless. */}
+            <MenuRow
+              href="/earnings"
+              icon={<SettingsIcon className="size-3.5" />}
+              label={t("account_row_earnings")}
+              active={isActive(pathname, ["/earnings"])}
+              onNavigate={() => close(false)}
+            />
             <MenuRow
               href="/settings"
               icon={<SettingsIcon className="size-3.5" />}

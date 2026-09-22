@@ -39,6 +39,10 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   account_group_settings: "设置",
   account_row_portfolio: "投资组合",
   account_row_deployed: "已部署 {amount}",
+  account_row_creator_fees: "创作者费用",
+  account_claim: "领取",
+  account_claim_requested: "已申请",
+  account_row_earnings: "创作者收益",
   account_row_settings: "套餐与通知",
   account_sign_out: "退出登录",
 

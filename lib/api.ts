@@ -1693,6 +1693,73 @@ export const forkStrategy = (
     { method: "POST", body: JSON.stringify(edits) },
   );
 
+/* ------------------------------------------------------ creator earnings -- */
+
+/**
+ * What a wallet Canopy agents have copied has earned for its owner.
+ *
+ * `availableUsd` is the only claimable number. `pendingUsd` is charged but
+ * still sitting in the copier's wallet — real, but it can evaporate if that
+ * wallet is drained before Canopy sweeps it, so the two are never added up.
+ */
+export interface CreatorBalance {
+  address: string;
+  availableUsd: number;
+  pendingUsd: number;
+  claimedUsd: number;
+  lifetimeUsd: number;
+  grossProfitUsd: number;
+  charges: number;
+  copiers: number;
+  firstEarnedAt: string | null;
+  lastEarnedAt: string | null;
+}
+
+export interface CreatorClaim {
+  id: number;
+  address: string;
+  amountUsd: number;
+  status: "requested" | "approved" | "paying" | "paid" | "rejected" | "failed";
+  signature: string | null;
+  requestedAt: string;
+  paidAt: string | null;
+  note: string | null;
+}
+
+export const getCreatorEarnings = (token: string) =>
+  request<{ wallets: CreatorBalance[]; claims: CreatorClaim[]; minClaimUsd: number }>(
+    "/creator/earnings",
+    token,
+  );
+
+/**
+ * Step one of proving a wallet: the exact string to sign.
+ *
+ * Deliberately says nothing about the balance — the server will not answer
+ * "does this address have money" to anyone who has not proven anything.
+ */
+export const startCreatorVerification = (token: string, address: string) =>
+  request<{ nonce: string; message: string; expiresAt: string }>("/creator/challenge", token, {
+    method: "POST",
+    body: JSON.stringify({ address }),
+  });
+
+/** Step two: the signature, base58. */
+export const finishCreatorVerification = (
+  token: string,
+  body: { address: string; nonce: string; signature: string },
+) =>
+  request<{ proofId: number; balance: CreatorBalance }>("/creator/verify", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const requestCreatorClaim = (token: string, address: string) =>
+  request<CreatorClaim>("/creator/claims", token, {
+    method: "POST",
+    body: JSON.stringify({ address }),
+  });
+
 /* --------------------------------------------------------------- creator -- */
 
 export const getCreatorDashboard = (token: string) =>

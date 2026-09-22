@@ -1,0 +1,36 @@
+import type { enEarnings } from "../en/earnings";
+
+export const zhEarnings: Record<keyof typeof enEarnings, string> = {
+  ce_title: "创作者收益",
+  ce_intro:
+    "当 Canopy 代理复制某个钱包的流动性仓位并盈利平仓时，会从利润中拨出一部分给被复制的钱包。如果那是你的钱包，就在这里领取。",
+  ce_loading: "正在加载你的收益",
+  ce_empty_title: "暂无收益",
+  ce_empty_body: "连接一个 Solana 钱包，查看是否有为它预留的收益。连接不会向 Canopy 分享任何东西。",
+  ce_verified: "已验证",
+  ce_available: "可领取",
+  ce_pending: "待结算",
+  ce_lifetime: "累计",
+  ce_copiers: "复制者",
+  ce_pending_note:
+    "可领取的部分由 Canopy 保管，现在就能支付。待结算的部分已经计费，但仍在复制代理的钱包里，Canopy 收取之后才能领取。",
+  ce_claim: "申请支付",
+  ce_claiming: "申请中…",
+  ce_claim_min: "最低支付金额为 {min}。",
+  ce_claim_open: "一笔 {amount} 的支付{status}。",
+  ce_status_requested: "正在等待审核",
+  ce_status_approved: "已批准，正在发送",
+  ce_status_paying: "正在发送",
+  ce_status_paid: "已支付",
+  ce_status_rejected: "已拒绝",
+  ce_status_failed: "失败",
+  ce_unverified: "已连接，未验证",
+  ce_unverified_body: "签署一条简短消息以证明你控制该钱包。它不会转移任何资金，也不会批准任何交易。",
+  ce_verify: "验证钱包",
+  ce_verifying: "等待签名…",
+  ce_connect: "其他钱包",
+  ce_connect_body: "收益属于被复制的那个钱包，通常是你在 Phantom 或 Backpack 里持有的钱包，而不是 Canopy 钱包。",
+  ce_connect_action: "连接钱包",
+  ce_err_no_wallet: "该钱包已断开连接。请重新连接后再试。",
+  ce_err_signed_out: "登录已过期，请重新登录。",
+};

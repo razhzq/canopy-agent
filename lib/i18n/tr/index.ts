@@ -33,6 +33,7 @@ import { trPositions } from "./positions";
 import { trProfile } from "./profile";
 import { trSettings } from "./settings";
 import { trWorkspace } from "./workspace";
+import { trEarnings } from "./earnings";
 
 export const tr: Partial<Record<TranslationKey, string>> = {
   ...trAccount,
@@ -49,4 +50,5 @@ export const tr: Partial<Record<TranslationKey, string>> = {
   ...trProfile,
   ...trSettings,
   ...trWorkspace,
+  ...trEarnings,
 };

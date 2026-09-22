@@ -41,6 +41,7 @@ import { enPortfolio } from "./portfolio";
 import { enPositions } from "./positions";
 import { enPublish } from "./publish";
 import { enProfile } from "./profile";
+import { enEarnings } from "./earnings";
 
 export const en = {
   ...enCommon,
@@ -72,6 +73,7 @@ export const en = {
   ...enPositions,
   ...enPublish,
   ...enProfile,
+  ...enEarnings,
 } as const;
 
 export type TranslationKey = keyof typeof en;

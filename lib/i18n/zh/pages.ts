@@ -5,6 +5,7 @@ export const zhPages: Record<keyof typeof enPages, string> = {
   page_desc_root: "把一套策略部署成您自己的智能体。资产始终由您托管，每一条限额由您设定。",
 
   page_title_settings: "设置 · Canopy",
+  page_title_earnings: "创作者收益 · Canopy",
   page_title_wallet_audit: "钱包审计 · Canopy",
   page_title_activity: "动态 · Canopy",
   page_title_portfolio: "投资组合 · Canopy",

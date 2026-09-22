@@ -10,6 +10,7 @@ export const enPages = {
     "Deploy a strategy as your own agent. You keep custody. You set every limit.",
 
   page_title_settings: "Settings · Canopy",
+  page_title_earnings: "Creator earnings · Canopy",
   page_title_wallet_audit: "Wallet audit · Canopy",
   page_title_activity: "Activity · Canopy",
   page_title_portfolio: "Portfolio · Canopy",
