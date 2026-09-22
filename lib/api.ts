@@ -4237,6 +4237,14 @@ export interface CopyLpInput {
 export interface LeaderPreview {
   leader: string;
   readAt: string;
+  /**
+   * What a profitable close costs, in basis points of realised profit.
+   *
+   * SERVED, NOT HARDCODED, because both rates are admin settings — a number
+   * baked into the app would keep quoting the old terms after a change. Zero
+   * means that fee is switched off.
+   */
+  fees?: { canopyBps: number; creatorBps: number };
   /** Wallet tokens plus every DLMM position. Null when it could not be read in full. */
   capitalUsd: number | null;
   inDlmmUsd: number;

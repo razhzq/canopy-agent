@@ -297,6 +297,7 @@ export const enBuild = {
   cl_calc_copy_pct: "Copy %",
   cl_calc_capped: "Capped at {usd}",
   cl_calc_opens: "Opens with",
+  cl_fees: "When a copied position closes in profit, Canopy takes {canopy}% and the wallet you copy earns {creator}%. Losses are never charged.",
   cl_calc_skipped: "Skipped: under {min}",
   cl_sizing_empty: "The leader holds nothing to size against yet. A copy opens at the share of capital its next position takes, times your copy percentage.",
   // The name lives on the limits step: the two Copy LP steps had no name

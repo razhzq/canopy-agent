@@ -425,6 +425,21 @@ export function CopyLimitsStep({
         ) : (
           <p className="mt-2 font-ui text-[13px] text-text-secondary">{t("cl_sizing_empty")}</p>
         )}
+        {/* THE TERMS, BEFORE THE DEPLOY BUTTON.
+            A share of profit is the one thing about a copy agent that costs
+            the owner money, and it was previously stated nowhere in the app.
+            The rates are served with the leader preview rather than written
+            here, so an admin changing them cannot leave this quoting the old
+            ones. Both zero means neither fee is switched on, and the whole
+            block stays out of the way. */}
+        {data?.fees && (data.fees.canopyBps > 0 || data.fees.creatorBps > 0) ? (
+          <p className="mt-6 border-t border-border-subtle pt-4 font-ui text-[12.5px] leading-relaxed text-text-muted">
+            {t("cl_fees", {
+              canopy: (data.fees.canopyBps / 100).toFixed(data.fees.canopyBps % 100 ? 1 : 0),
+              creator: (data.fees.creatorBps / 100).toFixed(data.fees.creatorBps % 100 ? 1 : 0),
+            })}
+          </p>
+        ) : null}
       </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
