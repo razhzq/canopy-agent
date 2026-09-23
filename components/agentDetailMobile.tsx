@@ -568,6 +568,8 @@ export function AgentDetailMobile({
               universe={assets}
               book={detail.book}
               copy={detail.copy}
+              unit={detail.unit ?? "USD"}
+              solUsd={detail.solUsd ?? null}
               onChanged={onChanged}
             />
           </div>

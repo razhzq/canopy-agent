@@ -50,8 +50,14 @@ export function EditCopyLpModal({
   /** The strategy as `getStrategy` returned it, carrying `copy_lp`. */
   strategy: StrategyRow;
   /**
-   * The book the copy sizes against — the paper book, or the live wallet's
-   * USDC. Used only to restate sizing in dollars, never sent.
+   * The book the copy sizes against, IN DOLLARS. Used only to restate sizing,
+   * never sent.
+   *
+   * It is the equity curve's latest point, which the API serves in dollars for
+   * every agent — including a SOL-denominated one, where it is that book
+   * valued at the rate the response was built with (CANOPY_127). So this stays
+   * a dollar figure and needs no unit of its own; it just is not "the wallet's
+   * USDC", which is what this said and which is zero for a copy agent.
    */
   bookUsd: number;
   /**

@@ -4,7 +4,8 @@
 //
 // NOT THE SPOT DIALOG. That one states a quantity being sold at a price; a
 // liquidity close withdraws both tokens from a range, claims the fees and
-// swaps everything back to USDC. So the figure that leads is what comes back,
+// swaps everything back to the agent's CASH TOKEN — USDC for most, wrapped SOL
+// for a copy-LP agent. So the figure that leads is what comes back,
 // and the rows are the ones that explain it: what went in, what the position
 // holds, the fees inside it, what the withdraw and swap-back cost.
 //
@@ -34,11 +35,22 @@ export function CloseLpModal({
   position,
   onClose,
   onClosed,
+  unit = "USD",
+  solUsd = null,
 }: {
   agentId: number;
   position: ClosableLp;
   onClose: () => void;
   onClosed: () => void;
+  /**
+   * What this agent's cash is (CANOPY_127) — which is what a close returns.
+   *
+   * A copy-LP agent's close swaps back to WRAPPED SOL, not USDC, so labelling
+   * the proceeds "USDC" told an owner they were getting an asset the wallet
+   * will never hold.
+   */
+  unit?: "USD" | "SOL";
+  solUsd?: number | null;
 }) {
   const { getAccessToken } = usePrivy();
   const t = useT();
@@ -46,6 +58,7 @@ export function CloseLpModal({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [fresh, setFresh] = useState<LpValuation | null>(null);
+  const sol = unit === "SOL" && typeof solUsd === "number" && solUsd > 0;
   const [checking, setChecking] = useState(true);
   const [unreadable, setUnreadable] = useState(false);
 
@@ -124,7 +137,23 @@ export function CloseLpModal({
       <div className="space-y-6 px-6 py-6">
         <div className="space-y-2">
           <SectionLabel>{t("lp_close_returning")}</SectionLabel>
-          <Figure value={v ? v.proceedsUsd.toFixed(2) : "—"} unit="USDC" size={30} dim={checking || !v} />
+          {/* THE FIGURE IS IN THE UNIT IT ARRIVES IN. `proceedsUsd` is a
+              valuation either way; what changes is which token the wallet
+              ends up holding, and that is the thing an owner is deciding
+              about. Without a price a SOL agent falls back to dollars rather
+              than dividing by nothing. */}
+          <Figure
+            value={
+              v === null
+                ? "—"
+                : sol
+                  ? (v.proceedsUsd / solUsd!).toFixed(4)
+                  : v.proceedsUsd.toFixed(2)
+            }
+            unit={sol ? "SOL" : "USDC"}
+            size={30}
+            dim={checking || !v}
+          />
           {checking ? (
             <StatusLine tone="pending" live>
               {t("lp_close_reading")}

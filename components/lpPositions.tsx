@@ -41,8 +41,13 @@ export function LpPositions({
   book,
   copy,
   onChanged,
+  unit = "USD",
+  solUsd = null,
 }: {
   agentId: number;
+  /** The agent's cash token, for the close dialog's proceeds figure. */
+  unit?: "USD" | "SOL";
+  solUsd?: number | null;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
   /** Which book the open rows came from — history lists the same one. */
@@ -68,7 +73,7 @@ export function LpPositions({
 
       {tab === "open" ? (
         <>
-          <OpenLp agentId={agentId} rows={rows} universe={universe} onChanged={onChanged} />
+          <OpenLp agentId={agentId} rows={rows} universe={universe} onChanged={onChanged} unit={unit} solUsd={solUsd} />
           <NotCopied copy={copy} />
         </>
       ) : (
@@ -232,11 +237,16 @@ function OpenLp({
   rows,
   universe,
   onChanged,
+  unit = "USD",
+  solUsd = null,
 }: {
   agentId: number;
   rows: LpRow[];
   universe: UniverseAsset[];
   onChanged?: () => void;
+  /** Passed straight to the close dialog; see LpPositions. */
+  unit?: "USD" | "SOL";
+  solUsd?: number | null;
 }) {
   const { t } = useLocale();
   const [closing, setClosing] = useState<ClosableLp | null>(null);
@@ -384,7 +394,14 @@ function OpenLp({
       {estimated ? <p className="pt-3 font-ui text-[11.5px] text-text-dim">* {t("lp_fees_estimated_title")}</p> : null}
 
       {closing ? (
-        <CloseLpModal agentId={agentId} position={closing} onClose={() => setClosing(null)} onClosed={() => onChanged?.()} />
+        <CloseLpModal
+          agentId={agentId}
+          position={closing}
+          unit={unit}
+          solUsd={solUsd}
+          onClose={() => setClosing(null)}
+          onClosed={() => onChanged?.()}
+        />
       ) : null}
     </div>
   );

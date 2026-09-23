@@ -74,7 +74,12 @@ export function DeployModal({
           <AmountInput
             value={amount}
             onChange={setAmount}
-            unit="USDC"
+            // "USD", NOT "USDC". The label already says Paper capital: this is
+            // a notional book, and nothing is sent — no USDC is involved for
+            // any strategy. It was also actively wrong for a copy-LP one,
+            // whose book is converted to SOL at creation (CANOPY_127) and
+            // whose wallet never holds a USDC.
+            unit="USD"
             label={t("dp_capital")}
             onMax={() => setAmount(String(MAX_USD))}
           />
