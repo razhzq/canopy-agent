@@ -65,7 +65,7 @@ export function LpEquityView({
 
   if (series === null || series.points.length === 0) return <NoRecord />;
 
-  const f = lpFigures(series, positions, universe, base);
+  const f = lpFigures(series, positions, universe, base, solUsd);
   const shown =
     view === "calendar"
       ? f.days.map((day) => ({ day, present: true }))
@@ -455,7 +455,7 @@ export function LpEquityMobile({
   const money = fmt.money;
   const signed = fmt.signed;
   if (series === null || series.points.length === 0) return <NoRecord />;
-  const f = lpFigures(series, positions, universe, base);
+  const f = lpFigures(series, positions, universe, base, solUsd);
   const day = scrub === null ? null : f.days[scrub];
 
   return (
@@ -762,7 +762,27 @@ function lpFigures(
   universe: UniverseAsset[],
   /** "sol" when the series carries SOL quantities; see `seriesBase`. */
   base: "usd" | "sol" = "usd",
+  /** The current rate, for the figures that are only recorded in dollars. */
+  solUsd?: number | null,
 ): LpFigures {
+  /*
+   * EVERY FIGURE THIS RETURNS IS IN THE SERIES' UNIT.
+   *
+   * The curve and its baseline come from SOL quantities recorded when they
+   * were true. Everything else here — what the open book is worth, fees, the
+   * aggregates — exists only in dollars, because that is what the LP tables
+   * store. Those are NOW-figures, so valuing them at the CURRENT rate is
+   * correct and carries none of the baseline problem: the error was only ever
+   * dividing a frozen baseline and a live reading by the same current rate.
+   *
+   * What must not happen is the two units meeting in one object. Returning
+   * `netWorthUsd` in dollars beside a SOL profit is what printed "238.658 SOL"
+   * over a book of two SOL.
+   */
+  const inUnit = (usdValue: number): number =>
+    base === "sol" && solUsd && solUsd > 0 ? usdValue / solUsd : usdValue;
+  const inUnitOrNull = (usdValue: number | null): number | null =>
+    usdValue === null ? null : inUnit(usdValue);
   const points = series.points;
   const last = points[points.length - 1];
   // The baseline is the book's starting capital, which is what the curve is
@@ -807,7 +827,7 @@ function lpFigures(
   const daysLive = firstAt
     ? Math.max(1, Math.round((Date.now() - Date.parse(firstAt)) / 86_400_000))
     : days.length;
-  const profitUsd = last.equityUsd - baseline;
+  const profitUsd = (base === "sol" ? (last.equitySol ?? inUnit(last.equityUsd)) : last.equityUsd) - baseline;
   // The best single day, which is a fact about how this book earns: a pool
   // that pays steadily and one that had a single frantic afternoon can show
   // the same total, and an owner deciding whether to add to it wants to know
@@ -821,26 +841,26 @@ function lpFigures(
 
   return {
     days,
-    netWorthUsd: last.equityUsd,
+    netWorthUsd: base === "sol" ? (last.equitySol ?? inUnit(last.equityUsd)) : last.equityUsd,
     vsHodlPct: hodl.pct,
     vsHodlCovered: hodl.covered,
     vsHodlOpen: hodl.open,
     vsHodlUnreadable: hodl.unreadable,
     profitUsd,
-    realizedUsd,
-    feesUsd,
+    realizedUsd: inUnit(realizedUsd),
+    feesUsd: inUnitOrNull(feesUsd),
     feesKnown: lp?.feesKnown ?? 0,
     feesPartial: !!lp && lp.closed > 0 && lp.feesKnown < lp.closed,
     feesEstimated: lp?.feesEstimated ?? false,
     closed,
     winners,
     winRatePct: closed > 0 ? (winners / closed) * 100 : null,
-    avgInvestedUsd: lp?.avgInvestedUsd ?? null,
+    avgInvestedUsd: inUnitOrNull(lp?.avgInvestedUsd ?? null),
     monthlyUsd: daysLive >= 30 ? profitUsd / (daysLive / 30.44) : null,
-    perPositionUsd: closed > 0 ? realizedUsd / closed : null,
+    perPositionUsd: closed > 0 ? inUnit(realizedUsd / closed) : null,
     daysLive,
     openCount: lp?.openCount ?? positions.filter((p) => !!p.lp).length,
-    openInvestedUsd: lp?.openInvestedUsd ?? 0,
+    openInvestedUsd: inUnit(lp?.openInvestedUsd ?? 0),
     bestDayUsd: best ? best.profitUsd : null,
     bestDay: best ? best.day : null,
     earningDays: days.filter((d) => d.profitUsd > 0).length,
