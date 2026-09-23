@@ -425,6 +425,16 @@ export function CopyLimitsStep({
         ) : (
           <p className="mt-2 font-ui text-[13px] text-text-secondary">{t("cl_sizing_empty")}</p>
         )}
+        {/* WHAT THE BOOK IS ACTUALLY HELD IN (CANOPY_127).
+            Sizing above stays in dollars on purpose: the leader's positions
+            are another wallet's, valued in dollars, and restating them in SOL
+            would be false precision. What IS worth saying is that the number
+            the owner types is converted once, at deploy, and the agent's book
+            is a quantity of SOL from then on — so its dollar value moving with
+            the SOL price is expected rather than a fault to report. */}
+        <p className="mt-6 border-t border-border-subtle pt-4 font-ui text-[12.5px] leading-relaxed text-text-muted">
+          {t("cl_sol_book")}
+        </p>
         {/* THE TERMS, BEFORE THE DEPLOY BUTTON.
             A share of profit is the one thing about a copy agent that costs
             the owner money, and it was previously stated nowhere in the app.
@@ -433,7 +443,7 @@ export function CopyLimitsStep({
             ones. Both zero means neither fee is switched on, and the whole
             block stays out of the way. */}
         {data?.fees && (data.fees.canopyBps > 0 || data.fees.creatorBps > 0) ? (
-          <p className="mt-6 border-t border-border-subtle pt-4 font-ui text-[12.5px] leading-relaxed text-text-muted">
+          <p className="mt-3 font-ui text-[12.5px] leading-relaxed text-text-muted">
             {t("cl_fees", {
               canopy: (data.fees.canopyBps / 100).toFixed(data.fees.canopyBps % 100 ? 1 : 0),
               creator: (data.fees.creatorBps / 100).toFixed(data.fees.creatorBps % 100 ? 1 : 0),

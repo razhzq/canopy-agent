@@ -126,4 +126,10 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
 
   funding_perp_sol_float:
     "该智能体交易永续合约。钱包中还需保留约 {sol} SOL：每笔仓位请求需要一小笔租金押金，赞助不覆盖这部分。仓位关闭后会退回。",
+  // ── SOL 计价的智能体 (CANOPY_127) ────────────────────────────────────
+  // 复制 LP 智能体持有两种形态的 SOL：作为仓位的 WRAPPED，以及作为手续费的
+  // 原生 SOL。二者不能互相转换，所以文案绝不暗示它们可以互换。
+  funding_at_sol_price: "按 {price} / SOL 计算",
+  funding_gas_short:
+    "该智能体持有 {have} SOL 用于网络手续费，需要 {need}。它无法把自己的仓位换成手续费，因此下次充值会先补足这一部分。",
 };

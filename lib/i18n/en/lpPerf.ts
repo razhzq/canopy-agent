@@ -61,6 +61,9 @@ export const enLpPerf = {
 
   // ── Profit history ─────────────────────────────────────────────
   lp_perf_history: "Profit history",
+  // The SOL/USD switch (CANOPY_127). Labelled for a screen reader only —
+  // the buttons say "SOL" and "USD", which is already the whole control.
+  lp_perf_unit_aria: "Show amounts in",
   lp_perf_view_chart: "Chart",
   lp_perf_view_calendar: "Calendar",
   lp_perf_bucket_day: "Day",

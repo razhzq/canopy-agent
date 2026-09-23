@@ -41,6 +41,7 @@ export const zhLpPerf: Record<keyof typeof enLpPerf, string> = {
   lp_perf_after_a_day: "运行一天后显示",
 
   lp_perf_history: "利润历史",
+  lp_perf_unit_aria: "金额显示单位",
   lp_perf_view_chart: "图表",
   lp_perf_view_calendar: "日历",
   lp_perf_bucket_day: "日",

@@ -142,4 +142,11 @@ export const enWallet = {
   // ── Perps ─────────────────────────────────────────────────────────────
   funding_perp_sol_float:
     "This agent trades perps. Keep about {sol} SOL in the wallet as well: each position request needs a small rent deposit that sponsorship does not cover. It comes back when the position closes.",
+  // ── SOL-denominated agents (CANOPY_127) ───────────────────────────────
+  // A copy-LP agent holds SOL twice over: WRAPPED, which is its book, and
+  // NATIVE, which is its gas. It cannot turn one into the other, so the copy
+  // never implies they are interchangeable.
+  funding_at_sol_price: "at {price} / SOL",
+  funding_gas_short:
+    "This agent holds {have} SOL for network fees and needs {need}. It cannot convert its own book into gas, so the next deposit tops this up first.",
 } as const;

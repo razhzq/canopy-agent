@@ -41,10 +41,17 @@ export function WalletBar({
   isPaper,
   full = false,
   perps = false,
+  unit = "USD",
 }: {
   agentId: number;
   address: string | null;
   isPaper: boolean;
+  /**
+   * What this agent's wallet holds as cash (CANOPY_127) — threaded to the
+   * withdraw dialog so it offers the asset the wallet actually has, rather
+   * than a USDC balance of zero.
+   */
+  unit?: "USD" | "SOL";
   /** The agent trades perps — threaded to the funding dialog for its SOL note. */
   perps?: boolean;
   /** Fill the container instead of the header's fixed 248px column (phone). */
@@ -178,6 +185,7 @@ export function WalletBar({
         <WithdrawModal
           address={address}
           defaultTo={personalWallet ?? undefined}
+          unit={unit}
           onClose={() => setMoving(null)}
         />
       ) : null}

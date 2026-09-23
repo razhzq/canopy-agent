@@ -47,6 +47,7 @@ import {
   toBaseUnits,
   type Asset,
   type TransferPlan,
+  decimalsOf,
 } from "@/lib/transfer";
 import { useT, type Translate } from "@/lib/i18n";
 
@@ -170,6 +171,7 @@ export function WithdrawModal({
   address: from,
   onClose,
   defaultTo,
+  unit = "USD",
 }: {
   address: string;
   onClose: () => void;
@@ -184,6 +186,11 @@ export function WithdrawModal({
    * because a prefilled address nobody read is the same hazard as a typed one.
    */
   defaultTo?: string;
+  /**
+   * WHAT THIS WALLET HOLDS AS CASH (CANOPY_127). Absent means USD, which is
+   * the owner's own wallet and every agent but copy LP.
+   */
+  unit?: "USD" | "SOL";
 }) {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
@@ -195,12 +202,23 @@ export function WithdrawModal({
   // picking the wrong one here would spend an agent's money. Everything in the
   // dialog is pinned to `from`, which the menu resolved as the user's own.
   const wallet = wallets.find((w) => w.address === from);
-  // USDC ONLY. The SOL half of this dialog went when the SOL floor did — an
-  // agent wallet is not asked to hold SOL, so a control for withdrawing it was
-  // offering to move an asset the product no longer says anything about. Kept
-  // as a typed constant rather than inlined, so the transfer plumbing — which
-  // is written against `Asset` — still states what it is being handed.
-  const asset: Asset = "USDC";
+  /**
+   * ONE ASSET, DECIDED BY THE WALLET, never chosen here.
+   *
+   * This used to be a hardcoded "USDC" — correct while every agent held
+   * dollars, and silently wrong the moment copy LP started holding SOL
+   * (CANOPY_127): the dialog would have offered to withdraw a USDC balance of
+   * zero from a wallet holding several SOL.
+   *
+   * `wSOL` rather than `SOL` because that is what the cash actually IS — the
+   * agent's book lives in a wrapped-SOL token account, and its native lamports
+   * are gas it needs to keep. Withdrawing the gas would strand the positions
+   * the gas exists to close. The label the owner reads still says SOL; the
+   * distinction stays in the type, where it decides the decimals.
+   */
+  const asset: Asset = unit === "SOL" ? "wSOL" : "USDC";
+  const assetLabel = asset === "wSOL" ? "SOL" : asset;
+  const decimals = decimalsOf(asset);
   const [to, setTo] = useState(defaultTo ?? "");
   /**
    * Whether the owner has asked to send somewhere other than their own wallet.
@@ -230,10 +248,12 @@ export function WithdrawModal({
     };
   }, [from]);
 
-  // No reserve to hold back. That existed so a SOL withdrawal could not leave
-  // the wallet unable to pay its own fee; USDC fees are paid in SOL, so the
-  // whole balance is sendable.
-  const sendable = balance ? balance.usdc : null;
+  // The whole CASH balance is sendable, whichever asset it is. No reserve is
+  // held back here because the reserve is a different balance: fees are paid
+  // from native SOL, and this never touches it — not for a USDC wallet, and
+  // not for a SOL one, where the wrapped book and the native gas are separate
+  // accounts that do not convert.
+  const sendable = balance ? (asset === "wSOL" ? balance.wsol ?? 0 : balance.usdc) : null;
 
   const toValid = to.trim() !== "" && isValidAddress(to);
   const sendingToSelf = toValid && to.trim() === from;
@@ -241,9 +261,9 @@ export function WithdrawModal({
   let amountError: string | null = null;
   if (amount.trim() !== "") {
     try {
-      const units = toBaseUnits(amount, 6);
+      const units = toBaseUnits(amount, decimals);
       if (units <= 0n) amountError = t("withdraw_above_zero");
-      else if (sendable !== null && Number(formatUnits(units, 6)) > sendable)
+      else if (sendable !== null && Number(formatUnits(units, decimals)) > sendable)
         amountError = t("withdraw_over_balance");
     } catch (err) {
       amountError = amountMessage(err, t);
@@ -422,16 +442,16 @@ export function WithdrawModal({
           )}
 
           <Field
-            label={t("withdraw_amount_label", { asset })}
+            label={t("withdraw_amount_label", { asset: assetLabel })}
             aside={
               sendable === null ? null : (
                 <span className="font-ui text-[11.5px] text-text-dim">
                   <span className="tnum font-mono">
                     {sendable.toLocaleString("en-US", {
-                      maximumFractionDigits: 6,
+                      maximumFractionDigits: asset === "wSOL" ? 4 : 6,
                     })}
                   </span>{" "}
-                  {t("withdraw_available", { asset })}
+                  {t("withdraw_available", { asset: assetLabel })}
                 </span>
               )
             }
@@ -439,11 +459,11 @@ export function WithdrawModal({
             <AmountInput
               value={amount}
               onChange={setAmount}
-              unit={asset}
-              label={t("withdraw_amount_aria", { asset })}
+              unit={assetLabel}
+              label={t("withdraw_amount_aria", { asset: assetLabel })}
               onMax={
                 sendable !== null && sendable > 0
-                  ? () => setAmount(formatAmountInput(sendable, 6))
+                  ? () => setAmount(formatAmountInput(sendable, decimals))
                   : undefined
               }
             />

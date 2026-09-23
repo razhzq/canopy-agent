@@ -8,6 +8,7 @@ import { markOpenBook } from "@/lib/perf";
 import { dayKey, lpDaysFromEquity, type LpDay } from "@/lib/lpDays";
 import type { AgentDetail, EquitySeries, LpBook, UniverseAsset } from "@/lib/api";
 import { useLocale, dateLocale, type Locale } from "@/lib/i18n";
+import { bookFormat, useBookUnit, USD_FORMAT, type BookFormat } from "@/lib/bookUnit";
 
 /**
  * A liquidity agent's performance, which is not a trading agent's.
@@ -32,15 +33,34 @@ export function LpEquityView({
   series,
   positions,
   universe,
+  unit = "USD",
+  solUsd = null,
 }: {
   series: EquitySeries | null;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
+  /**
+   * The unit this agent's book is actually kept in (CANOPY_127).
+   *
+   * "SOL" turns on the toggle below. Every figure on this panel arrives in
+   * dollars either way — the book valued at `solUsd` — so switching is a
+   * render choice, not a second fetch.
+   */
+  unit?: "USD" | "SOL";
+  /** The one rate every figure here was derived at. Null hides the toggle. */
+  solUsd?: number | null;
 }) {
   const { t, locale } = useLocale();
   const [view, setView] = useState<"chart" | "calendar">("chart");
   const [range, setRange] = useState<LpRange>("all");
   const [scrub, setScrub] = useState<number | null>(null);
+  // A choice worth offering only when there is one: a USD book has one unit,
+  // and a SOL book with no readable rate cannot be converted honestly.
+  const canToggle = unit === "SOL" && typeof solUsd === "number" && solUsd > 0;
+  const [shownUnit, setShownUnit] = useBookUnit(canToggle);
+  const fmt = bookFormat(shownUnit, solUsd);
+  const money = fmt.money;
+  const signed = fmt.signed;
 
   if (series === null || series.points.length === 0) return <NoRecord />;
 
@@ -137,6 +157,32 @@ export function LpEquityView({
                   }`}
                 >
                   {r.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {/* SOL OR DOLLARS. The same book either way — this changes the
+              LABELS, not the line: converting at one rate is a uniform scale,
+              so the chart's shape is identical and only what the numbers are
+              counted in moves.
+
+              SOL LEADS because it is what the book actually is. The dollar
+              view is a valuation of it at this moment, and an owner watching a
+              still book in dollars would see it move on days it did nothing. */}
+          {canToggle ? (
+            <div role="group" aria-label={t("lp_perf_unit_aria")} className={SEGMENT_TRACK}>
+              {(["SOL", "USD"] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  aria-pressed={shownUnit === u}
+                  onClick={() => setShownUnit(u)}
+                  className={`${SEGMENT_ITEM} h-7 px-3 text-[12px] ${
+                    shownUnit === u ? SEGMENT_ON : SEGMENT_OFF
+                  }`}
+                >
+                  {u}
                 </button>
               ))}
             </div>
@@ -307,6 +353,11 @@ export function LpEquityView({
             view={view}
             height={220}
             onScrub={setScrub}
+            // THE SAME FORMATTER THE HEADLINE USES. The chart carries its own
+            // readings — the calendar's day cells, the axis, the tooltip — and
+            // leaving it on dollars while the figures above switched would put
+            // two units on one panel.
+            fmt={fmt}
           />
         </div>
       </div>
@@ -382,13 +433,25 @@ export function LpEquityMobile({
   series,
   positions,
   universe,
+  unit = "USD",
+  solUsd = null,
 }: {
   series: EquitySeries | null;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
+  unit?: "USD" | "SOL";
+  solUsd?: number | null;
 }) {
   const { t, locale } = useLocale();
   const [scrub, setScrub] = useState<number | null>(null);
+  // THE SAME PREFERENCE AS THE DESKTOP PANEL, because `useBookUnit` reads one
+  // stored key. Someone who chose dollars on a laptop is not asked again on a
+  // phone.
+  const canToggle = unit === "SOL" && typeof solUsd === "number" && solUsd > 0;
+  const [shownUnit, setShownUnit] = useBookUnit(canToggle);
+  const fmt = bookFormat(shownUnit, solUsd);
+  const money = fmt.money;
+  const signed = fmt.signed;
   if (series === null || series.points.length === 0) return <NoRecord />;
   const f = lpFigures(series, positions, universe);
   const day = scrub === null ? null : f.days[scrub];
@@ -477,12 +540,21 @@ export function LpEquityCompact({
   points,
   capitalUsd,
   lp,
+  fmt = USD_FORMAT,
 }: {
   points: EquitySeries["points"];
   capitalUsd: number;
   lp?: LpBook;
+  /**
+   * How to render amounts. Dollars by default, which is right for the public
+   * strategy page: a visitor comparing strategies has no book of their own and
+   * no reason to read one of them in SOL.
+   */
+  fmt?: BookFormat;
 }) {
   const { t } = useLocale();
+  const money = fmt.money;
+  const signed = fmt.signed;
   const days = useMemo(() => lpDaysFromEquity(points, capitalUsd), [points, capitalUsd]);
   if (points.length === 0) return <NoRecord />;
 
@@ -528,9 +600,11 @@ export function LpEquityCompact({
 
 /* ------------------------------------------------------------- the rail -- */
 
-function Rail({ figures }: { figures: LpFigures }) {
+function Rail({ figures, fmt = USD_FORMAT }: { figures: LpFigures; fmt?: BookFormat }) {
   const { t } = useLocale();
   const f = figures;
+  const money = fmt.money;
+  const signed = fmt.signed;
   return (
     <>
       <Fig cell={0} edges="" label={t("lp_perf_closed")} value={String(f.closed)} />
@@ -794,21 +868,17 @@ function shortDay(day: string, locale: Locale): string {
   });
 }
 
-function money(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return `$${Math.abs(n).toLocaleString("en-US", {
-    maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0,
-  })}`;
-}
-
-/** A percentage with a real minus, matching the trading panel's. */
+/**
+ * A percentage with a real minus, matching the trading panel's.
+ *
+ * DELIBERATELY NOT UNIT-AWARE. A return of 4.2% is 4.2% whether the book is
+ * counted in SOL or in dollars — converting both sides of a ratio cancels —
+ * so this is one of the figures the toggle must leave alone.
+ */
 function signedPct(n: number): string {
   if (!Number.isFinite(n)) return "—";
   const body = `${Math.abs(n).toFixed(2)}%`;
   return n < 0 ? `−${body}` : `+${body}`;
 }
 
-function signed(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return n < 0 ? `−${money(n)}` : `+${money(n)}`;
-}
+

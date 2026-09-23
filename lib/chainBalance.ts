@@ -26,6 +26,16 @@
 /** Settlement currency for every agent trade. Mirrors canopy-be's USDC_MINT. */
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
+/**
+ * Wrapped SOL — the mint a copy-LP agent's cash is held in (CANOPY_127).
+ *
+ * Defined here beside USDC rather than imported from `lib/transfer`, because
+ * this module is the chain READER and must not depend on the module that
+ * spends; the dependency runs the other way. `lib/transfer` re-states it for
+ * its own instruction building.
+ */
+export const WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112";
+
 /** SPL Token program — the owner of every token account we read. */
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
@@ -86,7 +96,22 @@ export function wsUrl(): string {
 
 export interface ChainFunding {
   usdc: number;
+  /**
+   * NATIVE lamports, as SOL. This is gas: it pays network fees and account
+   * rent, and an agent wallet cannot turn it into anything else.
+   */
   sol: number;
+  /**
+   * WRAPPED SOL, which is a different balance entirely (CANOPY_127).
+   *
+   * A copy-LP agent's cash lives here — lamports inside a token account — and
+   * the agent cannot move value between this and `sol` above: wrapping and
+   * unwrapping both need the System program, which its allow-list does not
+   * carry. Reported separately for exactly that reason; summing the two would
+   * tell an owner they have liquidity they cannot deploy, or gas they cannot
+   * spend.
+   */
+  wsol: number;
 }
 
 interface RpcResponse<T> {
@@ -177,16 +202,18 @@ export async function readChainFunding(
   ]);
 
   let usdc = 0;
+  let wsol = 0;
   for (const entry of accounts.value ?? []) {
     const info = entry?.account?.data?.parsed?.info;
-    if (info?.mint !== USDC_MINT) continue;
-    const amount = info.tokenAmount?.uiAmount;
+    const amount = info?.tokenAmount?.uiAmount;
     // A mint can have more than one token account. Summed, not overwritten —
     // taking the last would under-report a wallet holding two.
-    if (typeof amount === "number") usdc += amount;
+    if (typeof amount !== "number") continue;
+    if (info?.mint === USDC_MINT) usdc += amount;
+    else if (info?.mint === WRAPPED_SOL_MINT) wsol += amount;
   }
 
-  return { usdc, sol: (lamports.value ?? 0) / LAMPORTS_PER_SOL };
+  return { usdc, wsol, sol: (lamports.value ?? 0) / LAMPORTS_PER_SOL };
 }
 
 interface TokenAccount {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ProfitBars, barScale } from "@/components/charts";
 import { axisWhen, bandIndex, Marker } from "@/components/equity";
+import { USD_FORMAT, type BookFormat } from "@/lib/bookUnit";
 import { ICON_BUTTON } from "@/components/kit";
 import { bucketDays, dayKey, monthGrid, type Bucket, type LpDay } from "@/lib/lpDays";
 import { useLocale, dateLocale, type Locale } from "@/lib/i18n";
@@ -39,6 +40,7 @@ export function ProfitBody({
   view,
   height = 220,
   onScrub,
+  fmt = USD_FORMAT,
 }: {
   days: LpDay[];
   /** False for a day inside the window that has no reading yet. */
@@ -55,8 +57,21 @@ export function ProfitBody({
    * the footer instead.
    */
   onScrub?: (i: number | null) => void;
+  /**
+   * How to render amounts (CANOPY_127). Dollars by default.
+   *
+   * PASSED IN RATHER THAN CHOSEN HERE, because this chart is mounted beside a
+   * headline that has already made the choice. Two units on one panel — a
+   * figure above in SOL and a tooltip below in dollars — is worse than either
+   * unit alone, and the reader has no way to tell which one is lying.
+   *
+   * Only the LABELS change. Converting at one rate is a uniform scale, so the
+   * bars, the axis positions and the line are identical either way.
+   */
+  fmt?: BookFormat;
 }) {
   const { t, locale } = useLocale();
+  const signed = fmt.signed;
   const [hover, setHover] = useState<number | null>(null);
   const [cursor, setCursor] = useState<string>(() =>
     days.length > 0 ? days[days.length - 1].day : dayKey(new Date()),
@@ -91,7 +106,7 @@ export function ProfitBody({
   }
 
   if (view === "calendar") {
-    return <Calendar byDay={byDay} cursor={cursor} onCursor={setCursor} days={days} />;
+    return <Calendar byDay={byDay} cursor={cursor} onCursor={setCursor} days={days} fmt={fmt} />;
   }
 
   // Bucketed columns are always readings; only the day view synthesises gaps.
@@ -251,12 +266,15 @@ function Calendar({
   cursor,
   onCursor,
   days,
+  fmt = USD_FORMAT,
 }: {
   byDay: Map<string, LpDay>;
   cursor: string;
   onCursor: (day: string) => void;
   days: LpDay[];
+  fmt?: BookFormat;
 }) {
+  const signed = fmt.signed;
   const { t, locale } = useLocale();
   const at = new Date(`${cursor}T00:00:00`);
   const year = at.getFullYear();
@@ -388,9 +406,4 @@ function shortDay(day: string, locale: Locale): string {
   });
 }
 
-/** Dollars with a real minus, matching every other signed figure in the app. */
-function signed(n: number): string {
-  const abs = Math.abs(n);
-  const body = `$${abs.toLocaleString("en-US", { maximumFractionDigits: abs < 100 ? 2 : 0 })}`;
-  return n < 0 ? `−${body}` : `+${body}`;
-}
+

@@ -2288,6 +2288,21 @@ export interface AgentFunding {
   minSol: number;
   usdc: number;
   sol: number;
+  /**
+   * WHICH ASSET THIS AGENT IS FUNDED IN (CANOPY_127).
+   *
+   * "USD" is every spot, perp and plan-driven LP agent: it holds USDC, and
+   * `usdc` below is its cash. "SOL" is copy LP: its cash is WRAPPED SOL, and
+   * `sol` above is gas that can never become liquidity — the agent cannot
+   * wrap, so the two are separate balances that do not convert.
+   */
+  unit?: "USD" | "SOL";
+  /** The cash balance in the agent's own unit: dollars of USDC, or wrapped SOL. */
+  cash?: number;
+  /** What one SOL is worth, for showing a SOL balance in dollars. Null when unreadable. */
+  solUsd?: number | null;
+  /** Sent rather than hardcoded, for the same reason as `usdcMint`. */
+  wrappedSolMint?: string;
   fundedForLive: boolean;
   /** The same sentence the tick pauses with. Null when the wallet is ready. */
   shortfall: string | null;
@@ -2974,6 +2989,24 @@ export interface AgentDetail {
    * hides the promote button rather than offering one the server will refuse.
    */
   liveTradingEnabled?: boolean;
+  /**
+   * WHICH TOKEN THIS AGENT'S BOOK IS COUNTED IN (CANOPY_127).
+   *
+   * "SOL" for copy LP: its capital, cash and PnL are quantities of SOL, and
+   * every `*_usd` figure in this response is that book valued at `solUsd`
+   * below. Absent means "USD", where the two are the same thing.
+   */
+  unit?: "USD" | "SOL";
+  /**
+   * The rate every dollar figure here was derived at, so the page can offer a
+   * SOL/USD toggle by dividing rather than fetching again.
+   *
+   * ONE RATE FOR THE WHOLE RESPONSE, which is the point: a page that converted
+   * some numbers at one rate and others at another would show a book that does
+   * not add up. Null when the price could not be read — the page then stays in
+   * dollars rather than dividing by a guess.
+   */
+  solUsd?: number | null;
 }
 
 /**

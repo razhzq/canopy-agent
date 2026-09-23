@@ -337,6 +337,7 @@ export function AgentDetailMobile({
               address={walletAddress}
               isPaper={agent.is_paper}
               perps={positions.some((p) => !!p.perp)}
+              unit={detail.unit ?? "USD"}
               full
             />
           </div>
@@ -420,7 +421,13 @@ export function AgentDetailMobile({
             of them describe a distribution of entries and exits that an LP
             book does not have. See components/lpEquity.tsx. */}
         {isLp ? (
-          <LpEquityMobile series={equity} positions={positions} universe={assets} />
+          <LpEquityMobile
+            series={equity}
+            positions={positions}
+            universe={assets}
+            unit={detail.unit ?? "USD"}
+            solUsd={detail.solUsd ?? null}
+          />
         ) : (
           <>
         <div className="h-[168px]">

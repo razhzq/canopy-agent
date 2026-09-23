@@ -278,6 +278,8 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   cl_calc_copy_pct: "复制比例",
   cl_calc_capped: "上限 {usd}",
   cl_calc_opens: "实际开仓",
+  cl_sol_book:
+    "该智能体用 SOL 充值，账面也以 SOL 计价。上面的金额会在部署时换算一次，此后其美元价值会随 SOL 价格变动。",
   cl_fees: "\u88ab\u590d\u5236\u7684\u4ed3\u4f4d\u76c8\u5229\u5e73\u4ed3\u65f6\uff0cCanopy \u6536\u53d6 {canopy}%\uff0c\u4f60\u590d\u5236\u7684\u94b1\u5305\u83b7\u5f97 {creator}%\u3002\u4e8f\u635f\u4e0d\u6536\u8d39\u3002",
   cl_calc_skipped: "跳过：低于 {min}",
   cl_sizing_empty: "对方暂无可参照的仓位。复制仓位将按其下一个仓位占资金的比例，乘以您的复制比例开仓。",

@@ -297,6 +297,11 @@ export const enBuild = {
   cl_calc_copy_pct: "Copy %",
   cl_calc_capped: "Capped at {usd}",
   cl_calc_opens: "Opens with",
+  // The book's unit, said where the size is chosen (CANOPY_127). Sizing above
+  // is in dollars because the leader's positions are; this is what happens to
+  // the number once it is committed.
+  cl_sol_book:
+    "You fund this agent with SOL, and its book is held in SOL. The amount above is converted once when it deploys, so what it is worth in dollars moves with the SOL price from then on.",
   cl_fees: "When a copied position closes in profit, Canopy takes {canopy}% and the wallet you copy earns {creator}%. Losses are never charged.",
   cl_calc_skipped: "Skipped: under {min}",
   cl_sizing_empty: "The leader holds nothing to size against yet. A copy opens at the share of capital its next position takes, times your copy percentage.",

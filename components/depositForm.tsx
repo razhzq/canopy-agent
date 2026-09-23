@@ -49,12 +49,32 @@ import {
   formatUnits,
   formatAmountInput,
   SOL_RESERVE,
+  decimalsOf,
   type Asset,
   type TransferPlan,
 } from "@/lib/transfer";
 
-/** Decimals per asset: lamports are the ninth place, USDC the sixth. */
-const DECIMALS: Record<Asset, number> = { SOL: 9, USDC: 6 };
+/**
+ * What a SOL agent's deposit is called on screen.
+ *
+ * The owner sends ONE thing — SOL — and never sees the word "wrapped". The
+ * split into wrapped cash and native gas is real and happens in the one
+ * transaction below, but it is a property of how an agent wallet works, not a
+ * choice anyone should be asked to make.
+ */
+const SOL_LABEL = "SOL";
+
+/**
+ * What an asset is CALLED to the person sending it.
+ *
+ * "wSOL" is an implementation detail of how an agent wallet holds SOL; nobody
+ * deposits a wrapped token, they deposit SOL. The distinction stays in the
+ * types, where it prevents a 6-decimal bug, and out of the copy, where it would
+ * only raise a question with no useful answer.
+ */
+function labelOf(asset: Asset): string {
+  return asset === "wSOL" ? SOL_LABEL : asset;
+}
 
 type Step =
   | { at: "form" }
@@ -70,11 +90,23 @@ export function DepositForm({
   from,
   /** Re-read the agent's balance once a transfer lands. */
   onDone,
+  /**
+   * WHAT THIS AGENT IS FUNDED IN (CANOPY_127). Absent means USD, which is
+   * every agent but copy LP and the behaviour this form has always had.
+   */
+  unit = "USD",
+  /** Native SOL the agent already holds, and the floor it must keep. */
+  agentSol = 0,
+  minSol = 0,
 }: {
   to: string;
   from: string | null;
   onDone: () => void;
+  unit?: "USD" | "SOL";
+  agentSol?: number;
+  minSol?: number;
 }) {
+  const solFunded = unit === "SOL";
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
   const gas = useGasSponsorship();
@@ -90,7 +122,7 @@ export function DepositForm({
    * the amount field's unit slot as a select rather than as a second field,
    * because it is one send of one thing.
    */
-  const [asset, setAsset] = useState<Asset>("USDC");
+  const [asset, setAsset] = useState<Asset>(solFunded ? "wSOL" : "USDC");
   const [step, setStep] = useState<Step>({ at: "form" });
   const [reviewing, setReviewing] = useState(false);
   const [held, setHeld] = useState<ChainFunding | null>(null);
@@ -106,14 +138,34 @@ export function DepositForm({
     };
   }, [from, step.at]);
 
-  // SOL keeps a reserve back for the sender's own fees; USDC is all sendable.
+  /**
+   * THE GAS LEG. How much of this deposit arrives as native SOL rather than as
+   * liquidity.
+   *
+   * An agent needs SOL in two forms and CANNOT CONVERT BETWEEN THEM: wrapped,
+   * to provide liquidity with, and native, to pay fees and position rent with.
+   * Wrapping needs the System program, which its allow-list does not carry, so
+   * whatever it is given is what it has. Sending only wrapped SOL produces an
+   * agent holding a full book and unable to sign anything.
+   *
+   * So the top-up rides along: enough to reach the floor the backend reports,
+   * and nothing once it is there. Computed from `minSol` rather than from a
+   * constant in this bundle — the floor moves with the SOL price, and a second
+   * copy of that decision here would drift from the one the tick obeys.
+   */
+  const gasTopUpSol = solFunded ? Math.max(0, minSol - agentSol) : 0;
+  const gasLamports = BigInt(Math.ceil(gasTopUpSol * 1e9));
+
+  // The sender always keeps a reserve back for their OWN fees. On a SOL
+  // deposit the gas leg comes out of the same balance, so it is held back too —
+  // otherwise "max" produces a transaction the wallet cannot afford to send.
   const available =
     held === null
       ? null
       : asset === "USDC"
         ? held.usdc
-        : Math.max(0, held.sol - SOL_RESERVE);
-  const decimals = DECIMALS[asset];
+        : Math.max(0, held.sol - SOL_RESERVE - gasTopUpSol);
+  const decimals = decimalsOf(asset);
 
   let amountError: string | null = null;
   if (amount.trim() !== "") {
@@ -139,7 +191,7 @@ export function DepositForm({
     try {
       setStep({
         at: "confirm",
-        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled }),
+        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled, gasLamports }),
       });
     } catch (err) {
       console.error("[deposit] failed", err);
@@ -150,7 +202,7 @@ export function DepositForm({
     } finally {
       setReviewing(false);
     }
-  }, [from, to, amount, asset, gas.enabled, reviewing]);
+  }, [from, to, amount, asset, gas.enabled, gasLamports, reviewing]);
 
   const send = useCallback(
     async (plan: TransferPlan) => {
@@ -189,7 +241,7 @@ export function DepositForm({
     return (
       <p className={BODY}>
         No wallet is connected in this session, so a transfer cannot be signed
-        here. Send USDC to the address above instead.
+        here. Send {solFunded ? "SOL" : "USDC"} to the address above instead.
       </p>
     );
   }
@@ -224,9 +276,9 @@ export function DepositForm({
         <p className="font-ui text-[13px] leading-relaxed text-text-primary">
           Send{" "}
           <span className="tnum font-mono">
-            {plan ? formatUnits(plan.amount, DECIMALS[plan.asset]) : amount}
+            {plan ? formatUnits(plan.amount, decimalsOf(plan.asset)) : amount}
           </span>{" "}
-          {plan?.asset ?? asset} to{" "}
+          {labelOf(plan?.asset ?? asset)} to{" "}
           <span className="font-mono">{`${to.slice(0, 4)}…${to.slice(-4)}`}</span>
           .
         </p>
@@ -249,6 +301,17 @@ export function DepositForm({
           <FieldNote>
             SOL on the agent&apos;s wallet pays its network fees and the rent on
             new token accounts. It is never traded.
+          </FieldNote>
+        ) : null}
+        {/* THE SPLIT, STATED. The owner sends one number; two different things
+            arrive, and only one of them can be put to work. Saying so here is
+            what keeps "I sent 5 SOL and it only has 4.9 to trade with" from
+            being a surprise. */}
+        {plan && plan.gasLamports > 0n ? (
+          <FieldNote>
+            {formatUnits(plan.gasLamports, 9)} SOL of this goes to the
+            agent&apos;s wallet as network gas, which it cannot pay fees
+            without. The rest is what it provides liquidity with.
           </FieldNote>
         ) : null}
         <div className="flex items-center gap-2">
@@ -285,10 +348,10 @@ export function DepositForm({
               <>
                 <span className="tnum font-mono">
                   {available.toLocaleString(undefined, {
-                    maximumFractionDigits: asset === "SOL" ? 4 : 2,
+                    maximumFractionDigits: asset === "USDC" ? 2 : 4,
                   })}
                 </span>{" "}
-                {asset} available
+                {labelOf(asset)} available
               </>
             )}
           </span>
@@ -299,9 +362,15 @@ export function DepositForm({
             <AmountInput
               value={amount}
               onChange={setAmount}
-              unit={asset}
-              label={`Amount in ${asset}`}
+              unit={labelOf(asset)}
+              label={`Amount in ${labelOf(asset)}`}
               unitControl={
+                // ONE ASSET, NO CHOICE, for a SOL agent. The select exists
+                // because a USD agent genuinely needs two things in its wallet
+                // and has to say which it is sending. A SOL agent needs one,
+                // and offering a picker with a single option is chrome that
+                // implies a decision nobody has to make.
+                solFunded ? null : (
                 // The asset, chosen where the unit is read. A native select
                 // styled as a quiet pill: two options do not warrant a menu of
                 // our own, and the platform's picker is the one keyboards and
@@ -324,6 +393,7 @@ export function DepositForm({
                   <option value="USDC" className="bg-bg">USDC</option>
                   <option value="SOL" className="bg-bg">SOL</option>
                 </select>
+                )
               }
               onMax={
                 available !== null && available > 0

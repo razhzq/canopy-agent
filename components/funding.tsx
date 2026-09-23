@@ -89,6 +89,19 @@ interface View {
   source: "canopy" | "chain";
   address: string;
   usdc: number;
+  /**
+   * WHAT THIS AGENT'S CASH IS, and in which unit (CANOPY_127).
+   *
+   * For a USD agent `cash` is `usdc` and nothing changes. For a SOL agent it
+   * is WRAPPED SOL, and `sol` beside it is native gas — two balances that do
+   * not convert into each other, because the agent cannot wrap or unwrap.
+   * Showing one and calling it the other is the mistake this exists to stop.
+   */
+  unit: "USD" | "SOL";
+  cash: number;
+  sol: number;
+  minSol: number;
+  solUsd: number | null;
   fundedForLive: boolean;
   shortfall: string | null;
 }
@@ -152,6 +165,11 @@ export function FundingPanel({
           source: "canopy",
           address: state.data.address,
           usdc: state.data.usdc,
+          unit: state.data.unit ?? "USD",
+          cash: state.data.cash ?? state.data.usdc,
+          sol: state.data.sol,
+          minSol: state.data.minSol,
+          solUsd: state.data.solUsd ?? null,
           fundedForLive: state.data.fundedForLive,
           shortfall: state.data.shortfall,
         }
@@ -160,6 +178,15 @@ export function FundingPanel({
             source: "chain",
             address,
             usdc: fallback.data.usdc,
+            // THE FALLBACK CANNOT KNOW THE UNIT. It reads the chain from this
+            // bundle's own constants and has no idea which agent it is looking
+            // at, so it answers the only question it can — and says so, via
+            // the "read directly" banner this path already shows.
+            unit: "USD",
+            cash: fallback.data.usdc,
+            sol: fallback.data.sol,
+            minSol: 0,
+            solUsd: null,
             shortfall: fallbackShortfall(fallback.data),
             fundedForLive: fallbackShortfall(fallback.data) === null,
           }
@@ -236,7 +263,11 @@ export function FundingPanel({
     return <ErrorState message={message} onRetry={recheck} />;
   }
 
-  const funded = view.usdc > 0;
+  const funded = view.cash > 0;
+  const solBook = view.unit === "SOL";
+  // Gas is a separate fact from cash for a SOL agent, and only worth saying
+  // when it is short — a wallet at its floor needs no commentary.
+  const gasShort = solBook && view.minSol > 0 && view.sol < view.minSol;
 
   return (
     /* THE SHAPE OF THIS SCREEN IS: how much is in it, where to send more.
@@ -273,18 +304,53 @@ export function FundingPanel({
         <div className="shrink-0 space-y-2">
           <SectionLabel>{t("funding_wallet_balance")}</SectionLabel>
           <Figure
-            value={view.usdc.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
+            value={view.cash.toLocaleString(undefined, {
+              maximumFractionDigits: solBook ? 4 : 2,
             })}
-            unit="USDC"
+            unit={solBook ? "SOL" : "USDC"}
             dim={!funded}
           />
+          {/* THE DOLLAR VALUE UNDER THE SOL, not instead of it. The book is a
+              quantity of SOL — that is the number that does not move when the
+              price does — and the dollars are what it happens to be worth
+              right now. Putting them the other way round would make a still
+              book look like it was moving. */}
+          {solBook && view.solUsd && view.cash > 0 ? (
+            <p className="font-ui text-[12px] text-text-dim">
+              <span className="tnum font-mono">
+                {(view.cash * view.solUsd).toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                  maximumFractionDigits: 0,
+                })}
+              </span>{" "}
+              {t("funding_at_sol_price", {
+                price: view.solUsd.toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                  maximumFractionDigits: 0,
+                }),
+              })}
+            </p>
+          ) : null}
           {/* Status as one line with a dot, not a coloured callout — rule 4 in
               kit.tsx. It leaves the loud styling for the fallback warning
               above, the only thing here worth interrupting for. */}
           <StatusLine tone={funded ? "good" : "pending"}>
             {t(funded ? "funding_ready" : "funding_waiting")}
           </StatusLine>
+          {/* GAS, WHICH IS NOT THE BOOK. A copy-LP agent holds SOL twice over —
+              wrapped, which it trades with, and native, which it pays fees
+              with — and it cannot turn one into the other. Named only when it
+              is short, because otherwise it is a detail nobody needs. */}
+          {gasShort ? (
+            <p className="max-w-[44ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
+              {t("funding_gas_short", {
+                have: view.sol.toLocaleString(undefined, { maximumFractionDigits: 4 }),
+                need: view.minSol.toLocaleString(undefined, { maximumFractionDigits: 4 }),
+              })}
+            </p>
+          ) : null}
           {perps ? (
             <p className="max-w-[44ch] font-ui text-[12.5px] leading-relaxed text-text-secondary">
               {t("funding_perp_sol_float", { sol: "0.02" })}
@@ -333,7 +399,14 @@ export function FundingPanel({
           above. Offering only the address made the first group copy their own
           address into another tab to move their own money. */}
       <div className="border-t border-grid pt-5">
-        <DepositForm to={view.address} from={personalWallet} onDone={recheck} />
+        <DepositForm
+          to={view.address}
+          from={personalWallet}
+          onDone={recheck}
+          unit={view.unit}
+          agentSol={view.sol}
+          minSol={view.minSol}
+        />
       </div>
 
       {/* The instruction and the utility share the last row. Separately they

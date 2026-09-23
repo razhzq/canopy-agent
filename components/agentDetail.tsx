@@ -850,6 +850,7 @@ export function AgentDetailView({
             address={wallet?.address ?? null}
             isPaper={agent.is_paper}
             perps={tradesPerps}
+            unit={detail.unit ?? "USD"}
           />
         </div>
 
@@ -897,7 +898,13 @@ export function AgentDetailView({
               {/* A liquidity book is fees and a range, not a distribution of
                   bets — see components/lpEquity.tsx for what changes and why. */}
               {isLp ? (
-                <LpEquityView series={equity} positions={positions} universe={marked} />
+                <LpEquityView
+                  series={equity}
+                  positions={positions}
+                  universe={marked}
+                  unit={detail.unit ?? "USD"}
+                  solUsd={detail.solUsd ?? null}
+                />
               ) : (
                 <EquityView series={equity} positions={positions} universe={marked} />
               )}
