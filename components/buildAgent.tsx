@@ -292,7 +292,8 @@ function repairCopy(v: unknown): CopyLimits {
     maxIncreaseUsd: numOrNull(v.maxIncreaseUsd),
     minPoolTvlUsd: numOrNull(v.minPoolTvlUsd),
     maxSlippagePct: num(v.maxSlippagePct, DEFAULT_COPY_LIMITS.maxSlippagePct),
-    verifiedTokensOnly: v.verifiedTokensOnly !== false,
+    // `=== true`, matching the contract normaliser: absent means off.
+    verifiedTokensOnly: v.verifiedTokensOnly === true,
     followRebalances: v.followRebalances !== false,
   };
 }

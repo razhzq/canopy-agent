@@ -36,7 +36,10 @@ export const DEFAULT_COPY_LIMITS: CopyLimits = {
   copyPct: 100,
   maxIncreaseUsd: null,
   minPoolTvlUsd: null,
-  verifiedTokensOnly: true,
+  // Off by default: copying a wallet means copying what it does, and
+  // Meteora verifies few small tokens. The switch is still here for an owner
+  // who wants the screen.
+  verifiedTokensOnly: false,
   followRebalances: true,
   maxSlippagePct: 1,
 };

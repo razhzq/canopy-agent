@@ -198,7 +198,10 @@ function fromPlan(plan: CopyLpInput | null | undefined): CopyLimits {
     copyPct: plan.copyPct ?? DEFAULT_COPY_LIMITS.copyPct,
     maxIncreaseUsd: plan.maxIncreaseUsd ?? null,
     minPoolTvlUsd: plan.minPoolTvlUsd ?? null,
-    verifiedTokensOnly: plan.verifiedTokensOnly !== false,
+    // Reads the SAVED plan, so it must agree with the normaliser: a plan
+    // with no field is off, and showing the switch on would tell an owner the
+    // opposite of what their agent does.
+    verifiedTokensOnly: plan.verifiedTokensOnly === true,
     followRebalances: plan.followRebalances !== false,
     maxSlippagePct: plan.maxSlippagePct ?? DEFAULT_COPY_LIMITS.maxSlippagePct,
   };
