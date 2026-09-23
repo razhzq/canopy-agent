@@ -1613,20 +1613,40 @@ export function SetLimits({
       <section>
         <SectionLabel title={t("sl_caps")} note={t("sl_caps_note")} info={t("sl_caps_info")} />
         <div className="overflow-hidden rounded-xl border border-border">
+          {/* THE LOSS LIMIT, AND IT CAN BE SWITCHED OFF.
+              It could not before, and the help text measured it against a
+              rolling high-water mark. Both changed: it is a percent of the
+              CAPITAL the owner put in — "deposit 10, stop at 8", a promise
+              they can check — and an agent has one only if someone set it.
+              A breaker nobody chose is protection nobody can predict, and it
+              closes a real book when it fires. */}
           <BudgetRow
             label={t("sl_cap_breaker")}
             info={t("sl_cap_breaker_info")}
-            help={t("sl_cap_breaker_help", { usd: money((bookOf(value) * (caps.maxDrawdownPct ?? 20)) / 100) })}
+            help={
+              caps.maxDrawdownPct !== null && caps.maxDrawdownPct !== undefined
+                ? t("sl_cap_breaker_help", {
+                    usd: money((bookOf(value) * (100 - caps.maxDrawdownPct)) / 100),
+                  })
+                : t("sl_cap_breaker_off")
+            }
           >
-            <NumberEntry
-              value={caps.maxDrawdownPct ?? 20}
-              min={5}
-              max={60}
-              step={1}
-              unit="%"
-              label={t("sl_cap_breaker")}
-              onChange={(n) => setCaps({ ...caps, maxDrawdownPct: n })}
-            />
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.maxDrawdownPct ?? 20}
+                min={5}
+                max={60}
+                step={1}
+                unit="%"
+                label={t("sl_cap_breaker")}
+                disabled={caps.maxDrawdownPct === null || caps.maxDrawdownPct === undefined}
+                onChange={(n) => setCaps({ ...caps, maxDrawdownPct: n })}
+              />
+              <CapToggle
+                on={caps.maxDrawdownPct !== null && caps.maxDrawdownPct !== undefined}
+                onToggle={(on) => setCaps({ ...caps, maxDrawdownPct: on ? 20 : null })}
+              />
+            </div>
           </BudgetRow>
           <BudgetRow label={t("sl_cap_positions")} info={t("sl_cap_positions_info")}>
             <div className="flex items-center justify-end gap-3">
@@ -1989,7 +2009,19 @@ const COOLDOWN_MINUTES = [30, 60, 120, 240, 1440] as const;
  * seen is the thing this step exists to prevent.
  */
 export const DEFAULT_RISK_CAPS: Required<RiskCaps> = {
-  maxDrawdownPct: 20,
+  /*
+   * OFF UNLESS ASKED FOR.
+   *
+   * This was 20, and it was the one cap that could not be switched off — so
+   * every agent ever built carried a breaker nobody chose. When it fires it
+   * flattens a real book, which is not a default anyone should inherit by not
+   * noticing a control.
+   *
+   * An EXISTING agent keeps whatever it stored: the builder spreads its saved
+   * caps over these defaults, so a stored 20 survives and only a genuinely
+   * unset limit lands here.
+   */
+  maxDrawdownPct: null,
   maxOpenPositions: 8,
   dailyLossLimitPct: 5,
   cooldownAfterLosses: { losses: 3, minutes: 120 },

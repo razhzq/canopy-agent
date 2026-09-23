@@ -1311,7 +1311,15 @@ export function classFor(a: UniverseAsset): "rwa" | "spot" {
  * @canopy/agent-contracts: absent = never chose, null = off, number = set.
  */
 export interface RiskCaps {
-  maxDrawdownPct?: number;
+  /**
+   * The loss limit, as a percent of CAPITAL — null is off, like the others.
+   *
+   * It used to be a required number, because the breaker could not be switched
+   * off and defaulted to 20%. Both changed: an agent has a limit only if
+   * someone set one, and it is measured against what the owner put in rather
+   * than a rolling peak.
+   */
+  maxDrawdownPct?: number | null;
   maxOpenPositions?: number | null;
   dailyLossLimitPct?: number | null;
   cooldownAfterLosses?: { losses: number; minutes: number } | null;

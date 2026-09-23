@@ -164,7 +164,10 @@ export const enLimits = {
     "Every limit above is about one trade. These are about the whole account over time, and each one stops the agent OPENING positions — never selling. Three can be switched off; the breaker cannot.",
   sl_cap_breaker: "Drawdown breaker",
   sl_cap_breaker_info: "Past this fall from the high-water mark the agent liquidates everything and stops on its own.",
-  sl_cap_breaker_help: "Liquidates after a {usd} fall from the peak",
+  // Measured from CAPITAL now, not from a rolling peak — so the figure is
+  // one the owner can check against their own deposit.
+  sl_cap_breaker_help: "Closes the book if it falls below {usd}",
+  sl_cap_breaker_off: "No loss limit — this agent will not stop itself",
   sl_cap_positions: "Open positions",
   sl_cap_positions_info: "Most distinct assets held at once. Adding to something already held does not count as a new one.",
   sl_cap_unit_positions: "at once",
