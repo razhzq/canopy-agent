@@ -86,7 +86,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   funding_deposit_address: "充值地址 · Solana",
   funding_copy_aria: "复制充值地址 {address}",
   funding_send_sol_note:
-    "在 Solana 上发送 SOL。从这里充值会自动为你包装；智能体无法自行包装 SOL，也无法把其他资产转换成它。",
+    "在 Solana 上发送 SOL——智能体用它提供流动性，且无法将其他资产转换成它。其中一部分会留作网络手续费。",
   funding_send_usdc:
     "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
   funding_send_sol:

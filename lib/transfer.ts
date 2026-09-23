@@ -60,32 +60,27 @@ export const SOL_RESERVE = 0.002;
  * What can be moved, and what each one IS on chain.
  *
  * "SOL" is native lamports — a System transfer, no token account anywhere.
- * "USDC" and "wSOL" are SPL mints and take the identical token path; the only
- * things that differ are the mint address and its decimals, which is why they
- * live in a table rather than in an `if`.
+ * "USDC" is an SPL mint and takes the token path below.
  *
- * WHY wSOL EXISTS AS A SEPARATE ASSET FROM SOL. A copy-LP agent is funded in
- * SOL and provides liquidity with it (CANOPY_127), but it cannot WRAP: that
- * needs the System program, which is deliberately absent from the agent
- * wallet's allow-list, so native lamports sitting in an agent wallet are gas
- * and can never become liquidity. The wrapping happens HERE, on the owner's
- * side, where their own key signs and no policy constrains it. From the
- * owner's point of view they send one asset; underneath, the cash arrives
- * wrapped and the gas arrives native.
+ * WRAPPED SOL USED TO BE A THIRD ASSET HERE, because a copy-LP agent's cash
+ * was held as wSOL: the agent could not wrap for itself — the System program
+ * was absent from its allow-list — so a deposit had to arrive already wrapped
+ * and this module did the wrapping on the owner's side, in two legs, with a
+ * separate top-up for gas.
+ *
+ * None of that is needed now. The agent wraps inside its own swaps
+ * (CANOPY_127), its cash is plain SOL, and funding it is the same
+ * one-instruction send as funding any other wallet. Three concepts deleted by
+ * one permission.
  */
-export type Asset = "SOL" | "USDC" | "wSOL";
+export type Asset = "SOL" | "USDC";
 
-/**
- * Wrapped SOL. An ordinary SPL mint whose balance is lamports held inside a
- * token account — which is exactly why the token path below needs no special
- * case for it, and why its decimals are 9 rather than USDC's 6.
- */
+/** Wrapped SOL. Still named because `chainBalance` reports a balance of it. */
 export const WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112";
 
 /** The mint and decimals behind each token asset. Native SOL has no mint. */
-const SPL: Record<"USDC" | "wSOL", { mint: string; decimals: number }> = {
+const SPL: Record<"USDC", { mint: string; decimals: number }> = {
   USDC: { mint: USDC_MINT, decimals: USDC_DECIMALS },
-  wSOL: { mint: WRAPPED_SOL_MINT, decimals: 9 },
 };
 
 /**
@@ -93,7 +88,7 @@ const SPL: Record<"USDC" | "wSOL", { mint: string; decimals: number }> = {
  *
  * EXPORTED BECAUSE EVERY CALLER USED TO HARDCODE A 6. A dialog that parses
  * "0.5" as 500,000 base units is correct for USDC and a thousand times wrong
- * for wSOL, and nothing about the resulting transaction looks unusual.
+ * for SOL, and nothing about the resulting transaction looks unusual.
  */
 export function decimalsOf(asset: Asset): number {
   return asset === "USDC" ? USDC_DECIMALS : 9;
@@ -209,22 +204,6 @@ export interface TransferPlan {
   /** True when the destination has no token account for this mint yet. */
   createsRecipientAccount: boolean;
   /**
-   * EXTRA LAMPORTS SENT NATIVE ALONGSIDE A wSOL DEPOSIT, for the agent's gas.
-   *
-   * A copy-LP agent needs SOL in two forms and cannot convert between them:
-   * WRAPPED to provide liquidity with, and NATIVE to pay network fees and
-   * position rent. It cannot wrap or unwrap on its own — that needs the System
-   * program, which its allow-list does not carry — so whatever it is given is
-   * what it has.
-   *
-   * Rather than ask the owner to make that distinction, one deposit carries
-   * both legs in ONE transaction: this many lamports arrive native, `amount`
-   * arrives wrapped, and the owner is debited the sum. Zero when the agent's
-   * gas is already covered, which is the ordinary case after the first
-   * deposit.
-   */
-  gasLamports: bigint;
-  /**
    * Whether Canopy pays the fee (and the rent above). Decided at planning so
    * the confirm step can say so. The dialog passes it to Privy as
    * `sponsor: true` on the signing call; Privy swaps its own fee payer in.
@@ -247,15 +226,7 @@ export async function planTransfer(
     to: string;
     amount: string;
   },
-  opts: {
-    sponsored?: boolean;
-    /**
-     * Lamports to send native beside a wSOL deposit, for the recipient's gas.
-     * Worked out by the caller, which is the only place that knows what the
-     * agent already holds. See `TransferPlan.gasLamports`.
-     */
-    gasLamports?: bigint;
-  } = {},
+  opts: { sponsored?: boolean } = {},
 ): Promise<TransferPlan> {
   const to = address(args.to.trim());
   const from = address(args.from);
@@ -283,9 +254,6 @@ export async function planTransfer(
     to: String(to),
     amount,
     createsRecipientAccount,
-    // Only a wrapped-SOL deposit carries a gas leg. Asking for one on any
-    // other asset would silently add a System transfer to a token send.
-    gasLamports: args.asset === "wSOL" && opts.gasLamports && opts.gasLamports > 0n ? opts.gasLamports : 0n,
     sponsored: opts.sponsored === true,
   };
 }
@@ -386,50 +354,14 @@ export async function sendTransfer(
       );
     }
 
-    if (plan.asset === "wSOL") {
-      /*
-       * WRAPPING, WHICH IS WHY THIS BRANCH EXISTS.
-       *
-       * wSOL is not a token the owner holds a balance of — it is lamports
-       * parked in a token account. So a "wSOL transfer" is not a transfer at
-       * all: it is a System transfer of lamports INTO the recipient's wSOL
-       * account, followed by SyncNative to make the token program count them.
-       *
-       * The owner signs this, which is the whole point. The same three
-       * instructions inside an agent wallet would be refused — the System
-       * program is absent from its allow-list — so the wrapping has to happen
-       * on this side of the boundary.
-       *
-       * THE RECIPIENT'S ACCOUNT, NOT THE SENDER'S. Sending from a wSOL balance
-       * the owner already holds would be an ordinary token transfer, but
-       * nobody keeps a standing wSOL balance; they hold SOL. Going straight
-       * from the owner's lamports to the agent's wrapped account is one
-       * transaction instead of three and leaves no dust account behind.
-       */
-      instructions.push(
-        getTransferSolInstruction({ source: signer, destination: toAta, amount: plan.amount }),
-        getSyncNativeInstruction({ account: toAta }),
-      );
-    } else {
-      instructions.push(
-        getTransferInstruction({
-          source: fromAta,
-          destination: toAta,
-          authority: signer,
-          amount: plan.amount,
-        }),
-      );
-    }
-
-    // THE GAS LEG, LAST. Native lamports the agent can spend on fees, which
-    // the wrapped balance above can never become. Ordered after the wrap so a
-    // transaction that runs out of compute fails with the cash unmoved rather
-    // than with gas delivered and cash lost.
-    if (plan.gasLamports > 0n) {
-      instructions.push(
-        getTransferSolInstruction({ source: signer, destination: to, amount: plan.gasLamports }),
-      );
-    }
+    instructions.push(
+      getTransferInstruction({
+        source: fromAta,
+        destination: toAta,
+        authority: signer,
+        amount: plan.amount,
+      }),
+    );
   }
 
   const { value: blockhash } = await rpc.getLatestBlockhash().send();

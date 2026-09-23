@@ -103,7 +103,7 @@ export const enWallet = {
   // that is the honest requirement — the agent cannot wrap for itself — while
   // the deposit form above does the wrapping so nobody has to know that.
   funding_send_sol_note:
-    "Send SOL on Solana. Depositing here wraps it for you; an agent cannot wrap its own SOL, and it cannot convert other assets into it.",
+    "Send SOL on Solana — the agent provides liquidity with it and cannot convert other assets into it. Some is kept back for network fees.",
   funding_send_usdc:
     "Send USDC on Solana — the agent trades against it and cannot convert other assets into it.",
   funding_send_sol:

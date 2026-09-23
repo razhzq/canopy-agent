@@ -427,8 +427,6 @@ export function FundingPanel({
           from={personalWallet}
           onDone={recheck}
           unit={view.unit}
-          agentSol={view.sol}
-          minSol={view.minSol}
         />
       </div>
 

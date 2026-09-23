@@ -48,6 +48,7 @@ import {
   type Asset,
   type TransferPlan,
   decimalsOf,
+  SOL_RESERVE,
 } from "@/lib/transfer";
 import { useT, type Translate } from "@/lib/i18n";
 
@@ -210,14 +211,12 @@ export function WithdrawModal({
    * (CANOPY_127): the dialog would have offered to withdraw a USDC balance of
    * zero from a wallet holding several SOL.
    *
-   * `wSOL` rather than `SOL` because that is what the cash actually IS — the
-   * agent's book lives in a wrapped-SOL token account, and its native lamports
-   * are gas it needs to keep. Withdrawing the gas would strand the positions
-   * the gas exists to close. The label the owner reads still says SOL; the
-   * distinction stays in the type, where it decides the decimals.
+   * NATIVE SOL, not wrapped. An agent's cash and its gas are the same balance
+   * now, which is why the reserve below is held back rather than the asset
+   * being a different one.
    */
-  const asset: Asset = unit === "SOL" ? "wSOL" : "USDC";
-  const assetLabel = asset === "wSOL" ? "SOL" : asset;
+  const asset: Asset = unit === "SOL" ? "SOL" : "USDC";
+  const assetLabel = asset;
   const decimals = decimalsOf(asset);
   const [to, setTo] = useState(defaultTo ?? "");
   /**
@@ -248,12 +247,22 @@ export function WithdrawModal({
     };
   }, [from]);
 
-  // The whole CASH balance is sendable, whichever asset it is. No reserve is
-  // held back here because the reserve is a different balance: fees are paid
-  // from native SOL, and this never touches it — not for a USDC wallet, and
-  // not for a SOL one, where the wrapped book and the native gas are separate
-  // accounts that do not convert.
-  const sendable = balance ? (asset === "wSOL" ? balance.wsol ?? 0 : balance.usdc) : null;
+  /*
+   * WHAT MAY LEAVE.
+   *
+   * A USDC wallet: all of it. Fees are paid from SOL, which this never
+   * touches.
+   *
+   * A SOL wallet: everything ABOVE the reserve. Cash and gas share one balance
+   * now, so sweeping it to zero would leave the wallet unable to pay the fee
+   * on its own next transaction — including the close that gets the rest out.
+   * The same carve-out the backend makes when it reports `cash`.
+   */
+  const sendable = balance
+    ? asset === "SOL"
+      ? Math.max(0, balance.sol - SOL_RESERVE)
+      : balance.usdc
+    : null;
 
   const toValid = to.trim() !== "" && isValidAddress(to);
   const sendingToSelf = toValid && to.trim() === from;
@@ -448,7 +457,7 @@ export function WithdrawModal({
                 <span className="font-ui text-[11.5px] text-text-dim">
                   <span className="tnum font-mono">
                     {sendable.toLocaleString("en-US", {
-                      maximumFractionDigits: asset === "wSOL" ? 4 : 6,
+                      maximumFractionDigits: asset === "SOL" ? 4 : 6,
                     })}
                   </span>{" "}
                   {t("withdraw_available", { asset: assetLabel })}

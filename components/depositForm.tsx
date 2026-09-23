@@ -54,27 +54,7 @@ import {
   type TransferPlan,
 } from "@/lib/transfer";
 
-/**
- * What a SOL agent's deposit is called on screen.
- *
- * The owner sends ONE thing — SOL — and never sees the word "wrapped". The
- * split into wrapped cash and native gas is real and happens in the one
- * transaction below, but it is a property of how an agent wallet works, not a
- * choice anyone should be asked to make.
- */
-const SOL_LABEL = "SOL";
 
-/**
- * What an asset is CALLED to the person sending it.
- *
- * "wSOL" is an implementation detail of how an agent wallet holds SOL; nobody
- * deposits a wrapped token, they deposit SOL. The distinction stays in the
- * types, where it prevents a 6-decimal bug, and out of the copy, where it would
- * only raise a question with no useful answer.
- */
-function labelOf(asset: Asset): string {
-  return asset === "wSOL" ? SOL_LABEL : asset;
-}
 
 type Step =
   | { at: "form" }
@@ -93,18 +73,17 @@ export function DepositForm({
   /**
    * WHAT THIS AGENT IS FUNDED IN (CANOPY_127). Absent means USD, which is
    * every agent but copy LP and the behaviour this form has always had.
+   *
+   * It decides ONE thing now — which asset the field sends. The two-leg wrap
+   * this used to carry is gone: an agent's cash is native SOL, so funding it
+   * is the same single transfer as funding anything else.
    */
   unit = "USD",
-  /** Native SOL the agent already holds, and the floor it must keep. */
-  agentSol = 0,
-  minSol = 0,
 }: {
   to: string;
   from: string | null;
   onDone: () => void;
   unit?: "USD" | "SOL";
-  agentSol?: number;
-  minSol?: number;
 }) {
   const solFunded = unit === "SOL";
   const { signAndSendTransaction } = useSignAndSendTransaction();
@@ -122,7 +101,7 @@ export function DepositForm({
    * the amount field's unit slot as a select rather than as a second field,
    * because it is one send of one thing.
    */
-  const [asset, setAsset] = useState<Asset>(solFunded ? "wSOL" : "USDC");
+  const [asset, setAsset] = useState<Asset>(solFunded ? "SOL" : "USDC");
   const [step, setStep] = useState<Step>({ at: "form" });
   const [reviewing, setReviewing] = useState(false);
   const [held, setHeld] = useState<ChainFunding | null>(null);
@@ -138,33 +117,14 @@ export function DepositForm({
     };
   }, [from, step.at]);
 
-  /**
-   * THE GAS LEG. How much of this deposit arrives as native SOL rather than as
-   * liquidity.
-   *
-   * An agent needs SOL in two forms and CANNOT CONVERT BETWEEN THEM: wrapped,
-   * to provide liquidity with, and native, to pay fees and position rent with.
-   * Wrapping needs the System program, which its allow-list does not carry, so
-   * whatever it is given is what it has. Sending only wrapped SOL produces an
-   * agent holding a full book and unable to sign anything.
-   *
-   * So the top-up rides along: enough to reach the floor the backend reports,
-   * and nothing once it is there. Computed from `minSol` rather than from a
-   * constant in this bundle — the floor moves with the SOL price, and a second
-   * copy of that decision here would drift from the one the tick obeys.
-   */
-  const gasTopUpSol = solFunded ? Math.max(0, minSol - agentSol) : 0;
-  const gasLamports = BigInt(Math.ceil(gasTopUpSol * 1e9));
-
-  // The sender always keeps a reserve back for their OWN fees. On a SOL
-  // deposit the gas leg comes out of the same balance, so it is held back too —
-  // otherwise "max" produces a transaction the wallet cannot afford to send.
+  // The sender keeps a reserve back for their OWN fees — otherwise "max"
+  // produces a transaction the wallet cannot afford to send.
   const available =
     held === null
       ? null
       : asset === "USDC"
         ? held.usdc
-        : Math.max(0, held.sol - SOL_RESERVE - gasTopUpSol);
+        : Math.max(0, held.sol - SOL_RESERVE);
   const decimals = decimalsOf(asset);
 
   let amountError: string | null = null;
@@ -191,7 +151,7 @@ export function DepositForm({
     try {
       setStep({
         at: "confirm",
-        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled, gasLamports }),
+        plan: await planTransfer({ asset, from, to, amount }, { sponsored: gas.enabled }),
       });
     } catch (err) {
       console.error("[deposit] failed", err);
@@ -202,7 +162,7 @@ export function DepositForm({
     } finally {
       setReviewing(false);
     }
-  }, [from, to, amount, asset, gas.enabled, gasLamports, reviewing]);
+  }, [from, to, amount, asset, gas.enabled, reviewing]);
 
   const send = useCallback(
     async (plan: TransferPlan) => {
@@ -278,7 +238,7 @@ export function DepositForm({
           <span className="tnum font-mono">
             {plan ? formatUnits(plan.amount, decimalsOf(plan.asset)) : amount}
           </span>{" "}
-          {labelOf(plan?.asset ?? asset)} to{" "}
+          {(plan?.asset ?? asset)} to{" "}
           <span className="font-mono">{`${to.slice(0, 4)}…${to.slice(-4)}`}</span>
           .
         </p>
@@ -301,17 +261,6 @@ export function DepositForm({
           <FieldNote>
             SOL on the agent&apos;s wallet pays its network fees and the rent on
             new token accounts. It is never traded.
-          </FieldNote>
-        ) : null}
-        {/* THE SPLIT, STATED. The owner sends one number; two different things
-            arrive, and only one of them can be put to work. Saying so here is
-            what keeps "I sent 5 SOL and it only has 4.9 to trade with" from
-            being a surprise. */}
-        {plan && plan.gasLamports > 0n ? (
-          <FieldNote>
-            {formatUnits(plan.gasLamports, 9)} SOL of this goes to the
-            agent&apos;s wallet as network gas, which it cannot pay fees
-            without. The rest is what it provides liquidity with.
           </FieldNote>
         ) : null}
         <div className="flex items-center gap-2">
@@ -351,7 +300,7 @@ export function DepositForm({
                     maximumFractionDigits: asset === "USDC" ? 2 : 4,
                   })}
                 </span>{" "}
-                {labelOf(asset)} available
+                {asset} available
               </>
             )}
           </span>
@@ -362,8 +311,8 @@ export function DepositForm({
             <AmountInput
               value={amount}
               onChange={setAmount}
-              unit={labelOf(asset)}
-              label={`Amount in ${labelOf(asset)}`}
+              unit={asset}
+              label={`Amount in ${asset}`}
               unitControl={
                 // ONE ASSET, NO CHOICE, for a SOL agent. The select exists
                 // because a USD agent genuinely needs two things in its wallet
