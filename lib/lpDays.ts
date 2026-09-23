@@ -96,20 +96,31 @@ export function dayKey(d: Date): string {
 export function lpDaysFromEquity(
   points: readonly EquityPoint[],
   baseline: number,
+  /**
+   * Which field on each point the curve is built from.
+   *
+   * "sol" reads `equitySol` — a quantity recorded when the reading was taken —
+   * and the caller passes a SOL baseline to match. Every figure downstream is
+   * then in SOL, and nothing divides anywhere: the values and the baseline
+   * were measured in the same unit at the moments they were true.
+   */
+  field: "usd" | "sol" = "usd",
 ): LpDay[] {
   if (points.length === 0) return [];
 
   // By time, not by arrival: "the last reading of a day" is a claim about the
   // clock, and a caller handing these over newest-first must not get the first.
+  const valueOf = (p: EquityPoint): number =>
+    field === "sol" ? (p.equitySol ?? Number.NaN) : p.equityUsd;
   const ordered = [...points]
-    .filter((p) => Number.isFinite(p.equityUsd))
+    .filter((p) => Number.isFinite(valueOf(p)))
     .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   if (ordered.length === 0) return [];
 
   const lastOfDay = new Map<string, number>();
   for (const p of ordered) {
     const key = localDay(p.at);
-    if (key) lastOfDay.set(key, p.equityUsd);
+    if (key) lastOfDay.set(key, valueOf(p));
   }
 
   const keys = [...lastOfDay.keys()].sort();

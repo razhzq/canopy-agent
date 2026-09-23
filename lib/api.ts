@@ -3468,6 +3468,15 @@ export interface EquityPoint {
   tickSeq: number;
   at: string;
   equityUsd: number;
+  /**
+   * The same reading as a QUANTITY OF SOL, recorded when it was taken.
+   *
+   * Present only on a SOL-denominated agent, and only for readings taken since
+   * it started being recorded. Its absence is why the client keeps a fallback
+   * that divides dollars — which is wrong in a small, drifting way, and right
+   * enough for history that predates this.
+   */
+  equitySol?: number;
   cashUsd: number | null;
   highWaterMarkUsd: number;
 }
@@ -3542,6 +3551,16 @@ export interface LpBook {
 
 export interface EquitySeries {
   capitalUsd: number;
+  /**
+   * The baseline as a QUANTITY OF SOL.
+   *
+   * `capitalUsd` is the same book frozen at the rate it was baselined at. Read
+   * together with a LATER reading and divided by TODAY's rate, the two do not
+   * cancel — the baseline was never taken at today's rate — and a book holding
+   * exactly the same SOL reports a profit or loss equal to the price move.
+   * That was the bug; this pair is the fix.
+   */
+  capitalSol?: number | null;
   isPaper: boolean;
   realizedPnlUsd: number;
   closedPositions: number;

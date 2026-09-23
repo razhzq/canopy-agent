@@ -58,13 +58,14 @@ export function LpEquityView({
   // and a SOL book with no readable rate cannot be converted honestly.
   const canToggle = unit === "SOL" && typeof solUsd === "number" && solUsd > 0;
   const [shownUnit, setShownUnit] = useBookUnit(canToggle);
-  const fmt = bookFormat(shownUnit, solUsd);
+  const base = seriesBase(series, unit);
+  const fmt = bookFormat(shownUnit, solUsd, base === "sol" ? "SOL" : "USD");
   const money = fmt.money;
   const signed = fmt.signed;
 
   if (series === null || series.points.length === 0) return <NoRecord />;
 
-  const f = lpFigures(series, positions, universe);
+  const f = lpFigures(series, positions, universe, base);
   const shown =
     view === "calendar"
       ? f.days.map((day) => ({ day, present: true }))
@@ -449,11 +450,12 @@ export function LpEquityMobile({
   // phone.
   const canToggle = unit === "SOL" && typeof solUsd === "number" && solUsd > 0;
   const [shownUnit, setShownUnit] = useBookUnit(canToggle);
-  const fmt = bookFormat(shownUnit, solUsd);
+  const base = seriesBase(series, unit);
+  const fmt = bookFormat(shownUnit, solUsd, base === "sol" ? "SOL" : "USD");
   const money = fmt.money;
   const signed = fmt.signed;
   if (series === null || series.points.length === 0) return <NoRecord />;
-  const f = lpFigures(series, positions, universe);
+  const f = lpFigures(series, positions, universe, base);
   const day = scrub === null ? null : f.days[scrub];
 
   return (
@@ -735,17 +737,46 @@ interface LpFigures {
 }
 
 /** Every figure the panel shows, resolved once so the rail and chart agree. */
+/**
+ * WHICH UNIT THIS SERIES IS MEASURED IN.
+ *
+ * "sol" when the backend recorded SOL quantities — a baseline and readings
+ * each taken at the moment they were true. Then nothing is converted to draw
+ * the SOL view, which is the whole point: a book holding the same SOL reads
+ * flat however the price moves.
+ *
+ * "usd" otherwise, including a SOL agent whose readings predate the recording.
+ * Those still convert by dividing, which drifts with the price — wrong, but
+ * the only thing possible for history that was never measured in SOL.
+ */
+function seriesBase(series: EquitySeries | null, unit: "USD" | "SOL"): "usd" | "sol" {
+  if (unit !== "SOL" || !series) return "usd";
+  const hasBaseline = typeof series.capitalSol === "number" && series.capitalSol > 0;
+  const hasReadings = series.points.some((p) => typeof p.equitySol === "number");
+  return hasBaseline && hasReadings ? "sol" : "usd";
+}
+
 function lpFigures(
   series: EquitySeries,
   positions: AgentDetail["positions"],
   universe: UniverseAsset[],
+  /** "sol" when the series carries SOL quantities; see `seriesBase`. */
+  base: "usd" | "sol" = "usd",
 ): LpFigures {
   const points = series.points;
   const last = points[points.length - 1];
   // The baseline is the book's starting capital, which is what the curve is
-  // drawn against everywhere else in the product.
-  const baseline = series.capitalUsd > 0 ? series.capitalUsd : (points[0]?.equityUsd ?? 0);
-  const days = lpDaysFromEquity(points, baseline);
+  // drawn against everywhere else in the product — in whichever unit the
+  // readings are in, so the two are never subtracted across units.
+  const baseline =
+    base === "sol"
+      ? (series.capitalSol ?? 0) > 0
+        ? series.capitalSol!
+        : (points[0]?.equitySol ?? 0)
+      : series.capitalUsd > 0
+        ? series.capitalUsd
+        : (points[0]?.equityUsd ?? 0);
+  const days = lpDaysFromEquity(points, baseline, base);
   const lp = series.lp;
 
   /*

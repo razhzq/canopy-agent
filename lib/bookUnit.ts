@@ -43,6 +43,15 @@ function usd(n: number): string {
   })}`;
 }
 
+/** A SOL quantity, already in SOL — no conversion. */
+function solAmount(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const a = Math.abs(n);
+  return `${a.toLocaleString("en-US", {
+    maximumFractionDigits: a < 1 ? 4 : a < 1_000 ? 3 : 1,
+  })} SOL`;
+}
+
 function sign(n: number, body: string): string {
   if (!Number.isFinite(n)) return "—";
   return n < 0 ? `−${body}` : `+${body}`;
@@ -55,7 +64,36 @@ function sign(n: number, body: string): string {
  * dollar figures whatever happens; what it may not have is a rate, and
  * dividing by one it could not read would be inventing a balance.
  */
-export function bookFormat(unit: BookUnit, solUsd: number | null | undefined): BookFormat {
+export function bookFormat(
+  unit: BookUnit,
+  solUsd: number | null | undefined,
+  /**
+   * WHICH UNIT THE NUMBERS ARRIVE IN — not which one to show.
+   *
+   * "USD" is the legacy path: dollar readings, converted for a SOL view by
+   * dividing. That division is the bug this whole pair exists to end, because a
+   * frozen baseline and a live reading were taken at different rates and
+   * dividing both by today's does not cancel. It stays only for history
+   * recorded before SOL quantities were.
+   *
+   * "SOL" means the values are already quantities of SOL, each measured when
+   * it was true. A SOL view then formats them as they are — no arithmetic at
+   * all — and a USD view multiplies by the current rate, which is an honest
+   * "what this is worth now".
+   */
+  base: BookUnit = "USD",
+): BookFormat {
+  if (base === "SOL") {
+    // Already SOL. Showing SOL is a formatting job; showing dollars is a
+    // valuation at the current rate.
+    if (unit === "SOL") return { unit: "SOL", money: solAmount, signed: (n) => sign(n, solAmount(n)) };
+    if (typeof solUsd === "number" && solUsd > 0) {
+      const asUsd = (n: number) => usd(n * solUsd);
+      return { unit: "USD", money: asUsd, signed: (n) => sign(n, asUsd(n)) };
+    }
+    // No rate: the numbers are SOL and cannot honestly be called dollars.
+    return { unit: "SOL", money: solAmount, signed: (n) => sign(n, solAmount(n)) };
+  }
   if (unit !== "SOL" || !(typeof solUsd === "number" && solUsd > 0)) return USD_FORMAT;
   const sol = (n: number): string => {
     if (!Number.isFinite(n)) return "—";
