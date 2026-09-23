@@ -108,9 +108,12 @@ export function WalletBar({
           it is the address — the only thing here you can do something with.
           Rule 3. */}
       <span className={`flex shrink-0 flex-col gap-2.5 ${full ? "w-full" : "w-[248px]"}`}>
-        <Row label={t("wallet_usdc_balance")}>
-          <Balance agentId={agentId} />
-        </Row>
+        {/* LABEL AND NUMBER FROM ONE READ. The label used to be hardcoded
+          "USDC balance" here while the figure was fetched inside `Balance` —
+          two sources for one fact, and a copy-LP agent, whose cash is SOL,
+          showed "USDC balance $0" over a funded wallet. `Balance` now renders
+          its own row so the word and the number cannot disagree. */}
+        <Balance agentId={agentId} />
 
         {/* UNDER THE BALANCE, NOT BESIDE IT. Side by side these read as two of
           the same thing, and no label undid that — one is capital that buys
@@ -297,30 +300,53 @@ function Balance({ agentId }: { agentId: number }) {
 
   if (state.phase === "loading") {
     return (
-      <span
-        className="h-4 w-16 animate-pulse rounded-md bg-surface-2"
-        aria-hidden
-      />
+      <Row label={t("wallet_balance")}>
+        <span
+          className="h-4 w-16 animate-pulse rounded-md bg-surface-2"
+          aria-hidden
+        />
+      </Row>
     );
   }
   // A failed read is NOT a zero balance and must never render as one — that is
   // the message that tells someone to send money they have already sent.
   if (state.phase !== "ready") {
     return (
-      <span className="font-ui text-[12.5px] text-text-dim">
-        {t("wallet_balance_unknown")}
-      </span>
+      <Row label={t("wallet_balance")}>
+        <span className="font-ui text-[12.5px] text-text-dim">
+          {t("wallet_balance_unknown")}
+        </span>
+      </Row>
     );
   }
 
-  const { usdc } = state.data;
-  // No unit here: the row's label already says USDC, and repeating it would put
-  // the word twice on one line.
+  /*
+   * THE CASH, IN THE AGENT'S OWN UNIT (CANOPY_127).
+   *
+   * `cash` is dollars of USDC for most agents and WRAPPED SOL for a copy-LP
+   * one, which is funded in SOL and holds no USDC at all. Reading `usdc` here
+   * showed those agents "$0" over a wallet with SOL in it — a zero that reads
+   * as "send money", about money already sent.
+   *
+   * `cash` falls back to `usdc` when the field is absent, so a client running
+   * against an older backend keeps the behaviour it had.
+   */
+  const sol = state.data.unit === "SOL";
+  const cash = state.data.cash ?? state.data.usdc;
+  const solUsd = state.data.solUsd;
   return (
-    <span
-      className={`tnum font-mono text-[14px] ${usdc > 0 ? "text-text-primary" : "text-warning"}`}
-    >
-      ${usdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-    </span>
+    <Row label={t(sol ? "wallet_sol_balance" : "wallet_usdc_balance")}>
+      <span
+        className={`tnum font-mono text-[14px] ${cash > 0 ? "text-text-primary" : "text-warning"}`}
+        // The dollar value as a hover rather than a second line: this bar is a
+        // chip, and the agent page's own panel is where both belong side by
+        // side.
+        title={sol && solUsd ? `≈ $${(cash * solUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : undefined}
+      >
+        {sol
+          ? `${cash.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`
+          : `$${cash.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+      </span>
+    </Row>
   );
 }

@@ -9,6 +9,10 @@ export const enWallet = {
   wallet_deposit: "Deposit",
   wallet_withdraw: "Withdraw",
   wallet_usdc_balance: "USDC balance",
+  wallet_sol_balance: "SOL balance",
+  // Used while the unit is still unknown — a loading or failed read cannot
+  // say which asset it was going to report.
+  wallet_balance: "Balance",
   wallet_solana_mainnet: "Solana mainnet",
   wallet_model_credit: "Model credit",
   wallet_model_credit_title:

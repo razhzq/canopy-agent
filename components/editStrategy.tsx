@@ -230,7 +230,17 @@ export function EditStrategyModal({
         const token = await getAccessToken();
         if (!token) return;
         const f = await getAgentFunding(token, agentId);
-        if (!cancelled) setWalletUsdc(f.usdc);
+        // THE WALLET'S CASH, VALUED IN DOLLARS — which is not `usdc` for a
+        // copy-LP agent (CANOPY_127). Its cash is wrapped SOL, so reading
+        // `usdc` restated every percentage against $0. Without a price the
+        // figure stays null and the restatement is simply omitted, rather
+        // than printed as a zero that reads as an empty wallet.
+        if (cancelled) return;
+        if (f.unit === "SOL") {
+          setWalletUsdc(f.solUsd && f.cash !== undefined ? f.cash * f.solUsd : null);
+        } else {
+          setWalletUsdc(f.usdc);
+        }
       } catch {
         /* the percent still saves; only the dollar restatement is missing */
       }
@@ -240,8 +250,9 @@ export function EditStrategyModal({
     };
   }, [isPaper, agentId, getAccessToken]);
   // Paper: the book's current equity (falling back to its capital before the
-  // first cycle). Live: the wallet's USDC; open positions count too, at the
-  // cycle, but the restatement here is the cash that is visible to read.
+  // first cycle). Live: the wallet's cash in dollars — USDC, or wrapped SOL at
+  // the current price; open positions count too, at the cycle, but the
+  // restatement here is the cash that is visible to read.
   const baseUsd = isPaper ? (equityUsd ?? mandate?.capitalUsd ?? null) : walletUsdc;
   const positionUsd = baseUsd === null ? null : (baseUsd * positionPct) / 100;
 
