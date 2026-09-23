@@ -167,7 +167,7 @@ export function FundingPanel({
           address: state.data.address,
           usdc: state.data.usdc,
           unit: state.data.unit ?? "USD",
-          cash: state.data.cash ?? state.data.usdc,
+          cash: state.data.balance ?? state.data.cash ?? state.data.usdc,
           sol: state.data.sol,
           minSol: state.data.minSol,
           solUsd: state.data.solUsd ?? null,

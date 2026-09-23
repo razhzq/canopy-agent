@@ -2297,7 +2297,17 @@ export interface AgentFunding {
    * wrap, so the two are separate balances that do not convert.
    */
   unit?: "USD" | "SOL";
-  /** The cash balance in the agent's own unit: dollars of USDC, or wrapped SOL. */
+  /**
+   * WHAT THE WALLET HOLDS, in the agent's own unit — the figure to SHOW.
+   *
+   * Includes the gas reserve, because that is the agent's own SOL: held back
+   * so it can close what it opens, not spent and not lost.
+   */
+  balance?: number;
+  /**
+   * WHAT MAY BE DEPLOYED — the same minus the reserve. The figure to SIZE
+   * against, never the one to display as a balance.
+   */
   cash?: number;
   /** What one SOL is worth, for showing a SOL balance in dollars. Null when unreadable. */
   solUsd?: number | null;

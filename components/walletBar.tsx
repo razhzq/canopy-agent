@@ -332,7 +332,10 @@ function Balance({ agentId }: { agentId: number }) {
    * against an older backend keeps the behaviour it had.
    */
   const sol = state.data.unit === "SOL";
-  const cash = state.data.cash ?? state.data.usdc;
+  // `balance`, not `cash`: this row says what the wallet HOLDS. The reserve
+  // inside it is the agent's own SOL, and showing the deployable figure here
+  // reported money the owner still has as money they do not.
+  const cash = state.data.balance ?? state.data.cash ?? state.data.usdc;
   const solUsd = state.data.solUsd;
   return (
     <Row label={t(sol ? "wallet_sol_balance" : "wallet_usdc_balance")}>
