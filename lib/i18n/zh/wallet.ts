@@ -85,6 +85,8 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   funding_funded_body: "该钱包既有可交易的 USDC，也有支付手续费的 SOL。",
   funding_deposit_address: "充值地址 · Solana",
   funding_copy_aria: "复制充值地址 {address}",
+  funding_send_sol_note:
+    "在 Solana 上发送 SOL。从这里充值会自动为你包装；智能体无法自行包装 SOL，也无法把其他资产转换成它。",
   funding_send_usdc:
     "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
   funding_send_sol:
@@ -133,5 +135,5 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   // 原生 SOL。二者不能互相转换，所以文案绝不暗示它们可以互换。
   funding_at_sol_price: "按 {price} / SOL 计算",
   funding_gas_short:
-    "该智能体持有 {have} SOL 用于网络手续费，需要 {need}。它无法把自己的仓位换成手续费，因此下次充值会先补足这一部分。",
+    "该智能体持有 {have} SOL 用于网络手续费，需要 {need} SOL。它无法把自己的仓位换成手续费，因此下次充值会先补足这一部分。",
 };

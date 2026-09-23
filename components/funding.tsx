@@ -37,6 +37,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { SolanaMark } from "@/components/chainMark";
+import { QRCodeSVG } from "qrcode.react";
 import {
   SectionLabel,
   Figure,
@@ -298,7 +299,14 @@ export function FundingPanel({
           Centred, now that the right side is one compact control rather than a
           labelled block that wrapped — it sits against the balance figure
           instead of floating up beside its label. */}
-      <div className="flex items-center justify-between gap-8">
+      {/* WRAPS, because this panel lives in two widths. On the funding page
+          the balance and the address sit on one row, which is the layout this
+          block was designed for. Inside the Add funds MODAL it is ~360px, and
+          two `shrink-0` children on a `justify-between` row simply overflowed
+          — the address chip rendered OUTSIDE the dialog, floating in the page
+          behind it. Wrapping keeps the wide layout and fixes the narrow one
+          without either knowing about the other. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
         {/* Balance. No border, no tile — a number this size is its own emphasis,
             and a box around a single figure is chrome earning nothing. */}
         <div className="shrink-0 space-y-2">
@@ -370,6 +378,20 @@ export function FundingPanel({
             the only method that cannot introduce a typo. The full string stays
             on `title` and on the accessible name for anyone who needs to verify
             it against a wallet's own display. */}
+        <div className="flex shrink-0 items-center gap-4">
+          {/* THE QR, for the deposit that does not come from this browser.
+              An owner sending from a phone wallet or an exchange app cannot
+              paste a clipboard from here, and reading 44 base58 characters off
+              a screen is how funds go to an address nobody holds.
+
+              White quiet zone always — a code rendered dark-on-dark to match
+              the theme is one many scanners refuse, and a scanner that fails
+              sends someone back to typing it by hand. Same treatment as the
+              personal-wallet deposit dialog, deliberately: two different QR
+              styles for the same act is two things to recognise. */}
+          <div className="rounded-lg bg-white p-2" title={view.address}>
+            <QRCodeSVG value={view.address} size={72} level="M" marginSize={0} />
+          </div>
         <button
           type="button"
           onClick={() => copy(view.address)}
@@ -389,6 +411,7 @@ export function FundingPanel({
             {t(copied ? "common_copied" : "common_copy")}
           </span>
         </button>
+        </div>
       </div>
 
       {/* THE IN-APP ROUTE, under the address rather than instead of it.
@@ -417,7 +440,9 @@ export function FundingPanel({
         {/* The emphasis span is gone: the phrase it wrapped lands in a
             different position in Chinese, and a <span> cannot travel with it.
             The sentence is short enough to carry itself. */}
-        <p className={`max-w-[34ch] ${BODY}`}>{t("funding_send_usdc")}</p>
+        <p className={`max-w-[34ch] ${BODY}`}>
+          {t(solBook ? "funding_send_sol_note" : "funding_send_usdc")}
+        </p>
         <button type="button" onClick={recheck} className={`shrink-0 ${QUIET}`}>
           {t("funding_check_balance")}
         </button>

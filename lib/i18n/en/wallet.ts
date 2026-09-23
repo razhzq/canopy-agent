@@ -99,6 +99,11 @@ export const enWallet = {
   funding_funded_body: "This wallet has USDC to trade with and SOL for fees.",
   funding_deposit_address: "Deposit address · Solana",
   funding_copy_aria: "Copy deposit address {address}",
+  // The same note for an agent funded in SOL. It names WRAPPED SOL because
+  // that is the honest requirement — the agent cannot wrap for itself — while
+  // the deposit form above does the wrapping so nobody has to know that.
+  funding_send_sol_note:
+    "Send SOL on Solana. Depositing here wraps it for you; an agent cannot wrap its own SOL, and it cannot convert other assets into it.",
   funding_send_usdc:
     "Send USDC on Solana — the agent trades against it and cannot convert other assets into it.",
   funding_send_sol:
@@ -152,5 +157,5 @@ export const enWallet = {
   // never implies they are interchangeable.
   funding_at_sol_price: "at {price} / SOL",
   funding_gas_short:
-    "This agent holds {have} SOL for network fees and needs {need}. It cannot convert its own book into gas, so the next deposit tops this up first.",
+    "This agent holds {have} SOL for network fees and needs {need} SOL. It cannot convert its own book into gas, so the next deposit tops this up first.",
 } as const;
