@@ -37,6 +37,10 @@ export const enActivity = {
   activity_headline_fills_many: "{count} fills",
   activity_headline_approved: "{count} approved by the risk gate",
   activity_headline_blocked: "{count} blocked by the risk gate",
+  activity_headline_frozen_gas: "No new positions — not enough SOL for gas",
+  activity_headline_frozen_daily_loss: "No new positions — daily loss limit reached",
+  activity_headline_frozen_cooldown: "No new positions — cooling down after losses",
+  activity_headline_frozen: "No new positions this cycle",
   activity_headline_nothing: "Screened the universe, proposed nothing",
 
   // A copy agent's header names the leader's verb. Not "fills": a mirrored

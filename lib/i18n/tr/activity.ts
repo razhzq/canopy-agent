@@ -28,6 +28,10 @@ export const trActivity: Record<keyof typeof enActivity, string> = {
   activity_headline_fills_many: "{count} gerçekleşme",
   activity_headline_approved: "risk kapısından {count} tanesi geçti",
   activity_headline_blocked: "risk kapısı {count} tanesini engelledi",
+  activity_headline_frozen_gas: "Yeni pozisyon yok — gas için yeterli SOL yok",
+  activity_headline_frozen_daily_loss: "Yeni pozisyon yok — günlük zarar sınırına ulaşıldı",
+  activity_headline_frozen_cooldown: "Yeni pozisyon yok — zararlardan sonra bekleme süresi",
+  activity_headline_frozen: "Bu döngüde yeni pozisyon yok",
   activity_headline_nothing: "Evren tarandı, hiçbir öneri çıkmadı",
 
   activity_headline_mirrored: "{count} pozisyon kopyalandı",

@@ -6,6 +6,8 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   wallet_balance_unknown: "余额 —",
   wallet_deposit: "充值",
   wallet_withdraw: "提现",
+  wallet_gas: "手续费",
+  wallet_gas_low: "不足以开仓",
   wallet_usdc_balance: "USDC 余额",
   wallet_sol_balance: "SOL 余额",
   wallet_plus_wrapped: "+ {amount} 包装 SOL",

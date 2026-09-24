@@ -758,6 +758,11 @@ export function headline(c: ActivityCycle, t: Translate): string {
     return t("activity_headline_copy_nothing");
   }
 
+  // A cycle that froze new positions ended before any screen ran, so "screened
+  // the universe, proposed nothing" would describe a screen that never happened.
+  const frozen = c.decisions.find((d) => d.role === "desk" && typeof d.output?.entriesFrozen === "string")
+    ?.output?.entriesFrozen as string | undefined;
+
   const closes = c.decisions.filter(
     (d) =>
       d.role === "trader" &&
@@ -793,6 +798,10 @@ export function headline(c: ActivityCycle, t: Translate): string {
 
   if (approved > 0) return t("activity_headline_approved", { count: approved });
   if (rejected > 0) return t("activity_headline_blocked", { count: rejected });
+  if (frozen === "gas") return t("activity_headline_frozen_gas");
+  if (frozen === "daily_loss") return t("activity_headline_frozen_daily_loss");
+  if (frozen === "cooldown") return t("activity_headline_frozen_cooldown");
+  if (frozen) return t("activity_headline_frozen");
   return t("activity_headline_nothing");
 }
 

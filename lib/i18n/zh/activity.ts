@@ -28,6 +28,10 @@ export const zhActivity: Record<keyof typeof enActivity, string> = {
   activity_headline_fills_many: "成交 {count} 笔",
   activity_headline_approved: "{count} 项通过风控闸门",
   activity_headline_blocked: "{count} 项被风控闸门拦截",
+  activity_headline_frozen_gas: "暂停开新仓 — SOL 不足以支付手续费",
+  activity_headline_frozen_daily_loss: "暂停开新仓 — 已达每日亏损上限",
+  activity_headline_frozen_cooldown: "暂停开新仓 — 连续亏损后冷却中",
+  activity_headline_frozen: "本周期不开新仓",
   activity_headline_nothing: "已筛选标的池，未提出任何方案",
 
   activity_headline_mirrored: "跟了 {count} 笔",

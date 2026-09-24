@@ -8,6 +8,8 @@ export const enWallet = {
   wallet_balance_unknown: "balance —",
   wallet_deposit: "Deposit",
   wallet_withdraw: "Withdraw",
+  wallet_gas: "Gas",
+  wallet_gas_low: "too low to open",
   wallet_usdc_balance: "USDC balance",
   wallet_sol_balance: "SOL balance",
   wallet_plus_wrapped: "+ {amount} wrapped",

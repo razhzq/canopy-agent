@@ -240,6 +240,14 @@ export function narrateDecision(
       // reason here would mean a second wording of each, kept in step by hand;
       // the one that already exists is shown as it stands.
       lines.push({ outcome: "drop", detail: t("narrate_desk_skipped", { reason: str(o.reason) }) });
+    } else if (typeof o.entriesFrozen === "string" && str(o.reason)) {
+      // NEW POSITIONS FROZEN FOR THIS CYCLE — not enough SOL for gas, the daily
+      // loss limit, or the cooldown after losing closes. The tick writes this
+      // row and ends the cycle "ok" before any screen runs, and it matched
+      // none of the shapes here, so the cycle read as a desk and a pm row and
+      // then nothing — an agent that had stopped buying with no reason given
+      // (agent 150). The reason is the backend's own sentence.
+      lines.push({ outcome: "drop", detail: t("narrate_desk_skipped", { reason: str(o.reason) }) });
     } else if (o.opened) {
       /*
        * A LIQUIDITY BOOK IS NOT NARRATED CYCLE BY CYCLE.

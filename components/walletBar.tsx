@@ -349,7 +349,16 @@ function Balance({ agentId }: { agentId: number }) {
    */
   const native = sol ? state.data.sol : cash;
   const wrapped = sol ? Math.max(0, cash - state.data.sol) : 0;
+  /*
+   * GAS, FOR AN AGENT FUNDED IN USDC. It pays its own network fees in SOL, and
+   * below the reserve the tick freezes new positions — which nothing on the
+   * page said: agent 150 held $110 of USDC and simply stopped buying. The row
+   * turns amber with the backend's own sentence when it cannot open. A SOL
+   * agent's balance above already is its gas.
+   */
+  const gasShort = !sol ? (state.data.solShortfall ?? null) : null;
   return (
+    <>
     <Row label={t(sol ? "wallet_sol_balance" : "wallet_usdc_balance")}>
       <span
         className={`tnum font-mono text-[14px] ${cash > 0 ? "text-text-primary" : "text-warning"}`}
@@ -368,5 +377,19 @@ function Balance({ agentId }: { agentId: number }) {
         ) : null}
       </span>
     </Row>
+    {!sol ? (
+      <Row label={t("wallet_gas")}>
+        <span
+          className={`tnum font-mono text-[14px] ${gasShort ? "text-warning" : "text-text-primary"}`}
+          title={gasShort ?? undefined}
+        >
+          {`${state.data.sol.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`}
+          {gasShort ? (
+            <span className="ml-1.5 font-ui text-[11.5px]">{t("wallet_gas_low")}</span>
+          ) : null}
+        </span>
+      </Row>
+    ) : null}
+    </>
   );
 }
