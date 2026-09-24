@@ -51,7 +51,11 @@ export const zhMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_metric_open_now: "当前持仓",
   market_metric_volume_30d: "成交额 · 30 日",
   market_rail_volume_30d: "成交额 · 30 日",
-  market_non_custodial: "非托管",
+  market_kind_spot: "现货",
+  market_kind_perp: "永续合约",
+  market_kind_grid: "网格",
+  market_kind_lp: "流动性",
+  market_kind_copy_lp: "跟投 LP",
 
   market_showing: "显示第 {from}–{to} 个，共 {total} 个",
   market_previous: "← 上一页",

@@ -410,13 +410,27 @@ function AgentCard({
 
       <div className="flex items-center justify-between gap-3 pt-4">
         <Status row={r} />
-        <span className="font-ui text-[11.5px] text-text-muted">{t("market_non_custodial")}</span>
+        <span className="font-ui text-[11.5px] text-text-muted">{t(KIND_LABEL[kindOf(r)])}</span>
       </div>
     </Link>
   );
 }
 
 /* ------------------------------------------------------------------- pieces -- */
+
+/** What kind of agent a card is, in the words the builder's type step uses. */
+const KIND_LABEL: Record<NonNullable<StrategyRow["agent_kind"]>, TranslationKey> = {
+  spot: "market_kind_spot",
+  perp: "market_kind_perp",
+  grid: "market_kind_grid",
+  lp: "market_kind_lp",
+  copy_lp: "market_kind_copy_lp",
+};
+
+/** An older backend sends no kind; the class is the best it can be read from. */
+function kindOf(r: StrategyRow): NonNullable<StrategyRow["agent_kind"]> {
+  return r.agent_kind ?? (r.strategy_class === "lp" ? "lp" : "spot");
+}
 
 /** A tag: 11px, sentence case, hairline, full radius. Accent only for Hot. */
 /**

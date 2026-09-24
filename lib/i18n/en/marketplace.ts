@@ -57,7 +57,11 @@ export const enMarketplace = {
   market_metric_open_now: "Open now",
   market_metric_volume_30d: "Volume · 30d",
   market_rail_volume_30d: "Volume · 30d",
-  market_non_custodial: "non-custodial",
+  market_kind_spot: "Spot",
+  market_kind_perp: "Perps",
+  market_kind_grid: "Grid",
+  market_kind_lp: "LP",
+  market_kind_copy_lp: "Copy LP",
 
   // ── Pagination ─────────────────────────────────────────────────
   market_showing: "Showing {from}–{to} of {total}",

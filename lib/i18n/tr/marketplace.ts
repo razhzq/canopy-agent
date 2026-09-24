@@ -51,7 +51,11 @@ export const trMarketplace: Record<keyof typeof enMarketplace, string> = {
   market_metric_open_now: "Şu an açık",
   market_metric_volume_30d: "Hacim · 30g",
   market_rail_volume_30d: "Hacim · 30g",
-  market_non_custodial: "emanetsiz",
+  market_kind_spot: "Spot",
+  market_kind_perp: "Vadeli",
+  market_kind_grid: "Grid",
+  market_kind_lp: "LP",
+  market_kind_copy_lp: "Kopya LP",
 
   market_showing: "{total} içinden {from}–{to} gösteriliyor",
   market_previous: "← Önceki",

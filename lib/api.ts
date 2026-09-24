@@ -256,6 +256,12 @@ export interface StrategyRow {
   name: string;
   strategy_class: string;
   /**
+   * What kind of agent this is — decided server-side from the plan blocks,
+   * because the class cannot say it (copy LP and plan-driven LP are both
+   * "lp"). Sent by the strategies list; absent from older backends.
+   */
+  agent_kind?: "spot" | "perp" | "grid" | "lp" | "copy_lp";
+  /**
    * Bar size the technical rules are measured on. Absent on strategies
    * authored before timeframes existed, which were all daily — so a reader
    * must default it rather than treat it as unknown.
