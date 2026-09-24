@@ -15,6 +15,7 @@ import { EditCopyLpModal } from "@/components/editCopyLp";
 import { describeScreen } from "@/components/discoveryFilters";
 import { GoLiveModal } from "@/components/goLive";
 import { WalletBar } from "@/components/walletBar";
+import { CopySuggestionBanner } from "@/components/copySuggestion";
 import { ChatButton } from "@/components/agentChatSheet";
 import {
   StatusLine,
@@ -661,6 +662,7 @@ export function AgentDetailView({
       strategy={strategy}
       bookUsd={equity?.points.at(-1)?.equityUsd ?? Number(agent.mandate?.capitalUsd ?? 0)}
       hasOpenPositions={detail.positions.length > 0}
+      isPaper={agent.is_paper}
       onSaved={() => void load()}
       onClose={() => setEditing(false)}
     />
@@ -692,6 +694,7 @@ export function AgentDetailView({
       // close so reopening by hand is an ordinary read rather than another
       // round trip to the payment provider.
       resumedFromCheckout={resumedCheckout}
+      copyLp={strategy?.copy_lp ?? null}
       onChanged={() => void load()}
       onClose={() => {
         setGoingLive(false);
@@ -721,6 +724,7 @@ export function AgentDetailView({
           assets={marked}
           assetsPending={assetsPending}
           universe={strategy?.universe ?? []}
+          copyLp={strategy?.copy_lp ?? null}
           onChanged={() => void load()}
           walletAddress={wallet?.address ?? null}
           onBook={setBook}
@@ -877,6 +881,12 @@ export function AgentDetailView({
               reason: agent.paused_reason.replace(/_/g, " "),
             })}
           </p>
+        ) : null}
+        {/* A LIVE COPY AGENT'S COPY % AGAINST ITS DEPOSIT. Shown only once a
+            deposit makes a suggestion possible, and only when it is far from
+            the current setting — see components/copySuggestion.tsx. */}
+        {!agent.is_paper && strategy?.copy_lp ? (
+          <CopySuggestionBanner agentId={agentId} copyLp={strategy.copy_lp} onApplied={() => void load()} className="mt-4" />
         ) : null}
       </section>
 

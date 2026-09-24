@@ -20,10 +20,14 @@ import { useT } from "@/lib/i18n";
 
 export interface CopyLimits {
   leader: string;
-  /** Percent of the leader's capital share to copy. 100 mirrors it exactly. */
+  /** Percent of each leader position to copy. 100 copies it at the leader's size. */
   copyPct: number;
-  /** Most USD one open or one add deposits. Null is no cap. */
-  maxIncreaseUsd: number | null;
+  /** Most one copied position holds, adds included, in SOL. Null is no cap. */
+  maxAmountSol: number | null;
+  /** Close a copy once it is up this percent. Null is off. */
+  takeProfitPct: number | null;
+  /** Close a copy once it is down this percent. Null is off. */
+  stopLossPct: number | null;
   /** Null is no floor. */
   minPoolTvlUsd: number | null;
   verifiedTokensOnly: boolean;
@@ -34,7 +38,9 @@ export interface CopyLimits {
 export const DEFAULT_COPY_LIMITS: CopyLimits = {
   leader: "",
   copyPct: 100,
-  maxIncreaseUsd: null,
+  maxAmountSol: null,
+  takeProfitPct: null,
+  stopLossPct: null,
   minPoolTvlUsd: null,
   // Off by default: copying a wallet means copying what it does, and
   // Meteora verifies few small tokens. The switch is still here for an owner
@@ -46,7 +52,14 @@ export const DEFAULT_COPY_LIMITS: CopyLimits = {
 
 /** The engine's bounds (agent-contracts COPY_LP_BOUNDS), mirrored for the controls. */
 const COPY_PCT = { min: 1, max: 500 };
-const MIN_CAP_USD = 5;
+const MIN_CAP_SOL = 0.01;
+const TAKE_PROFIT = { min: 1, max: 10_000 };
+const STOP_LOSS = { min: 1, max: 99 };
+
+/** A SOL quantity as the owner reads it: up to four places, never lamports. */
+export function formatSol(n: number): string {
+  return `${n.toLocaleString("en-US", { maximumFractionDigits: 4 })} SOL`;
+}
 const SLIPPAGES = [0.5, 1, 2];
 
 export function copyLpPayload(c: CopyLimits): CopyLpInput {
@@ -56,7 +69,9 @@ export function copyLpPayload(c: CopyLimits): CopyLpInput {
     verifiedTokensOnly: c.verifiedTokensOnly,
     followRebalances: c.followRebalances,
     maxSlippagePct: c.maxSlippagePct,
-    ...(c.maxIncreaseUsd !== null ? { maxIncreaseUsd: c.maxIncreaseUsd } : {}),
+    ...(c.maxAmountSol !== null ? { maxAmountSol: c.maxAmountSol } : {}),
+    ...(c.takeProfitPct !== null ? { takeProfitPct: c.takeProfitPct } : {}),
+    ...(c.stopLossPct !== null ? { stopLossPct: c.stopLossPct } : {}),
     ...(c.minPoolTvlUsd !== null ? { minPoolTvlUsd: c.minPoolTvlUsd } : {}),
   };
 }
@@ -80,19 +95,63 @@ export function isSolanaAddress(value: string): boolean {
   return bytes + leadingOnes === 32;
 }
 
-/** What one leader position becomes in this agent's book, the way the engine sizes it. */
+/**
+ * What one leader position becomes in this agent's book, the way the engine
+ * sizes it (agent-stack copyLp/plan.ts): copy % of the leader's position, then
+ * the max amount, then what the book can deploy.
+ *
+ * The max amount is SOL and the leader's positions are dollars, so the cap
+ * needs `solUsd`; without a rate it cannot be compared, and is left out of the
+ * estimate rather than guessed at.
+ */
 export function copySize(
-  position: { valueUsd: number; sharePct: number | null },
+  position: { valueUsd: number },
   bookUsd: number,
-  limits: Pick<CopyLimits, "copyPct" | "maxIncreaseUsd">,
+  limits: Pick<CopyLimits, "copyPct" | "maxAmountSol">,
+  solUsd: number | null | undefined,
   minCopyUsd: number,
-): { shareUsd: number; usd: number; capped: boolean; skipped: boolean } | null {
-  if (position.sharePct === null) return null;
-  // The engine's arithmetic (agent-stack copyLp/plan.ts): share × equity × copy %, then the per-deposit cap.
-  const shareUsd = (position.sharePct / 100) * bookUsd * (limits.copyPct / 100);
-  const capped = limits.maxIncreaseUsd !== null && shareUsd > limits.maxIncreaseUsd;
-  const usd = capped ? limits.maxIncreaseUsd! : shareUsd;
-  return { shareUsd, usd, capped, skipped: usd < minCopyUsd };
+): { wantedUsd: number; capUsd: number | null; usd: number; capped: boolean; limited: boolean; skipped: boolean } {
+  const wantedUsd = position.valueUsd * (limits.copyPct / 100);
+  const capUsd = limits.maxAmountSol !== null && solUsd && solUsd > 0 ? limits.maxAmountSol * solUsd : null;
+  const capped = capUsd !== null && wantedUsd > capUsd;
+  const afterCap = capped ? capUsd! : wantedUsd;
+  // Short of the full size, the engine opens with what there is.
+  const limited = afterCap > bookUsd;
+  const usd = Math.min(afterCap, bookUsd);
+  return { wantedUsd, capUsd, usd, capped, limited, skipped: usd < minCopyUsd };
+}
+
+/** The copy agent's gas reserve: 0.06 SOL or $10 of SOL, whichever is more (canopy-be `solReserveLamports`). */
+export function gasReserveUsd(solUsd: number): number {
+  return Math.max(0.06 * solUsd, 10);
+}
+
+/**
+ * The copy % a book of this size should run at against this leader — the
+ * app's twin of agent-contracts `suggestCopyPct`; change both together.
+ *
+ * Deployable cash over the leader's capital, floored, 1–100. `deployableUsd`
+ * is what the wallet can actually spend (a live agent's funding cash, gas
+ * reserve already out); without it the book is a plan, and the reserve is
+ * taken out here. Null when there is nothing honest to say.
+ */
+export function suggestCopy(
+  bookUsd: number,
+  leader: { capitalUsd: number | null; solUsd?: number | null; minCopyUsd: number },
+  deployableUsd?: number | null,
+): { pct: number; deployableUsd: number; reserveUsd: number | null } | null {
+  const solUsd = leader.solUsd ?? null;
+  // Null is a live wallet not read yet (or unreadable): say nothing rather
+  // than fall back to a paper figure. Undefined is a book still being planned.
+  if (deployableUsd === null) return null;
+  if (!(leader.capitalUsd !== null && leader.capitalUsd > 0)) return null;
+  const live = typeof deployableUsd === "number";
+  if (!live && !(solUsd && solUsd > 0)) return null;
+  const reserveUsd = live ? null : gasReserveUsd(solUsd!);
+  const spendable = live ? deployableUsd! : bookUsd - reserveUsd!;
+  if (!(spendable >= leader.minCopyUsd)) return null;
+  const pct = Math.min(Math.max(Math.floor((spendable / leader.capitalUsd) * 100), 1), 100);
+  return { pct, deployableUsd: spendable, reserveUsd };
 }
 
 export type LeaderState =
@@ -162,8 +221,7 @@ export function PickLeader({
   const data = preview.phase === "ready" ? preview.data : null;
   const copyable = data
     ? data.positions.filter((p) => {
-        const s = copySize(p, bookUsd, value, data.minCopyUsd);
-        return s !== null && !s.skipped;
+        return !copySize(p, bookUsd, value, data.solUsd, data.minCopyUsd).skipped;
       }).length
     : null;
   const shown = data ? (all ? data.positions : data.positions.slice(0, 7)) : [];
@@ -257,7 +315,7 @@ export function PickLeader({
                   </thead>
                   <tbody>
                     {shown.map((p) => {
-                      const s = copySize(p, bookUsd, value, data.minCopyUsd);
+                      const s = copySize(p, bookUsd, value, data.solUsd, data.minCopyUsd);
                       return (
                         <tr key={p.position} className="border-t border-grid">
                           <td className="px-5 py-2.5 font-ui text-[13px] font-medium text-text-primary">{p.pair}</td>
@@ -269,9 +327,7 @@ export function PickLeader({
                             {p.sharePct === null ? "—" : `${p.sharePct.toFixed(1)}%`}
                           </td>
                           <td className="tnum px-3 py-2.5 text-right font-mono text-[12px]">
-                            {s === null ? (
-                              <span className="text-text-muted">—</span>
-                            ) : s.skipped ? (
+                            {s.skipped ? (
                               <span className="text-text-muted">{t("cl_below_min", { min: formatUsd(data.minCopyUsd) })}</span>
                             ) : (
                               <span className="text-text-primary">{formatUsd(Math.round(s.usd))}</span>
@@ -333,6 +389,7 @@ export function CopyLimitsStep({
   name,
   onNameChange,
   compact,
+  deployableUsd,
 }: {
   value: CopyLimits;
   onChange: (next: CopyLimits) => void;
@@ -357,11 +414,19 @@ export function CopyLimitsStep({
   onNameChange?: (next: string) => void;
   /** As on {@link PickLeader}: no page heading inside a dialog. */
   compact?: boolean;
+  /**
+   * What a LIVE agent's wallet can deploy now, in dollars, gas reserve out.
+   * When set, the suggested copy % follows the real deposit instead of
+   * `bookUsd`, which for a live agent is only the last equity reading. Null
+   * means live but not read yet: no suggestion until it is.
+   */
+  deployableUsd?: number | null;
 }) {
   const t = useT();
   const data = preview.phase === "ready" ? preview.data : null;
+  const suggestion = data ? suggestCopy(bookUsd, data, deployableUsd) : null;
   const largest = data?.positions[0] ?? null;
-  const size = data && largest ? copySize(largest, bookUsd, value, data.minCopyUsd) : null;
+  const size = data && largest ? copySize(largest, bookUsd, value, data.solUsd, data.minCopyUsd) : null;
 
   const mirrors: [string, string, string][] = [
     [t("cl_m_open"), t("cl_m_open_copy"), t("cl_m_open_note")],
@@ -399,28 +464,32 @@ export function CopyLimitsStep({
           <h2 className="font-ui text-[14px] font-medium text-text-primary">{t(largest ? "cl_sizing" : "cl_sizing_none")}</h2>
           {largest ? <span className="font-mono text-[11.5px] text-text-muted">{largest.pair}</span> : null}
         </div>
-        {largest && size && data?.capitalUsd ? (
+        {largest && size && data ? (
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-4">
             <Calc label={t("cl_calc_position")} value={formatUsd(Math.round(largest.valueUsd * 100) / 100)} />
-            <Op>÷</Op>
-            <Calc label={t("cl_calc_capital")} value={formatUsd(Math.round(data.capitalUsd))} />
-            <Op>=</Op>
-            <Calc label={t("cl_calc_share")} value={`${largest.sharePct?.toFixed(1)}%`} />
-            <Op>×</Op>
-            <Calc label={t("cl_calc_equity")} value={formatUsd(bookUsd)} />
             <Op>×</Op>
             <Calc label={t("cl_calc_copy_pct")} value={`${value.copyPct}%`} />
             <Op>=</Op>
             <Calc
               label={t("cl_calc_copy")}
-              value={formatUsd(Math.round(size.shareUsd))}
-              sub={size.capped && value.maxIncreaseUsd !== null ? t("cl_calc_capped", { usd: formatUsd(value.maxIncreaseUsd) }) : undefined}
+              value={formatUsd(Math.round(size.wantedUsd))}
+              sub={
+                size.capped && value.maxAmountSol !== null
+                  ? t("cl_calc_capped", { amount: `${formatSol(value.maxAmountSol)} ≈ ${formatUsd(Math.round(size.capUsd!))}` })
+                  : undefined
+              }
             />
             <Op>→</Op>
             <Calc
               label={t("cl_calc_opens")}
               value={size.skipped ? "—" : formatUsd(Math.round(size.usd))}
-              sub={size.skipped ? t("cl_calc_skipped", { min: formatUsd(data.minCopyUsd) }) : undefined}
+              sub={
+                size.skipped
+                  ? t("cl_calc_skipped", { min: formatUsd(data.minCopyUsd) })
+                  : size.limited
+                    ? t("cl_calc_limited", { amount: formatUsd(bookUsd) })
+                    : undefined
+              }
               big
               tone={size.skipped ? "muted" : "accent"}
             />
@@ -458,22 +527,72 @@ export function CopyLimitsStep({
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border border-grid">
           <h2 className="border-b border-grid px-5 py-4 font-ui text-[14px] font-medium text-text-primary">{t("cl_limits")}</h2>
-          <Field label={t("cl_copy_pct")} help={t("cl_copy_pct_help")}>
-            <Percent
-              value={value.copyPct}
-              min={COPY_PCT.min}
-              max={COPY_PCT.max}
-              onChange={(n) => onChange({ ...value, copyPct: n })}
-              aria={t("cl_copy_pct")}
+          <Field
+            label={t("cl_copy_pct")}
+            help={
+              suggestion && data
+                ? suggestion.reserveUsd === null
+                  ? t("cl_suggest_help_live", { deployable: formatUsd(Math.round(suggestion.deployableUsd)), capital: formatUsd(Math.round(data.capitalUsd!)) })
+                  : t("cl_suggest_help", {
+                      deployable: formatUsd(Math.round(suggestion.deployableUsd)),
+                      book: formatUsd(Math.round(bookUsd)),
+                      reserve: formatUsd(Math.round(suggestion.reserveUsd)),
+                      capital: formatUsd(Math.round(data.capitalUsd!)),
+                    })
+                : t("cl_copy_pct_help")
+            }
+          >
+            <div className="flex items-center gap-2">
+              {/* THE SUGGESTION IS AN OFFER, never applied by itself: the owner
+                  may want to copy smaller than their book allows. */}
+              {suggestion && suggestion.pct !== value.copyPct ? (
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...value, copyPct: suggestion.pct })}
+                  className={`tnum rounded-full bg-accent-wash px-2.5 py-1 font-ui text-[12px] font-medium text-accent hover:opacity-80 ${FOCUS}`}
+                >
+                  {t("cl_suggest", { pct: suggestion.pct })}
+                </button>
+              ) : null}
+              <Percent
+                value={value.copyPct}
+                min={COPY_PCT.min}
+                max={COPY_PCT.max}
+                onChange={(n) => onChange({ ...value, copyPct: n })}
+                aria={t("cl_copy_pct")}
+              />
+            </div>
+          </Field>
+          <Field label={t("cl_max_amount")} help={t("cl_max_amount_help")}>
+            <OptionalAmount
+              value={value.maxAmountSol}
+              min={MIN_CAP_SOL}
+              unit="sol"
+              onChange={(n) => onChange({ ...value, maxAmountSol: n })}
+              offLabel={t("cl_off")}
+              aria={t("cl_max_amount")}
             />
           </Field>
-          <Field label={t("cl_max_increase")} help={t("cl_max_increase_help")}>
+          <Field label={t("cl_tp")} help={t("cl_tp_help")}>
             <OptionalAmount
-              value={value.maxIncreaseUsd}
-              min={MIN_CAP_USD}
-              onChange={(n) => onChange({ ...value, maxIncreaseUsd: n })}
+              value={value.takeProfitPct}
+              min={TAKE_PROFIT.min}
+              max={TAKE_PROFIT.max}
+              unit="pct"
+              onChange={(n) => onChange({ ...value, takeProfitPct: n })}
               offLabel={t("cl_off")}
-              aria={t("cl_max_increase")}
+              aria={t("cl_tp")}
+            />
+          </Field>
+          <Field label={t("cl_sl")} help={t("cl_sl_help")}>
+            <OptionalAmount
+              value={value.stopLossPct}
+              min={STOP_LOSS.min}
+              max={STOP_LOSS.max}
+              unit="pct"
+              onChange={(n) => onChange({ ...value, stopLossPct: n })}
+              offLabel={t("cl_off")}
+              aria={t("cl_sl")}
             />
           </Field>
           <Field label={t("cl_tvl")} help={t("cl_tvl_help")}>
@@ -632,29 +751,40 @@ function Percent({
   );
 }
 
-/** A dollar amount that can also be switched off. Commits on blur or Enter. */
+/**
+ * An amount that can also be switched off: dollars, SOL or a percent.
+ * Commits on blur or Enter, clamped to the engine's bounds.
+ */
 function OptionalAmount({
   value,
   onChange,
   min,
+  max,
+  unit = "usd",
   offLabel,
   aria,
 }: {
   value: number | null;
   onChange: (n: number | null) => void;
   min: number;
+  max?: number;
+  unit?: "usd" | "sol" | "pct";
   offLabel: string;
   aria: string;
 }) {
-  const [text, setText] = useState(value === null ? "" : value.toLocaleString("en-US"));
+  // SOL keeps four places — a 0.25 SOL cap is an ordinary setting, and the
+  // dollar parser rounds to cents.
+  const show = (n: number | null) => (n === null ? "" : n.toLocaleString("en-US", { maximumFractionDigits: unit === "sol" ? 4 : 2 }));
+  const [text, setText] = useState(show(value));
   useEffect(() => {
-    setText(value === null ? "" : value.toLocaleString("en-US"));
+    setText(show(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   const commit = () => {
     if (text.trim() === "") return onChange(null);
-    const n = parseAmount(text);
-    if (n === null) return setText(value === null ? "" : value.toLocaleString("en-US"));
-    onChange(Math.max(n, min));
+    const n = unit === "usd" ? parseAmount(text) : parsePlain(text, unit === "sol" ? 4 : 2);
+    if (n === null) return setText(show(value));
+    onChange(Math.min(Math.max(n, min), max ?? Infinity));
   };
   return (
     <div className="flex items-center gap-2">
@@ -664,7 +794,7 @@ function OptionalAmount({
         </button>
       ) : null}
       <label className="flex h-9 w-[132px] items-center gap-1 rounded-[10px] border border-grid px-3 focus-within:border-accent">
-        <span className="font-mono text-[13px] text-text-muted">$</span>
+        {unit === "usd" ? <span className="font-mono text-[13px] text-text-muted">$</span> : null}
         <input
           value={text}
           placeholder={offLabel}
@@ -677,7 +807,16 @@ function OptionalAmount({
           aria-label={aria}
           className="tnum w-full min-w-0 bg-transparent font-mono text-[14px] text-text-primary outline-none placeholder:font-ui placeholder:text-[12.5px] placeholder:text-text-dim"
         />
+        {unit === "sol" ? <span className="font-mono text-[12px] text-text-muted">SOL</span> : unit === "pct" ? <span className="font-mono text-[13px] text-text-muted">%</span> : null}
       </label>
     </div>
   );
+}
+
+/** A plain positive number, to `places` decimals; null when it is not one. */
+function parsePlain(text: string, places: number): number | null {
+  const m = /^\s*([\d,]*\.?\d+)\s*(?:sol|%)?\s*$/i.exec(text);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 10 ** places) / 10 ** places : null;
 }

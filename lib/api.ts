@@ -2300,9 +2300,8 @@ export interface AgentFunding {
    * WHICH ASSET THIS AGENT IS FUNDED IN (CANOPY_127).
    *
    * "USD" is every spot, perp and plan-driven LP agent: it holds USDC, and
-   * `usdc` below is its cash. "SOL" is copy LP: its cash is WRAPPED SOL, and
-   * `sol` above is gas that can never become liquidity — the agent cannot
-   * wrap, so the two are separate balances that do not convert.
+   * `usdc` below is its cash. "SOL" is copy LP: its cash is the SOL it holds
+   * above the gas reserve, native or wrapped — the agent wraps for itself.
    */
   unit?: "USD" | "SOL";
   /**
@@ -2322,6 +2321,10 @@ export interface AgentFunding {
   /** Sent rather than hardcoded, for the same reason as `usdcMint`. */
   wrappedSolMint?: string;
   fundedForLive: boolean;
+  /** Whether it can OPEN: cash to trade with and SOL above the reserve. Closes run either way. */
+  canOpen?: boolean;
+  /** Why it cannot open although it can still close. Null when it can. */
+  solShortfall?: string | null;
   /** The same sentence the tick pauses with. Null when the wallet is ready. */
   shortfall: string | null;
 }
@@ -2336,6 +2339,25 @@ export interface AgentFunding {
  */
 export const getAgentFunding = (token: string, agentId: number) =>
   request<AgentFunding>(`/agents/${agentId}/funding`, token);
+
+/**
+ * The copy % a copy LP agent's deposit supports against its leader: the SOL it
+ * can deploy (gas reserve out) as a share of the leader's capital.
+ */
+export interface CopySuggestion {
+  leader: string;
+  currentPct: number;
+  /** Null when there is nothing to suggest: no deposit yet, or the leader's capital is unknown. */
+  suggestedPct: number | null;
+  balanceSol: number;
+  deployableSol: number;
+  reserveSol: number | null;
+  solUsd: number | null;
+  leaderCapitalUsd: number | null;
+}
+
+export const getCopySuggestion = (token: string, agentId: number) =>
+  request<CopySuggestion>(`/agents/${agentId}/copy-lp/suggestion`, token);
 
 /* ----------------------------------------------------------------- models -- */
 
@@ -4361,10 +4383,14 @@ export function getLpRecord(token: string, address: string): Promise<LpRecord> {
 
 export interface CopyLpInput {
   leader: string;
-  /** Percent of the leader's capital share to copy, 1–500. 100 mirrors it exactly. */
+  /** Percent of each leader position to copy, 1–500. 100 copies it at the leader's size. */
   copyPct?: number;
-  /** Most USD one open or one add may deposit. */
-  maxIncreaseUsd?: number;
+  /** Most one copied position may hold, adds included, in SOL. */
+  maxAmountSol?: number;
+  /** Close a copy once it is up this percent, in SOL. */
+  takeProfitPct?: number;
+  /** Close a copy once it is down this percent, in SOL. */
+  stopLossPct?: number;
   minPoolTvlUsd?: number;
   verifiedTokensOnly?: boolean;
   followRebalances?: boolean;
@@ -4382,6 +4408,8 @@ export interface LeaderPreview {
    * means that fee is switched off.
    */
   fees?: { canopyBps: number; creatorBps: number };
+  /** The SOL price at the read, for showing a SOL max amount in dollars. Null when unreadable. */
+  solUsd?: number | null;
   /** Wallet tokens plus every DLMM position. Null when it could not be read in full. */
   capitalUsd: number | null;
   inDlmmUsd: number;

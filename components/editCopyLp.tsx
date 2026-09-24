@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Modal } from "@/components/modal";
 import { Callout, WarnIcon } from "@/components/ui";
@@ -14,7 +14,7 @@ import {
   useLeaderPreview,
   type CopyLimits,
 } from "@/components/copyLpSteps";
-import { updateAgentStrategy, type CopyLpInput, type StrategyRow } from "@/lib/api";
+import { getAgentFunding, updateAgentStrategy, type CopyLpInput, type StrategyRow } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -41,6 +41,7 @@ export function EditCopyLpModal({
   strategy,
   bookUsd,
   hasOpenPositions,
+  isPaper,
   onClose,
   onSaved,
 }: {
@@ -67,6 +68,11 @@ export function EditCopyLpModal({
    * is no orphaned book to explain, and the warning would be noise.
    */
   hasOpenPositions: boolean;
+  /**
+   * Whether the agent runs on paper. A LIVE agent's suggested copy % follows
+   * what its wallet can deploy now, read here, rather than `bookUsd`.
+   */
+  isPaper?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -82,6 +88,28 @@ export function EditCopyLpModal({
   const [acknowledged, setAcknowledged] = useState(false);
 
   const preview = useLeaderPreview(copy.leader);
+
+  // WHAT THE WALLET CAN DEPLOY, for a live agent: SOL above the gas reserve,
+  // in dollars. Null until read, or when it cannot be — the suggestion then
+  // simply does not show, rather than falling back to a paper figure.
+  const [deployableUsd, setDeployableUsd] = useState<number | null>(null);
+  useEffect(() => {
+    if (isPaper !== false) return;
+    let live = true;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const f = await getAgentFunding(token, agentId);
+        if (live && typeof f.cash === "number" && f.solUsd) setDeployableUsd(f.cash * f.solUsd);
+      } catch {
+        // No reading, no suggestion.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [agentId, isPaper, getAccessToken]);
   const leaderReady = preview.phase === "ready";
   const leaderChanged = copy.leader.trim() !== stored.leader;
 
@@ -168,7 +196,14 @@ export function EditCopyLpModal({
             </Callout>
           ) : null}
 
-          <CopyLimitsStep value={copy} onChange={setCopy} preview={preview} bookUsd={bookUsd} compact />
+          <CopyLimitsStep
+            value={copy}
+            onChange={setCopy}
+            preview={preview}
+            bookUsd={bookUsd}
+            {...(isPaper === false ? { deployableUsd } : {})}
+            compact
+          />
         </div>
 
         {error ? (
@@ -202,7 +237,9 @@ function fromPlan(plan: CopyLpInput | null | undefined): CopyLimits {
   return {
     leader: plan.leader,
     copyPct: plan.copyPct ?? DEFAULT_COPY_LIMITS.copyPct,
-    maxIncreaseUsd: plan.maxIncreaseUsd ?? null,
+    maxAmountSol: plan.maxAmountSol ?? null,
+    takeProfitPct: plan.takeProfitPct ?? null,
+    stopLossPct: plan.stopLossPct ?? null,
     minPoolTvlUsd: plan.minPoolTvlUsd ?? null,
     // Reads the SAVED plan, so it must agree with the normaliser: a plan
     // with no field is off, and showing the switch on would tell an owner the

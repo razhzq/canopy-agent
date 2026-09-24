@@ -2,7 +2,7 @@
 
 import { LpPositions } from "@/components/lpPositions";
 import { GridLadder } from "@/components/gridLadder";
-import type { GridPlan } from "@/lib/api";
+import type { CopyLpInput, GridPlan } from "@/lib/api";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +24,7 @@ import {
   SectionLabel,
 } from "@/components/kit";
 import { WalletBar } from "@/components/walletBar";
+import { CopySuggestionBanner } from "@/components/copySuggestion";
 import { RouteBadge, routeOfMint } from "@/components/routeBadge";
 import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
@@ -100,7 +101,10 @@ export function AgentDetailMobile({
   screen,
   cadenceSec,
   positionCap,
+  copyLp = null,
 }: {
+  /** The copy block, on a copy LP agent — for the deposit-matched copy % suggestion. */
+  copyLp?: CopyLpInput | null;
   agent: AgentRow;
   detail: AgentDetail;
   /** The ladder, when the strategy is a grid. */
@@ -342,6 +346,7 @@ export function AgentDetailMobile({
             />
           </div>
         ) : null}
+        {!agent.is_paper && copyLp ? <CopySuggestionBanner agentId={agent.id} copyLp={copyLp} onApplied={onChanged} /> : null}
       </div>
 
       {/* An agent waiting for its first deposit is mid-SETUP, not broken, so it

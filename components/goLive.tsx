@@ -48,9 +48,10 @@
 // is now a decision the user completes in one sitting; funding is a deposit
 // they make whenever, from the wallet bar on the agent's own page.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
+import { CopySuggestionBanner } from "@/components/copySuggestion";
 import { useLocale, useT, type Locale, type TranslationKey, dateLocale } from "@/lib/i18n";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import {
@@ -63,6 +64,7 @@ import {
   startCheckout,
   type AgentDetail,
   type DiscountQuote,
+  type CopyLpInput,
 } from "@/lib/api";
 
 type Step = 1 | 2 | 3;
@@ -78,9 +80,16 @@ export function GoLiveModal({
   wallet,
   openPositions,
   resumedFromCheckout = false,
+  copyLp = null,
   onChanged,
   onClose,
 }: {
+  /**
+   * The copy block, on a copy LP agent. Lets the confirmation offer a copy %
+   * matched to the deposit — only when the wallet is already funded; funding
+   * is deliberately not a step here, so usually the agent page offers it later.
+   */
+  copyLp?: CopyLpInput | null;
   agent: AgentDetail["agent"];
   wallet: AgentDetail["wallet"];
   /** Open PAPER positions. They are settled by the backend before promotion. */
@@ -372,7 +381,9 @@ export function GoLiveModal({
         </div>
 
         {promoted ? (
-          <Promoted name={agent.strategy_name} onClose={onClose} />
+          <Promoted name={agent.strategy_name} onClose={onClose}>
+            {copyLp ? <CopySuggestionBanner agentId={agent.id} copyLp={copyLp} onApplied={onChanged} /> : null}
+          </Promoted>
         ) : (
           <>
             <StepRail current={step} />
@@ -789,7 +800,7 @@ function Ledger({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
+function Promoted({ name, onClose, children }: { name: string; onClose: () => void; children?: ReactNode }) {
   const t = useT();
 
   return (
@@ -805,6 +816,7 @@ function Promoted({ name, onClose }: { name: string; onClose: () => void }) {
           {t("gl_promoted_body")}
         </p>
       </div>
+      {children}
       <button
         type="button"
         onClick={onClose}

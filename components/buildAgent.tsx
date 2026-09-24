@@ -56,6 +56,7 @@ import {
   DEFAULT_COPY_LIMITS,
   PickLeader,
   copyLpPayload,
+  formatSol,
   shortAddress,
   useLeaderPreview,
   type CopyLimits,
@@ -289,7 +290,9 @@ function repairCopy(v: unknown): CopyLimits {
     ...v,
     leader: typeof v.leader === "string" ? v.leader : "",
     copyPct: num(v.copyPct, DEFAULT_COPY_LIMITS.copyPct),
-    maxIncreaseUsd: numOrNull(v.maxIncreaseUsd),
+    maxAmountSol: numOrNull(v.maxAmountSol),
+    takeProfitPct: numOrNull(v.takeProfitPct),
+    stopLossPct: numOrNull(v.stopLossPct),
     minPoolTvlUsd: numOrNull(v.minPoolTvlUsd),
     maxSlippagePct: num(v.maxSlippagePct, DEFAULT_COPY_LIMITS.maxSlippagePct),
     // `=== true`, matching the contract normaliser: absent means off.
@@ -1051,7 +1054,9 @@ export function BuildAgent() {
           step: "01",
         },
         { label: t("cl_row_copy_pct"), value: `${copy.copyPct}%`, step: "02" },
-        { label: t("cl_row_max_increase"), value: copy.maxIncreaseUsd === null ? t("cl_off") : formatUsd(copy.maxIncreaseUsd), step: "02" },
+        { label: t("cl_row_max_amount"), value: copy.maxAmountSol === null ? t("cl_off") : formatSol(copy.maxAmountSol), step: "02" },
+        { label: t("cl_row_tp"), value: copy.takeProfitPct === null ? t("cl_off") : `+${copy.takeProfitPct}%`, step: "02" },
+        { label: t("cl_row_sl"), value: copy.stopLossPct === null ? t("cl_off") : `−${copy.stopLossPct}%`, step: "02" },
         { label: t("cl_row_tvl"), value: copy.minPoolTvlUsd === null ? t("cl_off") : formatUsd(copy.minPoolTvlUsd), step: "02" },
         { label: t("cl_row_slippage"), value: `${copy.maxSlippagePct}%`, step: "02" },
         { label: t("cl_row_verified"), value: t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower"), step: "02" },
@@ -1794,7 +1799,9 @@ export function BuildAgent() {
                   <div className="mt-5 space-y-2 border-t border-grid pt-4">
                     <Row label={t("build_row_paper_book")} value={money(book)} tone="accent" />
                     <Row label={t("cl_row_copy_pct")} value={`${copy.copyPct}%`} />
-                    <Row label={t("cl_row_max_increase")} value={copy.maxIncreaseUsd === null ? t("cl_off") : money(copy.maxIncreaseUsd)} />
+                    <Row label={t("cl_row_max_amount")} value={copy.maxAmountSol === null ? t("cl_off") : formatSol(copy.maxAmountSol)} />
+                    <Row label={t("cl_row_tp")} value={copy.takeProfitPct === null ? t("cl_off") : `+${copy.takeProfitPct}%`} />
+                    <Row label={t("cl_row_sl")} value={copy.stopLossPct === null ? t("cl_off") : `−${copy.stopLossPct}%`} />
                     <Row label={t("cl_row_tvl")} value={copy.minPoolTvlUsd === null ? t("cl_off") : money(copy.minPoolTvlUsd)} />
                     <Row label={t("cl_row_slippage")} value={`${copy.maxSlippagePct}%`} />
                     <Row label={t("cl_row_verified")} value={t(copy.verifiedTokensOnly ? "cl_yes_lower" : "cl_no_lower")} />
