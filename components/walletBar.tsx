@@ -337,6 +337,18 @@ function Balance({ agentId }: { agentId: number }) {
   // reported money the owner still has as money they do not.
   const cash = state.data.balance ?? state.data.cash ?? state.data.usdc;
   const solUsd = state.data.solUsd;
+  /*
+   * NATIVE AND WRAPPED, SAID APART — the figure an owner checks on Solscan.
+   *
+   * `balance` is native SOL plus any wrapped SOL the wallet holds, because
+   * both are the agent's to spend. Solscan's "SOL Balance" is native only and
+   * lists wrapped SOL as a token, so showing the sum as "SOL balance" put the
+   * two a few thousandths apart with nothing to explain it (agent 188: 2.0422
+   * here, 2.0385 there — 0.0036 wSOL left by a swap). The headline is now the
+   * native figure, and the wrapped part, when there is one, is named beside it.
+   */
+  const native = sol ? state.data.sol : cash;
+  const wrapped = sol ? Math.max(0, cash - state.data.sol) : 0;
   return (
     <Row label={t(sol ? "wallet_sol_balance" : "wallet_usdc_balance")}>
       <span
@@ -347,8 +359,13 @@ function Balance({ agentId }: { agentId: number }) {
         title={sol && solUsd ? `≈ $${(cash * solUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : undefined}
       >
         {sol
-          ? `${cash.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`
+          ? `${native.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`
           : `$${cash.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+        {wrapped >= 0.00005 ? (
+          <span className="ml-1.5 font-mono text-[11.5px] text-text-muted">
+            {t("wallet_plus_wrapped", { amount: wrapped.toLocaleString(undefined, { maximumFractionDigits: 4 }) })}
+          </span>
+        ) : null}
       </span>
     </Row>
   );

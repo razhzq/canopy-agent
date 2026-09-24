@@ -10,6 +10,7 @@ export const enWallet = {
   wallet_withdraw: "Withdraw",
   wallet_usdc_balance: "USDC balance",
   wallet_sol_balance: "SOL balance",
+  wallet_plus_wrapped: "+ {amount} wrapped",
   // Used while the unit is still unknown — a loading or failed read cannot
   // say which asset it was going to report.
   wallet_balance: "Balance",

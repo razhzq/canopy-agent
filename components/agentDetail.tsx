@@ -39,7 +39,7 @@ import { useLocale, useT, type Locale, type Translate, dateLocale } from "@/lib/
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
-import { LpEquityView } from "@/components/lpEquity";
+import { LpEquityView, useLiveWorth } from "@/components/lpEquity";
 import { isLpBook } from "@/lib/perf";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -529,6 +529,18 @@ export function AgentDetailView({
     });
   }, [state, marks]);
 
+  // WHAT A LIVE SOL BOOK IS WORTH NOW — the wallet bar's own read plus the
+  // open positions valued this request — so the net worth headline and the
+  // wallet beside it cannot disagree by a cycle. Before the early returns: a
+  // hook. Keyed on the detail object, so every reload re-reads the wallet.
+  const readyDetail = state.phase === "ready" ? state.detail : null;
+  const live = useLiveWorth(
+    agentId,
+    !!readyDetail && !readyDetail.agent.is_paper && readyDetail.unit === "SOL",
+    readyDetail?.positions ?? [],
+    readyDetail,
+  );
+
   if (state.phase === "loading") return <SkeletonAgentDetail />;
   if (state.phase === "signed-out")
     return <SignedOutState note={t("ad_signed_out_note")} />;
@@ -725,6 +737,7 @@ export function AgentDetailView({
           assetsPending={assetsPending}
           universe={strategy?.universe ?? []}
           copyLp={strategy?.copy_lp ?? null}
+          live={live}
           onChanged={() => void load()}
           walletAddress={wallet?.address ?? null}
           onBook={setBook}
@@ -914,6 +927,7 @@ export function AgentDetailView({
                   universe={marked}
                   unit={detail.unit ?? "USD"}
                   solUsd={detail.solUsd ?? null}
+                  live={live}
                 />
               ) : (
                 <EquityView series={equity} positions={positions} universe={marked} />

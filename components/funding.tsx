@@ -311,13 +311,23 @@ export function FundingPanel({
             and a box around a single figure is chrome earning nothing. */}
         <div className="shrink-0 space-y-2">
           <SectionLabel>{t("funding_wallet_balance")}</SectionLabel>
+          {/* NATIVE SOL AS THE FIGURE, the number Solscan shows as the SOL
+              balance; wrapped SOL, which Solscan lists as a token, is named
+              under it rather than silently added in. See walletBar.tsx. */}
           <Figure
-            value={view.cash.toLocaleString(undefined, {
+            value={(solBook ? view.sol : view.cash).toLocaleString(undefined, {
               maximumFractionDigits: solBook ? 4 : 2,
             })}
             unit={solBook ? "SOL" : "USDC"}
             dim={!funded}
           />
+          {solBook && view.cash - view.sol >= 0.00005 ? (
+            <p className="tnum font-mono text-[12px] text-text-muted">
+              {t("wallet_plus_wrapped", {
+                amount: (view.cash - view.sol).toLocaleString(undefined, { maximumFractionDigits: 4 }),
+              })}
+            </p>
+          ) : null}
           {/* THE DOLLAR VALUE UNDER THE SOL, not instead of it. The book is a
               quantity of SOL — that is the number that does not move when the
               price does — and the dollars are what it happens to be worth

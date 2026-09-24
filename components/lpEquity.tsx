@@ -6,7 +6,8 @@ import { ProfitBody } from "@/components/profitHistory";
 import { SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Tick } from "@/components/kit";
 import { markOpenBook } from "@/lib/perf";
 import { dayKey, lpDaysFromEquity, type LpDay } from "@/lib/lpDays";
-import type { AgentDetail, EquitySeries, LpBook, UniverseAsset } from "@/lib/api";
+import { getAgentFunding, type AgentDetail, type EquitySeries, type LpBook, type UniverseAsset } from "@/lib/api";
+import { useApi } from "@/lib/useApi";
 import { useLocale, dateLocale, type Locale } from "@/lib/i18n";
 import { bookFormat, useBookUnit, USD_FORMAT, type BookFormat } from "@/lib/bookUnit";
 
@@ -35,10 +36,13 @@ export function LpEquityView({
   universe,
   unit = "USD",
   solUsd = null,
+  live = null,
 }: {
   series: EquitySeries | null;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
+  /** What a live book is worth NOW; see {@link LiveWorth}. Null uses the last reading. */
+  live?: LiveWorth | null;
   /**
    * The unit this agent's book is actually kept in (CANOPY_127).
    *
@@ -65,7 +69,7 @@ export function LpEquityView({
 
   if (series === null || series.points.length === 0) return <NoRecord />;
 
-  const f = lpFigures(series, positions, universe, base, solUsd);
+  const f = lpFigures(series, positions, universe, base, solUsd, live);
   const shown =
     view === "calendar"
       ? f.days.map((day) => ({ day, present: true }))
@@ -436,12 +440,14 @@ export function LpEquityMobile({
   universe,
   unit = "USD",
   solUsd = null,
+  live = null,
 }: {
   series: EquitySeries | null;
   positions: AgentDetail["positions"];
   universe: UniverseAsset[];
   unit?: "USD" | "SOL";
   solUsd?: number | null;
+  live?: LiveWorth | null;
 }) {
   const { t, locale } = useLocale();
   const [scrub, setScrub] = useState<number | null>(null);
@@ -455,7 +461,7 @@ export function LpEquityMobile({
   const money = fmt.money;
   const signed = fmt.signed;
   if (series === null || series.points.length === 0) return <NoRecord />;
-  const f = lpFigures(series, positions, universe, base, solUsd);
+  const f = lpFigures(series, positions, universe, base, solUsd, live);
   const day = scrub === null ? null : f.days[scrub];
 
   return (
@@ -700,6 +706,47 @@ function NoRecord() {
 
 /* ------------------------------------------------------------- figures -- */
 
+/**
+ * What a live LP book is worth at this moment: the wallet as the chain holds
+ * it, plus every open position valued now (liquidity and unclaimed fees), in
+ * both units at one rate. Built by the agent page from the funding read, which
+ * is the same read the wallet bar shows.
+ */
+export interface LiveWorth {
+  sol: number;
+  usd: number;
+}
+
+/**
+ * {@link LiveWorth} for a live SOL book, or null when it cannot be stated
+ * honestly: a paper agent, a USD one, a wallet that could not be read, or an
+ * open position the server could not value this request. Null falls back to
+ * the last reading, which is correct as of its cycle.
+ *
+ * `refreshKey` re-reads the wallet when the page reloads its detail, so a
+ * close or a deposit moves the headline with the wallet bar beside it.
+ */
+export function useLiveWorth(
+  agentId: number,
+  enabled: boolean,
+  positions: AgentDetail["positions"],
+  refreshKey: unknown,
+): LiveWorth | null {
+  const state = useApi(
+    (token) => (enabled ? getAgentFunding(token, agentId) : Promise.resolve(null)),
+    [agentId, enabled, refreshKey],
+  );
+  if (!enabled || state.phase !== "ready" || !state.data) return null;
+  const f = state.data;
+  const rate = f.solUsd;
+  if (f.unit !== "SOL" || !(typeof rate === "number" && rate > 0) || typeof f.balance !== "number") return null;
+  const legs = positions.filter((p) => !!p.lp);
+  if (legs.some((p) => !p.lp?.now)) return null;
+  // Liquidity plus unclaimed fees: what the positions would hand back now.
+  const openUsd = legs.reduce((sum, p) => sum + p.lp!.now!.valueUsd + p.lp!.now!.unclaimedFeesUsd, 0);
+  return { sol: f.balance + openUsd / rate, usd: f.balance * rate + openUsd };
+}
+
 interface LpFigures {
   days: LpDay[];
   netWorthUsd: number;
@@ -764,6 +811,7 @@ function lpFigures(
   base: "usd" | "sol" = "usd",
   /** The current rate, for the figures that are only recorded in dollars. */
   solUsd?: number | null,
+  live?: LiveWorth | null,
 ): LpFigures {
   /*
    * EVERY FIGURE THIS RETURNS IS IN THE SERIES' UNIT.
@@ -784,7 +832,13 @@ function lpFigures(
   const inUnitOrNull = (usdValue: number | null): number | null =>
     usdValue === null ? null : inUnit(usdValue);
   const points = series.points;
-  const last = points[points.length - 1];
+  // ON A SOL BOOK, THE LAST READING THAT RECORDED SOL. A dollar-only row
+  // divided by today's rate is the bug `seriesBase` exists to end; the API now
+  // drops them, and this keeps an older API from reintroducing one.
+  const last =
+    base === "sol"
+      ? ([...points].reverse().find((p) => typeof p.equitySol === "number") ?? points[points.length - 1])
+      : points[points.length - 1];
   // The baseline is the book's starting capital, which is what the curve is
   // drawn against everywhere else in the product — in whichever unit the
   // readings are in, so the two are never subtracted across units.
@@ -841,7 +895,18 @@ function lpFigures(
 
   return {
     days,
-    netWorthUsd: base === "sol" ? (last.equitySol ?? inUnit(last.equityUsd)) : last.equityUsd,
+    // LIVE WHEN IT CAN BE. The curve is one reading per cycle, so between
+    // cycles it lags the wallet — a close, a deposit or a fee lands and the
+    // headline disagrees with the wallet beside it for up to a cycle. A live
+    // book is valued now instead: the wallet as read, plus what its open
+    // positions are worth this moment.
+    netWorthUsd: live
+      ? base === "sol"
+        ? live.sol
+        : live.usd
+      : base === "sol"
+        ? (last.equitySol ?? inUnit(last.equityUsd))
+        : last.equityUsd,
     vsHodlPct: hodl.pct,
     vsHodlCovered: hodl.covered,
     vsHodlOpen: hodl.open,

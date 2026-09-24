@@ -46,7 +46,7 @@ import {
   type UniverseSelection,
 } from "@/lib/api";
 import { AgentFacts } from "@/components/agentFacts";
-import { LpEquityMobile } from "@/components/lpEquity";
+import { LpEquityMobile, type LiveWorth } from "@/components/lpEquity";
 import { isLpBook } from "@/lib/perf";
 import { AssetCategory } from "@/components/tokenCategory";
 import { ScreenChips } from "@/components/discoveryFilters";
@@ -102,7 +102,10 @@ export function AgentDetailMobile({
   cadenceSec,
   positionCap,
   copyLp = null,
+  live = null,
 }: {
+  /** What a live SOL book is worth now; see `useLiveWorth`. */
+  live?: LiveWorth | null;
   /** The copy block, on a copy LP agent — for the deposit-matched copy % suggestion. */
   copyLp?: CopyLpInput | null;
   agent: AgentRow;
@@ -432,6 +435,7 @@ export function AgentDetailMobile({
             universe={assets}
             unit={detail.unit ?? "USD"}
             solUsd={detail.solUsd ?? null}
+            live={live}
           />
         ) : (
           <>

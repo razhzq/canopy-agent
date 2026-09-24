@@ -8,6 +8,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   wallet_withdraw: "提现",
   wallet_usdc_balance: "USDC 余额",
   wallet_sol_balance: "SOL 余额",
+  wallet_plus_wrapped: "+ {amount} 包装 SOL",
   wallet_balance: "余额",
   wallet_solana_mainnet: "Solana 主网",
   wallet_model_credit: "模型额度",
