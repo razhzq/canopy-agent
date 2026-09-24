@@ -25,6 +25,7 @@ import {
 } from "@/components/kit";
 import { WalletBar } from "@/components/walletBar";
 import { CopySuggestionBanner } from "@/components/copySuggestion";
+import { CopyTerms } from "@/components/copyTerms";
 import { RouteBadge, routeOfMint } from "@/components/routeBadge";
 import { AssetLogo } from "@/components/ui";
 import { usePrivy } from "@privy-io/react-auth";
@@ -628,6 +629,13 @@ export function AgentDetailMobile({
       </div>
 
       {/* ------------------------------------------------------ markets -- */}
+      {/* A copy agent has no markets — it follows a wallet — so its place is
+          taken by who it copies and on what terms, as on the desktop rail. */}
+      {copyLp ? (
+        <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+          <CopyTerms plan={copyLp} onEdit={onEdit ?? (() => {})} editable={!!onEdit} />
+        </div>
+      ) : (
       <div className="border-b border-grid pt-[18px]">
         <div className="flex items-center justify-between px-[18px] pb-3">
           <p className="font-ui text-[16px] tracking-[-0.01em] text-text-primary">
@@ -698,6 +706,7 @@ export function AgentDetailMobile({
           </button>
         </div>
       </div>
+      )}
 
       {/* ------------------------------------------------ how it runs -- */}
       {/* LAST, AND QUIET. These are the facts that do not change between

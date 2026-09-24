@@ -1070,6 +1070,7 @@ export function AgentDetailView({
           onRemoveMarket={(sel: UniverseSelection) => void removeMarket(sel)}
           removingKey={removingKey}
           removeError={removeError}
+          copyLp={strategy?.copy_lp ?? null}
         />
       </div>
 

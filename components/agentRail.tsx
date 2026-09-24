@@ -3,6 +3,7 @@
 import { AssetLogo, Rule } from "@/components/ui";
 import { CHIP, FieldNote, LABEL, NUM, SECONDARY, SURFACE, SectionLabel } from "@/components/kit";
 import { AgentFacts } from "@/components/agentFacts";
+import { CopyTerms } from "@/components/copyTerms";
 import { AssetCategory } from "@/components/tokenCategory";
 import { ScreenChips } from "@/components/discoveryFilters";
 import {
@@ -19,6 +20,7 @@ import {
   selectionKey,
   selectionLabel,
   type AgentRow,
+  type CopyLpInput,
   type DetectionRule,
   type DiscoverySpec,
   type ExitRules,
@@ -81,8 +83,14 @@ export function AgentRail({
   onRemoveMarket,
   removingKey,
   removeError,
+  copyLp = null,
 }: {
   agent: AgentRow;
+  /**
+   * The copy plan, on a copy LP agent. It has no rules, bar size or markets,
+   * so the rail shows who it copies and on what terms instead.
+   */
+  copyLp?: CopyLpInput | null;
   /** Null while the recipe is still loading — the Edit action waits for it. */
   strategy: unknown | null;
   rules: DetectionRule[];
@@ -134,6 +142,10 @@ export function AgentRail({
 
   return (
     <aside className="min-w-0 border-t border-grid px-5 sm:px-8 py-6 lg:border-t-0">
+      {copyLp ? (
+        <CopyTerms plan={copyLp} onEdit={onEdit} editable={!!strategy} />
+      ) : (
+      <>
       {/* ---------------------------------------------------- strategy -- */}
       {/* NO HAIRLINE ON A HEADING THAT CARRIES A CONTROL. The rule was drawn
           to fill the space between a label and the edge; with a button on that
@@ -321,6 +333,8 @@ export function AgentRail({
           </div>
         ) : null}
       </div>
+      </>
+      )}
 
       {/* ------------------------------------------------ how it runs -- */}
       <div className="mt-6 border-t border-grid pt-5">
