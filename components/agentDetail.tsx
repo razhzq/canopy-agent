@@ -40,6 +40,7 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
 import { LpEquityView, useLiveCashUsd, useLiveWorth } from "@/components/lpEquity";
+import { CopyLpLog } from "@/components/copyLpLog";
 import { isLpBook } from "@/lib/perf";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -1010,7 +1011,16 @@ export function AgentDetailView({
           ) : null}
 
 
-          {/* activity */}
+          {/* activity — a copy LP agent has no cycles to show, only what its
+              mirror did, so it gets the flat log instead of the cycle cards. */}
+          {strategy?.copy_lp ? (
+            <section className="px-5 sm:px-8 py-6">
+              <Rule label={t("clplog_title")} />
+              <div className="pt-4">
+                <CopyLpLog agentId={agentId} book={detail.book} unit={detail.unit ?? "USD"} />
+              </div>
+            </section>
+          ) : (
           <section className="px-5 sm:px-8 py-6">
             <Rule
               label={t("ad_sec_activity")}
@@ -1034,6 +1044,7 @@ export function AgentDetailView({
                 : t("ad_append_only")}
             </p>
           </section>
+          )}
         </div>
 
         {/* ------------------------------------------------------- rail --

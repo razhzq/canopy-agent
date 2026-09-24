@@ -3463,6 +3463,24 @@ export const getActivity = (
   );
 
 /**
+ * A copy LP agent's log: only the runs in which the mirror DID something — an
+ * open, a close, a skip, a failure — newest first. Polls of the leader that
+ * found nothing changed are left out server-side, so `limit` counts events and
+ * not polls. `before` is a tick_seq: pass the oldest one on screen to page back.
+ */
+export const getCopyLpLog = (
+  token: string,
+  agentId: number,
+  opts: { limit?: number; before?: string | null; book?: "paper" | "live" } = {},
+) =>
+  request<ActivityPage>(
+    `/agents/${agentId}/activity?log=1&limit=${opts.limit ?? 30}` +
+      (opts.before ? `&before=${opts.before}` : "") +
+      (opts.book ? `&book=${opts.book}` : ""),
+    token,
+  );
+
+/**
  * A page of cycles, plus the two things the narrator cannot read off a decision.
  *
  * `strategy_class` decides which vocabulary the cycles are told in — a
