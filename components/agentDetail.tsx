@@ -981,7 +981,6 @@ export function AgentDetailView({
                 positions={positions}
                 universe={marked}
                 book={detail.book}
-                copy={detail.copy}
                 unit={detail.unit ?? "USD"}
                 solUsd={detail.solUsd ?? null}
                 onChanged={() => void load()}

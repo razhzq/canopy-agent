@@ -122,9 +122,6 @@ export const trPositions: Record<keyof typeof enPositions, string> = {
   lp_shape_curve: "Eğri",
   lp_shape_bid_ask: "Alış-Satış",
 
-  lp_not_copied: "Kopyalanmadı",
-  lp_not_copied_note: "Takip edilen cüzdanın şu anda tuttuğu, bu ajanın girmediği pozisyonlar.",
-  lp_not_copied_held_before: "Kopyalama başladığında bu pozisyon zaten açıktı.",
   lp_leader: "{leader} kopyalanıyor",
   lp_none_yet: "Henüz kopyalanan pozisyon yok. Takip edilen cüzdan pozisyon açtığında bu ajan da açar.",
 };

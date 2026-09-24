@@ -120,9 +120,6 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   lp_shape_curve: "曲线",
   lp_shape_bid_ask: "买卖价差",
 
-  lp_not_copied: "未复制",
-  lp_not_copied_note: "被复制钱包当前持有、而此智能体未跟进的仓位。",
-  lp_not_copied_held_before: "开始复制时，对方已持有该仓位。",
   lp_leader: "正在复制 {leader}",
   lp_none_yet: "尚未复制任何仓位。当对方开仓时，此智能体才会跟进。",
 };

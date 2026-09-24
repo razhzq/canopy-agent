@@ -146,9 +146,6 @@ export const enPositions = {
   // A copy agent holding nothing is usually configured, not broken. These
   // sentences are written when the decision is taken; they just never used to
   // reach a screen.
-  lp_not_copied: "Not copied",
-  lp_not_copied_note: "Positions the leader holds now that this agent is not in.",
-  lp_not_copied_held_before: "The leader already held this when copying started.",
   lp_leader: "Copying {leader}",
   lp_none_yet: "Nothing copied yet. This agent opens a position when the leader does.",
 } as const;

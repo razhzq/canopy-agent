@@ -39,7 +39,6 @@ export function LpPositions({
   positions,
   universe,
   book,
-  copy,
   onChanged,
   unit = "USD",
   solUsd = null,
@@ -52,8 +51,6 @@ export function LpPositions({
   universe: UniverseAsset[];
   /** Which book the open rows came from — history lists the same one. */
   book: "paper" | "live";
-  /** On a copy agent: who it follows, and what it is deliberately not in. */
-  copy?: AgentDetail["copy"];
   onChanged?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("open");
@@ -74,7 +71,6 @@ export function LpPositions({
       {tab === "open" ? (
         <>
           <OpenLp agentId={agentId} rows={rows} universe={universe} onChanged={onChanged} unit={unit} solUsd={solUsd} />
-          <NotCopied copy={copy} />
         </>
       ) : (
         <ClosedLp agentId={agentId} book={book} universe={universe} />
@@ -176,57 +172,6 @@ function tone(v: number | null): string {
   return v === null ? "text-text-muted" : v >= 0 ? "text-accent" : "text-negative";
 }
 
-
-/**
- * What the copy is deliberately not in, and why.
- *
- * THE REASON WAS ALWAYS THERE. Every refusal is recorded with a sentence the
- * moment it is taken — "Verified tokens only, and CYPHERCAT is not verified",
- * "Held by the leader before copying started" — and none of it used to reach a
- * screen. An owner seeing an empty book had no way to tell a leader who is
- * flat from a filter of their own that is holding them out, and the only way to
- * find out was to read the database.
- *
- * Quiet on purpose: this is a list of facts, not a fault. A callout would make
- * a configured refusal look like an incident (kit rule 4), and these rows are
- * most often exactly what the owner asked for.
- */
-function NotCopied({ copy }: { copy?: AgentDetail["copy"] }) {
-  const { t, locale } = useLocale();
-  if (!copy || copy.notCopied.length === 0) return null;
-
-  return (
-    <div className="mt-6 border-t border-grid pt-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="font-ui text-[12.5px] font-medium text-text-primary">
-          {t("lp_not_copied")}
-        </p>
-        <p className="font-ui text-[11.5px] text-text-muted">{t("lp_not_copied_note")}</p>
-      </div>
-
-      <ul className="pt-2">
-        {copy.notCopied.map((n) => (
-          <li
-            key={n.leaderPosition}
-            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b border-grid py-2 last:border-b-0"
-          >
-            <span className="font-mono text-[12px] text-text-secondary">
-              {n.poolName ?? `${n.pool.slice(0, 4)}…${n.pool.slice(-4)}`}
-            </span>
-            <span className="min-w-0 flex-1 text-right font-ui text-[11.5px] leading-relaxed text-text-dim">
-              {/* An older row can carry no reason; the status still says which
-                  kind of refusal it was, which is better than an empty cell. */}
-              {n.reason ?? t("lp_not_copied_held_before")}{" "}
-              <span className="tnum font-mono text-text-muted">
-                · {shortDate(n.at, locale)}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ open -- */
 
