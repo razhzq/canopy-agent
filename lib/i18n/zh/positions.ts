@@ -94,6 +94,8 @@ export const zhPositions: Record<keyof typeof enPositions, string> = {
   lp_reason_breaker: "触发亏损上限",
   lp_reason_leader: "领跑者已撤出",
   lp_reason_exit: "退出规则",
+  lp_tx_open: "开仓交易",
+  lp_tx_close: "平仓交易",
   lp_close_title: "平仓 {pair}？",
   lp_close_returning: "将取回",
   lp_close_reading: "正在读取池子",

@@ -111,6 +111,8 @@ export const enPositions = {
   lp_reason_breaker: "Loss limit",
   lp_reason_leader: "Leader withdrew",
   lp_reason_exit: "Exit rule",
+  lp_tx_open: "Open tx",
+  lp_tx_close: "Close tx",
   lp_close_title: "Close {pair}?",
   lp_close_returning: "Returning",
   lp_close_reading: "Reading the pool",

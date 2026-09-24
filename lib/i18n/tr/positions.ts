@@ -96,6 +96,8 @@ export const trPositions: Record<keyof typeof enPositions, string> = {
   lp_reason_breaker: "Zarar limiti",
   lp_reason_leader: "Lider çekildi",
   lp_reason_exit: "Çıkış kuralı",
+  lp_tx_open: "Açılış işlemi",
+  lp_tx_close: "Kapanış işlemi",
   lp_close_title: "{pair} kapatılsın mı?",
   lp_close_returning: "Geri dönecek",
   lp_close_reading: "Havuz okunuyor",

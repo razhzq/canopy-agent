@@ -4229,6 +4229,13 @@ export interface ClosedLpPosition {
   leader_position: string | null;
   opened_at: string;
   closed_at: string;
+  /**
+   * The chain's receipts, on a LIVE book: the transaction that created the
+   * position and the one that emptied it. Null on paper, and on a live
+   * position whose journal step was not recorded.
+   */
+  open_tx?: string | null;
+  close_tx?: string | null;
 }
 
 export interface ClosedLpPage {

@@ -14,7 +14,7 @@ import { useApi } from "@/lib/useApi";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo } from "@/components/ui";
-import { Tick } from "@/components/kit";
+import { Tick, TxLink } from "@/components/kit";
 import { CloseLpModal, type ClosableLp } from "@/components/closeLpPosition";
 import { useLocale } from "@/lib/i18n";
 
@@ -1041,6 +1041,14 @@ function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" 
               <span className="block pl-2">
                 <span className="block font-ui text-[12px] text-text-secondary">{shortDate(r.closed_at, locale)}</span>
                 <span className="block pt-0.5 font-ui text-[11px] text-text-dim">{reason(r)}</span>
+                {/* THE RECEIPTS, live only: what an owner checks on Solscan.
+                    A paper position never touched the chain and shows none. */}
+                {r.open_tx || r.close_tx ? (
+                  <span className="flex flex-wrap gap-x-3 pt-1">
+                    {r.open_tx ? <TxLink signature={r.open_tx} label={t("lp_tx_open")} size="caption" /> : null}
+                    {r.close_tx ? <TxLink signature={r.close_tx} label={t("lp_tx_close")} size="caption" /> : null}
+                  </span>
+                ) : null}
               </span>
             </div>
           ))}
