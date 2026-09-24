@@ -561,6 +561,7 @@ export function AgentDetailView({
 
   const { detail, strategy, equity, assets, assetsPending } = state;
   const { agent, positions, wallet, lastRun } = detail;
+  const status = agentState(agent, lastRun, t);
   // A perp agent: its universe holds a namespaced identity, or its book does.
   const tradesPerps =
     (strategy?.universe ?? []).some((sel) => sel.kind === "crypto" && isPerpMint(sel.mint)) ||
@@ -837,47 +838,13 @@ export function AgentDetailView({
               >
                 <ModelBadge model={agent.model} />
               </button>
-              <StatusChip status={agent.status} />
-              {/* THE LIVE READOUT, BESIDE THE STATE IT QUALIFIES.
-                  It used to head a "Watching now" section whose body restated
-                  the rail's entry rules and exits; the section went, and this is
-                  the one thing in it that existed nowhere else. It belongs here
-                  anyway: "active" and "checked 1m ago · next in 4 min" are the
-                  same sentence, and they were being said two screens apart.
-                  `live`, because this is a thing happening rather than a state
-                  that is true — the agent is between ticks right now. */}
-              {agent.status === "active" ? (
-                <StatusLine tone="good" live>
-                  {agent.last_tick_at
-                    ? t("ad_checked", { when: relativeTime(agent.last_tick_at, t) })
-                    : t("ad_starting")}
-                  {agent.next_tick_at ? t("ad_next", { when: ahead(agent.next_tick_at, t) }) : ""}
-                </StatusLine>
-              ) : null}
-              {/* A CYCLE THAT FAILED OR NEVER FINISHED, said where the reader is
-                  already looking. The error lived only inside the activity card,
-                  and a cycle that hangs writes nothing at all: its thread ends
-                  at the book being marked, the agent stops trading, and nothing
-                  anywhere says so (agent 150). A running cycle holds the agent's
-                  lock, so no other cycle can start behind it. */}
-              {agent.status === "active" && lastRun?.status === "error" ? (
-                <StatusLine tone="bad">
-                  {t("ad_last_cycle_failed", {
-                    seq: lastRun.tick_seq,
-                    error: lastRun.error ?? t("ad_last_cycle_no_message"),
-                  })}
-                </StatusLine>
-              ) : agent.status === "active" &&
-                lastRun?.status === "running" &&
-                lastRun.started_at &&
-                Date.now() - Date.parse(lastRun.started_at) > STUCK_CYCLE_MS ? (
-                <StatusLine tone="bad">
-                  {t("ad_last_cycle_stuck", {
-                    seq: lastRun.tick_seq,
-                    when: relativeTime(lastRun.started_at, t),
-                  })}
-                </StatusLine>
-              ) : null}
+              {/* WHAT THE AGENT IS ACTUALLY DOING, in one word — not the stored
+                  flag. "Running" used to sit above a red "cycle failed" or a
+                  frozen-entries cycle, because the flag stays `active` through
+                  both (agent 150). The sentence that explains it is below. */}
+              <StatusLine tone={status.tone} live={status.live}>
+                {status.label}
+              </StatusLine>
             </div>
 
             {/* Always both halves, so the reader can see that an agent has two
@@ -912,24 +879,14 @@ export function AgentDetailView({
             so it gets an action, not the breaker's red sentence. It is not
             paused either: it stays scheduled and starts by itself the moment
             the balance lands, which is what the copy has to promise. */}
-        {lastRun?.skip_reason === "model_unfunded" ? (
-          // NO BUTTON. The model badge beside the agent's name now carries the
-          // credit and opens the panel, which makes it the one way in — the
-          // same argument that comment already makes about the badge being the
-          // affordance. A second control saying "Top up" put two doors on one
-          // room, and the one further from the number was the louder of them.
-          <p className="pt-3 font-ui text-[12.5px] text-warning">
-            {t("ad_model_unfunded", {
-              model: agent.model?.label ?? t("ad_model_generic"),
-            })}
-          </p>
-        ) : agent.paused_reason ? (
-          <p className="pt-3 font-ui text-[12.5px] text-negative">
-            {/* The reason is a backend state name, de-underscored — it names a
-                specific breaker and is not ours to reword. */}
-            {t("ad_stopped_itself", {
-              reason: agent.paused_reason.replace(/_/g, " "),
-            })}
+        {/* The one sentence behind the status word, when it needs one. */}
+        {status.message ? (
+          <p
+            className={`pt-3 font-ui text-[12.5px] ${
+              status.tone === "bad" ? "text-negative" : "text-warning"
+            }`}
+          >
+            {status.message}
           </p>
         ) : null}
         {/* A LIVE COPY AGENT'S COPY % AGAINST ITS DEPOSIT. Shown only once a
@@ -1261,26 +1218,80 @@ function Controls({
 /* ---------------------------------------------------------------- pieces -- */
 
 
-function StatusChip({ status }: { status: string }) {
-  const t = useT();
-  const running = status === "active";
-  const stopped = status === "paused" || status === "liquidating";
-  // RULE 4: status is a dot and a word, not a chip.
-  //
-  // Running used to be `bg-accent text-bg` — a solid fill, which is the heaviest
-  // treatment on the page, spent on a state that is true almost all the time.
-  // It outranked the agent's own name beside it and left nothing louder for the
-  // states that actually want attention. The dot carries the same three
-  // meanings without competing with the headline it sits next to.
-  return (
-    <StatusLine tone={running ? "good" : stopped ? "bad" : "pending"}>
-      {running
-        ? t("ad_status_running")
-        : status === "liquidating"
-          ? t("ad_status_closing")
-          : status}
-    </StatusLine>
-  );
+/**
+ * The agent's state as the owner should read it: one word, a tone, and the
+ * sentence that explains it when there is one.
+ *
+ * NOT THE STORED FLAG. `status` stays "active" through a failed cycle, a hung
+ * one, a model with no credit and a cycle that froze new positions — each of
+ * which means the agent is not doing what "Running" promises. Most specific
+ * first; "Running" is what is left.
+ *
+ * A PAUSE REASON ONLY WHILE PAUSED. It used to show whenever it was set, so a
+ * reason left on an agent that was running again sat in red under "Running".
+ */
+function agentState(
+  agent: AgentDetailPayload["agent"],
+  lastRun: AgentDetailPayload["lastRun"],
+  t: Translate,
+): { tone: "good" | "pending" | "bad"; label: string; live: boolean; message: string | null } {
+  const s = agent.status;
+  if (s === "paused") {
+    return {
+      tone: "bad",
+      label: t("ad_state_paused"),
+      live: false,
+      message: agent.paused_reason
+        ? t("ad_stopped_itself", { reason: agent.paused_reason.replace(/_/g, " ") })
+        : null,
+    };
+  }
+  if (s === "stopped") return { tone: "bad", label: t("ad_state_stopped"), live: false, message: null };
+  if (s === "liquidating") return { tone: "pending", label: t("ad_status_closing"), live: true, message: null };
+  if (s !== "active") return { tone: "pending", label: t("ad_state_draft"), live: false, message: null };
+
+  if (
+    lastRun?.status === "running" &&
+    lastRun.started_at &&
+    Date.now() - Date.parse(lastRun.started_at) > STUCK_CYCLE_MS
+  ) {
+    return {
+      tone: "bad",
+      label: t("ad_state_stuck"),
+      live: false,
+      message: t("ad_last_cycle_stuck", { seq: lastRun.tick_seq, when: relativeTime(lastRun.started_at, t) }),
+    };
+  }
+  if (lastRun?.status === "error") {
+    return {
+      tone: "bad",
+      label: t("ad_state_failed"),
+      live: false,
+      message: t("ad_last_cycle_failed", {
+        seq: lastRun.tick_seq,
+        error: lastRun.error ?? t("ad_last_cycle_no_message"),
+      }),
+    };
+  }
+  // Mid-setup, not broken: it starts by itself once the model has credit.
+  if (lastRun?.skip_reason === "model_unfunded") {
+    return {
+      tone: "pending",
+      label: t("ad_state_needs_credit"),
+      live: false,
+      message: t("ad_model_unfunded", { model: agent.model?.label ?? t("ad_model_generic") }),
+    };
+  }
+  // Still managing what it holds — exits run — but opening nothing new.
+  if (lastRun?.entries_frozen) {
+    return {
+      tone: "pending",
+      label: t("ad_state_not_opening"),
+      live: true,
+      message: lastRun.frozen_reason ?? null,
+    };
+  }
+  return { tone: "good", label: t("ad_status_running"), live: true, message: null };
 }
 
 /**
@@ -1470,19 +1481,6 @@ function money(n: number): string {
  */
 const STUCK_CYCLE_MS = 10 * 60_000;
 
-/**
- * How long UNTIL something, which `relativeTime` cannot express.
- *
- * Kept local rather than folded into lib/format: this is the only forward-
- * looking clock in the app, and a shared helper with a direction flag would
- * make every call site say which way it meant.
- */
-function ahead(iso: string, t: Translate): string {
-  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
-  if (mins <= 0) return t("ad_due_now");
-  if (mins < 60) return t("ad_in_minutes", { count: mins });
-  return t("ad_in_hours", { count: Math.floor(mins / 60) });
-}
 
 /**
  * The warning before a delete.

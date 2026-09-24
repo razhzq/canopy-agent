@@ -15,6 +15,13 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_hover_reason: "{reason}。",
   ad_stopped_itself: "自行停止：{reason}。",
 
+  ad_state_paused: "已暂停",
+  ad_state_stopped: "已停止",
+  ad_state_draft: "未启动",
+  ad_state_stuck: "卡住",
+  ad_state_failed: "周期失败",
+  ad_state_needs_credit: "需要模型额度",
+  ad_state_not_opening: "暂停开新仓",
   ad_status_running: "运行中",
   ad_status_closing: "清仓中",
 
@@ -39,9 +46,6 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_sec_markets: "市场",
   ad_sec_setup: "运行方式",
 
-  ad_checked: "{when}检查过",
-  ad_starting: "启动中",
-  ad_next: " · 下次 {when}",
   ad_not_ticking: "未在运行",
   ad_model_unfunded:
     "正在等待模型额度。{model} 采用预付制 — 充值后该智能体会自行启动，无需重启。",

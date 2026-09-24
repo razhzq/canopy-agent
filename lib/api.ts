@@ -3001,6 +3001,10 @@ export interface AgentDetail {
     /** The runtime's own message when `status` is "error". The route selects `*`. */
     error?: string | null;
     started_at?: string;
+    /** Set when the cycle froze new positions: "gas", "daily_loss" or "cooldown". */
+    entries_frozen?: string | null;
+    /** The backend's own sentence for that freeze. */
+    frozen_reason?: string | null;
   } | null;
   wallet: {
     address: string;

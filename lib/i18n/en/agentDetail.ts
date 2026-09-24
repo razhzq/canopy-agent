@@ -21,6 +21,13 @@ export const enAgentDetail = {
   ad_stopped_itself: "Stopped itself: {reason}.",
 
   // ── Status chip ────────────────────────────────────────────────
+  ad_state_paused: "Paused",
+  ad_state_stopped: "Stopped",
+  ad_state_draft: "Not started",
+  ad_state_stuck: "Stuck",
+  ad_state_failed: "Cycle failed",
+  ad_state_needs_credit: "Needs model credit",
+  ad_state_not_opening: "Not opening positions",
   ad_status_running: "Running",
   ad_status_closing: "Closing out",
 
@@ -53,9 +60,6 @@ export const enAgentDetail = {
   ad_sec_setup: "How it runs",
 
   // ── Watching now ───────────────────────────────────────────────
-  ad_checked: "checked {when}",
-  ad_starting: "starting",
-  ad_next: " · next {when}",
   ad_not_ticking: "not ticking",
   ad_model_unfunded:
     "Waiting for its model balance. {model} is prepaid — fund it and this agent starts on its own, no restart needed.",
