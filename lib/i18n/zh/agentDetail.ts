@@ -49,6 +49,9 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
 
   ad_chip_sell_signal: "卖出信号：",
 
+  ad_last_cycle_failed: "周期 #{seq} 执行失败：{error}",
+  ad_last_cycle_no_message: "没有记录错误信息",
+  ad_last_cycle_stuck: "周期 #{seq} 于{when}开始，至今未结束 — 在它结束之前无法运行新的周期。",
   ad_all_cycles: "全部周期 →",
   ad_append_only: "只追加记录。无论是否成交，每一次检查都会被记录。",
   ad_append_only_skipped:

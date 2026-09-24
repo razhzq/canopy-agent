@@ -42,8 +42,11 @@ export function EquityView({
   series,
   positions,
   universe,
+  liveCashUsd,
 }: {
   series: EquitySeries | null;
+  /** A live USD book's wallet USDC now — see `markAgent`. */
+  liveCashUsd?: number | null;
   /** The open lots, so unrealised is marked against the same prices the
    *  positions table uses rather than against the last cycle's snapshot. */
   positions: AgentDetail["positions"];
@@ -93,7 +96,7 @@ export function EquityView({
   // across every agent, cannot end up computing one agent differently from the
   // way this panel does. `markAgent` only returns null for an empty series,
   // which the guard above has already handled.
-  const mark = markAgent(series, positions, universe)!;
+  const mark = markAgent(series, positions, universe, liveCashUsd)!;
   const {
     deployedCapitalUsd: deployedCapital,
     unrealizedPnlUsd: unrealized,

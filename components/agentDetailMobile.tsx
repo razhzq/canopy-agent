@@ -103,9 +103,12 @@ export function AgentDetailMobile({
   positionCap,
   copyLp = null,
   live = null,
+  liveCashUsd = null,
 }: {
   /** What a live SOL book is worth now; see `useLiveWorth`. */
   live?: LiveWorth | null;
+  /** A live USD book's wallet USDC now; see `useLiveCashUsd`. */
+  liveCashUsd?: number | null;
   /** The copy block, on a copy LP agent — for the deposit-matched copy % suggestion. */
   copyLp?: CopyLpInput | null;
   agent: AgentRow;
@@ -195,8 +198,8 @@ export function AgentDetailMobile({
   /** Whether this book is liquidity rather than lots at a price. */
   const isLp = isLpBook(agent, positions);
   const mark = useMemo(
-    () => markAgent(equity, positions, assets),
-    [equity, positions, assets],
+    () => markAgent(equity, positions, assets, liveCashUsd),
+    [equity, positions, assets, liveCashUsd],
   );
 
   const points = mark?.points ?? [];

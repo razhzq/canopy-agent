@@ -2992,6 +2992,9 @@ export interface AgentDetail {
     tick_seq: string;
     status: string;
     skip_reason: string | null;
+    /** The runtime's own message when `status` is "error". The route selects `*`. */
+    error?: string | null;
+    started_at?: string;
   } | null;
   wallet: {
     address: string;

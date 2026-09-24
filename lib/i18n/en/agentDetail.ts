@@ -65,6 +65,10 @@ export const enAgentDetail = {
   ad_chip_sell_signal: "Sell signal:",
 
   // ── Activity ───────────────────────────────────────────────────
+  ad_last_cycle_failed: "Cycle #{seq} failed: {error}",
+  ad_last_cycle_no_message: "no error message was recorded",
+  ad_last_cycle_stuck:
+    "Cycle #{seq} started {when} and has not finished — no new cycle can run until it does.",
   ad_all_cycles: "All cycles →",
   ad_append_only:
     "Append-only. Every check is recorded, whether it traded or not.",

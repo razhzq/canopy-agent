@@ -747,6 +747,29 @@ export function useLiveWorth(
   return { sol: f.balance + openUsd / rate, usd: f.balance * rate + openUsd };
 }
 
+/**
+ * The USDC a live USD book's wallet holds now — its cash, the same read the
+ * wallet bar shows. `markAgent` puts the marked open book on top of it, which
+ * is how the tick values a live book, so the headline and the curve's last
+ * reading agree. Null for paper, for a SOL book (see {@link useLiveWorth}),
+ * and when the wallet could not be read; the headline then falls back to the
+ * ledger's figure.
+ */
+export function useLiveCashUsd(
+  agentId: number,
+  enabled: boolean,
+  refreshKey: unknown,
+): number | null {
+  const state = useApi(
+    (token) => (enabled ? getAgentFunding(token, agentId) : Promise.resolve(null)),
+    [agentId, enabled, refreshKey],
+  );
+  if (!enabled || state.phase !== "ready" || !state.data) return null;
+  const f = state.data;
+  if ((f.unit ?? "USD") !== "USD" || typeof f.usdc !== "number") return null;
+  return f.usdc;
+}
+
 interface LpFigures {
   days: LpDay[];
   netWorthUsd: number;

@@ -160,7 +160,11 @@ export interface AgentMark {
   deployedCapitalUsd: number;
   realizedPnlUsd: number;
   unrealizedPnlUsd: number;
-  /** Realised plus unrealised. These three always reconcile. */
+  /**
+   * Realised plus unrealised — except on a live book with a wallet read, where
+   * it is equity (wallet + open book) against capital, and the gap is what the
+   * ledger never saw: gas, deposits, withdrawals.
+   */
   pnlUsd: number;
   equityUsd: number;
   returnPct: number;
@@ -233,6 +237,19 @@ export function markAgent(
     "mint" | "symbol" | "qty" | "cost_basis_usd"
   >[],
   universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[],
+  /**
+   * A LIVE BOOK'S CASH IS ITS WALLET — the USDC the chain holds now, from the
+   * same funding read as the wallet bar. Absent for paper, and for a live book
+   * whose wallet could not be read.
+   *
+   * The identity below (capital + realised + unrealised) holds for a paper book
+   * and for nothing else: a live wallet is deposited into, withdrawn from and
+   * pays gas, none of which the ledger sees. The tick already values a live
+   * book as wallet + marked positions (agent-stack tick.ts), which is what every
+   * point on the curve says — so the headline measured the identity instead and
+   * read $104 beside a $110 wallet and a $110 last reading (agent 150).
+   */
+  liveCashUsd?: number | null,
 ): AgentMark | null {
   const points = series?.points ?? [];
   if (!series || points.length === 0) return null;
@@ -256,14 +273,22 @@ export function markAgent(
     : snapshotPnl - series.realizedPnlUsd;
   // Realised plus unrealised IS the total — the figures have to add up, and on
   // the snapshot path this reduces to exactly what the curve's last point says.
-  const pnlUsd = marked ? series.realizedPnlUsd + unrealizedPnlUsd : snapshotPnl;
+  const accountedPnl = marked ? series.realizedPnlUsd + unrealizedPnlUsd : snapshotPnl;
+  // Only when the whole book is priced: wallet plus a half-marked book would be
+  // a number missing a holding, and the identity is the better answer then.
+  const liveEquity =
+    typeof liveCashUsd === "number" && marked ? liveCashUsd + book.marketValueUsd : null;
+  // On a live book the wallet decides the total, so P&L is equity against
+  // capital and may differ from realised + unrealised by what the ledger never
+  // saw (gas, deposits). Realised and unrealised are still reported as booked.
+  const pnlUsd = liveEquity === null ? accountedPnl : liveEquity - deployedCapitalUsd;
 
   return {
     deployedCapitalUsd,
     realizedPnlUsd: series.realizedPnlUsd,
     unrealizedPnlUsd,
     pnlUsd,
-    equityUsd: deployedCapitalUsd + pnlUsd,
+    equityUsd: liveEquity ?? deployedCapitalUsd + pnlUsd,
     returnPct: deployedCapitalUsd ? (pnlUsd / deployedCapitalUsd) * 100 : 0,
     openBookUsd: marked ? book.marketValueUsd : deployedFrom(last),
     maxDrawdownPct: drawdownPct(points.map((p) => p.equityUsd)),

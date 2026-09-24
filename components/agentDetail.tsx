@@ -39,7 +39,7 @@ import { useLocale, useT, type Locale, type Translate, dateLocale } from "@/lib/
 import { useIsMobile } from "@/lib/useIsMobile";
 import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
-import { LpEquityView, useLiveWorth } from "@/components/lpEquity";
+import { LpEquityView, useLiveCashUsd, useLiveWorth } from "@/components/lpEquity";
 import { isLpBook } from "@/lib/perf";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
@@ -540,6 +540,17 @@ export function AgentDetailView({
     readyDetail?.positions ?? [],
     readyDetail,
   );
+  // The same for a live USD book: its wallet USDC, which `markAgent` puts the
+  // marked open book on top of. Only while the LIVE book is on screen — a live
+  // agent's paper history is measured by the ledger, which is its truth.
+  const liveCashUsd = useLiveCashUsd(
+    agentId,
+    !!readyDetail &&
+      !readyDetail.agent.is_paper &&
+      readyDetail.book === "live" &&
+      (readyDetail.unit ?? "USD") === "USD",
+    readyDetail,
+  );
 
   if (state.phase === "loading") return <SkeletonAgentDetail />;
   if (state.phase === "signed-out")
@@ -738,6 +749,7 @@ export function AgentDetailView({
           universe={strategy?.universe ?? []}
           copyLp={strategy?.copy_lp ?? null}
           live={live}
+          liveCashUsd={liveCashUsd}
           onChanged={() => void load()}
           walletAddress={wallet?.address ?? null}
           onBook={setBook}
@@ -841,6 +853,30 @@ export function AgentDetailView({
                   {agent.next_tick_at ? t("ad_next", { when: ahead(agent.next_tick_at, t) }) : ""}
                 </StatusLine>
               ) : null}
+              {/* A CYCLE THAT FAILED OR NEVER FINISHED, said where the reader is
+                  already looking. The error lived only inside the activity card,
+                  and a cycle that hangs writes nothing at all: its thread ends
+                  at the book being marked, the agent stops trading, and nothing
+                  anywhere says so (agent 150). A running cycle holds the agent's
+                  lock, so no other cycle can start behind it. */}
+              {agent.status === "active" && lastRun?.status === "error" ? (
+                <StatusLine tone="bad">
+                  {t("ad_last_cycle_failed", {
+                    seq: lastRun.tick_seq,
+                    error: lastRun.error ?? t("ad_last_cycle_no_message"),
+                  })}
+                </StatusLine>
+              ) : agent.status === "active" &&
+                lastRun?.status === "running" &&
+                lastRun.started_at &&
+                Date.now() - Date.parse(lastRun.started_at) > STUCK_CYCLE_MS ? (
+                <StatusLine tone="bad">
+                  {t("ad_last_cycle_stuck", {
+                    seq: lastRun.tick_seq,
+                    when: relativeTime(lastRun.started_at, t),
+                  })}
+                </StatusLine>
+              ) : null}
             </div>
 
             {/* Always both halves, so the reader can see that an agent has two
@@ -930,7 +966,7 @@ export function AgentDetailView({
                   live={live}
                 />
               ) : (
-                <EquityView series={equity} positions={positions} universe={marked} />
+                <EquityView series={equity} positions={positions} universe={marked} liveCashUsd={liveCashUsd} />
               )}
             </div>
           </section>
@@ -1415,6 +1451,13 @@ function money(n: number): string {
 
 
 // `when` moved to lib/format as `relativeTime`.
+
+/**
+ * How long a cycle may run before the page calls it stuck. A cycle is seconds
+ * to a couple of minutes even through the model; ten is well past any honest
+ * one, and short enough that a hung agent is noticed the same hour.
+ */
+const STUCK_CYCLE_MS = 10 * 60_000;
 
 /**
  * How long UNTIL something, which `relativeTime` cannot express.
