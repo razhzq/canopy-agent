@@ -22,6 +22,7 @@ import {
   BuildCta,
 } from "@/components/buildAgentMobile";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { track } from "@/lib/analytics";
 import { lastRoute } from "@/components/routeMemory";
 import { PickMarket } from "@/components/pickMarket";
 import { DEFAULT_RISK_CAPS,
@@ -696,6 +697,7 @@ export function BuildAgent() {
     // The book chosen on the type step — the same figure the strategy's dollar
     // limits were converted against.
     const { agentId } = await startPaperRun(token, strategyId, { capitalUsd: book });
+    track("paper_run_started", { agent_id: agentId, strategy_id: strategyId });
     // The agent exists. Whatever happens next, this draft is done.
     clearDraft();
     setStage(null);
@@ -825,6 +827,7 @@ export function BuildAgent() {
         tickIntervalSec: 300,
         riskCaps: limits.riskCaps,
       });
+      track("strategy_created", { strategy_id: strategy.id, kind: "copy_lp" });
       // The copy's warnings are statements of fact (paper only, start flat),
       // not a plan that might be a mistake — nothing to stop for.
       void warnings;
@@ -933,6 +936,7 @@ export function BuildAgent() {
           maxPriceOutputUsd: model.maxPriceOutputUsd,
         },
       });
+      track("strategy_created", { strategy_id: strategy.id, kind: isGrid ? "grid" : "rules" });
 
       // Legal-but-probably-not-meant combinations — an add deeper than the
       // stop, an unbounded ladder. STOP here rather than reporting them on the

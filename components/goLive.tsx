@@ -53,6 +53,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { GrantDelegation } from "@/components/grantDelegation";
 import { CopySuggestionBanner } from "@/components/copySuggestion";
 import { useLocale, useT, type Locale, type TranslationKey, dateLocale } from "@/lib/i18n";
+import { track } from "@/lib/analytics";
 import { CheckIcon, LockIcon, WarnIcon } from "@/components/ui";
 import {
   DELEGATION_CEILING_USD,
@@ -277,6 +278,7 @@ export function GoLiveModal({
       const token = await getAccessToken();
       if (!token) throw new Error(t("error_not_signed_in"));
       await goLive(token, agent.id);
+      track("agent_live", { agent_id: agent.id });
       setConfirming(false);
       setPromoted(true);
       onChanged();
@@ -326,6 +328,7 @@ export function GoLiveModal({
         `/workspace/${agent.id}?checkout=return`,
         quote?.code,
       );
+      track("begin_checkout", { agent_id: agent.id, plan: "live_agent", comped: !!result.comped });
       if (result.comped) {
         // Nothing was charged and nobody left the page: the subscription is
         // already written. Step 2 follows from the entitlement, as it would

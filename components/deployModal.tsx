@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Modal } from "@/components/modal";
 import { AmountInput, Field, FieldNote, PRIMARY, QUIET } from "@/components/kit";
 import { deployAgent, type StrategyRow } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -54,6 +55,7 @@ export function DeployModal({
         strategyId: strategy.id,
         capitalUsd: capital,
       });
+      track("agent_deployed", { agent_id: agent.id, strategy_id: strategy.id });
       // Straight to the new agent. The dialog closes with the page.
       router.push(`/workspace/${agent.id}?tab=overview`);
     } catch (err) {

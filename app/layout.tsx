@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { ReferralCapture } from "@/components/referralCapture";
+import { Analytics } from "@/components/analytics";
 import { getServerT } from "@/lib/i18n/server";
 import "./globals.css";
 
@@ -84,6 +85,9 @@ export default function RootLayout({
             and it has to happen on the marketing page too — which is where a
             referral link actually lands. */}
         <ReferralCapture />
+        {/* Beside ReferralCapture and for the same reason: the marketing page
+            is where visitors land, signed in or not. */}
+        <Analytics />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -14,6 +14,7 @@ import {
   WarnIcon,
 } from "@/components/ui";
 import { useT } from "@/lib/i18n";
+import { track } from "@/lib/analytics";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonPanel } from "@/components/skeleton";
 import {
@@ -251,6 +252,7 @@ function PublishPanel({
       const token = await getAccessToken();
       if (!token) throw new Error(t("pub_session_expired"));
       await publishStrategy(token, strategy.id);
+      track("strategy_published", { strategy_id: strategy.id });
       onPublished();
       router.refresh();
     } catch (err) {

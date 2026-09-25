@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, openSession, redeemInvite, type SessionProfile } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { readAccounts } from "@/components/nav";
 import { clearReferral, readReferral } from "@/lib/referral";
 import { useT } from "@/lib/i18n";
@@ -231,6 +232,7 @@ function InvitePrompt({ onRedeemed }: { onRedeemed: () => void }) {
         setBusy(false);
         return;
       }
+      track("invite_redeemed");
       // The code has done its job. Held past this point it would be offered
       // again on the next device, long after it stopped being relevant.
       clearReferral();

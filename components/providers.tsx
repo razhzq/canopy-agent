@@ -6,6 +6,7 @@ import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { PRIVY_APP_ID, privyConfig } from "@/lib/privy";
 import { rpcUrl, wsUrl } from "@/lib/chainBalance";
 import { LocaleProvider } from "@/lib/i18n";
+import { AuthEvents } from "@/components/authEvents";
 
 /**
  * Wraps the app in Privy and in the locale dictionary.
@@ -49,6 +50,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const inner = PRIVY_APP_ID ? (
     <PrivyProvider appId={PRIVY_APP_ID} config={config}>
+      <AuthEvents />
       {children}
     </PrivyProvider>
   ) : (
