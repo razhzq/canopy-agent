@@ -95,6 +95,7 @@ export const zhAgentDetail: Record<keyof typeof enAgentDetail, string> = {
   ad_chip_stop_loss: "止损：",
   ad_chip_chart: "周期：",
   ad_group_sizing: "仓位与限制",
+  ad_model_label: "模型",
   ad_group_entry: "买入条件",
   ad_group_exit: "卖出条件",
   ad_group_measured: "计算周期",

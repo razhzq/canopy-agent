@@ -2350,6 +2350,8 @@ export interface TokenPnl {
   realizedUsd: number;
   closed: number;
   wins: number;
+  /** The token's icon, when the token table has one. */
+  iconUrl?: string | null;
 }
 
 /**

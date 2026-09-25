@@ -46,7 +46,6 @@ import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
 import { AssetLogo, Rule } from "@/components/ui";
 import { AgentRail } from "@/components/agentRail";
-import { ModelBadge } from "@/components/modelBadge";
 import { ModelPanel } from "@/components/modelPanel";
 import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useMarks } from "@/lib/useMarks";
@@ -773,13 +772,7 @@ export function AgentDetailView({
   return (
     <div>
       {/* ------------------------------------------------------------ head -- */}
-      <section className="border-b border-grid px-5 sm:px-8 pt-5 pb-5">
-        <Link
-          href="/portfolio"
-          className="font-ui text-[13px] text-text-secondary transition-colors hover:text-text-primary"
-        >
-          {t("ad_back")}
-        </Link>
+      <section className="border-b border-grid px-5 sm:px-8 pt-6 pb-5">
         {/* ONE GRID FOR THE WHOLE HEAD, so the right side has something to line
             up against. Left column: the name, then the paper/live switch under
             it. Right column: the wallet's identity on the name's row and its
@@ -821,7 +814,7 @@ export function AgentDetailView({
                 agent={agent}
                 onOpen={() => onOpenChat?.()}
                 active={chatOpen}
-                compact
+                pill
               />
               {/* WHAT THE AGENT IS ACTUALLY DOING, as a badge beside its name —
                   not the stored flag. "Running" used to sit above a red "cycle
@@ -849,9 +842,15 @@ export function AgentDetailView({
                 type="button"
                 onClick={() => setModelOpen(true)}
                 aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
-                className="transition-opacity hover:opacity-80"
+                className="group flex items-baseline gap-1.5"
               >
-                <ModelBadge model={agent.model} />
+                {/* THE MODEL AS A FACT, not a badge: a word and its name, the
+                    way the header states everything else. Still the way in to
+                    the model panel — the name brightens on hover. */}
+                <span className="font-ui text-[12.5px] text-text-muted">{t("ad_model_label")}</span>
+                <span className="font-mono text-[12.5px] text-text-secondary transition-colors group-hover:text-text-primary">
+                  {agent.model?.label ?? "cQWEN3"}
+                </span>
               </button>
             {/* Always both halves, so the reader can see that an agent has two
                 books and which one they are looking at. A half with nothing

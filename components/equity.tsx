@@ -65,14 +65,30 @@ export function EquityView({
   // THE BY TOKEN DRAWER, open by default and remembered per viewer. Read after
   // mount: storage is per browser and can throw (private mode, blocked site
   // data), and the page must render the same either way.
-  const [drawer, setDrawer] = useState(true);
+  //
+  // Null until storage has been read, so a viewer who closed it last time does
+  // not watch it open and then slide shut on every load. The transition is
+  // switched on only after that first paint: loading lands in the remembered
+  // state, and only a click animates.
+  const [drawer, setDrawer] = useState<boolean | null>(null);
+  const [animate, setAnimate] = useState(false);
   useEffect(() => {
+    let open = true;
     try {
-      if (localStorage.getItem(DRAWER_KEY) === "0") setDrawer(false);
+      open = localStorage.getItem(DRAWER_KEY) !== "0";
     } catch {
       /* no storage: the default stands */
     }
+    setDrawer(open);
+    const id = requestAnimationFrame(() => setAnimate(true));
+    return () => cancelAnimationFrame(id);
   }, []);
+  // Mounted from the first open on, so closing can animate out and reopening
+  // does not refetch.
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  useEffect(() => {
+    if (drawer) setDrawerMounted(true);
+  }, [drawer]);
   const toggleDrawer = (open: boolean) => {
     setDrawer(open);
     try {
@@ -203,7 +219,7 @@ export function EquityView({
           <button
             type="button"
             onClick={() => toggleDrawer(!drawer)}
-            aria-pressed={drawer}
+            aria-pressed={!!drawer}
             className={`flex h-[34px] items-center gap-1.5 rounded-lg border border-grid px-3 font-ui text-[12px] font-medium transition-colors ${
               drawer ? "bg-surface-2 text-text-primary" : "text-text-secondary hover:text-text-primary"
             }`}
@@ -367,15 +383,36 @@ export function EquityView({
           <span>{axisWhen(windowed[windowed.length - 1].at, locale, axisSpan)}</span>
         </div>
         </div>
-        {hasDrawer && drawer ? (
-          <ByToken
-            agentId={agentId!}
-            book={book!}
-            range={range}
-            positions={positions}
-            universe={universe}
-            onClose={() => toggleDrawer(false)}
-          />
+        {/* THE DRAWER SLIDES, it does not pop. It stays mounted once opened
+            and its width eases between 0 and 372px (on a phone, its height
+            between 0 and its content), so the curve beside it narrows in step
+            instead of jumping. The panel inside keeps a fixed width, so its
+            rows do not re-wrap mid-slide. `inert` while shut takes it out of
+            the tab order and the accessibility tree. */}
+        {hasDrawer && (drawer || drawerMounted) ? (
+          <div
+            inert={!drawer}
+            className={`grid overflow-hidden lg:block lg:shrink-0 ${
+              animate
+                ? "transition-[grid-template-rows,width,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+                : ""
+            } ${
+              drawer
+                ? "grid-rows-[1fr] border-t border-grid opacity-100 lg:w-[372px] lg:border-t-0 lg:border-l"
+                : "grid-rows-[0fr] opacity-0 lg:w-0"
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <ByToken
+                agentId={agentId!}
+                book={book!}
+                range={range}
+                positions={positions}
+                universe={universe}
+                onClose={() => toggleDrawer(false)}
+              />
+            </div>
+          </div>
         ) : null}
         </div>
       </div>

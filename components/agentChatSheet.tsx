@@ -90,6 +90,7 @@ export function ChatButton({
   agent,
   onOpen,
   compact = false,
+  pill = false,
   active = false,
 }: {
   agent: AgentRow | null;
@@ -112,6 +113,11 @@ export function ChatButton({
    * the size.
    */
   compact?: boolean;
+  /**
+   * A labelled, outlined pill — for beside the agent's name, where it sits in a
+   * row with the status badge and has to read as one of a pair with it.
+   */
+  pill?: boolean;
 }) {
   const waiting = Number(agent?.needs_you ?? 0);
   const t = useT();
@@ -147,12 +153,18 @@ export function ChatButton({
       // outline around itself all day. The target appears on hover as a fill,
       // which says "this area responds" where an outline only says "here is an
       // edge".
-      className={`relative ${ICON_BUTTON} ${active ? ICON_BUTTON_ON : ""} ${
-        compact ? "" : "w-auto gap-2 px-2.5"
-      }`}
+      className={
+        pill
+          ? `relative inline-flex h-[26px] items-center gap-1.5 rounded-full border px-3 font-ui text-[12px] font-medium transition-colors ${
+              active
+                ? "border-grid-strong bg-surface-2 text-text-primary"
+                : "border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
+            }`
+          : `relative ${ICON_BUTTON} ${active ? ICON_BUTTON_ON : ""} ${compact ? "" : "w-auto gap-2 px-2.5"}`
+      }
     >
-      <MessageSquare className="size-4 shrink-0" aria-hidden />
-      {compact ? null : (
+      <MessageSquare className={pill ? "size-3.5 shrink-0" : "size-4 shrink-0"} aria-hidden />
+      {pill ? <span>Chat</span> : compact ? null : (
         <span className="hidden font-ui text-[13px] lg:inline">Chat</span>
       )}
       {waiting > 0 ? (

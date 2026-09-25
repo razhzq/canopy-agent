@@ -25,7 +25,7 @@
 // else, and `FundingPanel` carries its own browser-side fallback for when
 // canopy-be cannot reach an RPC at all.
 
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useApi } from "@/lib/useApi";
 import { getAgentFunding, getAgentModel } from "@/lib/api";
 import { WithdrawModal } from "@/components/walletModals";
@@ -107,7 +107,14 @@ export function WalletBar({
           border around facts nobody can press. One bordered object survives and
           it is the address — the only thing here you can do something with.
           Rule 3. */}
-      <span className={`flex shrink-0 flex-col gap-2.5 ${full ? "w-full" : "w-[248px]"}`}>
+      {/* TWO LAYOUTS FROM ONE LIST OF FACTS. The phone stacks label-left,
+          value-right rows in a full-width column. The desktop header sets them
+          as figures side by side — label over value, right-aligned — with the
+          address and the two actions on one row beneath, so the block reads as
+          one horizontal band beside the agent's name instead of a tall column. */}
+      <RowMode.Provider value={full ? "stack" : "figure"}>
+      <span className={`flex shrink-0 flex-col ${full ? "w-full gap-2.5" : "items-end gap-3.5"}`}>
+        <span className={full ? "contents" : "flex items-end gap-8"}>
         {/* LABEL AND NUMBER FROM ONE READ. The label used to be hardcoded
           "USDC balance" here while the figure was fetched inside `Balance` —
           two sources for one fact, and a copy-LP agent, whose cash is SOL,
@@ -120,13 +127,15 @@ export function WalletBar({
           assets and can be withdrawn, the other is inference credit that
           cannot. */}
         <ModelCredit agentId={agentId} />
+        </span>
 
+        <span className={full ? "contents" : "flex items-center gap-2"}>
         <button
           type="button"
           onClick={() => copy(address)}
           title={address}
           aria-label={t("wallet_copy_aria", { address })}
-          className="group flex h-9 items-center gap-2 rounded-full border border-border bg-surface pr-3 pl-1.5 transition-colors hover:border-grid-strong"
+          className={`group flex h-9 items-center gap-2 rounded-full border border-border bg-surface pr-3 pl-1.5 transition-colors hover:border-grid-strong ${full ? "" : "w-auto"}`}
         >
           <ChainDisc />
           <span className="font-mono text-[12.5px] text-text-secondary transition-colors group-hover:text-text-primary">
@@ -148,7 +157,7 @@ export function WalletBar({
           <button
             type="button"
             onClick={() => setMoving("deposit")}
-            className={`flex-1 ${PRIMARY}`}
+            className={`${full ? "flex-1" : ""} ${PRIMARY}`}
           >
             {t("wallet_deposit")}
           </button>
@@ -158,12 +167,14 @@ export function WalletBar({
             // Quieter than Deposit on purpose. Both are one click, but taking
             // capital out from under a running agent is the one that changes what
             // it can do next.
-            className={`flex-1 ${SECONDARY}`}
+            className={`${full ? "flex-1" : ""} ${SECONDARY}`}
           >
             {t("wallet_withdraw")}
           </button>
         </span>
+        </span>
       </span>
+      </RowMode.Provider>
 
       {moving === "deposit" ? (
         // The COMBINED dialog. Opens on trading capital, with model credit a
@@ -224,6 +235,9 @@ function CopyMark() {
  * in a header chip invites reading their sum as"what the agent has to trade
  * with", which is exactly wrong.
  */
+/** How a fact is set: a label-left row (phone) or a label-over-value figure (desktop header). */
+const RowMode = createContext<"stack" | "figure">("stack");
+
 /** One fact: label on the left, value on the right, nothing around it. */
 function Row({
   label,
@@ -232,6 +246,15 @@ function Row({
   label: string;
   children: React.ReactNode;
 }) {
+  const mode = useContext(RowMode);
+  if (mode === "figure") {
+    return (
+      <span className="flex flex-col items-end gap-1">
+        <span className={LABEL}>{label}</span>
+        {children}
+      </span>
+    );
+  }
   return (
     <span className="flex items-baseline justify-between gap-3 px-0.5">
       <span className={LABEL}>{label}</span>
