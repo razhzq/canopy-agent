@@ -14,7 +14,7 @@ import {
   useLeaderPreview,
   type CopyLimits,
 } from "@/components/copyLpSteps";
-import { getAgentFunding, updateAgentStrategy, type CopyLpInput, type StrategyRow } from "@/lib/api";
+import { getCopySuggestion, updateAgentStrategy, type CopyLpInput, type StrategyRow } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -89,9 +89,12 @@ export function EditCopyLpModal({
 
   const preview = useLeaderPreview(copy.leader);
 
-  // WHAT THE WALLET CAN DEPLOY, for a live agent: SOL above the gas reserve,
-  // in dollars. Null until read, or when it cannot be — the suggestion then
-  // simply does not show, rather than falling back to a paper figure.
+  // WHAT THE BOOK CAN DEPLOY, for a live agent: SOL above the gas reserve plus
+  // what is already working in open positions, in dollars — the same figure
+  // the agent page's banner sizes on, from the same route, so the two cannot
+  // disagree. Idle cash alone told an invested agent to shrink its copy %.
+  // Null until read, or when it cannot be — the suggestion then simply does
+  // not show, rather than falling back to a paper figure.
   const [deployableUsd, setDeployableUsd] = useState<number | null>(null);
   useEffect(() => {
     if (isPaper !== false) return;
@@ -100,8 +103,9 @@ export function EditCopyLpModal({
       try {
         const token = await getAccessToken();
         if (!token) return;
-        const f = await getAgentFunding(token, agentId);
-        if (live && typeof f.cash === "number" && f.solUsd) setDeployableUsd(f.cash * f.solUsd);
+        const sg = await getCopySuggestion(token, agentId);
+        const book = sg.bookUsd ?? (sg.solUsd ? sg.deployableSol * sg.solUsd : null);
+        if (live && typeof book === "number") setDeployableUsd(book);
       } catch {
         // No reading, no suggestion.
       }

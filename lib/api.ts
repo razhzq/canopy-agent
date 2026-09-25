@@ -2383,6 +2383,10 @@ export interface CopySuggestion {
   suggestedPct: number | null;
   balanceSol: number;
   deployableSol: number;
+  /** SOL already working in the agent's open live positions, at their last mark. Absent on older backends. */
+  inPositionsSol?: number;
+  /** What the suggestion was sized on: deployable cash plus open positions, in USD. */
+  bookUsd?: number;
   reserveSol: number | null;
   solUsd: number | null;
   leaderCapitalUsd: number | null;

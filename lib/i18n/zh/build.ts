@@ -290,6 +290,7 @@ export const zhBuild: Record<keyof typeof enBuild, string> = {
   cl_suggest_help: "您的 {book} 扣除 {reserve} 燃料费预留后为 {deployable}，对比对方资金 {capital}。",
   cl_suggest_help_live: "钱包可用 {deployable}（已预留燃料费），对比对方资金 {capital}。",
   cl_sg_title: "按存入金额调整复制比例",
+  cl_sg_body_positions: "钱包持有 {sol}，另有 {positions} 在持仓中；扣除 {reserve} 燃料费预留后，总资金为 {book}。对比对方资金 {capital}，建议 {pct}%，当前复制比例为 {current}%。",
   cl_sg_body: "钱包持有 {sol}，预留 {reserve} 燃料费后可用 {deployable}。对比对方资金 {capital}，建议 {pct}%，当前复制比例为 {current}%。",
   cl_sg_apply: "设为 {pct}%",
   cl_sg_keep: "保持 {current}%",

@@ -110,14 +110,28 @@ export function CopySuggestionBanner({
     <div className={`rounded-xl border border-border bg-surface px-5 py-4 ${className ?? ""}`}>
       <p className="font-ui text-[13.5px] font-medium text-text-primary">{t("cl_sg_title")}</p>
       <p className="tnum mt-1 font-ui text-[12.5px] leading-relaxed text-text-secondary">
-        {t("cl_sg_body", {
-          deployable: usd(s.deployableSol),
-          sol: formatSol(s.balanceSol),
-          reserve: s.reserveSol === null ? "—" : formatSol(s.reserveSol),
-          capital: s.leaderCapitalUsd === null ? "—" : formatUsd(Math.round(s.leaderCapitalUsd)),
-          pct,
-          current,
-        })}
+        {/* The whole book when some of it is already in positions: the
+            leader's capital counts their open positions, so the agent's side
+            does too — and the sentence says where the money is, rather than
+            reading as though the wallet were all there is. */}
+        {(s.inPositionsSol ?? 0) > 0
+          ? t("cl_sg_body_positions", {
+              sol: formatSol(s.balanceSol),
+              positions: formatSol(s.inPositionsSol ?? 0),
+              reserve: s.reserveSol === null ? "—" : formatSol(s.reserveSol),
+              book: s.bookUsd !== undefined ? formatUsd(Math.round(s.bookUsd)) : usd(s.deployableSol),
+              capital: s.leaderCapitalUsd === null ? "—" : formatUsd(Math.round(s.leaderCapitalUsd)),
+              pct,
+              current,
+            })
+          : t("cl_sg_body", {
+              deployable: usd(s.deployableSol),
+              sol: formatSol(s.balanceSol),
+              reserve: s.reserveSol === null ? "—" : formatSol(s.reserveSol),
+              capital: s.leaderCapitalUsd === null ? "—" : formatUsd(Math.round(s.leaderCapitalUsd)),
+              pct,
+              current,
+            })}
       </p>
       {error ? <p className="mt-2 font-ui text-[12px] text-negative">{t("cl_sg_failed")}</p> : null}
       <div className="mt-3 flex flex-wrap items-center gap-4">

@@ -314,6 +314,7 @@ export const enBuild = {
   cl_suggest_help: "{deployable} of your {book} after the {reserve} gas reserve, against the leader's {capital}.",
   cl_suggest_help_live: "{deployable} your wallet can deploy, gas reserve kept back, against the leader's {capital}.",
   cl_sg_title: "Match your copy % to your deposit",
+  cl_sg_body_positions: "Your wallet holds {sol} and {positions} is working in open positions; less the {reserve} gas reserve, that is a {book} book. Against the leader's {capital}, that is {pct}% — this agent copies at {current}%.",
   cl_sg_body: "Your wallet holds {sol}; after the {reserve} gas reserve it can deploy {deployable}. Against the leader's {capital}, that is {pct}% — this agent copies at {current}%.",
   cl_sg_apply: "Set to {pct}%",
   cl_sg_keep: "Keep {current}%",
