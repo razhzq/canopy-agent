@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EquityCurve, equityScale } from "@/components/charts";
 import { markAgent } from "@/lib/perf";
+import { ByToken } from "@/components/byToken";
 import { SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Tick } from "@/components/kit";
 import {
   type Benchmark,
@@ -43,8 +44,13 @@ export function EquityView({
   positions,
   universe,
   liveCashUsd,
+  agentId,
+  book,
 }: {
   series: EquitySeries | null;
+  /** With `book`, turns on the By token drawer beside the curve. */
+  agentId?: number;
+  book?: "paper" | "live";
   /** A live USD book's wallet USDC now — see `markAgent`. */
   liveCashUsd?: number | null;
   /** The open lots, so unrealised is marked against the same prices the
@@ -56,6 +62,26 @@ export function EquityView({
   const [range, setRange] = useState<Range>("all");
   const [scrub, setScrub] = useState<number | null>(null);
   const [focus, setFocus] = useState<Focus>(null);
+  // THE BY TOKEN DRAWER, open by default and remembered per viewer. Read after
+  // mount: storage is per browser and can throw (private mode, blocked site
+  // data), and the page must render the same either way.
+  const [drawer, setDrawer] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DRAWER_KEY) === "0") setDrawer(false);
+    } catch {
+      /* no storage: the default stands */
+    }
+  }, []);
+  const toggleDrawer = (open: boolean) => {
+    setDrawer(open);
+    try {
+      localStorage.setItem(DRAWER_KEY, open ? "1" : "0");
+    } catch {
+      /* not remembered, still toggled */
+    }
+  };
+  const hasDrawer = agentId !== undefined && book !== undefined;
 
   // The window's points, chosen before any early return so the hook order
   // holds; an empty series simply yields an empty window.
@@ -172,6 +198,23 @@ export function EquityView({
 
         {/* 24h · 7d · All. A window the record cannot fill stays drawn, dim and
             unpressable (rule 12), so the control is the same shape on day one. */}
+        <div className="flex items-center gap-2.5">
+        {hasDrawer ? (
+          <button
+            type="button"
+            onClick={() => toggleDrawer(!drawer)}
+            aria-pressed={drawer}
+            className={`flex h-[34px] items-center gap-1.5 rounded-lg border border-grid px-3 font-ui text-[12px] font-medium transition-colors ${
+              drawer ? "bg-surface-2 text-text-primary" : "text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M15 3v18" />
+            </svg>
+            {t("equity_by_token")}
+          </button>
+        ) : null}
         <div role="group" aria-label={t("equity_range_aria")} className={SEGMENT_TRACK}>
           {ranges.map((r) => (
             <button
@@ -190,6 +233,7 @@ export function EquityView({
               {r.label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -291,6 +335,10 @@ export function EquityView({
             />
         </div>
 
+        {/* The curve, and beside it where the money came from. Side by side on
+            a wide screen, the drawer under the curve on a narrow one. */}
+        <div className="flex flex-col lg:flex-row">
+        <div className="min-w-0 flex-1">
         <div className="px-5 pt-5 pb-3">
           <ReadableCurve
             points={windowed}
@@ -318,10 +366,25 @@ export function EquityView({
           ) : null}
           <span>{axisWhen(windowed[windowed.length - 1].at, locale, axisSpan)}</span>
         </div>
+        </div>
+        {hasDrawer && drawer ? (
+          <ByToken
+            agentId={agentId!}
+            book={book!}
+            range={range}
+            positions={positions}
+            universe={universe}
+            onClose={() => toggleDrawer(false)}
+          />
+        ) : null}
+        </div>
       </div>
     </div>
   );
 }
+
+/** Where the By token drawer's open/closed state is remembered. */
+const DRAWER_KEY = "canopy.equity.byToken";
 
 /* ---------------------------------------------------------------- window -- */
 

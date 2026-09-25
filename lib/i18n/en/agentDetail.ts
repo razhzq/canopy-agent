@@ -117,6 +117,7 @@ export const enAgentDetail = {
   ad_chip_chart: "Chart:",
   // The bands inside the strategy card. Entry, exit and the bar size were one
   // undifferentiated pile of chips before.
+  ad_group_sizing: "Sizing and limits",
   ad_group_entry: "Buys when",
   ad_group_exit: "Sells when",
   ad_group_measured: "Measured on",

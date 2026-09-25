@@ -2343,6 +2343,30 @@ export interface AgentFunding {
  * reached. Reporting an outage as "unfunded" would tell someone to send money
  * they have already sent.
  */
+/** One token's closed trades, summed. Unrealised is marked by the client. */
+export interface TokenPnl {
+  mint: string;
+  symbol: string;
+  realizedUsd: number;
+  closed: number;
+  wins: number;
+}
+
+/**
+ * Realised P&L per token for one book, over the curve's window. Counts the
+ * live book from its baseline, as the equity route's Realised does, so the rows
+ * sum to that figure.
+ */
+export const getPnlByToken = (
+  token: string,
+  agentId: number,
+  opts: { book?: "paper" | "live"; range?: "24h" | "7d" | "all" } = {},
+) =>
+  request<{ book: "paper" | "live"; range: string; tokens: TokenPnl[] }>(
+    `/agents/${agentId}/pnl-by-token?range=${opts.range ?? "all"}` + (opts.book ? `&book=${opts.book}` : ""),
+    token,
+  );
+
 export const getAgentFunding = (token: string, agentId: number) =>
   request<AgentFunding>(`/agents/${agentId}/funding`, token);
 

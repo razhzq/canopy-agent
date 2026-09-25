@@ -32,8 +32,15 @@ export function AgentFacts({
   agent,
   cadenceSec,
   positionCap,
+  variant = "full",
 }: {
   agent: AgentRow;
+  /**
+   * `sizing` is the desktop Strategy card's band: the same facts less the two
+   * the page now states elsewhere — the model is the header badge, and the
+   * deploy date is not shown. `full` is the phone, which has no Strategy card.
+   */
+  variant?: "full" | "sizing";
   /**
    * Seconds between cycles.
    *
@@ -55,10 +62,12 @@ export function AgentFacts({
         label={t("ad_row_cadence")}
         value={cadenceSec ? cadence(cadenceSec, t) : "—"}
       />
-      <RailRow
-        label={t("ad_row_deployed")}
-        value={absolute(agent.created_at, locale)}
-      />
+      {variant === "full" ? (
+        <RailRow
+          label={t("ad_row_deployed")}
+          value={absolute(agent.created_at, locale)}
+        />
+      ) : null}
       {/* THE ACT, NOT THE ENUM. This printed `agent.autonomy` with its
           underscores swapped for spaces — "execute with caps" — which is the
           column name, not a sentence anyone would say. The thread already tells
@@ -94,7 +103,7 @@ export function AgentFacts({
       {/* What the reasoning costs, where the other per-agent facts are. Only
           for a bought model: a Canopy agent has no balance, and a row reading
           "—" would imply one it is missing. */}
-      {agent.model && agent.model.provider === "pod" ? (
+      {variant === "full" && agent.model && agent.model.provider === "pod" ? (
         <RailRow label={t("ad_row_model")} value={agent.model.label} />
       ) : null}
       {/* HIDDEN, NOT DASHED. Rule 12 dims what is not reachable YET and hides

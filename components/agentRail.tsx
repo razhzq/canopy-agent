@@ -256,6 +256,19 @@ export function AgentRail({
           </Band>
         )}
 
+        {/* SIZING AND LIMITS — what "How it runs" held, inside the recipe it
+            belongs to. How much each trade takes, how often it checks, whether
+            it asks first, and the caps that stop it buying. The panel it came
+            from sat under Markets and restated nothing else there; these are
+            the strategy's own settings. */}
+        {/* No top hairline: the band above already draws its bottom one. */}
+        <div className="px-3.5 pt-3 pb-1">
+          <SectionLabel>{t("ad_group_sizing")}</SectionLabel>
+          <div className="pt-1">
+            <AgentFacts agent={agent} cadenceSec={cadenceSec} positionCap={positionCap} variant="sizing" />
+          </div>
+        </div>
+
         {planSummary ? (
           <div className="border-t border-grid px-3.5 py-2.5">
             <p className={LABEL}>{t("ad_accumulation")}</p>
@@ -336,13 +349,6 @@ export function AgentRail({
       </>
       )}
 
-      {/* ------------------------------------------------ how it runs -- */}
-      <div className="mt-6 border-t border-grid pt-5">
-        <Rule label={t("ad_sec_setup")} line={false} />
-        <div className="pt-2">
-          <AgentFacts agent={agent} cadenceSec={cadenceSec} positionCap={positionCap} />
-        </div>
-      </div>
     </aside>
   );
 }

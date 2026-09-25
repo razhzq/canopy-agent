@@ -18,7 +18,6 @@ import { WalletBar } from "@/components/walletBar";
 import { CopySuggestionBanner } from "@/components/copySuggestion";
 import { ChatButton } from "@/components/agentChatSheet";
 import {
-  StatusLine,
   FieldNote,
   QUIET,
   BODY,
@@ -824,6 +823,22 @@ export function AgentDetailView({
                 active={chatOpen}
                 compact
               />
+              {/* WHAT THE AGENT IS ACTUALLY DOING, as a badge beside its name —
+                  not the stored flag. "Running" used to sit above a red "cycle
+                  failed" or a frozen-entries cycle, because the flag stays
+                  `active` through both (agent 150). The same pill the
+                  marketplace tags use; the sentence behind it is below. */}
+              <span
+                className={`inline-flex h-[26px] shrink-0 items-center rounded-full border px-3 font-ui text-[12px] font-medium leading-none ${
+                  status.tone === "good"
+                    ? "border-accent/45 text-accent"
+                    : status.tone === "bad"
+                      ? "border-negative/45 text-negative"
+                      : "border-border text-text-secondary"
+                }`}
+              >
+                {status.label}
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -838,18 +853,10 @@ export function AgentDetailView({
               >
                 <ModelBadge model={agent.model} />
               </button>
-              {/* WHAT THE AGENT IS ACTUALLY DOING, in one word — not the stored
-                  flag. "Running" used to sit above a red "cycle failed" or a
-                  frozen-entries cycle, because the flag stays `active` through
-                  both (agent 150). The sentence that explains it is below. */}
-              <StatusLine tone={status.tone} live={status.live}>
-                {status.label}
-              </StatusLine>
-            </div>
-
             {/* Always both halves, so the reader can see that an agent has two
                 books and which one they are looking at. A half with nothing
-                behind it is disabled and says why. */}
+                behind it is disabled and says why. Beside the model: the two
+                things that say which agent and which book this page is. */}
             <div className="min-w-0">
               <BookSwitch
                 book={detail.book}
@@ -863,6 +870,7 @@ export function AgentDetailView({
                     : null
                 }
               />
+            </div>
             </div>
           </div>
 
@@ -924,14 +932,16 @@ export function AgentDetailView({
                   live={live}
                 />
               ) : (
-                <EquityView series={equity} positions={positions} universe={marked} liveCashUsd={liveCashUsd} />
+                <EquityView series={equity} positions={positions} universe={marked} liveCashUsd={liveCashUsd} agentId={agentId} book={detail.book} />
               )}
             </div>
           </section>
 
-          {/* markets */}
-          <section className="border-b border-grid px-5 sm:px-8 py-6">
-            <Rule label={t("ad_sec_positions")} />
+          {/* positions — no title: the Open / History switch heads the
+              section and says what it is. Top padding is trimmed because the
+              switch carries its own top margin, which the title used to sit
+              above; together they keep the section's usual 24px. */}
+          <section className="border-b border-grid px-5 sm:px-8 pt-2 pb-6">
             {isLp ? (
               <LpPositions
                 agentId={agentId}
