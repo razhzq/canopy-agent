@@ -1,10 +1,13 @@
 import {
   num,
   type AgentDetail,
+  type AgentFunding,
   type EquityPoint,
   type EquitySeries,
   type UniverseAsset,
 } from "@/lib/api";
+
+type Position = AgentDetail["positions"][number];
 
 /**
  * The performance figures, in ONE place.
@@ -90,7 +93,8 @@ export interface OpenBookMark {
  * because a price ticked.
  */
 export function markOpenBook(
-  positions: readonly Pick<AgentDetail["positions"][number], "mint" | "symbol" | "qty" | "cost_basis_usd">[],
+  positions: readonly (Pick<Position, "mint" | "symbol" | "qty" | "cost_basis_usd"> &
+    Partial<Pick<Position, "perp" | "lp">>)[],
   universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[],
 ): OpenBookMark {
   // A TOKEN IS ITS MINT, NOT ITS TICKER, and joining on the ticker was wrong.
@@ -133,15 +137,15 @@ export function markOpenBook(
     // symbol is reached only when the mint is absent from the universe
     // entirely, which is the RWA case and the stale-position case.
     const mark = p.mint && byMint.has(p.mint) ? byMint.get(p.mint)! : (bySymbol.get(p.symbol) ?? null);
-    const qty = num(p.qty);
-    if (mark === null || qty === null) {
+    const value = positionValueUsd(p, mark);
+    if (value === null) {
       unpriced.add(p.symbol);
       // Carried at cost so the total stays a number rather than a hole. It is
       // `unpriced` — not this value — that tells the caller not to trust it.
       marketValueUsd += cost;
       continue;
     }
-    marketValueUsd += mark * qty;
+    marketValueUsd += value;
   }
 
   return {
@@ -150,6 +154,111 @@ export function markOpenBook(
     unrealizedPnlUsd: marketValueUsd - costBasisUsd,
     unpriced: [...unpriced],
   };
+}
+
+/**
+ * What one open position is worth now, or null when it cannot be priced.
+ *
+ * THREE SHAPES, valued the way the positions table values them — a book total
+ * that priced a row differently from the row itself is the disagreement this
+ * file exists to prevent.
+ *
+ * - A lot is qty at the mark.
+ * - A PERP is not a lot: `cost_basis_usd` is the collateral and `qty` the
+ *   exposure, so qty × mark is the notional, not what the agent holds. Its
+ *   value is collateral plus what the notional made, floored at zero — past
+ *   liquidation the venue has it. The venue's own mark first, then ours.
+ * - An LP leg has `qty` 1, so qty × a token price is meaningless. Its value is
+ *   the pool read server-side this request, plus unclaimed fees; then the last
+ *   mark the tick stored.
+ */
+export function positionValueUsd(
+  p: Pick<Position, "qty" | "cost_basis_usd"> & Partial<Pick<Position, "perp" | "lp">>,
+  mark: number | null,
+): number | null {
+  const cost = num(p.cost_basis_usd) ?? 0;
+  if (p.lp) {
+    if (p.lp.now) return p.lp.now.valueUsd + (p.lp.now.unclaimedFeesUsd ?? 0);
+    return p.lp.last_mark_usd ?? null;
+  }
+  if (p.perp) {
+    const leg = p.perp;
+    const entry = Number(leg.entry_price_usd);
+    const notional = Number(leg.size_usd);
+    const venueMark = leg.mark_price_usd === null ? null : Number(leg.mark_price_usd);
+    const perpMark = venueMark ?? mark;
+    if (perpMark === null || !(entry > 0) || !Number.isFinite(notional)) return null;
+    const move = ((perpMark - entry) / entry) * (leg.side === "long" ? 1 : -1);
+    return Math.max(0, cost + notional * move);
+  }
+  const qty = num(p.qty);
+  if (mark === null || qty === null) return null;
+  return mark * qty;
+}
+
+/**
+ * The universe with the open book's prices replaced by live marks.
+ *
+ * Marks are keyed by mint, because a position is. A tokenized-stock universe
+ * row carries no mint, so those are matched through the positions, which hold
+ * both the mint that was priced and the symbol the row is filed under. A mint
+ * with no mark keeps the swept price.
+ *
+ * Shared by the agent page and the portfolio, so the two value an agent off the
+ * same prices.
+ */
+export function withLiveMarks<T extends Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">>(
+  universe: readonly T[],
+  positions: readonly Pick<Position, "mint" | "symbol">[],
+  marks: ReadonlyMap<string, number>,
+): T[] {
+  if (marks.size === 0) return [...universe];
+  const bySymbol = new Map<string, number>();
+  for (const p of positions) {
+    const price = p.mint ? marks.get(p.mint) : undefined;
+    if (price !== undefined) bySymbol.set(p.symbol, price);
+  }
+  return universe.map((a) => {
+    const byMint = a.mint ? marks.get(a.mint) : undefined;
+    const price = byMint ?? bySymbol.get(a.symbol);
+    return price === undefined ? a : { ...a, priceUsd: price };
+  });
+}
+
+/* ------------------------------------------------------------ live books -- */
+
+/**
+ * What a live SOL book is worth now: the wallet as the chain holds it, plus
+ * every open LP position valued this request, in both units at one rate.
+ */
+export interface LiveWorth {
+  sol: number;
+  usd: number;
+}
+
+/**
+ * {@link LiveWorth} from a funding read, or null when it cannot be stated
+ * honestly: a USD book, an unreadable rate or balance, or an open position the
+ * server could not value this request.
+ */
+export function liveWorthOf(
+  f: AgentFunding | null | undefined,
+  positions: readonly Pick<Position, "lp">[],
+): LiveWorth | null {
+  if (!f) return null;
+  const rate = f.solUsd;
+  if (f.unit !== "SOL" || !(typeof rate === "number" && rate > 0) || typeof f.balance !== "number") return null;
+  const legs = positions.filter((p) => !!p.lp);
+  if (legs.some((p) => !p.lp?.now)) return null;
+  const openUsd = legs.reduce((sum, p) => sum + p.lp!.now!.valueUsd + p.lp!.now!.unclaimedFeesUsd, 0);
+  return { sol: f.balance + openUsd / rate, usd: f.balance * rate + openUsd };
+}
+
+/** A live USD book's cash — its wallet USDC — or null for a SOL book. */
+export function liveCashUsdOf(f: AgentFunding | null | undefined): number | null {
+  if (!f) return null;
+  if ((f.unit ?? "USD") !== "USD" || typeof f.usdc !== "number") return null;
+  return f.usdc;
 }
 
 /* ----------------------------------------------------------- agent mark -- */
@@ -232,10 +341,8 @@ function drawdownPct(values: number[]): number {
  */
 export function markAgent(
   series: EquitySeries | null,
-  positions: readonly Pick<
-    AgentDetail["positions"][number],
-    "mint" | "symbol" | "qty" | "cost_basis_usd"
-  >[],
+  positions: readonly (Pick<Position, "mint" | "symbol" | "qty" | "cost_basis_usd"> &
+    Partial<Pick<Position, "perp" | "lp">>)[],
   universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[],
   /**
    * A LIVE BOOK'S CASH IS ITS WALLET — the USDC the chain holds now, from the
@@ -298,6 +405,74 @@ export function markAgent(
         : null,
     marked,
     points,
+  };
+}
+
+/**
+ * One agent, valued the way ITS OWN PAGE values it — for the portfolio.
+ *
+ * `markAgent` is the arithmetic; this is the choice of inputs, which is where
+ * the portfolio and the agent page drifted apart. The agent page marks the open
+ * book at live prices, takes a live USD book's cash from its wallet, and heads
+ * an LP book with its net worth (live wallet plus positions on a live SOL
+ * book, the last reading otherwise). The portfolio did none of that — it ran
+ * the paper identity (capital + realised + unrealised) against a swept price
+ * list — so a live agent read one figure on its page and another here.
+ *
+ * `funding` is the wallet read, and only means anything on a live book.
+ */
+export function markHolding(args: {
+  series: EquitySeries | null;
+  positions: readonly Position[];
+  universe: readonly Pick<UniverseAsset, "mint" | "symbol" | "priceUsd">[];
+  isLp: boolean;
+  /** True when the series and positions are the agent's live book. */
+  liveBook: boolean;
+  unit: "USD" | "SOL";
+  funding: AgentFunding | null;
+  /** The rate the detail response was priced at, when the wallet read has none. */
+  solUsd?: number | null;
+}): AgentMark | null {
+  const { series, positions, universe, isLp, liveBook, unit, funding } = args;
+  const wallet = liveBook ? funding : null;
+
+  if (!isLp) {
+    return markAgent(series, positions, universe, unit === "USD" ? liveCashUsdOf(wallet) : null);
+  }
+
+  const base = markAgent(series, positions, universe);
+  if (!base || !series) return base;
+  const points = series.points;
+  const last = points[points.length - 1];
+
+  let equityUsd = last.equityUsd;
+  let deployedCapitalUsd = base.deployedCapitalUsd;
+
+  if (unit === "SOL") {
+    // Measured in SOL and converted once, at today's rate, on both sides — a
+    // baseline frozen at its own rate against a reading at today's reports the
+    // SOL price move as the book's P&L. See `EquitySeries.capitalSol`.
+    const worth = liveWorthOf(wallet, positions);
+    const rate = wallet?.solUsd ?? args.solUsd ?? null;
+    const lastSol = [...points].reverse().find((p) => typeof p.equitySol === "number")?.equitySol;
+    const baseSol = (series.capitalSol ?? 0) > 0 ? series.capitalSol! : points[0]?.equitySol;
+    const equitySol = worth?.sol ?? lastSol;
+    if (typeof rate === "number" && rate > 0 && typeof equitySol === "number" && typeof baseSol === "number") {
+      equityUsd = worth?.usd ?? equitySol * rate;
+      deployedCapitalUsd = baseSol * rate;
+    }
+  }
+
+  const pnlUsd = equityUsd - deployedCapitalUsd;
+  const realizedPnlUsd = series.lp?.realizedUsd ?? series.realizedPnlUsd;
+  return {
+    ...base,
+    deployedCapitalUsd,
+    realizedPnlUsd,
+    unrealizedPnlUsd: pnlUsd - realizedPnlUsd,
+    pnlUsd,
+    equityUsd,
+    returnPct: deployedCapitalUsd ? (pnlUsd / deployedCapitalUsd) * 100 : 0,
   };
 }
 
@@ -367,13 +542,17 @@ export function aggregateEquityPath(
 }
 
 /**
- * The most recent settled cycles across every agent, newest first.
+ * Each agent's most recent settled cycle, newest first.
  *
  * Read off the equity readings rather than fetched: a reading IS a settled
  * cycle — the desk writes one per tick — so the move between consecutive
- * readings is what that cycle did. Deriving it here costs nothing, where
- * asking for each agent's cycle list would be one more request per agent for
- * figures already on the page.
+ * readings is what that cycle did.
+ *
+ * ONE ROW PER AGENT. This used to take the last six readings of every agent
+ * and keep the newest six overall, so a 5-minute agent filled the whole list
+ * with its own flat cycles and an hourly agent's last settlement never showed.
+ * The question on the portfolio is "when did each of my agents last settle, and
+ * what did it do", which is one line per agent.
  */
 export interface Settlement {
   agentId: number;
@@ -390,15 +569,15 @@ export function recentSettlements(
 ): Settlement[] {
   const out: Settlement[] = [];
   for (const a of agents) {
-    for (let i = a.points.length - 1; i >= 0 && i >= a.points.length - limit; i--) {
-      out.push({
-        agentId: a.id,
-        agentName: a.name,
-        tickSeq: a.points[i].tickSeq,
-        at: a.points[i].at,
-        movedUsd: i > 0 ? a.points[i].equityUsd - a.points[i - 1].equityUsd : null,
-      });
-    }
+    const i = a.points.length - 1;
+    if (i < 0) continue;
+    out.push({
+      agentId: a.id,
+      agentName: a.name,
+      tickSeq: a.points[i].tickSeq,
+      at: a.points[i].at,
+      movedUsd: i > 0 ? a.points[i].equityUsd - a.points[i - 1].equityUsd : null,
+    });
   }
   return out.sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0)).slice(0, limit);
 }

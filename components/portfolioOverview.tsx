@@ -12,6 +12,8 @@ import { SkeletonRows } from "@/components/skeleton";
 import { AssetLogo, Columns, RailSection } from "@/components/ui";
 import {
   getAgent,
+  getAgentFunding,
+  getAgentMarks,
   getAllMarkets,
   getEquity,
   listAgents,
@@ -27,9 +29,12 @@ import { CONCURRENCY, pooled } from "@/lib/pool";
 import { useUsername } from "@/lib/useUsername";
 import {
   aggregateEquityPath,
-  markAgent,
+  isLpBook,
+  markHolding,
   movedOverUsd,
+  positionValueUsd,
   recentSettlements,
+  withLiveMarks,
   type AgentMark,
 } from "@/lib/perf";
 import { relativeTime } from "@/lib/format";
@@ -63,6 +68,40 @@ export interface Holding {
   series: EquitySeries | null;
   /** Null until the agent has completed a cycle — a real state, not a failure. */
   mark: AgentMark | null;
+  /**
+   * The prices this agent's book was marked at — the universe with its live
+   * marks applied. Exposure values each position off these, so a row there
+   * and the agent's own positions table read the same price. Absent in the
+   * preview fixtures, which fall back to the page universe.
+   */
+  universe?: UniverseAsset[];
+}
+
+/**
+ * What an agent was deployed with, as its own page states it.
+ *
+ * The mark's baseline when there is one — for a live book that is the funded
+ * baseline, not the mandate's `capital_usd`, and for a SOL book it is valued at
+ * today's rate. Summing `capital_usd` beside P&L measured against a different
+ * baseline is how the header total stopped equalling the rows under it.
+ */
+export function deployedOf(h: Holding): number {
+  return h.mark?.deployedCapitalUsd ?? num(h.agent.capital_usd) ?? 0;
+}
+
+/** What an agent is worth now; its deployed capital until it has a reading. */
+export function equityOf(h: Holding): number {
+  return h.mark?.equityUsd ?? deployedOf(h);
+}
+
+/**
+ * Whether an agent is part of the portfolio's money.
+ *
+ * Stopped and draft agents are archived; `deleted` never arrives from the list
+ * route, and is excluded anyway so a stale row cannot resurface in a total.
+ */
+export function counts(h: Holding): boolean {
+  return h.agent.status !== "stopped" && h.agent.status !== "draft" && h.agent.status !== "deleted";
 }
 
 type Tab = "live" | "paused" | "archived";
@@ -129,18 +168,41 @@ export function PortfolioOverview() {
         agents,
         CONCURRENCY,
         async (agent): Promise<Holding> => {
-          const [detail, equity] = await Promise.allSettled([
+          // THE SAME INPUTS THE AGENT'S OWN PAGE USES — its detail and curve,
+          // live marks for the open book, and on a live agent the wallet read.
+          // Leaving the last two out is what made an agent's equity here
+          // disagree with its page. All four ask for the agent's current book,
+          // which is also the page's default.
+          const [detail, equity, marks, funding] = await Promise.allSettled([
             getAgent(token, agent.id),
             getEquity(token, agent.id),
+            getAgentMarks(token, agent.id),
+            agent.is_paper ? Promise.resolve(null) : getAgentFunding(token, agent.id),
           ]);
-          const positions =
-            detail.status === "fulfilled" ? detail.value.positions : [];
+          const d = detail.status === "fulfilled" ? detail.value : null;
+          const positions = d?.positions ?? [];
           const series = equity.status === "fulfilled" ? equity.value : null;
+          const markMap = new Map<string, number>(
+            marks.status === "fulfilled"
+              ? marks.value.marks.map((m) => [m.mint, m.priceUsd] as [string, number])
+              : [],
+          );
+          const priced = withLiveMarks(universe, positions, markMap);
           return {
             agent,
             positions,
             series,
-            mark: markAgent(series, positions, universe),
+            universe: priced,
+            mark: markHolding({
+              series,
+              positions,
+              universe: priced,
+              isLp: isLpBook(agent, positions),
+              liveBook: !agent.is_paper && d?.book === "live",
+              unit: d?.unit ?? "USD",
+              funding: funding.status === "fulfilled" ? funding.value : null,
+              solUsd: d?.solUsd ?? null,
+            }),
           };
         },
       );
@@ -249,7 +311,7 @@ export function PortfolioView({
 
   const settlements = recentSettlements(
     holdings
-      .filter((h) => h.mark)
+      .filter((h) => h.mark && counts(h))
       .map((h) => ({
         id: h.agent.id,
         name: h.agent.strategy_name,
@@ -440,22 +502,23 @@ export interface Totals {
  * make the total capital disagree with the allocation list beside it.
  */
 function summarise(holdings: Holding[]): Totals {
-  const counted = holdings.filter(
-    (h) => h.agent.status !== "stopped" && h.agent.status !== "draft",
-  );
+  const counted = holdings.filter(counts);
 
   let capitalUsd = 0;
-  let pnlUsd = 0;
+  let equityUsd = 0;
   let realizedUsd = 0;
   let unrealizedUsd = 0;
   let openBookUsd = 0;
   let cycles = 0;
   let marked = true;
 
+  // The header is the sum of the rows beneath it, figure for figure: each
+  // agent's capital and equity exactly as its row — and its own page — shows
+  // them. P&L is then one subtraction, not a second sum that could drift.
   for (const h of counted) {
-    capitalUsd += num(h.agent.capital_usd) ?? 0;
+    capitalUsd += deployedOf(h);
+    equityUsd += equityOf(h);
     if (!h.mark) continue;
-    pnlUsd += h.mark.pnlUsd;
     realizedUsd += h.mark.realizedPnlUsd;
     unrealizedUsd += h.mark.unrealizedPnlUsd;
     openBookUsd += h.mark.openBookUsd ?? 0;
@@ -463,7 +526,7 @@ function summarise(holdings: Holding[]): Totals {
     if (!h.mark.marked) marked = false;
   }
 
-  const equityUsd = capitalUsd + pnlUsd;
+  const pnlUsd = equityUsd - capitalUsd;
 
   return {
     capitalUsd,
@@ -749,7 +812,7 @@ function AgentRowLine({
     series?.lp !== undefined
       ? money(series.lp.feesEarnedUsd + series.lp.claimedFeesUsd)
       : null;
-  const deployed = money(num(agent.capital_usd) ?? 0);
+  const deployed = money(deployedOf(holding));
   const movedText = moved === null ? "—" : signed(moved);
   const movedTone =
     moved === null
@@ -948,21 +1011,25 @@ function Allocation({
   totals: Totals;
 }) {
   const t = useT();
-  const base = totals.capitalUsd + totals.idleUsd;
+  // THE AGENTS ARE THE WHOLE. Idle cash sits inside the agents — it is the part
+  // of each one's equity not in a position — so it is not a further slice to
+  // add on top. Adding it to the base double-counted it, and no bar could
+  // reach the share it actually held.
+  const base = totals.equityUsd;
   const rows = holdings
-    .filter((h) => h.agent.status !== "stopped" && h.agent.status !== "draft")
+    .filter(counts)
     .map((h) => ({
       id: h.agent.id,
       name: h.agent.strategy_name,
       klass: h.agent.strategy_class,
-      usd: num(h.agent.capital_usd) ?? 0,
+      usd: equityOf(h),
     }))
     .sort((a, b) => b.usd - a.usd);
 
   return (
     <RailSection
       title={t("po_allocation")}
-      note={t("po_allocation_note", { amount: money(totals.capitalUsd) })}
+      note={t("po_allocation_note", { amount: money(totals.equityUsd) })}
     >
       <div className="space-y-3.5 pt-2">
         {rows.map((r) => (
@@ -974,9 +1041,8 @@ function Allocation({
             pct={base ? (r.usd / base) * 100 : 0}
           />
         ))}
-        {/* Idle closes the sum: deployed plus idle is the whole portfolio, so
-            the bars add up to one bar's width rather than to some fraction of
-            it that the reader has to account for. */}
+        {/* Of the above, what is sitting in cash rather than in a position —
+            a part of the agents' bars, not an extra slice beside them. */}
         <div className="border-t border-grid pt-3.5">
           <Bar
             label={t("po_idle_label")}
@@ -1044,28 +1110,40 @@ function Exposure({
   totals: Totals;
 }) {
   const t = useT();
-  // One line per symbol, not per lot: the same asset held by three agents is
+  // One line per asset, not per lot: the same asset held by three agents is
   // one exposure, and that is the number that matters for concentration.
-  const priced = new Map(universe.map((a) => [a.symbol, num(a.priceUsd)]));
-  // The same index, kept whole: the mark comes off it and so does the icon,
-  // which for most Solana tokens is a remote URL rather than a bundled file.
+  //
+  // Keyed by MINT, not ticker — three different tokens are called CAT — and a
+  // perp side is its own line. Each position is valued by `positionValueUsd`
+  // against its own agent's live-marked prices, which is how the agent's
+  // positions table and the "Open book" figure above value it. This used to
+  // read a swept price by symbol, turned an unpriced token into $0, and valued
+  // a perp at its notional.
+  //
+  // Only the agents the totals count: an archived agent's book here and not in
+  // "Open book" above was a second disagreement on one panel.
   const asset = new Map(universe.map((a) => [a.symbol, a]));
   const bySymbol = new Map<
     string,
-    { usd: number; pnl: number; agents: number }
+    { symbol: string; usd: number; pnl: number; agents: number }
   >();
 
-  for (const h of holdings) {
+  for (const h of holdings.filter(counts)) {
+    const prices = h.universe ?? universe;
+    const byMint = new Map(prices.filter((a) => a.mint).map((a) => [a.mint!, a.priceUsd]));
+    const bySym = new Map(prices.map((a) => [a.symbol, a.priceUsd]));
     for (const p of h.positions) {
-      const qty = num(p.qty);
+      const raw = p.mint && byMint.has(p.mint) ? byMint.get(p.mint) : bySym.get(p.symbol);
+      const price = raw == null ? null : num(raw);
       const cost = num(p.cost_basis_usd) ?? 0;
-      const mark = priced.get(p.symbol) ?? null;
-      const usd = mark !== null && qty !== null ? mark * qty : cost;
-      const row = bySymbol.get(p.symbol) ?? { usd: 0, pnl: 0, agents: 0 };
+      // Unpriced is carried at cost, as the open-book total carries it.
+      const usd = positionValueUsd(p, price) ?? cost;
+      const key = `${p.mint || p.symbol}${p.perp ? `:${p.perp.side}` : ""}`;
+      const row = bySymbol.get(key) ?? { symbol: p.symbol, usd: 0, pnl: 0, agents: 0 };
       row.usd += usd;
       row.pnl += usd - cost;
       row.agents += 1;
-      bySymbol.set(p.symbol, row);
+      bySymbol.set(key, row);
     }
   }
 
@@ -1106,20 +1184,20 @@ function Exposure({
             />
           </div>
           <div className="border-t border-grid">
-            {rows.map(([symbol, r]) => (
+            {rows.map(([key, r]) => (
               <div
-                key={symbol}
+                key={key}
                 className="flex items-center gap-3 border-b border-grid py-2.5 last:border-b-0"
               >
                 <span className="flex w-[84px] shrink-0 items-center gap-2">
                   <AssetLogo
-                    symbol={symbol}
-                    issuer={asset.get(symbol)?.issuer}
-                    src={asset.get(symbol)?.iconUrl}
+                    symbol={r.symbol}
+                    issuer={asset.get(r.symbol)?.issuer}
+                    src={asset.get(r.symbol)?.iconUrl}
                     size={14}
                   />
                   <span className="truncate font-mono text-[12px] text-text-primary">
-                    {symbol}
+                    {r.symbol}
                   </span>
                 </span>
                 <span className="min-w-0 flex-1 font-ui text-[11.5px] text-text-muted">
@@ -1279,7 +1357,7 @@ function exportCsv(holdings: Holding[]) {
       h.agent.strategy_class,
       h.agent.is_paper ? "paper" : "live",
       h.agent.status,
-      num(h.agent.capital_usd) ?? 0,
+      deployedOf(h),
       h.mark?.equityUsd ?? "",
       h.mark?.realizedPnlUsd ?? "",
       h.mark?.unrealizedPnlUsd ?? "",

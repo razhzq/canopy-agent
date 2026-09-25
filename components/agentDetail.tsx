@@ -40,7 +40,7 @@ import { AgentDetailMobile } from "@/components/agentDetailMobile";
 import { EquityView } from "@/components/equity";
 import { LpEquityView, useLiveCashUsd, useLiveWorth } from "@/components/lpEquity";
 import { CopyLpLog } from "@/components/copyLpLog";
-import { isLpBook } from "@/lib/perf";
+import { isLpBook, withLiveMarks } from "@/lib/perf";
 import { sellSignalText, type SellCondition } from "@/components/setLimits";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonAgentDetail } from "@/components/skeleton";
@@ -502,30 +502,11 @@ export function AgentDetailView({
   const marked = useMemo(() => {
     if (state.phase !== "ready") return [] as UniverseAsset[];
     const list = state.assets;
-    if (marks.size === 0) return list;
 
-    // TWO IDENTITY SHAPES, AND MATCHING ONLY ONE OF THEM WAS A BUG.
-    //
-    // Marks are keyed by mint, because a position is. But a universe row for a
-    // tokenized stock carries NO mint — it is intent, "Apple, via Backed",
-    // resolved to an address at boot — so an `a.mint && marks.has(a.mint)`
-    // test never matched one, and the live price for AAPLx was fetched and then
-    // dropped. `markOpenBook` joins those rows by symbol for exactly this
-    // reason; this has to do the same or it feeds it a price it cannot use.
-    //
-    // The positions are the bridge: each one carries both the mint that was
-    // priced and the symbol the universe row is filed under.
-    const bySymbol = new Map<string, number>();
-    for (const p of state.detail.positions) {
-      const price = p.mint ? marks.get(p.mint) : undefined;
-      if (price !== undefined) bySymbol.set(p.symbol, price);
-    }
-
-    return list.map((a) => {
-      const byMint = a.mint ? marks.get(a.mint) : undefined;
-      const price = byMint ?? bySymbol.get(a.symbol);
-      return price === undefined ? a : { ...a, priceUsd: price };
-    });
+    // Shared with the portfolio so both value the book off the same prices.
+    // Tokenized-stock rows carry no mint and match through the positions —
+    // see `withLiveMarks`.
+    return withLiveMarks(list, state.detail.positions, marks);
   }, [state, marks]);
 
   // WHAT A LIVE SOL BOOK IS WORTH NOW — the wallet bar's own read plus the

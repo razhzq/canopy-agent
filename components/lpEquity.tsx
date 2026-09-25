@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Fig } from "@/components/equity";
 import { ProfitBody } from "@/components/profitHistory";
 import { SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Tick } from "@/components/kit";
-import { markOpenBook } from "@/lib/perf";
+import { liveCashUsdOf, liveWorthOf, markOpenBook, type LiveWorth } from "@/lib/perf";
 import { dayKey, lpDaysFromEquity, type LpDay } from "@/lib/lpDays";
 import { getAgentFunding, type AgentDetail, type EquitySeries, type LpBook, type UniverseAsset } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -706,16 +706,8 @@ function NoRecord() {
 
 /* ------------------------------------------------------------- figures -- */
 
-/**
- * What a live LP book is worth at this moment: the wallet as the chain holds
- * it, plus every open position valued now (liquidity and unclaimed fees), in
- * both units at one rate. Built by the agent page from the funding read, which
- * is the same read the wallet bar shows.
- */
-export interface LiveWorth {
-  sol: number;
-  usd: number;
-}
+/** Now defined beside the arithmetic in lib/perf; re-exported for callers here. */
+export type { LiveWorth };
 
 /**
  * {@link LiveWorth} for a live SOL book, or null when it cannot be stated
@@ -736,15 +728,8 @@ export function useLiveWorth(
     (token) => (enabled ? getAgentFunding(token, agentId) : Promise.resolve(null)),
     [agentId, enabled, refreshKey],
   );
-  if (!enabled || state.phase !== "ready" || !state.data) return null;
-  const f = state.data;
-  const rate = f.solUsd;
-  if (f.unit !== "SOL" || !(typeof rate === "number" && rate > 0) || typeof f.balance !== "number") return null;
-  const legs = positions.filter((p) => !!p.lp);
-  if (legs.some((p) => !p.lp?.now)) return null;
-  // Liquidity plus unclaimed fees: what the positions would hand back now.
-  const openUsd = legs.reduce((sum, p) => sum + p.lp!.now!.valueUsd + p.lp!.now!.unclaimedFeesUsd, 0);
-  return { sol: f.balance + openUsd / rate, usd: f.balance * rate + openUsd };
+  if (!enabled || state.phase !== "ready") return null;
+  return liveWorthOf(state.data, positions);
 }
 
 /**
@@ -764,10 +749,8 @@ export function useLiveCashUsd(
     (token) => (enabled ? getAgentFunding(token, agentId) : Promise.resolve(null)),
     [agentId, enabled, refreshKey],
   );
-  if (!enabled || state.phase !== "ready" || !state.data) return null;
-  const f = state.data;
-  if ((f.unit ?? "USD") !== "USD" || typeof f.usdc !== "number") return null;
-  return f.usdc;
+  if (!enabled || state.phase !== "ready") return null;
+  return liveCashUsdOf(state.data);
 }
 
 interface LpFigures {

@@ -61,7 +61,7 @@ export const zhPortfolio: Record<keyof typeof enPortfolio, string> = {
 
   po_allocation: "资金配置",
   po_allocation_note: "已部署 {amount}",
-  po_idle_label: "闲置 · 未配置",
+  po_idle_label: "闲置 · 其中现金",
   po_idle_tag: "现金",
 
   po_exposure: "持仓敞口",

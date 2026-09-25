@@ -70,7 +70,7 @@ export const enPortfolio = {
   // ── Rail: allocation ───────────────────────────────────────────
   po_allocation: "Capital allocation",
   po_allocation_note: "{amount} deployed",
-  po_idle_label: "idle · unallocated",
+  po_idle_label: "idle · of which in cash",
   po_idle_tag: "cash",
 
   // ── Rail: exposure ─────────────────────────────────────────────

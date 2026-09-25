@@ -36,7 +36,7 @@ import { usePersonalWallet } from "@/lib/usePersonalWallet";
 import { useUsername } from "@/lib/useUsername";
 import { movedOverUsd } from "@/lib/perf";
 import { getMyInvite, num, type PersonalInvite } from "@/lib/api";
-import type { Holding, Totals } from "@/components/portfolioOverview";
+import { deployedOf, type Holding, type Totals } from "@/components/portfolioOverview";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -765,10 +765,10 @@ function OwnedRow({ holding }: { holding: Holding }) {
           <span className="block font-mono text-[11px] text-text-dim">
             {cycle === null
               ? t("profile_deployed", {
-                  amount: money(num(agent.capital_usd) ?? 0),
+                  amount: money(deployedOf(holding)),
                 })
               : t("profile_deployed_cycle", {
-                  amount: money(num(agent.capital_usd) ?? 0),
+                  amount: money(deployedOf(holding)),
                   cycle,
                 })}
           </span>
