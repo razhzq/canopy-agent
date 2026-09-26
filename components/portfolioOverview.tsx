@@ -27,6 +27,7 @@ import {
 } from "@/lib/api";
 import { CONCURRENCY, pooled } from "@/lib/pool";
 import { useUsername } from "@/lib/useUsername";
+import { readPageCache, writePageCache } from "@/lib/pageCache";
 import {
   aggregateEquityPath,
   isLpBook,
@@ -125,6 +126,8 @@ const RANGES = [
   { key: "ALL", ms: Infinity },
 ] as const;
 
+const PORTFOLIO_CACHE_KEY = "portfolio:holdings";
+
 export function PortfolioOverview() {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
   const { username } = useUsername();
@@ -136,12 +139,21 @@ export function PortfolioOverview() {
   const tokenRef = useRef(getAccessToken);
   tokenRef.current = getAccessToken;
 
+  // The last portfolio this tab loaded, drawn at once when the nav brings you
+  // back; `load` below still runs and replaces it (see lib/pageCache).
+  const userId = user?.id ?? null;
   const [state, setState] = useState<
     | { phase: "loading" }
     | { phase: "signed-out" }
     | { phase: "error"; message: string }
     | { phase: "ready"; holdings: Holding[]; universe: UniverseAsset[] }
-  >({ phase: "loading" });
+  >(() => {
+    const cached = readPageCache<{ holdings: Holding[]; universe: UniverseAsset[] }>(userId, PORTFOLIO_CACHE_KEY);
+    return cached ? { phase: "ready", ...cached } : { phase: "loading" };
+  });
+  useEffect(() => {
+    if (state.phase === "ready") writePageCache(userId, PORTFOLIO_CACHE_KEY, { holdings: state.holdings, universe: state.universe });
+  }, [state, userId]);
 
   const load = useCallback(async () => {
     if (!ready) return;

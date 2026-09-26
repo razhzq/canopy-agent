@@ -11,7 +11,7 @@ import { ModelBadge } from "@/components/modelBadge";
 import { HomeFeed } from "@/components/homeFeed";
 import { Divider, FOCUS, SectionLabel } from "@/components/kit";
 import { listStrategies, num, return30dPct, type StrategyRow } from "@/lib/api";
-import { useApi, type LoadState } from "@/lib/useApi";
+import { useCachedApi, type LoadState } from "@/lib/useApi";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 /**
@@ -78,7 +78,7 @@ const SORTS: { key: Sort; labelKey: TranslationKey }[] = [
 const PER_PAGE = 12;
 
 export function Marketplace() {
-  const state = useApi<{ strategies: StrategyRow[] }>((token) => listStrategies(token));
+  const state = useCachedApi<{ strategies: StrategyRow[] }>("explore:strategies", (token) => listStrategies(token));
   return <MarketplaceView state={state} />;
 }
 

@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "./api";
+import { readPageCache, writePageCache } from "./pageCache";
 
 export type LoadState<T> =
   | { phase: "loading" }
@@ -101,4 +102,23 @@ export function useApi<T>(
   }, [ready, authenticated, nonce, ...deps]);
 
   return { ...state, reload };
+}
+
+/**
+ * `useApi`, seeded from the page cache and writing back to it.
+ *
+ * For list pages people move between — the previous result is drawn at once
+ * and refreshed behind it, instead of a skeleton on every visit. `key` must
+ * name everything the fetch depends on; a call keyed to an id belongs on plain
+ * `useApi` (see `revalidateQuietly` for why).
+ */
+export function useCachedApi<T>(key: string, fetcher: (token: string) => Promise<T>, deps: unknown[] = []): LoadState<T> & { reload: () => void } {
+  const userId = usePrivy().user?.id ?? null;
+  const [seed] = useState(() => readPageCache<T>(userId, key));
+  const state = useApi(fetcher, deps, seed);
+  const data = state.phase === "ready" ? state.data : undefined;
+  useEffect(() => {
+    if (data !== undefined) writePageCache(userId, key, data);
+  }, [data, userId, key]);
+  return state;
 }
