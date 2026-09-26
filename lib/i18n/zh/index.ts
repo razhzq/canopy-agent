@@ -26,6 +26,7 @@ import { zhGoLive } from "./golive";
 import { zhHome } from "./home";
 import { zhLanding } from "./landing";
 import { zhLimits } from "./limits";
+import { zhPromptPack } from "./promptPack";
 import { zhMarketplace } from "./marketplace";
 import { zhMarkets } from "./markets";
 import { zhNarrate } from "./narrate";
@@ -57,6 +58,7 @@ export const zh: Record<TranslationKey, string> = {
   ...zhHome,
   ...zhLanding,
   ...zhLimits,
+  ...zhPromptPack,
   ...zhMarketplace,
   ...zhMarkets,
   ...zhNarrate,

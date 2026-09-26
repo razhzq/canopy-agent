@@ -47,7 +47,6 @@ export const enLimits = {
   sl_stage_reading: "Reading the sentence",
   sl_stage_drafting: "Drafting the rules",
   sl_stage_checking: "Checking what's missing",
-  sl_try_one: "Try one:",
   sl_group_rules: "Rules",
   sl_group_exits: "Exits",
   sl_show_off_rules: "Show {count} more rules",
@@ -294,19 +293,6 @@ export const enLimits = {
   req_size_chip_1: "$500 per trade",
   req_size_chip_2: "$1,000 per trade",
   req_size_chip_3: "$2,500 per trade",
-
-  // ── Presets ────────────────────────────────────────────────────
-  // The prompts are sent to the composer verbatim as the author's own words,
-  // so they are written in the reader's language — the model answers in kind.
-  preset_dip: "Buy the dip",
-  preset_dip_prompt:
-    "Buy when it is down 4% or more on the day, take profit at 3%, stop out at 2%.",
-  preset_calm: "Only when calm",
-  preset_calm_prompt:
-    "Only trade when volatility is low and nothing abnormal happened this week.",
-  preset_deep: "Deep pools only",
-  preset_deep_prompt:
-    "Only trade when the pool is deep. Take profit steadily and keep a tight stop.",
 
   // ── Perps ─────────────────────────────────────────────────────────────
   sl_group_perp: "Leverage and direction",

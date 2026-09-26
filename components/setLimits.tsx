@@ -44,6 +44,7 @@ import {
 import { Pill, PillRow } from "@/components/wizard";
 import { FieldNote, InfoDot, LABEL, MICRO, SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Spinner, StatusLine } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
+import { PromptPackPanel, PromptPackPill } from "@/components/promptPack";
 import { ChevronDown } from "lucide-react";
 import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
@@ -395,6 +396,15 @@ export function SetLimits({
    */
   const [customCycle, setCustomCycle] = useState(false);
   const [sentence, setSentence] = useState("");
+  /** Whether the prompt pack is open over the transcript. */
+  const [packOpen, setPackOpen] = useState(false);
+  const packPill = useRef<HTMLButtonElement | null>(null);
+  /**
+   * The last sentence the pack put in the box, verbatim. Picking another
+   * strategy replaces it only while it is still untouched — once the author
+   * has typed into it, the new sentence joins theirs instead of erasing it.
+   */
+  const packPicked = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
   const [reading, setReading] = useState<string | null>(null);
@@ -812,6 +822,7 @@ export function SetLimits({
         </div>
 
         <>
+          <div className="relative">
             <div
               className={`overflow-hidden rounded-xl border bg-surface transition-colors ${
                 busy ? "border-grid-strong" : "border-border focus-within:border-grid-strong"
@@ -866,7 +877,13 @@ export function SetLimits({
               />
               <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="font-ui text-[11.5px] text-text-muted">{t("sl_send_hint")}</span>
+                  <PromptPackPill
+                    kind={isPerp ? "perp" : "spot"}
+                    open={packOpen}
+                    onToggle={() => setPackOpen((o) => !o)}
+                    pillRef={packPill}
+                  />
+                  <span className="hidden font-ui text-[11.5px] text-text-muted sm:inline">{t("sl_send_hint")}</span>
                   {/* WHO is reading the sentence, stated where it is read.
                       Step 3 lets an agent be given a different model to reason
                       with, and the obvious wrong assumption is that the choice
@@ -886,6 +903,36 @@ export function SetLimits({
               </div>
             </div>
 
+            {/* Starting points, placed INTO the box rather than sent: a
+                sentence to make your own — change the numbers, add a clause —
+                and Compile is still yours to press. A strategy replaces the
+                box only while it holds nothing, or only the last untouched
+                pick; an add-on, or anything after the first turn, appends. */}
+            {packOpen ? (
+              <PromptPackPanel
+                kind={isPerp ? "perp" : "spot"}
+                gridAllowed={gridAllowed}
+                pillRef={packPill}
+                onClose={() => setPackOpen(false)}
+                onPick={(line, append) => {
+                  setSentence((cur) => {
+                    const c = cur.trim();
+                    const replace = !append && turns.length === 0 && (!c || c === packPicked.current);
+                    return replace || !c ? line : `${c} ${line}`;
+                  });
+                  packPicked.current = line;
+                  setPackOpen(false);
+                  requestAnimationFrame(() => {
+                    const el = composer.current;
+                    if (!el) return;
+                    el.focus();
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  });
+                }}
+              />
+            ) : null}
+          </div>
+
             {/* One tap for the question just asked. The chips are sentences,
                 not values, because they are sent as the author's own words and
                 compiled the same way anything typed here would be — a chip
@@ -904,36 +951,6 @@ export function SetLimits({
                     className="reveal-in h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary"
                   >
                     {c}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {/* Starting points, offered while the box is still empty of
-                history. A suggestion is placed INTO the box rather than sent:
-                it is a sentence to make your own — change the numbers, add a
-                clause — and Compile is still yours to press. */}
-            {turns.length === 0 ? (
-              <div className="flex flex-wrap items-center gap-2 pt-3">
-                <span className="font-ui text-[12px] text-text-muted">{t("sl_try_one")}</span>
-                {PRESETS.map((p, i) => (
-                  <button
-                    key={p.labelKey}
-                    type="button"
-                    onClick={() => {
-                      const line = t(p.promptKey);
-                      setSentence((cur) => (cur.trim() ? `${cur.trim()} ${line}` : line));
-                      requestAnimationFrame(() => {
-                        const el = composer.current;
-                        if (!el) return;
-                        el.focus();
-                        el.setSelectionRange(el.value.length, el.value.length);
-                      });
-                    }}
-                    style={{ animationDelay: `${i * 50}ms` }}
-                    className="reveal-in h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary"
-                  >
-                    {t(p.labelKey)}
                   </button>
                 ))}
               </div>
@@ -3360,12 +3377,6 @@ const CLAUSE_LABEL: Record<Clause["status"], TranslationKey> = {
 };
 
 /* -------------------------------------------------------------------- bits -- */
-
-const PRESETS: { labelKey: TranslationKey; promptKey: TranslationKey }[] = [
-  { labelKey: "preset_dip", promptKey: "preset_dip_prompt" },
-  { labelKey: "preset_calm", promptKey: "preset_calm_prompt" },
-  { labelKey: "preset_deep", promptKey: "preset_deep_prompt" },
-];
 
 /** A small number box for a period: the reading's window, not its threshold. */
 function PeriodEntry({

@@ -36,7 +36,6 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   sl_stage_reading: "正在理解句子",
   sl_stage_drafting: "正在起草规则",
   sl_stage_checking: "正在检查缺失项",
-  sl_try_one: "试试：",
   sl_group_rules: "规则",
   sl_group_exits: "退出",
   sl_show_off_rules: "显示另外 {count} 条规则",
@@ -256,12 +255,6 @@ export const zhLimits: Record<keyof typeof enLimits, string> = {
   req_size_chip_2: "每笔 $1,000",
   req_size_chip_3: "每笔 $2,500",
 
-  preset_dip: "抄底",
-  preset_dip_prompt: "当日跌幅达到 4% 或以上时买入，止盈 3%，止损 2%。",
-  preset_calm: "只在平静时交易",
-  preset_calm_prompt: "只在波动率较低、且本周没有异常事件时交易。",
-  preset_deep: "只做深池",
-  preset_deep_prompt: "只在池子足够深时交易。稳步止盈，并保持较紧的止损。",
 
   sl_group_perp: "杠杆与方向",
   sl_perp_note:

@@ -28,6 +28,7 @@ import { enGoLive } from "./golive";
 import { enHome } from "./home";
 import { enLanding } from "./landing";
 import { enLimits } from "./limits";
+import { enPromptPack } from "./promptPack";
 import { enMarketplace } from "./marketplace";
 import { enMarkets } from "./markets";
 import { enNarrate } from "./narrate";
@@ -59,6 +60,7 @@ export const en = {
   ...enHome,
   ...enLanding,
   ...enLimits,
+  ...enPromptPack,
   ...enMarketplace,
   ...enMarkets,
   ...enNarrate,

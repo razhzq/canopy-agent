@@ -1,0 +1,218 @@
+// The prompt pack in the strategy chat (components/promptPack.tsx).
+//
+// Every `pp_*_prompt` is sent to the composer word for word, as if the author
+// had typed it, so each one is in the coverage corpus (canopy-be,
+// packages/agent-stack/src/coverageCorpus.ts, source "pack") and must compose
+// there. Change a sentence here and change it there.
+
+export const enPromptPack = {
+  pp_open: "Prompt pack",
+  pp_sub: "Standard strategies for crypto, written the way the composer reads them.",
+  pp_search: "RSI, grid, trailing stop…",
+  pp_search_aria: "Search prompts",
+  pp_close: "Close the prompt pack",
+  pp_categories_aria: "Prompt categories",
+  pp_none: "No prompts match “{q}”.",
+  pp_results: "{count} matching",
+  pp_append: "+ append",
+  pp_fill: "fill box",
+  pp_grid_needs_one: "A grid needs exactly one spot market.",
+  pp_foot: "Picking one fills the box. Numbers are starting points, not advice. Compile is still yours.",
+  pp_foot_perp: "Prompts set the long side. Leverage and the short side are set below the chat.",
+  pp_scope_spot: "spot · {count} prompts",
+  pp_scope_perp: "perps · {count} prompts",
+
+  // ── Dip & rebound (spot)
+  ppc_dip: "Dip & rebound",
+  ppc_dip_body: "Buy a sharp drop and sell the bounce. Works on tokens that usually recover; a real breakdown keeps falling.",
+  pp_dip_day: "Buy the dip",
+  pp_dip_day_prompt: "Buy when it is down 4% or more on the day, take profit at 3%, stop out at 2%.",
+  pp_dip_high: "Off the 60-day high",
+  pp_dip_high_prompt: "Buy when it is down 20% from its 60-day high and RSI is under 40. Take profit at 8%, stop out at 5%.",
+  pp_dip_candle: "Red candle on volume",
+  pp_dip_candle_prompt: "On the 1h chart, buy when the last candle closed down 3% or more and volume is 2 times the average. Take profit at 3%, stop out at 2%.",
+  pp_dip_sigma: "3-sigma flush",
+  pp_dip_sigma_prompt: "On the 15m chart, buy on a 3 sigma move with volume 3x the average. Take profit at 2%, stop out at 1.5%.",
+
+  // ── Trend following (spot)
+  ppc_trend: "Trend following",
+  ppc_trend_body: "Buy strength and let it run. Wins big in trends, gives back small amounts in chop.",
+  pp_trend_ema: "EMA 9/21 cross",
+  pp_trend_ema_prompt: "On the 1h chart, buy when the 9 EMA crosses above the 21 EMA. Take profit at 6%, trailing stop of 3%.",
+  pp_trend_supertrend: "Supertrend flip",
+  pp_trend_supertrend_prompt: "On the 1h chart, buy when supertrend flips up. Stop out at 4%, trailing stop of 5%.",
+  pp_trend_pullback: "Pullback in an uptrend",
+  pp_trend_pullback_prompt: "Buy in an uptrend when price pulls back to the 20 EMA. Take profit at 5%, stop out at 3%.",
+  pp_trend_macd: "MACD cross with trend strength",
+  pp_trend_macd_prompt: "On the 1h chart, buy when MACD crosses above the signal line and ADX is above 25. Take profit at 5%, stop out at 2.5%.",
+  pp_trend_golden: "Golden cross",
+  pp_trend_golden_prompt: "Buy on a golden cross. Stop out at 8% and protect the gains with a 10% trail.",
+
+  // ── Mean reversion (spot)
+  ppc_meanrev: "Mean reversion",
+  ppc_meanrev_body: "Buy a stretched move back toward its average. Works on liquid pairs in choppy markets; loses in strong trends.",
+  pp_mr_rsi: "RSI oversold bounce",
+  pp_mr_rsi_prompt: "On the 15m chart, buy when RSI drops under 30, take profit at 4% and stop out at 2%.",
+  pp_mr_band: "Lower-band fade",
+  pp_mr_band_prompt: "On the 1h chart, buy when price closes below the lower Bollinger band. Take profit at 3%, stop out at 2.5%.",
+  pp_mr_vwap: "VWAP stretch",
+  pp_mr_vwap_prompt: "On the 5m chart, buy when price is 3% or more below VWAP. Take profit at 2%, stop out at 1.5%, hold at most 6 hours.",
+  pp_mr_stoch: "Stochastic reset, no trend",
+  pp_mr_stoch_prompt: "On the 1h chart, buy when stochastic %K is under 20 and ADX is under 20. Take profit at 3%, stop out at 2%.",
+  pp_mr_cci: "CCI extreme",
+  pp_mr_cci_prompt: "On the 1h chart, buy when CCI is below -150. Take profit at 5%, stop out at 3%, hold at most 3 days.",
+
+  // ── Breakout (spot)
+  ppc_breakout: "Breakout",
+  ppc_breakout_body: "Buy when price clears a level it has been stuck under. Needs volume behind it; false breaks are the cost.",
+  pp_bo_high: "New 20-bar high on volume",
+  pp_bo_high_prompt: "On the 1h chart, buy on a new 20-bar high with volume 2 times the average. Take profit at 6%, stop out at 3%.",
+  pp_bo_squeeze: "Bollinger squeeze",
+  pp_bo_squeeze_prompt: "Buy on a Bollinger squeeze when the MACD histogram is positive. Take profit at 8%, stop out at 4%.",
+  pp_bo_daily: "Yesterday's high",
+  pp_bo_daily_prompt: "On the 1h chart, buy when price breaks yesterday's high. Take profit at 5%, trailing stop of 3%.",
+  pp_bo_week: "7-day high with BTC",
+  pp_bo_week_prompt: "Buy on a new 7-day high when BTC is up on the day. Take profit at 10%, stop out at 5%.",
+
+  // ── Momentum & volume (spot)
+  ppc_momentum: "Momentum & volume",
+  ppc_momentum_body: "Follow where the money is going: volume spikes, buyers in control, leaders pulling away.",
+  pp_mo_spike: "Volume spike, buyers in control",
+  pp_mo_spike_prompt: "On the 15m chart, buy when volume is 3 times the average and buy pressure is over 60%. Take profit at 4%, stop out at 2%.",
+  pp_mo_sol: "Outrunning SOL",
+  pp_mo_sol_prompt: "Buy when it is outperforming SOL and up 5% over the past 3 days. Take profit at 8%, stop out at 4%.",
+  pp_mo_top3: "Top 3 movers",
+  pp_mo_top3_prompt: "Buy the 3 strongest tokens by 24h change with liquidity of at least $250k. Take profit at 10%, stop out at 5%.",
+  pp_mo_vwap: "Above VWAP on volume",
+  pp_mo_vwap_prompt: "On the 1h chart, buy when price is above VWAP and volume is 2 times the average. Take profit at 4%, stop out at 2%.",
+
+  // ── Candlesticks (spot)
+  ppc_candles: "Candlesticks",
+  ppc_candles_body: "Classic reversal candles, confirmed by an oscillator so a single bar is not the whole case.",
+  pp_cd_engulf: "Bullish engulfing",
+  pp_cd_engulf_prompt: "On the 15m chart, buy on a bullish engulfing candle when RSI is under 40. Take profit at 3%, stop out at 2%.",
+  pp_cd_hammer: "Hammer",
+  pp_cd_hammer_prompt: "On the 1h chart, buy on a hammer when RSI is under 35. Take profit at 4%, stop out at 2%.",
+  pp_cd_doji: "Doji at oversold",
+  pp_cd_doji_prompt: "Buy after a doji when RSI is under 30. Take profit at 4%, stop out at 2.5%.",
+
+  // ── BTC / SOL regime (spot)
+  ppc_regime: "BTC / SOL regime",
+  ppc_regime_body: "Trade only when the market leader agrees. Most alts follow BTC; fighting it is expensive.",
+  pp_rg_btc200: "BTC above its 200-day",
+  pp_rg_btc200_prompt: "Buy when BTC is above its 200 day moving average and RSI is under 35. Take profit at 6%, stop out at 3%.",
+  pp_rg_btcday: "Oversold on a green BTC day",
+  pp_rg_btcday_prompt: "Buy when RSI is under 30 and BTC is up on the day. Take profit at 4%, stop out at 2%.",
+  pp_rg_vsbtc: "Outperforming BTC",
+  pp_rg_vsbtc_prompt: "Buy when it is outperforming BTC and supertrend is bullish. Take profit at 8%, stop out at 4%.",
+
+  // ── Memecoin launch (spot)
+  ppc_launch: "Memecoin launch",
+  ppc_launch_body: "New tokens in their first hours. High risk: most go to zero, so the filters do the work.",
+  pp_ml_fresh: "Fresh launch, safe holders",
+  pp_ml_fresh_prompt: "Snipe new tokens under 30 minutes old with more buyers than sellers, at least 500 holders and top 10 wallets under 30%. Take profit at 30%, stop out at 15%.",
+  pp_ml_dip: "First dip after launch",
+  pp_ml_dip_prompt: "Buy the dip on a new token, 30% off its launch high, when liquidity is growing. Take profit at 20%, stop out at 12%.",
+  pp_ml_safe: "Past the first ten minutes",
+  pp_ml_safe_prompt: "Only buy tokens that launched at least 10 minutes ago, where the dev holds less than 5% and I can sell $1,000 with under 2% impact. Take profit at 25%, stop out at 10%.",
+  pp_ml_flow: "Heavy 5-minute flow",
+  pp_ml_flow_prompt: "Buy when at least $100k traded in the last 5 minutes and buy pressure is over 60%. Take profit at 15%, trailing stop of 8%.",
+
+  // ── Grid (spot)
+  ppc_grid: "Grid",
+  ppc_grid_body: "Buy low and sell high inside a range, over and over. One token only; a breakout leaves the grid behind.",
+  pp_grid_auto: "Auto-range grid",
+  pp_grid_auto_prompt: "Run a grid with an auto range from the recent high and low, 15 levels, $30 a level.",
+  pp_grid_dense: "Dense auto-range grid",
+  pp_grid_dense_prompt: "Run a grid with an auto range from the recent high and low, 30 levels, $15 a level.",
+
+  // ── DCA & accumulate (spot)
+  ppc_dca: "DCA & accumulate",
+  ppc_dca_body: "Build a position over time instead of all at once. Amounts are per buy.",
+  pp_dca_daily: "Daily DCA",
+  pp_dca_daily_prompt: "DCA $50 a day into it. Take profit at 20%.",
+  pp_dca_drops: "Add on every 5% drop",
+  pp_dca_drops_prompt: "Buy $100, then add $100 more each time it drops 5%. Take profit at 10%, stop out at 25%.",
+  pp_dca_ladder: "Ladder in over a day",
+  pp_dca_ladder_prompt: "Ladder $400 in over 4 buys, one every 6 hours. Take profit at 12%.",
+
+  // ── Risk add-ons (spot)
+  ppc_risk: "Risk add-ons",
+  ppc_risk_body: "Clauses, not strategies. They add to what you have already written instead of replacing it.",
+  pp_rk_trail: "Trailing stop",
+  pp_rk_trail_prompt: "Trailing stop of 3%.",
+  pp_rk_breakeven: "Breakeven after a win",
+  pp_rk_breakeven_prompt: "Move the stop to break-even once up 2%.",
+  pp_rk_time: "Time stop",
+  pp_rk_time_prompt: "Hold at most 24 hours.",
+  pp_rk_calm: "Calm weeks only",
+  pp_rk_calm_prompt: "Only trade when volatility is low and nothing abnormal happened this week.",
+  pp_rk_deep: "Deep pools only",
+  pp_rk_deep_prompt: "Only trade when liquidity is at least $500k.",
+  pp_rk_session: "US hours only",
+  pp_rk_session_prompt: "Only trade between 9am and 4pm New York time.",
+
+  // ── Trend (perp)
+  ppc_p_trend: "Trend",
+  ppc_p_trend_body: "Go long with the trend. Leverage and the short side are set below the chat.",
+  pp_pt_ema: "EMA 9/21 cross",
+  pp_pt_ema_prompt: "On the 1h chart, go long when the 9 EMA crosses above the 21 EMA. Take profit at 4%, stop out at 2%.",
+  pp_pt_supertrend: "Supertrend flip",
+  pp_pt_supertrend_prompt: "Go long when supertrend flips up. Stop out at 2%, trailing stop of 3%.",
+  pp_pt_macd: "MACD cross with trend strength",
+  pp_pt_macd_prompt: "On the 1h chart, go long when MACD crosses above the signal line and ADX is above 25. Take profit at 5%, stop out at 2.5%.",
+  pp_pt_golden: "Golden cross, cheap funding",
+  pp_pt_golden_prompt: "Go long on a golden cross when funding is at most 0.01% an hour. Stop out at 3%, trailing stop of 4%.",
+
+  // ── Funding & borrow (perp)
+  ppc_p_funding: "Funding & borrow",
+  ppc_p_funding_body: "Enter when holding the position is cheap. Carry costs add up on a leveraged book.",
+  pp_pf_negative: "Longs get paid",
+  pp_pf_negative_prompt: "Go long when funding is negative and price is above VWAP. Take profit at 4%, stop out at 2%.",
+  pp_pf_util: "Oversold, pool not crowded",
+  pp_pf_util_prompt: "Go long when RSI is under 30 and pool utilization is under 70%. Take profit at 4%, stop out at 2%.",
+  pp_pf_borrow: "Breakout, borrow capped",
+  pp_pf_borrow_prompt: "Go long on a new 20-bar high, only when the borrow rate is under 20% APR. Take profit at 5%, stop out at 2.5%.",
+
+  // ── Open interest (perp)
+  ppc_p_oi: "Open interest",
+  ppc_p_oi_body: "Read positioning: new money arriving, or a crowd being flushed out.",
+  pp_po_surge: "New money arriving",
+  pp_po_surge_prompt: "Go long when open interest is up 10% in the last 24 hours and it is up 2% on the day. Take profit at 5%, stop out at 2.5%.",
+  pp_po_flush: "After the flush",
+  pp_po_flush_prompt: "Go long when open interest has fallen 10% in the last 24 hours and RSI is under 30. Take profit at 4%, stop out at 2%.",
+  pp_po_balanced: "Oversold, positioning balanced",
+  pp_po_balanced_prompt: "Go long when RSI is under 35 and neither side holds more than 65% of open interest. Take profit at 4%, stop out at 2%.",
+
+  // ── Mean reversion (perp)
+  ppc_p_meanrev: "Mean reversion",
+  ppc_p_meanrev_body: "Fade a stretched move with tight exits. Leverage makes the stop matter more.",
+  pp_pm_rsi: "RSI oversold",
+  pp_pm_rsi_prompt: "On the 15m chart, go long when RSI is under 25. Take profit at 3%, stop out at 1.5%.",
+  pp_pm_band: "Lower-band fade",
+  pp_pm_band_prompt: "On the 1h chart, go long when price closes below the lower Bollinger band. Take profit at 3%, stop out at 2%.",
+  pp_pm_vwap: "VWAP snap-back",
+  pp_pm_vwap_prompt: "On the 5m chart, go long when price is 2% or more below VWAP. Take profit at 1.5%, stop out at 1%.",
+
+  // ── Breakout (perp)
+  ppc_p_breakout: "Breakout",
+  ppc_p_breakout_body: "Go long as price clears a level. Pair with a trailing stop so a false break costs little.",
+  pp_pb_high: "New 20-bar high on volume",
+  pp_pb_high_prompt: "On the 1h chart, go long on a new 20-bar high with volume 2 times the average. Take profit at 5%, stop out at 2.5%.",
+  pp_pb_squeeze: "Bollinger squeeze",
+  pp_pb_squeeze_prompt: "Go long on a Bollinger squeeze when the MACD histogram is positive. Take profit at 6%, stop out at 3%.",
+  pp_pb_daily: "Yesterday's high",
+  pp_pb_daily_prompt: "On the 1h chart, go long when price breaks yesterday's high. Take profit at 4%, trailing stop of 2%.",
+
+  // ── Risk add-ons (perp)
+  ppc_p_risk: "Risk add-ons",
+  ppc_p_risk_body: "Clauses, not strategies. They add to what you have already written instead of replacing it.",
+  pp_pr_util: "Pool utilization cap",
+  pp_pr_util_prompt: "Only open when pool utilization is under 80%.",
+  pp_pr_borrow: "Borrow rate cap",
+  pp_pr_borrow_prompt: "Do not open when the borrow rate is above 20% APR.",
+  pp_pr_trail: "Trailing stop",
+  pp_pr_trail_prompt: "Trailing stop of 3%.",
+  pp_pr_time: "Time stop",
+  pp_pr_time_prompt: "Hold at most 12 hours.",
+};
