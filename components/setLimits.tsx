@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   type RiskCaps,
@@ -398,7 +398,7 @@ export function SetLimits({
   const [sentence, setSentence] = useState("");
   /** Whether the prompt pack is open over the transcript. */
   const [packOpen, setPackOpen] = useState(false);
-  const packPill = useRef<HTMLButtonElement | null>(null);
+  const closePack = useCallback(() => setPackOpen(false), []);
   /**
    * The last sentence the pack put in the box, verbatim. Picking another
    * strategy replaces it only while it is still untouched — once the author
@@ -822,7 +822,7 @@ export function SetLimits({
         </div>
 
         <>
-          <div className="relative">
+          <div>
             <div
               className={`overflow-hidden rounded-xl border bg-surface transition-colors ${
                 busy ? "border-grid-strong" : "border-border focus-within:border-grid-strong"
@@ -881,7 +881,6 @@ export function SetLimits({
                     kind={isPerp ? "perp" : "spot"}
                     open={packOpen}
                     onToggle={() => setPackOpen((o) => !o)}
-                    pillRef={packPill}
                   />
                   <span className="hidden font-ui text-[11.5px] text-text-muted sm:inline">{t("sl_send_hint")}</span>
                   {/* WHO is reading the sentence, stated where it is read.
@@ -912,8 +911,7 @@ export function SetLimits({
               <PromptPackPanel
                 kind={isPerp ? "perp" : "spot"}
                 gridAllowed={gridAllowed}
-                pillRef={packPill}
-                onClose={() => setPackOpen(false)}
+                onClose={closePack}
                 onPick={(line, append) => {
                   setSentence((cur) => {
                     const c = cur.trim();

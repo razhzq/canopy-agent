@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Search, X } from "lucide-react";
-import { FOCUS, ICON_BUTTON, POPOVER } from "@/components/kit";
+import { FOCUS, ICON_BUTTON } from "@/components/kit";
+import { Modal } from "@/components/modal";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { useT } from "@/lib/i18n";
 import {
   categoryBodyKey,
@@ -27,18 +29,15 @@ export function PromptPackPill({
   kind,
   open,
   onToggle,
-  pillRef,
 }: {
   kind: PackKind;
   open: boolean;
   onToggle: () => void;
-  pillRef: RefObject<HTMLButtonElement | null>;
 }) {
   const t = useT();
   const count = useMemo(() => packFor(kind).reduce((n, c) => n + c.prompts.length, 0), [kind]);
   return (
     <button
-      ref={pillRef}
       type="button"
       onClick={onToggle}
       aria-expanded={open}
@@ -60,59 +59,45 @@ export function PromptPackPill({
  * The prompt pack itself: categories on the left, the chosen category's
  * prompts on the right, a search across all of them.
  *
- * Anchored under the compose card, below the pill that opened it. Not above:
- * before the first turn the card sits near the top of the page, and a panel
- * opening upward would run off the top of the document where nothing can
- * scroll it back into view. Picking a prompt hands its sentence back and closes; it
- * never sends — Compile stays the author's act, same as the chips it replaced.
+ * A modal over a blurred page: choosing a starting strategy is its own small
+ * task, and the budget and guardrails under the chat are noise while doing it.
+ * The shared Modal owns Escape, the backdrop click and returning focus to the
+ * pill. On a phone it is the bottom sheet, because the search field brings up
+ * the keyboard and a centred dialog would be pushed off the top.
+ *
+ * Picking a prompt hands its sentence back and closes; it never sends —
+ * Compile stays the author's act, same as the chips it replaced.
  */
 export function PromptPackPanel({
   kind,
   gridAllowed,
   onPick,
   onClose,
-  pillRef,
 }: {
   kind: PackKind;
   /** A grid runs on exactly one spot token; otherwise its prompts are dimmed. */
   gridAllowed: boolean;
   /** `append` is true for add-on clauses, which join the sentence rather than replace it. */
   onPick: (sentence: string, append: boolean) => void;
+  /** Must be stable: the Modal re-arms its listeners and focus whenever it changes. */
   onClose: () => void;
-  /** The pill that opened it, so a click on it toggles rather than closes-then-reopens. */
-  pillRef: RefObject<HTMLButtonElement | null>;
 }) {
   const t = useT();
   const cats = useMemo(() => packFor(kind), [kind]);
   const [catId, setCatId] = useState(cats[0]?.id ?? "");
   const [query, setQuery] = useState("");
-  const panel = useRef<HTMLDivElement | null>(null);
+  const isMobile = useIsMobile();
   const search = useRef<HTMLInputElement | null>(null);
 
   // A kind change (the market was swapped for a perp) resets the selection.
   const cat = cats.find((c) => c.id === catId) ?? cats[0];
 
+  // After the Modal's own effect, which focuses the dialog itself: a parent's
+  // effects run after its children's, so a plain focus here would be undone.
   useEffect(() => {
-    search.current?.focus({ preventScroll: true });
-    panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const id = requestAnimationFrame(() => search.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(id);
   }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (panel.current?.contains(target) || pillRef.current?.contains(target)) return;
-      onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDown);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [onClose, pillRef]);
 
   const q = query.trim().toLowerCase();
   const results = useMemo(() => {
@@ -163,12 +148,8 @@ export function PromptPackPanel({
   };
 
   return (
-    <div
-      ref={panel}
-      role="dialog"
-      aria-label={t("pp_open")}
-      className={`${POPOVER} absolute left-0 top-[calc(100%+8px)] z-30 flex h-[min(530px,76vh)] w-full flex-col sm:w-[min(760px,100%)]`}
-    >
+    <Modal title={t("pp_open")} onClose={onClose} variant={isMobile ? "sheet" : "wide"} headless>
+    <div className="flex h-full min-h-0 flex-col sm:h-[min(600px,calc(100dvh-64px))]">
       {/* ---------------------------------------------------------- head -- */}
       <div className="flex items-center justify-between gap-3 border-b border-grid px-4 py-3">
         <div className="hidden min-w-0 sm:block">
@@ -260,5 +241,6 @@ export function PromptPackPanel({
         </span>
       </div>
     </div>
+    </Modal>
   );
 }
