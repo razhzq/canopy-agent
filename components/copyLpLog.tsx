@@ -5,6 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { getCopyLpLog, type ActivityCycle, type ActivityPage } from "@/lib/api";
 import { groupOf, logEntries, type LogEntry, type LogGroup, type LogKind } from "@/lib/copyLpLog";
 import { useApi } from "@/lib/useApi";
+import { useBookUnit } from "@/lib/bookUnit";
 import { useLocale, dateLocale, type Locale, type Translate, type TranslationKey } from "@/lib/i18n";
 import { ErrorState, SignedOutState } from "@/components/states";
 import { SkeletonLog } from "@/components/skeleton";
@@ -90,7 +91,10 @@ export function CopyLpLog({
     );
   }, [headPage, older]);
 
-  const money = useMemo(() => amountFormat(unit), [unit]);
+  // THE PAGE'S USD/SOL SWITCH decides how amounts read here too, so the log
+  // agrees with the panel and the positions above it. A USD book has one unit.
+  const [shownUnit] = useBookUnit(unit === "SOL");
+  const money = useMemo(() => amountFormat(shownUnit), [shownUnit]);
   const entries = useMemo(
     () =>
       logEntries(cycles, t, { strategyClass: headPage?.strategy_class, pools: { ...olderPools, ...headPage?.pools } }, (usd, rate) =>
@@ -244,7 +248,7 @@ function Row({
     minute: "2-digit",
     hour12: false,
   });
-  const amount = e.amount ? money(e.amount.usd, e.usdPerSol, e.amount.role === "pnl") : null;
+  const amount = e.amount ? money(e.amount.usd, e.usdPerSol, e.amount.role === "pnl", e.amount.sol, e.amount.feeUsd) : null;
   const tone =
     e.amount?.role === "pnl"
       ? e.amount.usd >= 0
@@ -351,8 +355,26 @@ function solText(n: number): string {
  * by a rate from some other moment.
  */
 function amountFormat(unit: "USD" | "SOL") {
-  return (usd: number, usdPerSol: number | null, signed = false): { primary: string; secondary: string | null } => {
-    const sign = (s: string) => (!signed ? s : usd < 0 ? `−${s}` : `+${s}`);
+  return (
+    usd: number,
+    usdPerSol: number | null,
+    signed = false,
+    /** A close's own SOL result; see LogEntry.amount. */
+    sol?: number,
+    feeUsd = 0,
+  ): { primary: string; secondary: string | null } => {
+    const sign = (s: string, v: number = usd) => (!signed ? s : v < 0 ? `−${s}` : `+${s}`);
+    // THE RESULT IN SOL, where the close booked one: SOL back minus SOL in.
+    // Dividing the dollar result by a rate instead measures the SOL price's
+    // move as well (agent 189, 2026-09-28: "−1.558 SOL" on a position that
+    // made SOL).
+    if (unit === "SOL" && typeof sol === "number") {
+      const net = sol - (usdPerSol && usdPerSol > 0 ? feeUsd / usdPerSol : 0);
+      // The dollar line is the SAME result at the close's rate, so the two
+      // can never disagree in sign.
+      const rate = usdPerSol && usdPerSol > 0 ? usdPerSol : null;
+      return { primary: sign(solText(Math.abs(net)), net), secondary: rate ? sign(usdText(Math.abs(net * rate)), net) : null };
+    }
     if (unit === "SOL" && usdPerSol && usdPerSol > 0) {
       return { primary: sign(solText(usd / usdPerSol)), secondary: sign(usdText(usd)) };
     }

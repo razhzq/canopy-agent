@@ -2959,6 +2959,8 @@ export interface AgentLpLeg {
   range: { minBinId: number; maxBinId: number };
   binStepBps: number;
   deposited_usd: number;
+  /** The SOL that went in, recorded at open — a SOL book's cost. Absent on an older backend. */
+  deposited_sol?: number | null;
   costs_usd: number;
   claimed_fees_usd: number;
   rebalance_count: number;
@@ -3624,6 +3626,14 @@ export interface LpBook {
   winners: number;
   /** Realised across the book, partial removals included. */
   realizedUsd: number;
+  /**
+   * The same in SOL — SOL back minus SOL in — over the rows that carry it.
+   * A SOL book reads these once `realizedSolKnown` covers every closed
+   * position. Absent on an older backend.
+   */
+  realizedSol?: number;
+  realizedSolKnown?: number;
+  avgInvestedSol?: number | null;
   /** Fees banked by closed positions. See `feesKnown` before trusting it whole. */
   feesEarnedUsd: number;
   /**
@@ -4291,6 +4301,15 @@ export interface ClosedLpPosition {
   costs_usd: number;
   realized_pnl_usd: number;
   closed_value_usd: number | null;
+  /**
+   * A SOL book's position in SOL: what went in, what came back, and the
+   * difference — how an LP (and Fabriq) reads a position. Null where the
+   * close carried no rate; absent on an older backend.
+   */
+  deposited_sol?: number | null;
+  closed_value_sol?: number | null;
+  realized_pnl_sol?: number | null;
+  return_pct_sol?: number | null;
   rebalance_count: number;
   close_reason: string | null;
   leader_position: string | null;

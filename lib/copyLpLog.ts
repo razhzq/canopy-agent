@@ -50,7 +50,12 @@ export interface LogEntry {
    * `in` is money put into a position; `pnl` is profit or loss realised, net of
    * the profit fees taken on it. Null when the event moved no money.
    */
-  amount: { usd: number; role: "in" | "pnl" } | null;
+  /**
+   * `sol`, on a SOL book's close: the result in SOL as the ledger booked it
+   * (SOL back − SOL in), before any profit fee — which is `feeUsd`, taken off
+   * at the entry's rate. Absent on older rows; the dollar figure stands then.
+   */
+  amount: { usd: number; role: "in" | "pnl"; sol?: number; feeUsd?: number } | null;
   /** Fees behind the figure above, in dollars, when there were any. */
   feesUsd: number | null;
   /**
@@ -229,7 +234,11 @@ function entryFor(
         ...base,
         kind,
         detail: t("clplog_closed", { reason: why, size: money(num(o.filledUsd)) }),
-        amount: { usd: netPnl, role: "pnl" },
+        amount: {
+          usd: netPnl,
+          role: "pnl",
+          ...(typeof o.realizedPnlSol === "number" ? { sol: o.realizedPnlSol, feeUsd: profitFee } : {}),
+        },
         feesUsd: fees > 0 ? fees : null,
       };
     }

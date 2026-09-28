@@ -110,6 +110,8 @@ export function bookFormat(
 }
 
 const KEY = "canopy.bookUnit";
+/** Told to every `useBookUnit` on the page when one of them changes. */
+const EVENT = "canopy:bookUnit";
 
 /**
  * The viewer's chosen unit, remembered on this device.
@@ -136,6 +138,24 @@ export function useBookUnit(available: boolean): [BookUnit, (u: BookUnit) => voi
     } catch {
       /* private window, blocked storage — the default stands */
     }
+    // ONE CHOICE FOR THE WHOLE PAGE. The switch sits on the performance panel,
+    // but the positions tables and the activity log render the same book and
+    // must follow it — a panel in SOL above a table in dollars reads as two
+    // different books. Every instance listens; another tab's choice arrives
+    // through the storage event.
+    const onChoice = (e: Event) => {
+      const u = (e as CustomEvent<BookUnit>).detail;
+      if (u === "USD" || u === "SOL") set(u);
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY && (e.newValue === "USD" || e.newValue === "SOL")) set(e.newValue);
+    };
+    window.addEventListener(EVENT, onChoice);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(EVENT, onChoice);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [available]);
 
   const choose = useCallback((u: BookUnit) => {
@@ -145,6 +165,7 @@ export function useBookUnit(available: boolean): [BookUnit, (u: BookUnit) => voi
     } catch {
       /* the choice still applies to this session */
     }
+    window.dispatchEvent(new CustomEvent<BookUnit>(EVENT, { detail: u }));
   }, []);
 
   // A book with no rate has no choice to remember. Reporting USD keeps every

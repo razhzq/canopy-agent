@@ -17,6 +17,7 @@ import { AssetLogo } from "@/components/ui";
 import { Tick, TxLink } from "@/components/kit";
 import { CloseLpModal, type ClosableLp } from "@/components/closeLpPosition";
 import { useLocale } from "@/lib/i18n";
+import { useBookUnit } from "@/lib/bookUnit";
 
 /**
  * The book of a liquidity agent.
@@ -56,6 +57,9 @@ export function LpPositions({
   const [tab, setTab] = useState<Tab>("open");
   const { t } = useLocale();
   const rows = lpRows(positions);
+  // THE PAGE'S USD/SOL SWITCH, which lives on the performance panel. The same
+  // hook here reads the same choice and follows every change to it.
+  const [shown] = useBookUnit(unit === "SOL" && typeof solUsd === "number" && solUsd > 0);
 
   return (
     <div>
@@ -70,10 +74,10 @@ export function LpPositions({
 
       {tab === "open" ? (
         <>
-          <OpenLp agentId={agentId} rows={rows} universe={universe} onChanged={onChanged} unit={unit} solUsd={solUsd} />
+          <OpenLp agentId={agentId} rows={rows} universe={universe} onChanged={onChanged} unit={unit} solUsd={solUsd} shown={shown} />
         </>
       ) : (
-        <ClosedLp agentId={agentId} book={book} universe={universe} />
+        <ClosedLp agentId={agentId} book={book} universe={universe} shown={shown} solUsd={solUsd} />
       )}
     </div>
   );
@@ -168,6 +172,12 @@ function pct(part: number | null, whole: number): string | null {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v) < 0.01 && v !== 0 ? "<0.01" : Math.abs(v).toFixed(2)}%`;
 }
 
+/** A SOL quantity as the owner reads it: up to four places, signed when asked. */
+function sol(v: number, opts: { sign?: boolean } = {}): string {
+  const body = `${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 4 })} SOL`;
+  return v < 0 ? `−${body}` : opts.sign ? `+${body}` : body;
+}
+
 function tone(v: number | null): string {
   return v === null ? "text-text-muted" : v >= 0 ? "text-accent" : "text-negative";
 }
@@ -184,6 +194,7 @@ function OpenLp({
   onChanged,
   unit = "USD",
   solUsd = null,
+  shown = "USD",
 }: {
   agentId: number;
   rows: LpRow[];
@@ -192,6 +203,8 @@ function OpenLp({
   /** Passed straight to the close dialog; see LpPositions. */
   unit?: "USD" | "SOL";
   solUsd?: number | null;
+  /** The unit the page is SHOWN in — the USD/SOL switch. */
+  shown?: "USD" | "SOL";
 }) {
   const { t } = useLocale();
   const [closing, setClosing] = useState<ClosableLp | null>(null);
@@ -204,14 +217,32 @@ function OpenLp({
     return <p className="pt-5 font-ui text-[13px] text-text-secondary">{t("lp_empty")}</p>;
   }
 
-  const sum = (pick: (r: LpRow) => number | null) =>
-    rows.every((r) => pick(r) !== null) ? rows.reduce((s, r) => s + (pick(r) ?? 0), 0) : null;
-  const invested = rows.reduce((s, r) => s + r.investedUsd, 0);
-  const value = sum((r) => r.valueUsd);
-  const fees = sum((r) => r.feesUsd);
-  const pnl = sum((r) => r.pnlUsd);
-  const claimed = sum((r) => r.leg.now?.claimedFeesUsd ?? null);
-  const unclaimed = sum((r) => r.leg.now?.unclaimedFeesUsd ?? null);
+  // EVERY FIGURE IN THE UNIT THE PAGE SHOWS, decided once here. In SOL the
+  // cost is the SOL that went in, as recorded, and the result is what the
+  // close would return NOW, at today's rate, against it — SOL back minus SOL
+  // in, the way the closed rows and the panel read. In dollars, the ledger's
+  // own dollar figures, unconverted.
+  const inSol = shown === "SOL" && typeof solUsd === "number" && solUsd > 0;
+  const toUnit = (usdValue: number) => (inSol ? usdValue / solUsd! : usdValue);
+  const fmt = (n: number, o: { sign?: boolean } = {}) => (inSol ? sol(n, o) : usd(n, o));
+  const view = rows.map((r) => {
+    const investedIn = inSol ? (r.leg.deposited_sol ?? r.investedUsd / solUsd!) : r.investedUsd;
+    return {
+      r,
+      invested: investedIn,
+      value: r.valueUsd === null ? null : toUnit(r.valueUsd),
+      fees: r.feesUsd === null ? null : toUnit(r.feesUsd),
+      pnl: inSol ? (r.leg.now ? r.leg.now.proceedsUsd / solUsd! - investedIn : null) : r.pnlUsd,
+    };
+  });
+  const sum = (pick: (v: (typeof view)[number]) => number | null) =>
+    view.every((v) => pick(v) !== null) ? view.reduce((s, v) => s + (pick(v) ?? 0), 0) : null;
+  const invested = view.reduce((s, v) => s + v.invested, 0);
+  const value = sum((v) => v.value);
+  const fees = sum((v) => v.fees);
+  const pnl = sum((v) => v.pnl);
+  const claimed = sum((v) => (v.r.leg.now ? toUnit(v.r.leg.now.claimedFeesUsd) : null));
+  const unclaimed = sum((v) => (v.r.leg.now ? toUnit(v.r.leg.now.unclaimedFeesUsd) : null));
   const inRange = rows.filter((r) => r.leg.now?.inRange).length;
   const estimated = rows.some((r) => r.leg.fees_estimated);
 
@@ -226,16 +257,16 @@ function OpenLp({
     <div className="pt-4">
       {/* The book in one line, before any row. */}
       <div className="flex flex-wrap gap-x-7 gap-y-2 pb-4 font-ui text-[12px] text-text-muted">
-        <Summary label={t("lp_total_value")}>{value === null ? "—" : usd(value)}</Summary>
+        <Summary label={t("lp_total_value")}>{value === null ? "—" : fmt(value)}</Summary>
         <Summary label={t("lp_total_pnl")}>
           <span className={tone(pnl)}>
-            {pnl === null ? "—" : usd(pnl, { sign: true })}
+            {pnl === null ? "—" : fmt(pnl, { sign: true })}
             {pct(pnl, invested) ? <span className="pl-1.5 text-[11px] opacity-70">{pct(pnl, invested)}</span> : null}
           </span>
         </Summary>
-        <Summary label={t("lp_claimed_fees")}>{claimed === null ? "—" : usd(claimed)}</Summary>
+        <Summary label={t("lp_claimed_fees")}>{claimed === null ? "—" : fmt(claimed)}</Summary>
         <Summary label={t("lp_unclaimed_fees")}>
-          <span className={unclaimed ? "text-accent" : undefined}>{unclaimed === null ? "—" : usd(unclaimed)}</span>
+          <span className={unclaimed ? "text-accent" : undefined}>{unclaimed === null ? "—" : fmt(unclaimed)}</span>
         </Summary>
         <Summary label={t("lp_in_range")}>
           {inRange} / {rows.length}
@@ -261,28 +292,28 @@ function OpenLp({
             <span />
           </div>
 
-          {rows.map((r) => (
+          {view.map(({ r, invested: inv, value: val, fees: fee, pnl: result }) => (
             <div key={r.id} className={`grid ${OPEN_COLS} items-center gap-3 border-b border-grid py-3`}>
               <PoolCell symbol={r.symbol} leg={{ ...r.leg, shape: r.leg.now?.distribution?.shape }} universe={universe} />
               <span className="tnum text-right font-mono text-[12.5px] text-text-secondary">{compactAge(r.openedAt, t)}</span>
-              <Money main={usd(r.investedUsd)} />
-              <Tick value={r.valueUsd} className="text-right">
+              <Money main={fmt(inv)} />
+              <Tick value={val} className="text-right">
                 <Money
-                  main={r.valueUsd === null ? t("positions_not_priced") : usd(r.valueUsd)}
+                  main={val === null ? t("positions_not_priced") : fmt(val)}
                   sub={r.stale ? t("lp_last_mark") : holdsLine(r)}
-                  muted={r.valueUsd === null || r.stale}
+                  muted={val === null || r.stale}
                 />
               </Tick>
               <Money
-                main={r.feesUsd === null ? "—" : usd(r.feesUsd)}
-                sub={pct(r.feesUsd, r.investedUsd)}
-                tone={r.feesUsd ? "text-accent" : undefined}
+                main={fee === null ? "—" : fmt(fee)}
+                sub={pct(fee, inv)}
+                tone={fee ? "text-accent" : undefined}
               />
-              <Tick value={r.pnlUsd} className="text-right">
+              <Tick value={result} className="text-right">
                 <Money
-                  main={r.pnlUsd === null ? "—" : usd(r.pnlUsd, { sign: true })}
-                  sub={pct(r.pnlUsd, r.investedUsd)}
-                  tone={tone(r.pnlUsd)}
+                  main={result === null ? "—" : fmt(result, { sign: true })}
+                  sub={pct(result, inv)}
+                  tone={tone(result)}
                 />
               </Tick>
               <div className="pl-2">
@@ -296,10 +327,10 @@ function OpenLp({
             <div className={`grid ${OPEN_COLS} items-center gap-3 py-3`}>
               <span className="font-ui text-[12.5px] font-medium text-text-primary">{t("lp_total")}</span>
               <span />
-              <Money main={usd(invested)} />
-              <Money main={value === null ? "—" : usd(value)} />
-              <Money main={fees === null ? "—" : usd(fees)} sub={pct(fees, invested)} tone={fees ? "text-accent" : undefined} />
-              <Money main={pnl === null ? "—" : usd(pnl, { sign: true })} sub={pct(pnl, invested)} tone={tone(pnl)} />
+              <Money main={fmt(invested)} />
+              <Money main={value === null ? "—" : fmt(value)} />
+              <Money main={fees === null ? "—" : fmt(fees)} sub={pct(fees, invested)} tone={fees ? "text-accent" : undefined} />
+              <Money main={pnl === null ? "—" : fmt(pnl, { sign: true })} sub={pct(pnl, invested)} tone={tone(pnl)} />
               <span />
               <span />
             </div>
@@ -309,24 +340,24 @@ function OpenLp({
 
       {/* Phones: one card per position, the same figures stacked. */}
       <div className="sm:hidden">
-        {rows.map((r) => (
+        {view.map(({ r, invested: inv, value: val, fees: fee, pnl: result }) => (
           <div key={r.id} className="border-t border-grid py-3">
             <div className="flex items-start justify-between gap-3">
               <PoolCell symbol={r.symbol} leg={{ ...r.leg, shape: r.leg.now?.distribution?.shape }} universe={universe} />
               <CloseButton symbol={r.symbol} onClick={() => setClosing(asClosable(r))} />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3">
-              <Pair label={t("lp_col_invested")} value={usd(r.investedUsd)} />
-              <Pair label={t("lp_col_value")} value={r.valueUsd === null ? "—" : usd(r.valueUsd)} />
+              <Pair label={t("lp_col_invested")} value={fmt(inv)} />
+              <Pair label={t("lp_col_value")} value={val === null ? "—" : fmt(val)} />
               <Pair
                 label={t("lp_col_fees")}
-                value={r.feesUsd === null ? "—" : usd(r.feesUsd)}
-                tone={r.feesUsd ? "text-accent" : undefined}
+                value={fee === null ? "—" : fmt(fee)}
+                tone={fee ? "text-accent" : undefined}
               />
               <Pair
                 label={t("lp_col_pnl")}
-                value={r.pnlUsd === null ? "—" : usd(r.pnlUsd, { sign: true })}
-                tone={tone(r.pnlUsd)}
+                value={result === null ? "—" : fmt(result, { sign: true })}
+                tone={tone(result)}
               />
             </div>
             <div className="pt-3">
@@ -903,7 +934,20 @@ function duration(ms: number): string {
   return `${Math.floor(hrs / 24)}d ${hrs % 24}h`;
 }
 
-function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" | "live"; universe: UniverseAsset[] }) {
+function ClosedLp({
+  agentId,
+  book,
+  universe,
+  shown = "USD",
+  solUsd = null,
+}: {
+  agentId: number;
+  book: "paper" | "live";
+  universe: UniverseAsset[];
+  /** The unit the page is SHOWN in — the USD/SOL switch. */
+  shown?: "USD" | "SOL";
+  solUsd?: number | null;
+}) {
   const [page, setPage] = useState(1);
   const { t, locale } = useLocale();
   useEffect(() => setPage(1), [agentId, book]);
@@ -943,7 +987,17 @@ function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" 
             <span className="text-right">{t("lp_col_realised")}</span>
             <span className="pl-2">{t("lp_col_closed")}</span>
           </div>
-          {positions.map((r) => (
+          {positions.map((r) => {
+            // A SOL book's position reads in SOL — what went in, what came
+            // back, the difference — with fees at the rate its close used.
+            // In SOL: the SOL the close booked, where it did; a row closed
+            // without a rate converts its dollars at today's rate. In dollars:
+            // the ledger's dollar figures as they were booked.
+            const inSol = shown === "SOL" && r.realized_pnl_sol != null && r.deposited_sol != null && r.closed_value_sol != null;
+            const convert = shown === "SOL" && !inSol && typeof solUsd === "number" && solUsd > 0;
+            const usdOrSol = (v: number, o: { sign?: boolean } = {}) => (convert ? sol(v / solUsd!, o) : usd(v, o));
+            const closeRate = inSol && r.closed_value_usd && r.closed_value_sol ? r.closed_value_usd / r.closed_value_sol : null;
+            return (
             <div key={r.id} className={`grid ${CLOSED_COLS} items-center gap-3 border-b border-grid py-3 last:border-b-0`}>
               <PoolCell
                 symbol={r.symbol}
@@ -964,24 +1018,28 @@ function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" 
                 sub={r.rebalance_count > 0 ? t("lp_rebalances", { count: r.rebalance_count }) : null}
               />
               <Money
-                main={usd(r.invested_usd ?? r.deposited_usd)}
+                main={inSol ? sol(r.deposited_sol!) : usdOrSol(r.invested_usd ?? r.deposited_usd)}
                 sub={
                   r.price_range.min !== null && r.price_range.max !== null
                     ? `${quotePrice(r.price_range.min)} – ${quotePrice(r.price_range.max)}`
                     : null
                 }
               />
-              <Money main={r.closed_value_usd === null ? "—" : usd(r.closed_value_usd)} />
+              <Money main={inSol ? sol(r.closed_value_sol!) : r.closed_value_usd === null ? "—" : usdOrSol(r.closed_value_usd)} />
               <Money
-                main={r.fees_earned_usd == null ? "—" : usd(r.fees_earned_usd)}
+                main={r.fees_earned_usd == null ? "—" : closeRate ? sol(r.fees_earned_usd / closeRate) : usdOrSol(r.fees_earned_usd)}
                 sub={r.fees_earned_usd == null ? null : pct(r.fees_earned_usd, r.invested_usd ?? r.deposited_usd)}
                 tone={r.fees_earned_usd ? "text-accent" : undefined}
                 muted={r.fees_earned_usd == null}
               />
               <Money
-                main={usd(r.realized_pnl_usd, { sign: true })}
-                sub={r.return_pct == null ? null : pct(r.return_pct, 100)}
-                tone={tone(r.realized_pnl_usd)}
+                main={inSol ? sol(r.realized_pnl_sol!, { sign: true }) : usdOrSol(r.realized_pnl_usd, { sign: true })}
+                sub={
+                  inSol
+                    ? r.return_pct_sol == null ? null : pct(r.return_pct_sol, 100)
+                    : r.return_pct == null ? null : pct(r.return_pct, 100)
+                }
+                tone={tone(inSol ? r.realized_pnl_sol! : r.realized_pnl_usd)}
               />
               <span className="block pl-2">
                 <span className="block font-ui text-[12px] text-text-secondary">{shortDate(r.closed_at, locale)}</span>
@@ -996,7 +1054,8 @@ function ClosedLp({ agentId, book, universe }: { agentId: number; book: "paper" 
                 ) : null}
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

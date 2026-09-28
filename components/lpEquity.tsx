@@ -882,6 +882,17 @@ function lpFigures(
   const feesUsd =
     unclaimed === null ? null : (lp?.feesEarnedUsd ?? 0) + (lp?.claimedFeesUsd ?? 0) + unclaimed;
   const realizedUsd = lp?.realizedUsd ?? series.realizedPnlUsd;
+  /*
+   * A SOL BOOK'S RESULT IS MEASURED IN SOL: SOL back minus SOL in, as each
+   * close booked it. Dividing the dollar result by today's price instead gave
+   * a figure in neither unit — and a position that returned more SOL than it
+   * took could read as a loss because SOL fell while it was open (agent 189,
+   * 2026-09-28). Used once every closed position carries it; until then the
+   * old conversion stands rather than a total over a subset.
+   */
+  const solBook =
+    base === "sol" && !!lp && typeof lp.realizedSol === "number" && (lp.realizedSolKnown ?? 0) >= lp.closed;
+  const realizedInUnit = solBook ? lp!.realizedSol! : inUnit(realizedUsd);
 
   const firstAt = lp?.firstOpenedAt ?? points[0]?.at ?? null;
   const daysLive = firstAt
@@ -918,7 +929,7 @@ function lpFigures(
     vsHodlOpen: hodl.open,
     vsHodlUnreadable: hodl.unreadable,
     profitUsd,
-    realizedUsd: inUnit(realizedUsd),
+    realizedUsd: realizedInUnit,
     feesUsd: inUnitOrNull(feesUsd),
     feesKnown: lp?.feesKnown ?? 0,
     feesPartial: !!lp && lp.closed > 0 && lp.feesKnown < lp.closed,
@@ -926,9 +937,9 @@ function lpFigures(
     closed,
     winners,
     winRatePct: closed > 0 ? (winners / closed) * 100 : null,
-    avgInvestedUsd: inUnitOrNull(lp?.avgInvestedUsd ?? null),
+    avgInvestedUsd: solBook ? (lp?.avgInvestedSol ?? null) : inUnitOrNull(lp?.avgInvestedUsd ?? null),
     monthlyUsd: daysLive >= 30 ? profitUsd / (daysLive / 30.44) : null,
-    perPositionUsd: closed > 0 ? inUnit(realizedUsd / closed) : null,
+    perPositionUsd: closed > 0 ? realizedInUnit / closed : null,
     daysLive,
     openCount: lp?.openCount ?? positions.filter((p) => !!p.lp).length,
     openInvestedUsd: inUnit(lp?.openInvestedUsd ?? 0),
