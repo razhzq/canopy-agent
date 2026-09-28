@@ -178,7 +178,10 @@ export function positionValueUsd(
 ): number | null {
   const cost = num(p.cost_basis_usd) ?? 0;
   if (p.lp) {
-    if (p.lp.now) return p.lp.now.valueUsd + (p.lp.now.unclaimedFeesUsd ?? 0);
+    // `valueUsd` already holds the unclaimed fees; adding them again counted
+    // every fee twice. The rent is the owner's SOL parked in the account, and
+    // is what the tick's own mark counts too, so the two agree.
+    if (p.lp.now) return p.lp.now.valueUsd + (p.lp.now.rentUsd ?? 0);
     return p.lp.last_mark_usd ?? null;
   }
   if (p.perp) {
@@ -250,7 +253,9 @@ export function liveWorthOf(
   if (f.unit !== "SOL" || !(typeof rate === "number" && rate > 0) || typeof f.balance !== "number") return null;
   const legs = positions.filter((p) => !!p.lp);
   if (legs.some((p) => !p.lp?.now)) return null;
-  const openUsd = legs.reduce((sum, p) => sum + p.lp!.now!.valueUsd + p.lp!.now!.unclaimedFeesUsd, 0);
+  // Unclaimed fees are inside `valueUsd`; the account rent is not, and it is
+  // the owner's SOL until the close hands it back.
+  const openUsd = legs.reduce((sum, p) => sum + p.lp!.now!.valueUsd + (p.lp!.now!.rentUsd ?? 0), 0);
   return { sol: f.balance + openUsd / rate, usd: f.balance * rate + openUsd };
 }
 

@@ -2929,7 +2929,13 @@ export interface LpValuation {
   /** Liquidity per bin and the shape it makes. Absent on an older backend. */
   distribution?: LpDistribution | null;
   holds: { x: number; y: number; xUsd: number; yUsd: number };
+  /** Liquidity + unclaimed fees (+ claimed-and-held on paper). Unclaimed fees are INSIDE it. */
   valueUsd: number;
+  /**
+   * The position account's rent: the owner's SOL, returned on close. Counted
+   * in what the book is worth, never in P&L. Absent on an older backend.
+   */
+  rentUsd?: number;
   unclaimedFeesUsd: number;
   claimedFeesUsd: number;
   closeCostUsd: number;
