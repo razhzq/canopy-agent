@@ -169,18 +169,32 @@ export function GrantClobDelegation({
       const owner = walletAt(user, address) ? user : await linkedUser(address);
 
       setPhase({ step: "granting" });
-      try {
-        await addSigners({
-          address,
-          signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [CLOB_POLICY_ID] }],
-        });
-      } catch (err) {
-        // Already carrying the signer is not a failure to be delegated — it is
-        // the grant already existing, which is where a retry after a failed
-        // registration lands. Asked of Privy, not of stale hook state.
-        const latest = (await refreshUser().catch(() => owner)) ?? owner;
-        if (!walletAt(latest, address)?.delegated) throw err;
+      // PATIENT WITH ONE REFUSAL. Privy's server can take a few seconds longer
+      // than the client's user object to see a wallet, and refuses with "not
+      // associated with current user" meanwhile — the reason the grant button
+      // needed a second press (see grantDelegation.tsx). That refusal is
+      // retried for ~8s; anything else surfaces at once.
+      let lastErr: unknown = null;
+      let done = false;
+      for (let attempt = 0; attempt < 10 && !done; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
+        try {
+          await addSigners({
+            address,
+            signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [CLOB_POLICY_ID] }],
+          });
+          done = true;
+        } catch (err) {
+          lastErr = err;
+          // Already carrying the signer is not a failure to be delegated — it
+          // is the grant already existing, which is where a retry after a
+          // failed registration lands. Asked of Privy, not of stale hook state.
+          const latest = (await refreshUser().catch(() => owner)) ?? owner;
+          if (walletAt(latest, address)?.delegated) done = true;
+          else if (!/not associated with current user/i.test(err instanceof Error ? err.message : String(err))) throw err;
+        }
       }
+      if (!done) throw lastErr;
 
       setPhase({ step: "registering" });
       // The server verifies the pair with Privy before storing it, so a wallet
