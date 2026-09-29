@@ -24,7 +24,7 @@
 // are signed with a Schnorr key held server-side per agent, and what it may
 // spend is bounded by the venue account's own balance.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth";
 
@@ -79,6 +79,11 @@ export function GrantClobDelegation({
   const { user } = usePrivy();
   const { refreshUser } = useUser();
   const { addSigners } = useSigners();
+  // The latest `addSigners`: Privy checks the address against the user object
+  // the hook captured at its last render, so a retry must call the function a
+  // later render produced. See the note in grantDelegation.tsx.
+  const addSignersRef = useRef(addSigners);
+  addSignersRef.current = addSigners;
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
@@ -179,7 +184,7 @@ export function GrantClobDelegation({
       for (let attempt = 0; attempt < 10 && !done; attempt++) {
         if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
         try {
-          await addSigners({
+          await addSignersRef.current({
             address,
             signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [CLOB_POLICY_ID] }],
           });

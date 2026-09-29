@@ -42,7 +42,7 @@
 // cost is that the browser has to be careful about not creating wallets it does
 // not need — see `chooseWallet`.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth/solana";
 import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
@@ -162,6 +162,16 @@ export function GrantDelegation({
   const t = useT();
   const { refreshUser } = useUser();
   const { addSigners } = useSigners();
+  // THE LATEST `addSigners`, NOT THE ONE THIS CLICK STARTED WITH. Privy's SDK
+  // checks the address against the user object captured when the hook last
+  // rendered — inside `addSessionSignersInternal`, in the browser, before any
+  // request — and throws "address to add signers too is not associated with
+  // current user" when that snapshot predates the wallet. Every retry inside
+  // one click reused that stale function, which is why only a SECOND click (a
+  // later render) ever worked. Refreshing the user re-renders this component;
+  // calling through the ref then reaches the function that sees the wallet.
+  const addSignersRef = useRef(addSigners);
+  addSignersRef.current = addSigners;
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
@@ -240,13 +250,11 @@ export function GrantDelegation({
   /**
    * `addSigners`, patient with the one refusal that is only a matter of time.
    *
-   * WHY THE FIRST PRESS STILL FAILED (2026-09-29). Waiting until the wallet
-   * shows on the CLIENT's user object was not enough: Privy's server resolves
-   * the address on its side, and that can lag the client by a few seconds. The
-   * single immediate retry that used to follow therefore failed the same way,
-   * "address to add signers to is not associated with current user" reached
-   * the screen, and the second press — seconds later — worked. That delay is
-   * what this loop supplies, so the first press is the only one.
+   * WHY THE FIRST PRESS STILL FAILED (2026-09-29). The refusal is raised by
+   * Privy's SDK in the browser, against the user object the hook captured at
+   * its last render (see `addSignersRef`). Retries used to call that same
+   * stale function; they now call the latest one, after `refreshUser` has
+   * caused a render that includes the wallet.
    *
    * Only that refusal is retried. Anything else — the owner closing the
    * wallet prompt, a policy error — surfaces at once. A wallet that turns out
@@ -259,7 +267,7 @@ export function GrantDelegation({
       if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
       try {
         return (
-          await addSigners({
+          await addSignersRef.current({
             address,
             signers: [{ signerId: AGENT_KEY_QUORUM_ID, policyIds: [AGENT_POLICY_ID] }],
           })
