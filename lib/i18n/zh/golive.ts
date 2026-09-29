@@ -58,9 +58,13 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
   gl_row_wallet: "钱包",
   gl_row_scope: "授权范围",
   gl_scope_swaps: "仅限兑换交易",
+  gl_scope_lp: "兑换交易与 Meteora 流动性",
+  gl_scope_perp: "兑换交易与永续合约",
   gl_row_expires: "授权到期",
   gl_deposit_assurance:
     "您可以在此之前或之后存入资金。空钱包不会造成任何损失 — 智能体只会等待，并明确告诉您它在等待，直到 USDC 到账。可以从本页顶部的钱包栏充值。",
+  gl_deposit_assurance_sol:
+    "您可以在此之前或之后存入资金。空钱包不会造成任何损失 — 智能体只会等待，并明确告诉您它在等待，直到 SOL 到账。可以从本页顶部的钱包栏充值。",
   gl_confirm_warning:
     "从下一个周期开始，该智能体将使用真实资金交易 — 即这个钱包里的全部余额 — 并停止模拟盘交易。您随时可以暂停它。它的模拟盘记录不会丢失 — 账本、周期和对话仍可从开关的「模拟盘」一侧查看 — 但智能体本身无法退回模拟盘。",
   gl_settling: "结算中…",

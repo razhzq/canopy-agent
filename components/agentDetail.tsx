@@ -699,6 +699,19 @@ export function AgentDetailView({
       // round trip to the payment provider.
       resumedFromCheckout={resumedCheckout}
       copyLp={strategy?.copy_lp ?? null}
+      // What the grant covers — the backend's own rule (`agentInstrument`):
+      // an LP strategy (class 'lp', a pool plan, or a copy block) gets the
+      // Meteora programs, a universe holding a perp market gets the perp
+      // venues. `lp` arrives on the detail route (s.*) though the type does
+      // not name it.
+      scope={
+        strategy?.strategy_class === "lp" || strategy?.copy_lp || (strategy as { lp?: unknown } | null)?.lp
+          ? "lp"
+          : tradesPerps
+            ? "perp"
+            : "spot"
+      }
+      unit={detail.unit ?? "USD"}
       onChanged={() => void load()}
       onClose={() => {
         setGoingLive(false);

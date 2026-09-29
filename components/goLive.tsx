@@ -82,9 +82,20 @@ export function GoLiveModal({
   openPositions,
   resumedFromCheckout = false,
   copyLp = null,
+  scope = "spot",
+  unit = "USD",
   onChanged,
   onClose,
 }: {
+  /**
+   * What the delegation lets the wallet sign, by the kind of agent: the
+   * backend gives an LP wallet the Meteora programs beside Jupiter, a perp
+   * wallet the perp venues. Said here so the confirmation names what the
+   * owner is actually granting — it read "Swaps only" for every agent.
+   */
+  scope?: "spot" | "lp" | "perp";
+  /** The book's unit: a SOL book is funded in SOL, and the deposit note says so. */
+  unit?: "USD" | "SOL";
   /**
    * The copy block, on a copy LP agent. Lets the confirmation offer a copy %
    * matched to the deposit — only when the wallet is already funded; funding
@@ -160,6 +171,8 @@ export function GoLiveModal({
    * still null — which is exactly the window the user spends on that step.
    */
   const [grantedAddress, setGrantedAddress] = useState<string | null>(null);
+  /** The grant's end, held for the same window — the promote step shows it. */
+  const [grantedExpiresAt, setGrantedExpiresAt] = useState<string | null>(null);
   /**
    * A DISCOUNT CODE. Hidden behind one quiet line until asked for, because
    * most people have none and a code field on a price screen reads as "you
@@ -574,6 +587,7 @@ export function GoLiveModal({
                     onGranted={(result) => {
                       setJustGranted(true);
                       setGrantedAddress(result.address);
+                      setGrantedExpiresAt(result.expiresAt ?? null);
                       onChanged();
                     }}
                   />
@@ -597,11 +611,11 @@ export function GoLiveModal({
                       // figure the delegation does not enforce and the deposit
                       // does not follow. What the grant actually restricts is
                       // the kind of instruction it will sign.
-                      [t("gl_row_scope"), t("gl_scope_swaps")],
+                      [t("gl_row_scope"), t(scope === "lp" ? "gl_scope_lp" : scope === "perp" ? "gl_scope_perp" : "gl_scope_swaps")],
                       [
                         t("gl_row_expires"),
-                        wallet?.expiresAt
-                          ? new Date(wallet.expiresAt).toLocaleDateString(
+                        (wallet?.expiresAt ?? grantedExpiresAt)
+                          ? new Date((wallet?.expiresAt ?? grantedExpiresAt)!).toLocaleDateString(
                               dateLocale(locale),
                               { day: "numeric", month: "short", year: "numeric" },
                             )
@@ -615,7 +629,7 @@ export function GoLiveModal({
                       the balance before the council runs and pauses with the
                       shortfall — so the honest thing is to name it and let the
                       user go live now and deposit when it suits them. */}
-                  <Assurance>{t("gl_deposit_assurance")}</Assurance>
+                  <Assurance>{t(unit === "SOL" ? "gl_deposit_assurance_sol" : "gl_deposit_assurance")}</Assurance>
 
                   {confirming ? (
                     <>

@@ -70,9 +70,13 @@ export const enGoLive = {
   gl_row_wallet: "Wallet",
   gl_row_scope: "Scope",
   gl_scope_swaps: "Swaps only",
+  gl_scope_lp: "Swaps and Meteora liquidity",
+  gl_scope_perp: "Swaps and perpetuals",
   gl_row_expires: "Delegation ends",
   gl_deposit_assurance:
     "You can deposit before or after this. An empty wallet does not lose anything — the agent simply waits, and says it is waiting, until USDC arrives. Deposit from the wallet bar at the top of this page.",
+  gl_deposit_assurance_sol:
+    "You can deposit before or after this. An empty wallet does not lose anything — the agent simply waits, and says it is waiting, until SOL arrives. Deposit from the wallet bar at the top of this page.",
   gl_confirm_warning:
     "From the next tick this agent trades real money — whatever this wallet holds — and it stops trading on paper. You can pause it at any time. Its paper run is not lost — the book, the cycles and the thread stay readable from the Paper half of the switch — but the agent itself does not go back.",
   gl_settling: "Settling…",
