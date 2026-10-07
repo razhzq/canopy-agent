@@ -41,6 +41,7 @@ import { zhPositions } from "./positions";
 import { zhPublish } from "./publish";
 import { zhProfile } from "./profile";
 import { zhEarnings } from "./earnings";
+import { zhResearch } from "./research";
 
 export const zh: Record<TranslationKey, string> = {
   ...zhCommon,
@@ -74,4 +75,5 @@ export const zh: Record<TranslationKey, string> = {
   ...zhPublish,
   ...zhProfile,
   ...zhEarnings,
+  ...zhResearch,
 };
