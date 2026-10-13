@@ -204,18 +204,20 @@ export function WithdrawModal({
   // dialog is pinned to `from`, which the menu resolved as the user's own.
   const wallet = wallets.find((w) => w.address === from);
   /**
-   * ONE ASSET, DECIDED BY THE WALLET, never chosen here.
+   * WHICH ASSET LEAVES.
    *
-   * This used to be a hardcoded "USDC" — correct while every agent held
-   * dollars, and silently wrong the moment copy LP started holding SOL
-   * (CANOPY_127): the dialog would have offered to withdraw a USDC balance of
-   * zero from a wallet holding several SOL.
+   * The owner's own wallet (no `defaultTo`) holds both and chooses: USDC or
+   * native SOL, picked where the unit is read.
    *
-   * NATIVE SOL, not wrapped. An agent's cash and its gas are the same balance
-   * now, which is why the reserve below is held back rather than the asset
-   * being a different one.
+   * An AGENT wallet does not choose — its asset is decided by what it holds as
+   * cash (CANOPY_127). A USD agent's SOL is its gas, not its money, so
+   * offering it here would invite emptying the balance that pays for the
+   * agent's next trade. A copy-LP agent holds SOL as cash and withdraws that.
+   *
+   * NATIVE SOL, not wrapped, either way; the reserve below is held back from it.
    */
-  const asset: Asset = unit === "SOL" ? "SOL" : "USDC";
+  const choosable = !defaultTo;
+  const [asset, setAsset] = useState<Asset>(unit === "SOL" ? "SOL" : "USDC");
   const assetLabel = asset;
   const decimals = decimalsOf(asset);
   const [to, setTo] = useState(defaultTo ?? "");
@@ -250,10 +252,9 @@ export function WithdrawModal({
   /*
    * WHAT MAY LEAVE.
    *
-   * A USDC wallet: all of it. Fees are paid from SOL, which this never
-   * touches.
+   * USDC: all of it. Fees are paid from SOL, which a USDC send never touches.
    *
-   * A SOL wallet: everything ABOVE the reserve. Cash and gas share one balance
+   * SOL: everything ABOVE the reserve. Cash and gas share one balance
    * now, so sweeping it to zero would leave the wallet unable to pay the fee
    * on its own next transaction — including the close that gets the rest out.
    * The same carve-out the backend makes when it reports `cash`.
@@ -470,6 +471,31 @@ export function WithdrawModal({
               onChange={setAmount}
               unit={assetLabel}
               label={t("withdraw_amount_aria", { asset: assetLabel })}
+              unitControl={
+                choosable ? (
+                  // Same quiet native select as the deposit form's: two
+                  // options do not warrant a menu of our own. Switching clears
+                  // the amount — "5" means something very different in each.
+                  <select
+                    value={asset}
+                    onChange={(e) => {
+                      setAsset(e.target.value as Asset);
+                      setAmount("");
+                    }}
+                    aria-label={t("withdraw_asset_aria")}
+                    className="ml-2 h-7 shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-transparent pr-6 pl-2.5 font-ui text-[12px] font-medium text-text-primary outline-none transition-colors hover:border-grid-strong focus-visible:border-grid-strong"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%238A948E' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 8px center",
+                    }}
+                  >
+                    <option value="USDC" className="bg-bg">USDC</option>
+                    <option value="SOL" className="bg-bg">SOL</option>
+                  </select>
+                ) : null
+              }
               onMax={
                 sendable !== null && sendable > 0
                   ? () => setAmount(formatAmountInput(sendable, decimals))

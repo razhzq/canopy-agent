@@ -60,6 +60,7 @@ export const enWallet = {
   withdraw_back_to_your_wallet: "Back to your wallet",
   withdraw_view_transaction: "View transaction",
   withdraw_available: "{asset} available",
+  withdraw_asset_aria: "Token to withdraw",
   withdraw_amount_aria: "Amount in {asset}",
   withdraw_above_zero: "Enter an amount above zero.",
   withdraw_over_sendable_sol:

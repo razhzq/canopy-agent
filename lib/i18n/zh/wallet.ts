@@ -53,6 +53,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_back_to_your_wallet: "转回您的钱包",
   withdraw_view_transaction: "查看交易",
   withdraw_available: "可用 {asset}",
+  withdraw_asset_aria: "提取的代币",
   withdraw_amount_aria: "{asset} 金额",
   withdraw_above_zero: "请输入大于零的金额。",
   withdraw_over_sendable_sol:
