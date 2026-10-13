@@ -21,6 +21,7 @@ import {
   type PersonalInvite,
   getCreatorEarnings,
   requestCreatorClaim,
+  getTenantAdminMe,
 } from "@/lib/api";
 import { usd } from "@/lib/format";
 import { LanguageSwitcher } from "@/components/languageSwitcher";
@@ -372,6 +373,20 @@ function AccountMenu() {
   const tenant = useTenant();
   const { ready, authenticated, user, login, logout, getAccessToken } =
     usePrivy();
+  // Whether this user administers this tenant (canopy-be tenant_admins). Only
+  // asked on a tenant's app: Canopy is managed from its own admin portal.
+  const [tenantAdmin, setTenantAdmin] = useState(false);
+  useEffect(() => {
+    if (!authenticated || tenant.isPlatform) return;
+    let cancelled = false;
+    void getAccessToken()
+      .then((token) => (token ? getTenantAdminMe(token) : null))
+      .then((me) => !cancelled && setTenantAdmin(me !== null))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, tenant.isPlatform, getAccessToken]);
   const { refreshUser } = useUser();
   const { createWallet } = useCreateWallet();
   // Creating a main wallet, when the account has none left. Every embedded
@@ -1147,6 +1162,15 @@ function AccountMenu() {
               active={isActive(pathname, ["/earnings"])}
               onNavigate={() => close(false)}
             />
+            ) : null}
+            {tenantAdmin ? (
+              <MenuRow
+                href="/admin"
+                icon={<SettingsIcon className="size-3.5" />}
+                label={`Manage ${tenant.name}`}
+                active={isActive(pathname, ["/admin"])}
+                onNavigate={() => close(false)}
+              />
             ) : null}
             <MenuRow
               href="/settings"

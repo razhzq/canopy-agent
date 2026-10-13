@@ -4526,3 +4526,138 @@ export interface LeaderPreview {
 /** A wallet read as a Copy LP leader: its DLMM positions and capital, from the chain. */
 export const getLeaderPreview = (token: string, address: string) =>
   request<LeaderPreview>(`/agents/copy-lp/leader/${encodeURIComponent(address)}`, token);
+
+/* ---------------------------------------------------------- tenant admin -- */
+
+/**
+ * A tenant's own admins managing their own app (canopy-be routes/tenantAdmin.ts).
+ * The tenant is whichever one the caller's token belongs to; nothing here
+ * names it.
+ */
+export interface TenantAdminSettings {
+  slug: string;
+  name: string;
+  hostingMode: "hosted" | "external";
+  customDomain: string | null;
+  allowedInstruments: ("spot" | "perp" | "lp")[];
+  accentColor: string | null;
+  logoUrl: string | null;
+  logoInkUrl: string | null;
+  markUrl: string | null;
+  faviconUrl: string | null;
+  loginMethods: ("email" | "wallet" | "google" | "twitter" | "discord")[];
+  gaMeasurementId: string | null;
+  features: { atlas: boolean; earnings: boolean };
+  userCount: number;
+  agentCount: number;
+}
+
+export type TenantAdminRole = "owner" | "admin";
+
+export interface TenantAdminEntry {
+  userId: number | null;
+  email: string | null;
+  username: string | null;
+  role: TenantAdminRole;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface TenantAdminUser {
+  id: number;
+  email: string | null;
+  username: string | null;
+  wallet_address: string | null;
+  created_at: string;
+  agents: number;
+  live_agents: number;
+}
+
+export interface TenantAdminAgent {
+  id: number;
+  name: string;
+  status: string;
+  is_paper: boolean;
+  capital_usd: string;
+  unit: string | null;
+  capital_sol: string | null;
+  created_at: string;
+  owner_email: string | null;
+  owner_username: string | null;
+  strategy_name: string | null;
+}
+
+export interface TenantAdminStrategy {
+  id: number;
+  name: string;
+  status: "published" | "delisted";
+  published_at: string | null;
+  author_email: string | null;
+  author_username: string | null;
+  agents: number;
+}
+
+export type TenantAssetKind = "logo" | "logo-ink" | "mark" | "favicon";
+
+/** The caller's admin role in this tenant, or null when they are not one. */
+export const getTenantAdminMe = async (
+  token: string,
+): Promise<{ role: TenantAdminRole; tenant: TenantAdminSettings } | null> => {
+  try {
+    return await request<{ role: TenantAdminRole; tenant: TenantAdminSettings }>("/tenant-admin/me", token);
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) return null;
+    throw err;
+  }
+};
+
+export const updateTenantSettings = (
+  token: string,
+  patch: Partial<Omit<TenantAdminSettings, "features">> & { features?: Partial<TenantAdminSettings["features"]> },
+) =>
+  request<{ tenant: TenantAdminSettings }>("/tenant-admin/settings", token, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+
+/** Uploads straight to the bucket with a presigned PUT; returns the public URL to save. */
+export async function uploadTenantAsset(token: string, kind: TenantAssetKind, file: File): Promise<string> {
+  const signed = await request<{ uploadUrl: string; publicUrl: string; headers: Record<string, string> }>(
+    "/tenant-admin/asset-upload-url",
+    token,
+    { method: "POST", body: JSON.stringify({ kind, contentType: file.type, contentLength: file.size }) },
+  );
+  const put = await fetch(signed.uploadUrl, { method: "PUT", headers: signed.headers, body: file });
+  if (!put.ok) throw new Error(`upload failed (HTTP ${put.status})`);
+  return signed.publicUrl;
+}
+
+export const getTenantUsers = (token: string, q = "", offset = 0) =>
+  request<{ total: number; users: TenantAdminUser[] }>(
+    `/tenant-admin/users?q=${encodeURIComponent(q)}&offset=${offset}`,
+    token,
+  );
+
+export const getTenantAgents = (token: string, offset = 0) =>
+  request<{ total: number; agents: TenantAdminAgent[] }>(`/tenant-admin/agents?offset=${offset}`, token);
+
+export const getTenantStrategies = (token: string, offset = 0) =>
+  request<{ total: number; strategies: TenantAdminStrategy[] }>(`/tenant-admin/strategies?offset=${offset}`, token);
+
+export const delistTenantStrategy = (token: string, id: number) =>
+  request<{ delisted: boolean }>(`/tenant-admin/strategies/${id}/delist`, token, { method: "POST" });
+
+export const getTenantAdmins = (token: string) =>
+  request<{ admins: TenantAdminEntry[] }>("/tenant-admin/admins", token);
+
+export const addTenantAdmin = (token: string, email: string, role: TenantAdminRole) =>
+  request<{ admins: TenantAdminEntry[] }>("/tenant-admin/admins", token, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+
+export const removeTenantAdmin = (token: string, who: { userId?: number; email?: string }) =>
+  request<{ admins: TenantAdminEntry[] }>("/tenant-admin/admins", token, {
+    method: "DELETE",
+    body: JSON.stringify(who),
+  });
