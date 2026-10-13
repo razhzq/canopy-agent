@@ -1,6 +1,6 @@
 
 export const enLanding = {
-  page_title_landing: "Canopy — agents that trade your strategy",
+  page_title_landing: "{brand} — agents that trade your strategy",
   page_desc_landing:
     "Deploy a strategy as your own agent. You keep custody. You set every limit.",
 
@@ -62,7 +62,7 @@ export const enLanding = {
   lp_ways_h2: "Or fork one from the marketplace.",
   lp_ways_prompt_t: "Enter a prompt",
   lp_ways_prompt_p:
-    "Describe any onchain task — from a dip buy to a perps hedge. Canopy proposes an agent workflow you can edit with follow-up prompts.",
+    "Describe any onchain task — from a dip buy to a perps hedge. {brand} proposes an agent workflow you can edit with follow-up prompts.",
   lp_ways_fork_t: "Fork an agent",
   lp_ways_fork_p:
     "Browse a marketplace of live agents across DeFi, memes, LPs and perps. Fork any agent, set your own limits, then run it from your own wallet.",
@@ -96,7 +96,7 @@ export const enLanding = {
   lp_get_c1_p: "Real markets, no closing bell. Tokenized stocks, gold and the Solana spot market, around the clock.",
   lp_get_c1_fig: "24/7",
   lp_get_c2_t: "Your keys",
-  lp_get_c2_p: "Non-custodial. Canopy never holds your funds. Every trade is signed from your own wallet.",
+  lp_get_c2_p: "Non-custodial. {brand} never holds your funds. Every trade is signed from your own wallet.",
   lp_get_c3_t: "Public record, private strategy",
   lp_get_c3_p: "Every agent publishes a live track record. The rules behind it never leave the owner.",
   lp_get_c4_t: "Best execution",
@@ -107,14 +107,14 @@ export const enLanding = {
   lp_mind_eyebrow: "The mind behind the agent",
   lp_mind_h1: "Pick the model it thinks with.",
   lp_mind_h2: "Run ours for free. Or bring any.",
-  lp_mind_host_t: "Canopy-hosted",
+  lp_mind_host_t: "{brand}-hosted",
   lp_mind_host_p:
-    "cQWEN3 runs on Canopy's own inference. Nothing to fund, nothing to meter, and your prompts never leave Canopy.",
+    "cQWEN3 runs on {brand}'s own inference. Nothing to fund, nothing to meter, and your prompts never leave {brand}.",
   lp_mind_byo_t: "Bring your own",
   lp_mind_byo_p:
     "Pin your agent to any of 500+ models. Each call routes to the cheapest provider, paid in USDC by the agent, never above the ceiling you set.",
   lp_mind_included: "Included",
-  lp_mind_host_sub: "Qwen3-14B · Canopy inference",
+  lp_mind_host_sub: "Qwen3-14B · {brand} inference",
   lp_mind_per_m: "/ M tokens",
   lp_mind_ceiling: "Your ceiling",
   lp_mind_more: "+500 more",
@@ -128,7 +128,7 @@ export const enLanding = {
   lp_build_s1_p: "Pick one market or several. Tokenized stocks, gold, or hundreds of Solana tokens.",
   lp_build_s2_t: "Route",
   lp_build_s2_p: "Let Auto shop every venue per trade, or pin it to one DEX.",
-  lp_build_s2_chip: "Auto · Canopy + Jupiter",
+  lp_build_s2_chip: "Auto · {brand} + Jupiter",
   lp_build_s3_t: "Paper test",
   lp_build_s3_p: "Your exact rules against live prices. No money down, no clock, no limit.",
   lp_build_s3_chip: "Free · unlimited",
@@ -177,11 +177,11 @@ export const enLanding = {
   lp_end_cta: "Get started",
   lp_end_browse: "Browse the marketplace",
   lp_foot_fine:
-    "Canopy is non-custodial trading infrastructure for tokenized real-world assets and Solana spot markets. Agents execute against live venues routed for best price. Strategy performance shown is illustrative. Trading tokenized assets involves risk. Paper test before you go live.",
-  lp_foot_rights: "© {year} Canopy",
+    "{brand} is non-custodial trading infrastructure for tokenized real-world assets and Solana spot markets. Agents execute against live venues routed for best price. Strategy performance shown is illustrative. Trading tokenized assets involves risk. Paper test before you go live.",
+  lp_foot_rights: "© {year} {brand}",
   // ── Fresh landing — anywhere ──────────────────────────────────
-  lp_any_eyebrow: "Canopy on the go",
-  lp_any_h1: "Everything Canopy.",
+  lp_any_eyebrow: "{brand} on the go",
+  lp_any_h1: "Everything {brand}.",
   lp_any_h2: "Anywhere.",
   lp_any_lede: "Your agents, your positions and the 24/7 market, right in your browser, wherever you are.",
   lp_any_1_t: "Trade instantly",

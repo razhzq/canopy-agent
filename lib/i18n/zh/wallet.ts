@@ -66,20 +66,20 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
   withdraw_to: "收款方",
   withdraw_rent_warning:
     "该地址还没有 USDC 账户，系统会为它开一个。这需要您额外支付约 0.002 SOL 的租金，另计网络手续费。",
-  withdraw_rent_covered: "该地址还没有 USDC 账户，系统会为它开一个。租金和网络手续费由 Canopy 承担。",
-  withdraw_fee_covered: "网络手续费由 Canopy 承担。",
+  withdraw_rent_covered: "该地址还没有 USDC 账户，系统会为它开一个。租金和网络手续费由 {brand} 承担。",
+  withdraw_fee_covered: "网络手续费由 {brand} 承担。",
   withdraw_final:
     "转账不可逆。一旦提交，就无法撤销；地址填错的话资金也无法找回。",
   withdraw_send: "发送",
   withdraw_sending_busy: "发送中…",
 
   funding_no_wallet_title: "尚未创建钱包",
-  funding_fallback_reading: "Canopy 无法读取该余额，正在直接查询链上…",
+  funding_fallback_reading: "{brand} 无法读取该余额，正在直接查询链上…",
   funding_read_failed: "无法读取该钱包的余额。",
   funding_both_failed: "{backend}。直接查询链上也失败了：{chain}",
   funding_direct_title: "直接从链上读取",
   funding_direct_body:
-    "Canopy 无法连接它的 RPC 节点，因此该数字来自您的浏览器。它是从链上读取的真实余额。",
+    "{brand} 无法连接它的 RPC 节点，因此该数字来自您的浏览器。它是从链上读取的真实余额。",
   funding_usdc_available: "可用于交易",
   funding_usdc_none: "没有 — 请转入 USDC",
   funding_sol_covers: "足够支付手续费",
@@ -95,7 +95,7 @@ export const zhWallet: Record<keyof typeof enWallet, string> = {
     "请转入 Solana 链上的 USDC — 智能体以它计价交易，且无法把其他资产转换成它。",
   funding_send_sol:
     "另外请至少转入 {min} SOL。没有它，即使持有 USDC，钱包也无法支付交易手续费。",
-  funding_fees_covered: "交易手续费由 Canopy 承担 — 该钱包不需要 SOL。",
+  funding_fees_covered: "交易手续费由 {brand} 承担 — 该钱包不需要 SOL。",
   funding_check_balance: "查询余额",
   funding_wallet_balance: "钱包余额",
   funding_ready: "可以开始交易",

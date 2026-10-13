@@ -483,7 +483,7 @@ export function AmountInput({
 }) {
   return (
     <div
-      className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]`}
+      className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-accent)_10%,transparent)]`}
     >
       <input
         value={value}

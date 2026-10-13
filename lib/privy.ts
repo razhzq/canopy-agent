@@ -15,8 +15,12 @@
 
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { DEFAULT_ACCENT, type TenantConfig } from "./tenant/config";
 
-export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
+// THE APP ID, QUORUM AND POLICIES ARE PER TENANT (canopy-be CANOPY_143).
+// One deployment serves every hosted tenant, each on its own Privy app, so
+// none of them can be a build-time constant any more. They arrive with the
+// tenant (`useTenant().privy`), and the notes below describe what each is.
 
 /**
  * The signer a user grants their agent, and the policy that constrains it.
@@ -31,9 +35,7 @@ export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
  * Privy which signer is actually on the wallet and refuses anything it does not
  * recognise. A confusing error beats a silent custodial fallback.
  */
-export const AGENT_KEY_QUORUM_ID =
-  process.env.NEXT_PUBLIC_PRIVY_AGENT_KEY_QUORUM_ID || "";
-export const AGENT_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_AGENT_POLICY_ID || "";
+// → tenant.privy.agentKeyQuorumId, tenant.privy.agentPolicyId
 
 /**
  * The policy for the CLOB signer — the user's EVM wallet, delegated once so
@@ -51,7 +53,7 @@ export const AGENT_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_AGENT_POLICY_ID || 
  * is the honest failure. Silently attaching the wrong policy would produce a
  * signer that looks constrained and is not.
  */
-export const CLOB_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_CLOB_POLICY_ID || "";
+// → tenant.privy.clobPolicyId (null unless the tenant has the CLOB feature)
 
 // Live trading is NOT switched here.
 //
@@ -66,7 +68,9 @@ export const CLOB_POLICY_ID = process.env.NEXT_PUBLIC_PRIVY_CLOB_POLICY_ID || ""
 // renders from that, treating an absent field as false.
 
 
-export const privyConfig: PrivyClientConfig = {
+/** The Privy configuration for one tenant: its login methods, colour and logo. */
+export function privyConfigFor(tenant: TenantConfig): PrivyClientConfig {
+  return {
   /**
    * Email, and now a wallet.
    *
@@ -86,16 +90,19 @@ export const privyConfig: PrivyClientConfig = {
    * they always have; a creator coming to claim is the rarer case and one
    * extra click on the modal is the right side of that trade.
    */
-  loginMethods: ["email", "wallet"],
+  loginMethods: tenant.privy.loginMethods,
   appearance: {
     theme: "dark",
-    // canopy-fe uses #5ED3B3; the agent stack's own accent is #3ddc91, lifted
-    // from the .pen. The modal should look like the product it opens over.
-    accentColor: "#3ddc91",
+    // The modal should look like the product it opens over. Canopy keeps the
+    // agent stack's own #3ddc91 (lifted from the .pen); a tenant brings its own.
+    accentColor: (tenant.isPlatform ? "#3ddc91" : tenant.brand.accentColor || DEFAULT_ACCENT) as `#${string}`,
+    ...(tenant.brand.logoUrl ? { logo: tenant.brand.logoUrl } : {}),
     showWalletLoginFirst: false,
   },
   embeddedWallets: {
-    ethereum: { createOnLogin: "users-without-wallets" },
+    // Ethereum only where the KalqiX order book is offered: an EVM wallet is
+    // that venue's signer and has no other use here.
+    ethereum: { createOnLogin: tenant.features.clob ? "users-without-wallets" : "off" },
     // Solana for every user: the agent stack is Solana-first, and the agent
     // wallet is provisioned against the same identity.
     //
@@ -153,4 +160,5 @@ export const privyConfig: PrivyClientConfig = {
   externalWallets: {
     solana: { connectors: toSolanaWalletConnectors({ shouldAutoConnect: false }) },
   },
-};
+  };
+}

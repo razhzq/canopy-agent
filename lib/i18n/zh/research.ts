@@ -1,7 +1,7 @@
 import type { enResearch } from "../en/research";
 
 export const zhResearch: Record<keyof typeof enResearch, string> = {
-  rs_page_title: "Canopy — 执行足迹",
+  rs_page_title: "{brand} — 执行足迹",
   rs_page_desc: "基金如何在 Solana 上买入 50 万美元的代币，既不推高价格，也不暴露意图。",
   rs_nav_chip: "执行研究",
 
@@ -20,9 +20,9 @@ export const zhResearch: Record<keyof typeof enResearch, string> = {
   rs_playing: "播放中",
   rs_replay: "重播",
   rs_note_market:
-    "其他交易者看到的样子：没有任何标注。大单和一排 2.5 万美元的交易依然显眼，Canopy 的交易则淹没在人群中。",
+    "其他交易者看到的样子：没有任何标注。大单和一排 2.5 万美元的交易依然显眼，{brand} 的交易则淹没在人群中。",
   rs_note_analyst:
-    "链上分析师按钱包归类交易时看到的样子。普通执行是一个钱包完成所有交易；Canopy 看起来像 15 个互不相关的小交易者，各有自己的金额和节奏。",
+    "链上分析师按钱包归类交易时看到的样子。普通执行是一个钱包完成所有交易；{brand} 看起来像 15 个互不相关的小交易者，各有自己的金额和节奏。",
   rs_note_mm:
     "某个做市商池的运营方从自己成交中按钱包看到的流量。一个钱包承担全部流量，很快越过上限并被标记；15 个小钱包都在上限以下。60% 的占比和 4 万美元上限均为假设。",
 
@@ -31,7 +31,7 @@ export const zhResearch: Record<keyof typeof enResearch, string> = {
   rs_lane_big_sub: "50 万美元一笔兑换完成，来自同一个钱包",
   rs_lane_diy: "自己拆单",
   rs_lane_diy_sub: "20 笔 × 2.5 万美元，约每 2 分钟一笔，来自同一个钱包",
-  rs_lane_canopy: "Canopy",
+  rs_lane_canopy: "{brand}",
   rs_lane_canopy_sub: "每笔金额与普通交易者相当，不超过成交量的 10%，分布在 15 个钱包",
   rs_status_waiting: "等待中",
   rs_status_noticed: "被注意到 ×{n}",
@@ -55,14 +55,14 @@ export const zhResearch: Record<keyof typeof enResearch, string> = {
   rs_canvas_label: "{name}：成交价格与交易金额随时间变化",
 
   rs_verdict_big:
-    "在这笔 {order} 的订单上，Canopy 比一次性大单少花约 {saved}，而且没有任何一笔交易显眼。代价是时间：约 {hours} 小时，而不是几秒钟。",
+    "在这笔 {order} 的订单上，{brand} 比一次性大单少花约 {saved}，而且没有任何一笔交易显眼。代价是时间：约 {hours} 小时，而不是几秒钟。",
   rs_verdict_diy:
-    "在这笔 {order} 的订单上，Canopy 比自己拆单少花约 {saved}，而且没有任何一笔交易显眼。代价是时间：约 {hours} 小时，而不是 {minutes} 分钟。",
+    "在这笔 {order} 的订单上，{brand} 比自己拆单少花约 {saved}，而且没有任何一笔交易显眼。代价是时间：约 {hours} 小时，而不是 {minutes} 分钟。",
   rs_verdict_playing: "播放中。",
 
   rs_legend_other: "其他交易者，真实 JUP 交易金额分布",
   rs_legend_naive: "基金，普通执行",
-  rs_legend_canopy: "基金，Canopy",
+  rs_legend_canopy: "基金，{brand}",
   rs_legend_noticed: "大到会被注意",
   rs_legend_p99: "99% 的 JUP 交易小于此线",
 
@@ -74,7 +74,7 @@ export const zhResearch: Record<keyof typeof enResearch, string> = {
   rs_flow_custodian: "基金托管方",
   rs_flow_custodian_sub: "保管所有私钥",
   rs_flow_manager: "钱包池管理器",
-  rs_flow_manager_sub: "Canopy 后端，不在链上",
+  rs_flow_manager_sub: "{brand} 后端，不在链上",
   rs_flow_wallets: "15 个钱包",
   rs_flow_wallets_sub: "普通 Solana 账户",
   rs_flow_jupiter: "Jupiter",
@@ -98,14 +98,14 @@ export const zhResearch: Record<keyof typeof enResearch, string> = {
   rs_job_record_body: "每个钱包、每笔交易都有记录，供基金合规团队、托管方和审计方查阅。",
   rs_pool_note_title: "不是 Solana 程序。",
   rs_pool_note:
-    "如果每个钱包都调用同一个 Canopy 程序，任何人一次查询就能列出全部钱包。所以管理器运行在 Canopy 后端，链上的钱包只接收资金并通过 Jupiter 交易。钱包仍可能通过注资来源被关联，因此目标是延迟被发现，而不是完全隐形。",
+    "如果每个钱包都调用同一个 {brand} 程序，任何人一次查询就能列出全部钱包。所以管理器运行在 {brand} 后端，链上的钱包只接收资金并通过 Jupiter 交易。钱包仍可能通过注资来源被关联，因此目标是延迟被发现，而不是完全隐形。",
 
   // ── 交易在哪里发生 ────────────────────────────────────────────
   rs_venue_eyebrow: "交易在哪里发生",
   rs_venue_h1: "有两类人能看到你的交易。",
   rs_venue_h2: "区块链上的所有人，以及为你成交的那家公司。",
   rs_venue_lede:
-    "Jupiter 会把每笔交易拆分到不同的交易场所。有些是任何人都能看到的公开池子，有些由一家交易公司运营，它能准确看到是哪个钱包在买。Canopy 让基金在两者中的买入都保持小额且分散。",
+    "Jupiter 会把每笔交易拆分到不同的交易场所。有些是任何人都能看到的公开池子，有些由一家交易公司运营，它能准确看到是哪个钱包在买。{brand} 让基金在两者中的买入都保持小额且分散。",
   rs_venue_public: "公开池子",
   rs_venue_public_body: "Raydium、Orca、Meteora。任何人都可以向池子注资。大额买入后，价格需要一段时间才能回落。",
   rs_venue_mm: "做市商池子",

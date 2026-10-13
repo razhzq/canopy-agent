@@ -25,6 +25,7 @@ import {
 import { usd } from "@/lib/format";
 import { LanguageSwitcher } from "@/components/languageSwitcher";
 import { Wordmark } from "@/components/brand";
+import { useTenant } from "@/lib/tenant/context";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 const NAV = [
@@ -68,6 +69,8 @@ const NAV = [
     key: "nav_atlas" as TranslationKey,
     href: "/atlas",
     match: ["/atlas"],
+    // Shown only where the tenant offers Atlas (CANOPY_143).
+    feature: "atlas" as const,
   },
   // Activity is NOT in the desktop bar. The route still exists and still
   // resolves — the mobile tab bar links to it, and so does anything else
@@ -366,6 +369,7 @@ function MenuRow({
 /* ------------------------------------------------------------- dropdown -- */
 
 function AccountMenu() {
+  const tenant = useTenant();
   const { ready, authenticated, user, login, logout, getAccessToken } =
     usePrivy();
   const { refreshUser } = useUser();
@@ -1135,6 +1139,7 @@ function AccountMenu() {
                 gated on having a balance: the whole point is that most people
                 who are owed something do not know it yet, and a row that only
                 appears once you already know to look for it would be useless. */}
+            {tenant.features.earnings ? (
             <MenuRow
               href="/earnings"
               icon={<SettingsIcon className="size-3.5" />}
@@ -1142,6 +1147,7 @@ function AccountMenu() {
               active={isActive(pathname, ["/earnings"])}
               onNavigate={() => close(false)}
             />
+            ) : null}
             <MenuRow
               href="/settings"
               icon={<SettingsIcon className="size-3.5" />}
@@ -1385,6 +1391,7 @@ function useScrolled(): boolean {
 }
 
 export function TopNav() {
+  const tenant = useTenant();
   const pathname = usePathname() ?? "";
   const t = useT();
   const scrolled = useScrolled();
@@ -1436,7 +1443,7 @@ export function TopNav() {
             aria-label={t("nav_primary_aria")}
             className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex"
           >
-            {NAV.map((item) => {
+            {NAV.filter((item) => !("feature" in item && item.feature) || tenant.features[item.feature]).map((item) => {
               const active = isActive(pathname, item.match);
               return (
                 <Link

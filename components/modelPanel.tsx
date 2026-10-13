@@ -47,6 +47,7 @@ import {
   TxLink,
 } from "@/components/kit";
 import { ModelBadge } from "@/components/modelBadge";
+import { useTenant } from "@/lib/tenant/context";
 
 /**
  * What an agent reasons with, what that is costing, and how to pay for it.
@@ -89,6 +90,7 @@ export function ModelPanel({
   onChanged?: () => void;
   onClose: () => void;
 }) {
+  const tenant = useTenant();
   const { getAccessToken } = usePrivy();
   const state = useApi((t) => getAgentModel(t, agentId), [agentId]);
   const [topUp, setTopUp] = useState(false);
@@ -121,7 +123,7 @@ export function ModelPanel({
               />
               <span className="font-ui text-[12.5px] text-text-dim">
                 {model.provider === "canopy"
-                  ? "Hosted by Canopy · included in your plan"
+                  ? `Hosted by ${tenant.name} · included in your plan`
                   : "Bought through Pod · prepaid in USDC"}
               </span>
             </div>
@@ -198,7 +200,7 @@ export function ModelPanel({
               </Callout>
             ) : model.provider === "canopy" ? (
               <Callout tone="info" icon={<InfoIcon />} title="Nothing to fund">
-                Canopy hosts this model and absorbs the cost. There is no
+                {tenant.name} hosts this model and absorbs the cost. There is no
                 balance to run out of.
               </Callout>
             ) : null}
@@ -400,6 +402,7 @@ export function ModelTopUpForm({
   onDone: (next: AgentModel) => void;
   initialAmountUsd?: number;
 }) {
+  const tenant = useTenant();
   /**
    * READS ITS OWN MODEL rather than being handed one.
    *
@@ -671,7 +674,7 @@ export function ModelTopUpForm({
             cannot be withdrawn.
           </FieldNote>
           {gas.enabled ? (
-            <StatusLine tone="good">Network fee covered by Canopy.</StatusLine>
+            <StatusLine tone="good">Network fee covered by {tenant.name}.</StatusLine>
           ) : null}
 
           <button

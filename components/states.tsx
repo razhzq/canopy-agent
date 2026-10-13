@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { InfoIcon, WarnIcon } from "./ui";
 import { useT } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 /**
  * The states a live screen can be in, minus loading.
@@ -31,6 +32,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 export function SignedOutState({ note }: { note?: string }) {
+  const tenant = useTenant();
   const { login, ready } = usePrivy();
   const t = useT();
   return (
@@ -41,7 +43,7 @@ export function SignedOutState({ note }: { note?: string }) {
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
         {/* A caller-supplied note wins: it names the specific thing behind
             the wall, and it arrives already translated by whoever passed it. */}
-        {note ?? t("state_signed_out_body")}
+        {note ?? t(tenant.isPlatform ? "state_signed_out_body" : "state_signed_out_body_tenant")}
       </p>
       <button
         type="button"

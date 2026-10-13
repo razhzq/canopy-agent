@@ -3,7 +3,8 @@ import type { enCommon } from "../en/common";
 export const zhCommon: Record<keyof typeof enCommon, string> = {
   state_signed_out_title: "请先登录",
   state_signed_out_body:
-    "您的智能体绑定在 Canopy 账户上。此处登录与交易所使用同一套账号。",
+    "您的智能体绑定在 {brand} 账户上。此处登录与交易所使用同一套账号。",
+  state_signed_out_body_tenant: "您的智能体绑定在 {brand} 账户上。",
   state_sign_in: "登录",
   state_error_title: "加载失败",
   state_try_again: "重试",

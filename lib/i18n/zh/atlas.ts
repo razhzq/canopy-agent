@@ -11,18 +11,18 @@ export const zhAtlas: Record<keyof typeof enAtlas, string> = {
   atlas_period_12m: "12个月",
   atlas_period_24m: "24个月",
 
-  atlas_kpi_canopy: "Canopy LP",
+  atlas_kpi_canopy: "{brand} LP",
   atlas_kpi_median: "基金中位数",
-  atlas_kpi_ahead: "Canopy 领先",
+  atlas_kpi_ahead: "{brand} 领先",
   atlas_kpi_aum: "披露管理规模",
   atlas_kpi_firms: "机构数",
 
   atlas_chart_title: "变化",
-  atlas_chart_meta: "% · 基金：管理规模 · Canopy：净收益",
+  atlas_chart_meta: "% · 基金：管理规模 · {brand}：净收益",
   atlas_chart_empty: "当前视图中没有机构披露该周期的变化。",
   atlas_days_live: "运行 {days} 天",
 
-  atlas_lp_title: "Canopy LP",
+  atlas_lp_title: "{brand} LP",
   atlas_lp_live: "运行中",
   atlas_lp_since: "自 {date}",
   atlas_lp_in_sol: "以 SOL 计 {pct}",
@@ -42,7 +42,7 @@ export const zhAtlas: Record<keyof typeof enAtlas, string> = {
   atlas_col_type: "类型",
   atlas_col_hq: "总部",
   atlas_col_aum: "管理规模",
-  atlas_col_vs: "对比 Canopy",
+  atlas_col_vs: "对比 {brand}",
   atlas_onchain: "链上",
   atlas_no_match: "没有匹配的机构。",
   atlas_page_count: "第 {from}–{to} 条，共 {total} 条",
@@ -51,5 +51,5 @@ export const zhAtlas: Record<keyof typeof enAtlas, string> = {
 
   atlas_by_type: "按类型的管理规模",
   atlas_founded: "成立年份",
-  atlas_source: "Crypto Fund Research，{edition} · Canopy（Solana 链上）",
+  atlas_source: "Crypto Fund Research，{edition} · {brand}（Solana 链上）",
 };

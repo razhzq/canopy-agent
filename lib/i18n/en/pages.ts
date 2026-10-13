@@ -5,19 +5,19 @@
 
 export const enPages = {
   // The document title every route inherits unless it sets its own.
-  page_title_root: "Canopy Agent Stack",
+  page_title_root: "{brand} Agent Stack",
   page_desc_root:
     "Deploy a strategy as your own agent. You keep custody. You set every limit.",
 
-  page_title_settings: "Settings · Canopy",
-  page_title_earnings: "Creator earnings · Canopy",
-  page_title_wallet_audit: "Wallet audit · Canopy",
-  page_title_activity: "Activity · Canopy",
-  page_title_portfolio: "Portfolio · Canopy",
-  page_title_notifications: "Notifications · Canopy",
-  page_title_agents: "Agents · Canopy",
-  page_title_atlas: "Atlas · Canopy",
-  page_title_workspace: "My agents · Canopy",
+  page_title_settings: "Settings · {brand}",
+  page_title_earnings: "Creator earnings · {brand}",
+  page_title_wallet_audit: "Wallet audit · {brand}",
+  page_title_activity: "Activity · {brand}",
+  page_title_portfolio: "Portfolio · {brand}",
+  page_title_notifications: "Notifications · {brand}",
+  page_title_agents: "Agents · {brand}",
+  page_title_atlas: "Atlas · {brand}",
+  page_title_workspace: "My agents · {brand}",
 
   // ── Section eyebrows ───────────────────────────────────────────
   page_eyebrow_portfolio: "Portfolio",
@@ -25,7 +25,7 @@ export const enPages = {
 
   // ── Settings ───────────────────────────────────────────────────
   settings_title: "Settings",
-  settings_body: "Your agents, and how Canopy reaches you.",
+  settings_body: "Your agents, and how {brand} reaches you.",
 
   // ── Activity ───────────────────────────────────────────────────
   activity_page_title: "Activity",

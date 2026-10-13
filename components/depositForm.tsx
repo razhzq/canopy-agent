@@ -53,6 +53,7 @@ import {
   type Asset,
   type TransferPlan,
 } from "@/lib/transfer";
+import { useTenant } from "@/lib/tenant/context";
 
 
 
@@ -85,6 +86,7 @@ export function DepositForm({
   onDone: () => void;
   unit?: "USD" | "SOL";
 }) {
+  const tenant = useTenant();
   const solFunded = unit === "SOL";
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets } = useWallets();
@@ -248,8 +250,8 @@ export function DepositForm({
         {plan?.sponsored ? (
           <StatusLine tone="good">
             {plan.createsRecipientAccount
-              ? "This wallet has never held USDC, so this transfer also opens its account. Canopy covers the rent and the network fee."
-              : "Network fee covered by Canopy."}
+              ? `This wallet has never held USDC, so this transfer also opens its account. ${tenant.name} covers the rent and the network fee.`
+              : `Network fee covered by ${tenant.name}.`}
           </StatusLine>
         ) : plan?.createsRecipientAccount ? (
           <FieldNote tone="warn">

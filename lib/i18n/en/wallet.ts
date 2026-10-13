@@ -75,8 +75,8 @@ export const enWallet = {
   withdraw_rent_warning:
     "This address holds no USDC account yet, so one is opened for it. That costs you about 0.002 SOL in rent, on top of the network fee.",
   withdraw_rent_covered:
-    "This address holds no USDC account yet, so one is opened for it. Canopy covers the rent and the network fee.",
-  withdraw_fee_covered: "Network fee covered by Canopy.",
+    "This address holds no USDC account yet, so one is opened for it. {brand} covers the rent and the network fee.",
+  withdraw_fee_covered: "Network fee covered by {brand}.",
   withdraw_final:
     "Transfers are final. Once submitted there is no way to reverse this or recover the funds if the address is wrong.",
   withdraw_send: "Send",
@@ -85,7 +85,7 @@ export const enWallet = {
   // ── Funding panel ──────────────────────────────────────────────
   funding_no_wallet_title: "No wallet yet",
   funding_fallback_reading:
-    "Canopy could not read this balance. Checking the network directly…",
+    "{brand} could not read this balance. Checking the network directly…",
   funding_read_failed: "Could not read this wallet's balance.",
   // Two failures, named separately: "Canopy is down" and "Canopy is down AND
   // the network would not answer either" call for different next moves.
@@ -93,7 +93,7 @@ export const enWallet = {
     "{backend}. Reading the network directly also failed: {chain}",
   funding_direct_title: "Read from the network directly",
   funding_direct_body:
-    "Canopy could not reach its RPC, so this figure came from your browser instead. It is a real balance, read from the chain.",
+    "{brand} could not reach its RPC, so this figure came from your browser instead. It is a real balance, read from the chain.",
   funding_usdc_available: "available to trade",
   funding_usdc_none: "none — send USDC",
   funding_sol_covers: "covers fees",
@@ -113,7 +113,7 @@ export const enWallet = {
   funding_send_sol:
     "Send at least {min} SOL as well. Without it the wallet cannot pay transaction fees, even holding USDC.",
   funding_fees_covered:
-    "Transaction fees are covered by Canopy — this wallet does not need SOL.",
+    "Transaction fees are covered by {brand} — this wallet does not need SOL.",
   funding_check_balance: "Check balance",
   funding_wallet_balance: "Wallet balance",
   funding_ready: "Ready to trade",

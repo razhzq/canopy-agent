@@ -2,7 +2,7 @@
 
 // Loads gtag.js and reports client-side navigations. See lib/analytics.ts.
 //
-// Renders nothing at all when NEXT_PUBLIC_GA_ID is unset — no script tag, no
+// Renders nothing at all when the tenant has no GA id — no script tag, no
 // request to Google — so a build without the id is indistinguishable from one
 // that never had analytics.
 //
@@ -13,9 +13,11 @@
 import { useEffect, useRef } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { GA_ID, initAnalytics, pageView } from "@/lib/analytics";
+import { GA_ID, initAnalytics, pageView, setAnalyticsId } from "@/lib/analytics";
 
-export function Analytics() {
+export function Analytics({ id }: { id: string | null }) {
+  // Set during render, before any effect below or in a child reads it.
+  if (GA_ID !== (id ?? "")) setAnalyticsId(id);
   const pathname = usePathname();
   // The path last reported, not a first-render flag: Strict Mode runs this
   // effect twice on mount, and a flag would let the second run through as a

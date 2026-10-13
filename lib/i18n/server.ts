@@ -18,6 +18,8 @@ import { en, type TranslationKey } from "./en";
 import { zh } from "./zh";
 import { tr } from "./tr";
 import type { Locale } from "./index";
+import { fill } from "./translate";
+import { getTenant } from "../tenant/server";
 
 const COOKIE_KEY = "canopy_locale";
 
@@ -38,11 +40,8 @@ export async function getServerT(): Promise<ServerT> {
   // English for what it has not reached, never a raw key.
   const dict: Partial<Record<TranslationKey, string>> =
     locale === "zh" ? zh : locale === "tr" ? tr : en;
-  return (key, vars) => {
-    const raw = dict[key] ?? en[key] ?? key;
-    if (!vars) return raw;
-    return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
-      vars[name] != null ? String(vars[name]) : `{${name}}`,
-    );
-  };
+  // The tenant's name for `{brand}`; null (no tenant at this host) and a
+  // failed lookup both fall back to the platform's.
+  const brand = (await getTenant().catch(() => null))?.name ?? "Canopy";
+  return (key, vars) => fill(dict[key] ?? en[key] ?? key, vars, brand);
 }

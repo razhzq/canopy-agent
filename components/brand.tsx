@@ -1,3 +1,5 @@
+"use client";
+
 // The brand, drawn rather than pasted.
 //
 // The logo's source SVG is a mark of nine rectangles and the word "canopy" set
@@ -13,6 +15,8 @@
 // by 33 tall on a 12.88 baseline offset, the word is 46px with −2.5px tracking,
 // and a 10px gap separates them. Everything below is those numbers divided by
 // 58, so one `height` scales it all.
+
+import { useTenant } from "@/lib/tenant/context";
 
 const MINT = "#63e2b7";
 
@@ -43,8 +47,51 @@ export function BrandMark({
   );
 }
 
-/** The mark and the word. `height` is the height of the whole lockup. */
+/**
+ * The tenant's lockup at `height`.
+ *
+ * Canopy draws its own (below). A tenant shows the logo file it uploaded —
+ * `logoInkUrl` on a light ground (`onLight`), `logoUrl` on the app's dark
+ * one — and, with no file, its name set in the brand face in `currentColor`.
+ */
 export function Wordmark({
+  height = 24,
+  className = "",
+  onLight = false,
+}: {
+  height?: number;
+  className?: string;
+  onLight?: boolean;
+}) {
+  const tenant = useTenant();
+  if (tenant.isPlatform) return <CanopyWordmark height={height} className={className} />;
+  const src = onLight ? (tenant.brand.logoInkUrl ?? tenant.brand.logoUrl) : tenant.brand.logoUrl;
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a remote logo at a fixed height; next/image would need every tenant's host allow-listed
+      <img src={src} alt={tenant.name} style={{ height, width: "auto" }} className={`shrink-0 ${className}`} />
+    );
+  }
+  return (
+    <span className={`inline-flex items-center ${className}`} style={{ height }} role="img" aria-label={tenant.name}>
+      <span
+        aria-hidden
+        style={{
+          fontFamily: "var(--font-brand)",
+          fontWeight: 800,
+          fontSize: height * 0.8,
+          lineHeight: 1,
+          letterSpacing: "-0.04em",
+        }}
+      >
+        {tenant.name}
+      </span>
+    </span>
+  );
+}
+
+/** Canopy's mark and word. `height` is the height of the whole lockup. */
+function CanopyWordmark({
   height = 24,
   className = "",
 }: {

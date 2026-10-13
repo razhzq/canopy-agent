@@ -1,7 +1,7 @@
 import type { enLanding } from "../en/landing";
 
 export const zhLanding: Record<keyof typeof enLanding, string> = {
-  page_title_landing: "Canopy — 替您执行策略的交易智能体",
+  page_title_landing: "{brand} — 替您执行策略的交易智能体",
   page_desc_landing: "把一套策略部署成您自己的智能体。资产由您托管，每一条限额由您设定。",
 
   ld_nav_marketplace: "市场",
@@ -56,7 +56,7 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   lp_ways_h2: "或从市场复刻一个。",
   lp_ways_prompt_t: "输入一句指令",
   lp_ways_prompt_p:
-    "描述任何链上任务——从抄底到永续对冲。Canopy 会生成一套智能体流程，您可以用后续指令继续修改。",
+    "描述任何链上任务——从抄底到永续对冲。{brand} 会生成一套智能体流程，您可以用后续指令继续修改。",
   lp_ways_fork_t: "复刻一个智能体",
   lp_ways_fork_p:
     "浏览覆盖 DeFi、meme 币、LP 和永续合约的实盘智能体市场。复刻任意一个，设定您自己的限额，然后用您自己的钱包运行。",
@@ -90,7 +90,7 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   lp_get_c1_p: "真实市场，没有收盘铃。代币化股票、黄金和 Solana 现货市场，全天候运行。",
   lp_get_c1_fig: "24/7",
   lp_get_c2_t: "您的私钥",
-  lp_get_c2_p: "非托管。Canopy 从不持有您的资金。每笔交易都由您自己的钱包签名。",
+  lp_get_c2_p: "非托管。{brand} 从不持有您的资金。每笔交易都由您自己的钱包签名。",
   lp_get_c3_t: "业绩公开，策略私有",
   lp_get_c3_p: "每个智能体都公开实时业绩记录。背后的规则永远只属于所有者。",
   lp_get_c4_t: "最优执行",
@@ -101,12 +101,12 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   lp_mind_eyebrow: "智能体背后的大脑",
   lp_mind_h1: "选它用来思考的模型。",
   lp_mind_h2: "免费用我们的，或自带任意模型。",
-  lp_mind_host_t: "Canopy 托管",
-  lp_mind_host_p: "cQWEN3 运行在 Canopy 自己的推理服务上。无需充值，无需计费，您的提示词也不会离开 Canopy。",
+  lp_mind_host_t: "{brand} 托管",
+  lp_mind_host_p: "cQWEN3 运行在 {brand} 自己的推理服务上。无需充值，无需计费，您的提示词也不会离开 {brand}。",
   lp_mind_byo_t: "自带模型",
   lp_mind_byo_p: "把智能体绑定到 500 多个模型中的任意一个。每次调用都路由到最便宜的提供方，由智能体用 USDC 支付，绝不超过您设定的上限。",
   lp_mind_included: "已包含",
-  lp_mind_host_sub: "Qwen3-14B · Canopy 推理",
+  lp_mind_host_sub: "Qwen3-14B · {brand} 推理",
   lp_mind_per_m: "/ 百万 token",
   lp_mind_ceiling: "您的上限",
   lp_mind_more: "还有 500+",
@@ -120,7 +120,7 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   lp_build_s1_p: "选一个或多个市场。代币化股票、黄金，或数百种 Solana 代币。",
   lp_build_s2_t: "选择路由",
   lp_build_s2_p: "让 Auto 逐笔比价所有场所，或固定到一个 DEX。",
-  lp_build_s2_chip: "Auto · Canopy + Jupiter",
+  lp_build_s2_chip: "Auto · {brand} + Jupiter",
   lp_build_s3_t: "模拟测试",
   lp_build_s3_p: "用您的规则对照实时价格。不投入资金，没有时限，没有次数限制。",
   lp_build_s3_chip: "免费 · 不限次",
@@ -169,11 +169,11 @@ export const zhLanding: Record<keyof typeof enLanding, string> = {
   lp_end_cta: "开始使用",
   lp_end_browse: "浏览市场",
   lp_foot_fine:
-    "Canopy 是面向代币化真实世界资产与 Solana 现货市场的非托管交易基础设施。智能体在已接入的交易场所上执行，并按最优价格路由。页面上展示的策略业绩为示意数据。交易代币化资产存在风险。请先跑模拟盘再转实盘。",
-  lp_foot_rights: "© {year} Canopy",
+    "{brand} 是面向代币化真实世界资产与 Solana 现货市场的非托管交易基础设施。智能体在已接入的交易场所上执行，并按最优价格路由。页面上展示的策略业绩为示意数据。交易代币化资产存在风险。请先跑模拟盘再转实盘。",
+  lp_foot_rights: "© {year} {brand}",
   // ── 新版首页 — 随时随地 ────────────────────────────────────────
-  lp_any_eyebrow: "随身的 Canopy",
-  lp_any_h1: "完整的 Canopy。",
+  lp_any_eyebrow: "随身的 {brand}",
+  lp_any_h1: "完整的 {brand}。",
   lp_any_h2: "随时随地。",
   lp_any_lede: "您的智能体、您的持仓和全天候的市场，就在浏览器里，无论您在哪。",
   lp_any_1_t: "即时交易",

@@ -45,7 +45,7 @@
 import { useRef, useState } from "react";
 import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth/solana";
-import { AGENT_KEY_QUORUM_ID, AGENT_POLICY_ID } from "@/lib/privy";
+import { useTenant } from "@/lib/tenant/context";
 import { getClaimedWallets, registerAgentWallet, type RegisteredWallet } from "@/lib/api";
 import { assignableWallets, type WalletFacts } from "@/lib/wallets";
 import { PRIMARY, StatusLine } from "@/components/kit";
@@ -175,6 +175,10 @@ export function GrantDelegation({
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
+  // This tenant's signer and policy (canopy-be provisions one pair per Privy app).
+  const { privy } = useTenant();
+  const AGENT_KEY_QUORUM_ID = privy.agentKeyQuorumId ?? "";
+  const AGENT_POLICY_ID = privy.agentPolicyId ?? "";
   const misconfigured = !AGENT_KEY_QUORUM_ID || !AGENT_POLICY_ID;
 
   /**

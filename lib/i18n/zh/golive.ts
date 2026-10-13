@@ -46,7 +46,7 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
 
   gl_grant_title: "授予该智能体签名权限",
   gl_grant_body:
-    "授权发生在您自己的钱包里，而不是 Canopy 的服务器上 — 这正是钱包始终属于您的原因。授权范围仅限兑换交易，可动用的资金不会超过您在这个钱包里存入的部分，并且您随时可以自行撤销，无需经过我们。",
+    "授权发生在您自己的钱包里，而不是 {brand} 的服务器上 — 这正是钱包始终属于您的原因。授权范围仅限兑换交易，可动用的资金不会超过您在这个钱包里存入的部分，并且您随时可以自行撤销，无需经过我们。",
   gl_grant_assurance: "授权不等于转账。在智能体于该范围内执行交易之前，您的钱包不会有任何资金流出。",
 
   gl_promote_title: "切换到真实资金",
@@ -84,8 +84,8 @@ export const zhGoLive: Record<keyof typeof enGoLive, string> = {
   gd_registering: "正在记录…",
   gd_active: "授权已生效",
   gd_active_custodial: "授权已生效 — 托管钱包",
-  gd_custodial_body: "这个钱包由 Canopy 持有，而不是您本人。结束授权需要经过 Canopy。",
-  gd_self_custody_body: "这个钱包属于您。您随时可以在钱包设置中结束这项授权，无需经过 Canopy。",
+  gd_custodial_body: "这个钱包由 {brand} 持有，而不是您本人。结束授权需要经过 {brand}。",
+  gd_self_custody_body: "这个钱包属于您。您随时可以在钱包设置中结束这项授权，无需经过 {brand}。",
   gd_misconfigured:
     "该部署尚未配置委托授权。请运行 pnpm provision:privy 并设置签名者与策略 id。",
   gd_err_not_configured: "委托授权未配置 — 缺少签名者和策略 id",

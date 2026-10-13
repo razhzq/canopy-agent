@@ -29,10 +29,10 @@ export const enPublish = {
   pub_would_fill: "Would fill",
 
   pub_sec_record: "LIVE PAPER RECORD",
-  pub_sec_record_note_one: "Run by Canopy · 1 day · Forward only",
-  pub_sec_record_note_many: "Run by Canopy · {count} days · Forward only",
+  pub_sec_record_note_one: "Run by {brand} · 1 day · Forward only",
+  pub_sec_record_note_many: "Run by {brand} · {count} days · Forward only",
   pub_forward_note:
-    "This record is a live forward run, not a backtest. The agent traded on Canopy's data, in real time, with venue fees, network fees and realistic fills at the liquidity available at the moment. Nothing here was selected after the fact — a forward record cannot be fitted to a window that flattered it.",
+    "This record is a live forward run, not a backtest. The agent traded on {brand}'s data, in real time, with venue fees, network fees and realistic fills at the liquidity available at the moment. Nothing here was selected after the fact — a forward record cannot be fitted to a window that flattered it.",
 
   pub_sec_shows: "WHAT THE RECORD SHOWS",
   pub_sec_shows_note: "Disclosure · Not a gate",

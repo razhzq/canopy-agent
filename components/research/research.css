@@ -37,7 +37,7 @@
 
 /* dark demo panel */
 .rs .rs-demo { position: relative; margin-top: 36px; border-radius: 20px; overflow: hidden; background: var(--rs-panel); color: #E8ECEA; isolation: isolate; }
-.rs .rs-demo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(180deg, transparent 62%, rgba(94, 211, 179, .05) 82%, rgba(94, 211, 179, .16) 100%); }
+.rs .rs-demo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(180deg, transparent 62%, color-mix(in oklab,var(--color-accent) 5%,transparent) 82%, color-mix(in oklab,var(--color-accent) 16%,transparent) 100%); }
 .rs .rs-split { display: grid; grid-template-columns: 1fr 1fr; }
 .rs .rs-lane { padding: 28px 28px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .rs .rs-lane + .rs-lane { border-left: 1px solid var(--rs-panel-line); }

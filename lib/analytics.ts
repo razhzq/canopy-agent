@@ -22,7 +22,15 @@
 // the automatic tracker would count as a second page view — and it would count
 // the first one AFTER the ref was gone, which is the one hit that needed it.
 
-export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "";
+/**
+ * The GA property events go to. Per tenant (each brand measures its own
+ * traffic), so it is set at runtime by <Analytics id> from the tenant config;
+ * until then every call is a no-op.
+ */
+export let GA_ID = "";
+export function setAnalyticsId(id: string | null): void {
+  GA_ID = id ?? "";
+}
 
 type Params = Record<string, string | number | boolean | null | undefined>;
 

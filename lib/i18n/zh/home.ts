@@ -27,7 +27,7 @@ export const zhHome: Record<keyof typeof enHome, string> = {
   capability_set_up_under: "可在 {key} 中设置。",
   capability_dismiss: "忽略",
 
-  model_badge_title: "由 {label} 推理 — Canopy 自托管的 Qwen3",
+  model_badge_title: "由 {label} 推理 — {brand} 自托管的 Qwen3",
   model_badge_title_pod: "由 {label} 推理 — 通过 Pod 购买",
   model_badge_credit: "剩余预付额度 ${amount}",
 };

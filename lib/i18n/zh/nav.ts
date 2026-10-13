@@ -5,7 +5,7 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   nav_explore: "探索",
   nav_atlas: "Atlas",
   nav_create_agent: "创建智能体",
-  nav_home_aria: "Canopy — 首页",
+  nav_home_aria: "{brand} — 首页",
   nav_primary_aria: "主导航",
   nav_sign_in: "登录",
 
@@ -23,7 +23,7 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   account_method_wallet: "钱包",
   account_set_username: "+ 设置用户名",
   account_address_copied: "地址已复制到剪贴板",
-  account_wallet_canopy: "Canopy 钱包",
+  account_wallet_canopy: "{brand} 钱包",
   account_your_wallet: "您的钱包",
   account_your_wallets: "您的钱包",
   account_copy_wallet_aria: "复制 {label} 地址 {address}",

@@ -311,8 +311,8 @@ export function AgentThread({
       <div
         className={`mb-5 rounded-2xl border bg-surface transition-[border-color,box-shadow] duration-200 ${
           sending
-            ? "border-accent/40 shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
-            : "border-border focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]"
+            ? "border-accent/40 shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-accent)_10%,transparent)]"
+            : "border-border focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-accent)_10%,transparent)]"
         }`}
       >
         <textarea
@@ -710,7 +710,7 @@ function Turn({
           // table dropped into a conversation.
           className={`mt-3 overflow-hidden rounded-xl border bg-surface transition-[border-color,box-shadow] duration-200 ${
             open
-              ? "border-accent/40 shadow-[0_0_0_6px_rgba(94,211,179,0.08)]"
+              ? "border-accent/40 shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-accent)_8%,transparent)]"
               : "border-border"
           }`}
         >

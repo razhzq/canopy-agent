@@ -27,10 +27,10 @@ export const zhPublish: Record<keyof typeof enPublish, string> = {
   pub_would_fill: "可成交",
 
   pub_sec_record: "实时模拟盘记录",
-  pub_sec_record_note_one: "由 Canopy 运行 · 1 天 · 仅向前推进",
-  pub_sec_record_note_many: "由 Canopy 运行 · {count} 天 · 仅向前推进",
+  pub_sec_record_note_one: "由 {brand} 运行 · 1 天 · 仅向前推进",
+  pub_sec_record_note_many: "由 {brand} 运行 · {count} 天 · 仅向前推进",
   pub_forward_note:
-    "这份记录是实时向前推进的运行结果，不是回测。智能体在 Canopy 的数据上实时交易，计入了交易场所手续费、网络手续费，并按当时可用的流动性做了贴近现实的成交。这里没有任何内容是事后挑选的 — 向前推进的记录无法被拟合到一个对自己有利的时间窗口上。",
+    "这份记录是实时向前推进的运行结果，不是回测。智能体在 {brand} 的数据上实时交易，计入了交易场所手续费、网络手续费，并按当时可用的流动性做了贴近现实的成交。这里没有任何内容是事后挑选的 — 向前推进的记录无法被拟合到一个对自己有利的时间窗口上。",
 
   pub_sec_shows: "这份记录说明了什么",
   pub_sec_shows_note: "披露信息 · 不是准入门槛",

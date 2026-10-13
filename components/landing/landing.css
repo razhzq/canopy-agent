@@ -1,7 +1,7 @@
 /* Canopy landing, rebuilt from scratch against Public.com's Agents page
    (docs/design-ref-public-agents.md). Light ground, one serif, hairlines,
    and a single dark demo panel that carries the only colour on the screen —
-   a Canopy-green hue in place of Public's blue-violet.
+   the tenant's accent in place of Public's blue-violet.
 
    Everything is scoped under `.lp`. */
 
@@ -12,7 +12,7 @@
   --muted:#8A968F;
   --line:#E6EBE8;
   --chip:#EEF3F0;
-  --green:#5ED3B3;      /* the Canopy accent, used only in the demo panel */
+  --green:var(--color-accent); /* the tenant accent (globals.css / root layout) */
   --green-deep:#1FA97A; /* the same hue with enough weight for text */
   --loss:#E5484D;
 
@@ -74,9 +74,9 @@
     linear-gradient(#1B221E 1px,transparent 1px) 0 16%/100% 1px no-repeat,
     linear-gradient(#1B221E 1px,transparent 1px) 0 84%/100% 1px no-repeat;
 }
-.lp .demo::after{ /* the Canopy-green fade Public does in blue */
+.lp .demo::after{ /* the accent fade Public does in blue */
   content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:linear-gradient(180deg,transparent 52%,rgba(94,211,179,.06) 70%,rgba(94,211,179,.34) 100%);
+  background:linear-gradient(180deg,transparent 52%,color-mix(in oklab,var(--color-accent) 6%,transparent) 70%,color-mix(in oklab,var(--color-accent) 34%,transparent) 100%);
 }
 .lp .tabs{position:absolute;z-index:3;top:28px;left:32px;display:flex;align-items:center;gap:4px;height:44px;padding:0 6px 0 14px;border-radius:10px;background:rgba(255,255,255,.06);font-size:14px;font-weight:500}
 .lp .tabs svg{width:14px;height:14px;color:var(--green);margin-right:6px}
@@ -101,8 +101,8 @@
 
 /* prompt node — mint halo + gradient hairline */
 .lp .node.p .card{display:flex;align-items:center;gap:14px;font-size:13.5px;line-height:1.5;color:#E8ECEA;background:#12171A;border-color:transparent;position:relative}
-.lp .node.p .card::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,rgba(94,211,179,.9),rgba(140,200,255,.45) 60%,rgba(94,211,179,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.lp .node.p::before{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,rgba(94,211,179,.35),rgba(94,211,179,.08) 55%,transparent 75%);filter:blur(28px)}
+.lp .node.p .card::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,color-mix(in oklab,var(--color-accent) 90%,transparent),rgba(140,200,255,.45) 60%,color-mix(in oklab,var(--color-accent) 20%,transparent));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.lp .node.p::before{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,color-mix(in oklab,var(--color-accent) 35%,transparent),color-mix(in oklab,var(--color-accent) 8%,transparent) 55%,transparent 75%);filter:blur(28px)}
 .lp .go{flex:none;width:32px;height:32px;border-radius:50%;background:#fff;color:#0B100E;display:grid;place-items:center}
 .lp .go svg{width:15px;height:15px}
 
@@ -111,7 +111,7 @@
 .lp .chip svg{width:13px;height:13px}
 .lp .ahead{display:flex;align-items:center;gap:12px;margin-top:12px}
 .lp .aname{font-size:22px;font-weight:500;letter-spacing:-.01em}
-.lp .live{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;border:1px solid rgba(94,211,179,.45);color:var(--green);font-size:11px;font-weight:500}
+.lp .live{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;border:1px solid color-mix(in oklab,var(--color-accent) 45%,transparent);color:var(--green);font-size:11px;font-weight:500}
 .lp .live i{width:5px;height:5px;border-radius:50%;background:var(--green)}
 .lp .rows{margin-top:10px}
 .lp .row{display:flex;align-items:center;gap:9px;padding:10px 0;border-top:1px solid #232A26;font-size:11.5px;animation:lp-in .5s cubic-bezier(.2,.8,.2,1) both}
@@ -189,7 +189,7 @@
 .lp .seg{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:3px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12.5px;color:var(--body)}
 .lp .seg span{padding:6px 12px;border-radius:999px}
 .lp .seg span.on{background:var(--chip);color:var(--ink);font-weight:500}
-.lp .ask{display:flex;align-items:center;gap:12px;width:min(100%,300px);height:56px;padding:0 8px 0 18px;border-radius:999px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px -22px rgba(11,20,16,.35),0 0 0 6px rgba(94,211,179,.10)}
+.lp .ask{display:flex;align-items:center;gap:12px;width:min(100%,300px);height:56px;padding:0 8px 0 18px;border-radius:999px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px -22px rgba(11,20,16,.35),0 0 0 6px color-mix(in oklab,var(--color-accent) 10%,transparent)}
 .lp .ask .ph{flex:1;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lp .ask i{flex:none;width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center}
 .lp .ask i svg{width:15px;height:15px}
@@ -289,7 +289,7 @@
 .lp .build{padding:0 0 120px}
 .lp .build .lede{margin:24px auto 0;max-width:66ch;font-size:18px;line-height:1.5;color:var(--body);text-align:center}
 .lp .stage{position:relative;margin:72px auto 0;padding:84px 40px 44px;border-radius:20px;background:#0B100E;color:#fff;text-align:left;isolation:isolate;overflow:hidden}
-.lp .stage::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(180deg,transparent 60%,rgba(94,211,179,.05) 78%,rgba(94,211,179,.26) 100%)}
+.lp .stage::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(180deg,transparent 60%,color-mix(in oklab,var(--color-accent) 5%,transparent) 78%,color-mix(in oklab,var(--color-accent) 26%,transparent) 100%)}
 .lp .stage .tabs{top:28px;left:32px;padding:0 14px}
 .lp .stage .tabs i{width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:9px}
 .lp .steps{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,1fr);gap:56px;padding-top:120px;align-items:start}
@@ -308,12 +308,12 @@
 .lp .schip span{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;border:1px solid #2E3632;font-family:var(--mono);font-size:11px;color:#E8ECEA;white-space:nowrap}
 /* the current step carries the section's one accent */
 .lp .step.now .card{background:#12171A;border-color:transparent}
-.lp .step.now .card::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,rgba(94,211,179,.9),rgba(140,200,255,.45) 60%,rgba(94,211,179,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.lp .step.now::before{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,rgba(94,211,179,.32),rgba(94,211,179,.08) 55%,transparent 75%);filter:blur(28px)}
+.lp .step.now .card::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,color-mix(in oklab,var(--color-accent) 90%,transparent),rgba(140,200,255,.45) 60%,color-mix(in oklab,var(--color-accent) 20%,transparent));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.lp .step.now::before{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,color-mix(in oklab,var(--color-accent) 32%,transparent),color-mix(in oklab,var(--color-accent) 8%,transparent) 55%,transparent 75%);filter:blur(28px)}
 .lp .step.now .card{position:relative}
 .lp .step.now .now{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;font-weight:500;color:var(--green)}
 .lp .step.now .now i{width:5px;height:5px;border-radius:50%;background:var(--green)}
-.lp .step.now .schip span{border-color:rgba(94,211,179,.45);color:var(--green)}
+.lp .step.now .schip span{border-color:color-mix(in oklab,var(--color-accent) 45%,transparent);color:var(--green)}
 /* the step not yet reached */
 .lp .step.todo .card{border-style:dashed;background:#0F1412}
 .lp .step.todo .card > *{opacity:.5}
@@ -338,7 +338,7 @@
 .lp .amt{margin-top:18px;font-family:var(--mono);font-size:44px;letter-spacing:-.03em;color:#fff;display:flex;align-items:baseline;gap:10px}
 .lp .amt small{font-family:var(--sans);font-size:14px;color:rgba(255,255,255,.45);letter-spacing:0}
 .lp .note{margin-top:8px;font-size:14px;color:rgba(255,255,255,.62);height:24px;display:flex;align-items:center}
-.lp .note.deal{display:inline-flex;align-self:flex-start;align-items:center;height:24px;padding:0 10px;border-radius:999px;border:1px solid rgba(94,211,179,.45);color:var(--green);font-size:12px;font-weight:500}
+.lp .note.deal{display:inline-flex;align-self:flex-start;align-items:center;height:24px;padding:0 10px;border-radius:999px;border:1px solid color-mix(in oklab,var(--color-accent) 45%,transparent);color:var(--green);font-size:12px;font-weight:500}
 .lp .plan ul{list-style:none;margin:28px 0 0;padding:0}
 .lp .plan li{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-top:1px solid #262D29;font-size:15px;line-height:1.45;color:rgba(255,255,255,.75)}
 .lp .plan li:last-child{border-bottom:1px solid #262D29}
@@ -364,7 +364,7 @@
 .lp .ahead b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .lp .ahead small{display:block;margin-top:3px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.45)}
 .lp .acard .tag{flex:none;font-size:10.5px;font-weight:500;padding:3px 8px;border-radius:999px;border:1px solid #2E3632;color:rgba(255,255,255,.7)}
-.lp .acard .tag.hot{border-color:rgba(94,211,179,.45);color:var(--green)}
+.lp .acard .tag.hot{border-color:color-mix(in oklab,var(--color-accent) 45%,transparent);color:var(--green)}
 .lp .aspark{display:block;width:100%;height:48px;margin-top:14px}
 .lp .astats{display:grid;grid-template-columns:1.1fr 1fr .8fr;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #262D29}
 .lp .astats small{display:block;font-size:10px;color:rgba(255,255,255,.45)}
@@ -374,8 +374,8 @@
 
 /* the centre card: lifted, gradient hairline, halo — the one accent */
 .lp .acard.on{transform:translateY(-16px);background:#12171A;border-color:transparent;z-index:2}
-.lp .acard.on::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,rgba(94,211,179,.9),rgba(140,200,255,.45) 60%,rgba(94,211,179,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.lp .acard.on::after{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,rgba(94,211,179,.32),rgba(94,211,179,.08) 55%,transparent 75%);filter:blur(28px);pointer-events:none}
+.lp .acard.on::before{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;background:linear-gradient(120deg,color-mix(in oklab,var(--color-accent) 90%,transparent),rgba(140,200,255,.45) 60%,color-mix(in oklab,var(--color-accent) 20%,transparent));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.lp .acard.on::after{content:"";position:absolute;inset:-28px;z-index:-1;border-radius:30px;background:radial-gradient(60% 60% at 50% 50%,color-mix(in oklab,var(--color-accent) 32%,transparent),color-mix(in oklab,var(--color-accent) 8%,transparent) 55%,transparent 75%);filter:blur(28px);pointer-events:none}
 
 @media(max-width:860px){.lp .market{padding:88px 0}}
 

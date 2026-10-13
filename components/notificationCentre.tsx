@@ -54,6 +54,7 @@ import {
   type NotificationItem,
   type NotificationKind,
 } from "@/lib/api";
+import { useFeature } from "@/lib/tenant/context";
 
 /** How often the badge re-checks while the panel is closed. */
 const POLL_MS = 60_000;
@@ -1013,7 +1014,12 @@ function ApproveBar({
  * that changes it — and, like that page, it watches for the claim after
  * Connect rather than asking anyone to refresh.
  */
+/** Nothing where the tenant has no Telegram (there is one bot, and it is Canopy's). */
 export function TelegramSection() {
+  return useFeature("telegram") ? <TelegramSectionBody /> : null;
+}
+
+function TelegramSectionBody() {
   const { getAccessToken } = usePrivy();
   const t = useT();
   const status = useApi(getTelegramStatus, []);

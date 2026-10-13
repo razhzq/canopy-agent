@@ -33,7 +33,7 @@ export const enHome = {
   capability_dismiss: "Dismiss",
 
   // ── Model badge ────────────────────────────────────────────────
-  model_badge_title: "Reasons with {label} — Canopy-hosted Qwen3",
+  model_badge_title: "Reasons with {label} — {brand}-hosted Qwen3",
   model_badge_title_pod: "Reasons with {label} — bought through Pod",
   model_badge_credit: "${amount} prepaid credit left",
 } as const;

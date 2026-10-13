@@ -6,7 +6,7 @@ export const enNav = {
   nav_explore: "Explore",
   nav_atlas: "Atlas",
   nav_create_agent: "Create agent",
-  nav_home_aria: "Canopy — home",
+  nav_home_aria: "{brand} — home",
   nav_primary_aria: "Primary",
   nav_sign_in: "Sign in",
 
@@ -26,7 +26,7 @@ export const enNav = {
   account_method_wallet: "Wallet",
   account_set_username: "+ Set a username",
   account_address_copied: "Address copied to clipboard",
-  account_wallet_canopy: "Canopy wallet",
+  account_wallet_canopy: "{brand} wallet",
   account_your_wallet: "Your wallet",
   account_your_wallets: "Your wallets",
   account_copy_wallet_aria: "Copy {label} address {address}",

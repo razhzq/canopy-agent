@@ -5,7 +5,7 @@
 // figure a placeholder rather than writing it into the sentence.
 
 export const enResearch = {
-  rs_page_title: "Canopy — Execution footprint",
+  rs_page_title: "{brand} — Execution footprint",
   rs_page_desc:
     "How a fund can buy $500k of a Solana token without moving the price or showing its hand.",
   rs_nav_chip: "Execution research",
@@ -14,7 +14,7 @@ export const enResearch = {
   rs_hero_eyebrow: "Buying {amount} of JUP on Solana",
   rs_hero_h1: "Same order.",
   rs_hero_h2: "Different footprint.",
-  rs_cmp_label: "Compare Canopy with",
+  rs_cmp_label: "Compare {brand} with",
   rs_cmp_big: "One big trade",
   rs_cmp_diy: "Split it yourself",
   rs_view_label: "View",
@@ -25,9 +25,9 @@ export const enResearch = {
   rs_playing: "Playing",
   rs_replay: "Replay",
   rs_note_market:
-    "What other traders see: nobody is labelled. The big trade and the row of $25k trades still stand out. Canopy's trades sit inside the crowd.",
+    "What other traders see: nobody is labelled. The big trade and the row of $25k trades still stand out. {brand}'s trades sit inside the crowd.",
   rs_note_analyst:
-    "What a chain analyst sees when grouping trades by wallet. Normal execution is one wallet doing everything. Canopy looks like 15 separate small traders, each with its own size and rhythm.",
+    "What a chain analyst sees when grouping trades by wallet. Normal execution is one wallet doing everything. {brand} looks like 15 separate small traders, each with its own size and rhythm.",
   rs_note_mm:
     "What the firm running one market maker pool sees from its own trades, per wallet. One wallet sending all the flow crosses its limit fast and gets flagged; 15 small wallets stay under it. The 60% share and $40k limit are assumptions.",
 
@@ -36,7 +36,7 @@ export const enResearch = {
   rs_lane_big_sub: "All $500k in a single swap, from one wallet",
   rs_lane_diy: "Split it yourself",
   rs_lane_diy_sub: "20 × $25k, one every ~2 minutes, from one wallet",
-  rs_lane_canopy: "Canopy",
+  rs_lane_canopy: "{brand}",
   rs_lane_canopy_sub: "Trades sized like everyone else's, ≤10% of volume, across 15 wallets",
   rs_status_waiting: "Waiting",
   rs_status_noticed: "Noticed ×{n}",
@@ -60,14 +60,14 @@ export const enResearch = {
   rs_canvas_label: "{name}: price paid and trade sizes over time",
 
   rs_verdict_big:
-    "On this {order} order, Canopy cost about {saved} less than one big trade, and no trade stood out. The trade-off is time: about {hours} hours instead of a few seconds.",
+    "On this {order} order, {brand} cost about {saved} less than one big trade, and no trade stood out. The trade-off is time: about {hours} hours instead of a few seconds.",
   rs_verdict_diy:
-    "On this {order} order, Canopy cost about {saved} less than splitting it yourself, and no trade stood out. The trade-off is time: about {hours} hours instead of {minutes} minutes.",
+    "On this {order} order, {brand} cost about {saved} less than splitting it yourself, and no trade stood out. The trade-off is time: about {hours} hours instead of {minutes} minutes.",
   rs_verdict_playing: "Playing.",
 
   rs_legend_other: "Other traders, real JUP size mix",
   rs_legend_naive: "Fund, normal execution",
-  rs_legend_canopy: "Fund, Canopy",
+  rs_legend_canopy: "Fund, {brand}",
   rs_legend_noticed: "Big enough to get noticed",
   rs_legend_p99: "99% of JUP trades are smaller",
 
@@ -80,7 +80,7 @@ export const enResearch = {
   rs_flow_custodian: "Fund's custodian",
   rs_flow_custodian_sub: "Holds every key",
   rs_flow_manager: "Wallet Pool Manager",
-  rs_flow_manager_sub: "Canopy backend, not on-chain",
+  rs_flow_manager_sub: "{brand} backend, not on-chain",
   rs_flow_wallets: "15 wallets",
   rs_flow_wallets_sub: "Ordinary Solana accounts",
   rs_flow_jupiter: "Jupiter",
@@ -110,14 +110,14 @@ export const enResearch = {
     "Every wallet and trade is recorded for the fund's compliance team, custodian and auditors.",
   rs_pool_note_title: "Not a Solana program.",
   rs_pool_note:
-    "If every wallet called the same Canopy program, anyone could list them all in one query. The manager runs in Canopy's backend, and on-chain the wallets only receive funds and trade through Jupiter. Wallets can still be linked through how they were funded, so the aim is to delay detection, not to be invisible.",
+    "If every wallet called the same {brand} program, anyone could list them all in one query. The manager runs in {brand}'s backend, and on-chain the wallets only receive funds and trade through Jupiter. Wallets can still be linked through how they were funded, so the aim is to delay detection, not to be invisible.",
 
   // ── Where trades happen ────────────────────────────────────────
   rs_venue_eyebrow: "Where trades happen",
   rs_venue_h1: "Two groups can see your trades.",
   rs_venue_h2: "Everyone on the blockchain, and the firm that filled your order.",
   rs_venue_lede:
-    "Jupiter splits each trade across different places to trade. Some are open pools anyone can watch. Others are run by one trading firm that sees exactly which wallet is buying. Canopy keeps the fund's buying small and spread out in both.",
+    "Jupiter splits each trade across different places to trade. Some are open pools anyone can watch. Others are run by one trading firm that sees exactly which wallet is buying. {brand} keeps the fund's buying small and spread out in both.",
   rs_venue_public: "Public pool",
   rs_venue_public_body:
     "Raydium, Orca, Meteora. Anyone can add money to the pool. After a big buy, the price takes a while to come back.",

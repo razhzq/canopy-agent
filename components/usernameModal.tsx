@@ -8,6 +8,7 @@ import { FOCUS, PRIMARY, QUIET, SURFACE } from "@/components/kit";
 import { checkUsername } from "@/lib/api";
 import { useUsername } from "@/lib/useUsername";
 import { useT } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 /**
  * Claiming a username.
@@ -46,6 +47,7 @@ export function UsernameModal({
    */
   required?: boolean;
 }) {
+  const tenant = useTenant();
   const { getAccessToken } = usePrivy();
   const t = useT();
   const { save } = useUsername();
@@ -127,7 +129,7 @@ export function UsernameModal({
             deposit dialog — a name is typed the way a figure is. */}
         <div className="space-y-2">
           <div
-            className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_rgba(94,211,179,0.10)]`}
+            className={`flex items-center ${SURFACE} px-3.5 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-accent)_10%,transparent)]`}
           >
             <span className="font-mono text-[15px] text-text-dim">@</span>
             <input
@@ -187,7 +189,7 @@ export function UsernameModal({
               {t(saving ? "username_saving" : "username_claim")}
             </button>
           </div>
-          <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{t("username_note")}</p>
+          <p className="font-ui text-[11.5px] leading-relaxed text-text-dim">{t(tenant.isPlatform ? "username_note" : "username_note_tenant")}</p>
         </div>
       </div>
     </Modal>

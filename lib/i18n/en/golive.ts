@@ -55,7 +55,7 @@ export const enGoLive = {
   // ── Step 2: delegation ─────────────────────────────────────────
   gl_grant_title: "Give this agent permission to sign",
   gl_grant_body:
-    "The grant happens in your own wallet, not on Canopy's servers — which is why the wallet stays yours. It is scoped to swaps only, reaches no further than what you deposit in this wallet, and you can revoke it at any time without asking us.",
+    "The grant happens in your own wallet, not on {brand}'s servers — which is why the wallet stays yours. It is scoped to swaps only, reaches no further than what you deposit in this wallet, and you can revoke it at any time without asking us.",
   gl_grant_assurance:
     "Granting is not a transfer. Nothing leaves your wallet until the agent executes a trade inside this scope.",
 
@@ -102,9 +102,9 @@ export const enGoLive = {
   gd_active: "Delegation active",
   gd_active_custodial: "Delegation active — custodial",
   gd_custodial_body:
-    "This wallet is owned by Canopy, not by you. Ending the delegation requires Canopy.",
+    "This wallet is owned by {brand}, not by you. Ending the delegation requires {brand}.",
   gd_self_custody_body:
-    "You own this wallet. You can end this delegation from your wallet settings at any time, without Canopy.",
+    "You own this wallet. You can end this delegation from your wallet settings at any time, without {brand}.",
   gd_misconfigured:
     "Delegation is not configured on this deployment. Run pnpm provision:privy and set the signer and policy ids.",
   gd_err_not_configured:

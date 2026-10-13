@@ -10,7 +10,9 @@ export const enCommon = {
   // ── Live-screen states ─────────────────────────────────────────
   state_signed_out_title: "Sign in to continue",
   state_signed_out_body:
-    "Your agents are tied to your Canopy account. Signing in here uses the same login as the exchange.",
+    "Your agents are tied to your {brand} account. Signing in here uses the same login as the exchange.",
+  // A tenant has no exchange of its own, so its users get the first sentence only.
+  state_signed_out_body_tenant: "Your agents are tied to your {brand} account.",
   state_sign_in: "Sign in",
   state_error_title: "Could not load",
   state_try_again: "Try again",

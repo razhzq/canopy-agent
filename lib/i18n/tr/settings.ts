@@ -50,7 +50,7 @@ export const trSettings: Record<keyof typeof enSettings, string> = {
   tg_will_send_1: "Her işlem, sonucuyla birlikte.",
   tg_will_send_2: "Kararınızı bekleyen her şey.",
   tg_will_send_3: "Durdurmalar ve donmalar, bir de kalktıkları an.",
-  tg_wont_line: "Sessiz döngüler gelmez. Onaylar Canopy'de kalır.",
+  tg_wont_line: "Sessiz döngüler gelmez. Onaylar {brand}'de kalır.",
   tg_kind_fill: "İşlemler",
   tg_kind_fill_note: "Her dolum, satışta sonucuyla.",
   tg_kind_proposal: "Kararlar",

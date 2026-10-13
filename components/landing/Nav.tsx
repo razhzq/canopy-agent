@@ -3,6 +3,7 @@
 import { LanguageSwitcher } from "@/components/languageSwitcher";
 import { Wordmark } from "@/components/brand";
 import { useT } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 interface Props {
   onLogin: () => void;
@@ -14,12 +15,13 @@ interface Props {
  * whether that is a sign-in or a sign-up.
  */
 export function Nav({ onLogin }: Props) {
+  const tenant = useTenant();
   const t = useT();
   return (
     <nav className="top">
       <div className="wrap nav-in">
-        <a href="#top" className="logo" aria-label="Canopy">
-          <Wordmark height={24} className="text-[#201e1d]" />
+        <a href="#top" className="logo" aria-label={tenant.name}>
+          <Wordmark height={24} className="text-[#201e1d]" onLight />
         </a>
         <div className="links">
           <a href="#market">{t("ld_nav_marketplace")}</a>

@@ -44,6 +44,7 @@ import {
   toPayload,
 } from "@/components/buildStrategy";
 import { describeVenues } from "@/lib/venues";
+import { useTenant } from "@/lib/tenant/context";
 import { routeOf } from "@/components/routeBadge";
 import {
   DEFAULT_MODEL,
@@ -380,6 +381,7 @@ export function BuildAgent() {
   const router = useRouter();
   const { ready, authenticated, getAccessToken, login } = usePrivy();
   const t = useT();
+  const tenant = useTenant();
 
   const [name, setName] = useState("");
   /**
@@ -451,7 +453,7 @@ export function BuildAgent() {
   } | null>(null);
   // Where the selection fills. Derived, never state: it follows from the
   // markets, so there is nothing to keep in sync and nothing to strand.
-  const venues = describeVenues(markets, t);
+  const venues = describeVenues(markets, t, tenant.name);
   const [busy, setBusy] = useState(false);
   /**
    * THE RUN HAS STAGES, AND THE BUTTON SAYS WHICH. "Starting…" used to cover

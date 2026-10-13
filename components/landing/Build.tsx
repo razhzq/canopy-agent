@@ -44,7 +44,7 @@ export function Build() {
               <path
                 d="M0 262 C 70 262, 70 215, 142 215 C 284 215, 284 178, 427 178 C 570 178, 570 142, 712 142 C 855 142, 855 105, 997 105 C 1068 105, 1068 58, 1140 58"
                 fill="none"
-                stroke="rgba(94,211,179,.45)"
+                style={{ stroke: "color-mix(in oklab, var(--color-accent) 45%, transparent)" }}
                 strokeWidth="1.4"
                 strokeDasharray="3 6"
               />

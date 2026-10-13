@@ -15,18 +15,18 @@ export const enAtlas = {
   atlas_period_12m: "12M",
   atlas_period_24m: "24M",
 
-  atlas_kpi_canopy: "Canopy LP",
+  atlas_kpi_canopy: "{brand} LP",
   atlas_kpi_median: "Fund median",
-  atlas_kpi_ahead: "Canopy ahead of",
+  atlas_kpi_ahead: "{brand} ahead of",
   atlas_kpi_aum: "Reported AUM",
   atlas_kpi_firms: "Firms",
 
   atlas_chart_title: "Change",
-  atlas_chart_meta: "% · funds: AUM · Canopy: net return",
+  atlas_chart_meta: "% · funds: AUM · {brand}: net return",
   atlas_chart_empty: "No firm in this view reports a change for this period.",
   atlas_days_live: "{days}d live",
 
-  atlas_lp_title: "Canopy LP",
+  atlas_lp_title: "{brand} LP",
   atlas_lp_live: "Live",
   atlas_lp_since: "since {date}",
   atlas_lp_in_sol: "{pct} in SOL",
@@ -46,7 +46,7 @@ export const enAtlas = {
   atlas_col_type: "Type",
   atlas_col_hq: "HQ",
   atlas_col_aum: "AUM",
-  atlas_col_vs: "vs Canopy",
+  atlas_col_vs: "vs {brand}",
   atlas_onchain: "On-chain",
   atlas_no_match: "No firm matches.",
   atlas_page_count: "{from}–{to} of {total}",
@@ -55,5 +55,5 @@ export const enAtlas = {
 
   atlas_by_type: "AUM by type",
   atlas_founded: "Founded",
-  atlas_source: "Crypto Fund Research, {edition} · Canopy on Solana",
+  atlas_source: "Crypto Fund Research, {edition} · {brand} on Solana",
 } as const;

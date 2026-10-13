@@ -44,7 +44,9 @@ export const VENUES: Venue[] = [
   // Jupiter's perpetuals venue. 6 bps each way is the published base fee; the
   // impact fee and the hourly borrow ride on top and are shown on the row.
   { key: "jupiter-perps", name: "Jupiter Perps", feePct: 0.06, live: true, chain: "solana", instrument: "perp" },
-  { key: "canopy", name: "Canopy", feePct: 0.02, live: true, chain: "solana" },
+  // The house venue takes the tenant's name: `{brand}` is filled in by
+  // `venueName`.
+  { key: "canopy", name: "{brand}", feePct: 0.02, live: true, chain: "solana" },
   // KalqiX publishes no flat taker schedule to quote here, so its fee stays
   // null rather than becoming a guess with a percent sign on it.
   { key: "kalqix", name: "KalqiX", feePct: null, live: true, chain: "base" },
@@ -86,10 +88,15 @@ export function liveVenuesFor(markets: UniverseAsset[]): Venue[] {
  * there is no longer one to describe. Several venues means best-price across
  * them per trade, which is what the executor does when nothing pins it.
  */
-export function describeVenues(markets: UniverseAsset[], t: Translate): string {
+/** A venue's display name; the house venue is called whatever the tenant is. */
+export function venueName(v: Venue, brand: string): string {
+  return v.name === "{brand}" ? brand : v.name;
+}
+
+export function describeVenues(markets: UniverseAsset[], t: Translate, brand = "Canopy"): string {
   const live = liveVenuesFor(markets);
   if (live.length === 0) return "—";
   // A single venue is just its own name — a brand, not a sentence.
-  if (live.length === 1) return live[0].name;
-  return t("venues_best_of", { venues: live.map((v) => v.name).join(" + ") });
+  if (live.length === 1) return venueName(live[0], brand);
+  return t("venues_best_of", { venues: live.map((v) => venueName(v, brand)).join(" + ") });
 }

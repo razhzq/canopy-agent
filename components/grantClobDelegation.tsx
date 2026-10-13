@@ -28,7 +28,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePrivy, useSigners, useUser, type User } from "@privy-io/react-auth";
 import { useCreateWallet } from "@privy-io/react-auth";
 
-import { AGENT_KEY_QUORUM_ID, CLOB_POLICY_ID } from "@/lib/privy";
+import { useTenant } from "@/lib/tenant/context";
 import { getClobSigner, registerClobSigner } from "@/lib/api";
 import { PRIMARY, StatusLine } from "@/components/kit";
 
@@ -87,6 +87,9 @@ export function GrantClobDelegation({
   const { createWallet } = useCreateWallet();
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
+  const { privy } = useTenant();
+  const AGENT_KEY_QUORUM_ID = privy.agentKeyQuorumId ?? "";
+  const CLOB_POLICY_ID = privy.clobPolicyId ?? "";
   const misconfigured = !AGENT_KEY_QUORUM_ID || !CLOB_POLICY_ID;
 
   // Already granted? Then this is a done step, not an ask.

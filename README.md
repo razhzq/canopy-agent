@@ -13,6 +13,34 @@ npm run start
 Next.js 16 (App Router) + React 19 + Tailwind v4. Standalone repo — extracted
 from `canopy-fe-mono/packages/canopy-agent` on 2026-08-04.
 
+## Tenants: one deployment, many brands
+
+This app serves Canopy **and every hosted white-label tenant** (canopy-be
+`CANOPY_143`). The root layout reads the request host and asks canopy-be
+`GET /api/agent-tenant/config?host=…` which tenant lives there; its name,
+logos, accent colour, Privy app, quorum/policy ids, features and instruments
+arrive with the page (`lib/tenant/*`, `useTenant()`). Nothing tenant-specific
+is a build-time constant.
+
+- `agent.canopy.finance`, `localhost` and `*.vercel.app` → Canopy.
+- `<slug>.agent.canopy.finance` → that tenant; a tenant's custom domain → it.
+- Unknown host → a plain "no app at this address" page.
+- Translations say `{brand}` where they used to say "Canopy"; `t()` fills it.
+
+Server env (runtime, not `NEXT_PUBLIC_`):
+
+| Var | Use |
+|---|---|
+| `AGENT_TENANT_FORCE_SLUG` | Development: serve one tenant whatever the host (`lyfi`, `canopy`). |
+| `AGENT_TENANT_BASE_DOMAIN` | Default `agent.canopy.finance`; tenants live at `<slug>.` under it. |
+| `AGENT_PLATFORM_HOSTS` | Extra hosts that should be Canopy (comma list). |
+
+`NEXT_PUBLIC_PRIVY_*` and `NEXT_PUBLIC_GA_ID` are now only Canopy's fallback,
+used when canopy-be cannot be reached on a Canopy host. Tenants are created
+and branded in the admin portal; see canopy-be `docs/agent-tenants.md`.
+Hosting needs the wildcard `*.agent.canopy.finance` (and each custom domain)
+attached to this project.
+
 ## Gotcha: `npm run dev` runs on webpack, not Turbopack
 
 The `--webpack` flag in the `dev` script is load-bearing. **Do not remove it**

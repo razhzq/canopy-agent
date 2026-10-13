@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
-import { PRIVY_APP_ID, privyConfig } from "@/lib/privy";
+import { privyConfigFor } from "@/lib/privy";
+import { TenantProvider } from "@/lib/tenant/context";
+import type { TenantConfig } from "@/lib/tenant/config";
 import { rpcUrl, wsUrl } from "@/lib/chainBalance";
 import { LocaleProvider } from "@/lib/i18n";
 import { AuthEvents } from "@/components/authEvents";
@@ -22,7 +24,14 @@ import { AuthEvents } from "@/components/authEvents";
  * a signed-out visitor who switches language must not lose the choice the
  * moment they sign in and the tree below Privy remounts.
  */
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  tenant,
+  children,
+}: {
+  /** The tenant this page serves, resolved from the host by the root layout. */
+  tenant: TenantConfig;
+  children: React.ReactNode;
+}) {
   /**
    * THE RPC PRIVY SENDS THROUGH. Privy 3.x's `useSignAndSendTransaction`
    * broadcasts over an RPC the app must hand it under `solana.rpcs`, keyed by
@@ -32,6 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
    * own proxy at a relative path, which only resolves against an origin.
    */
   const config = useMemo<PrivyClientConfig>(() => {
+    const privyConfig = privyConfigFor(tenant);
     if (typeof window === "undefined") return privyConfig;
     return {
       ...privyConfig,
@@ -46,10 +56,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       },
     };
-  }, []);
+  }, [tenant]);
 
-  const inner = PRIVY_APP_ID ? (
-    <PrivyProvider appId={PRIVY_APP_ID} config={config}>
+  const inner = tenant.privy.appId ? (
+    <PrivyProvider appId={tenant.privy.appId} config={config}>
       <AuthEvents />
       {children}
     </PrivyProvider>
@@ -57,5 +67,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     children
   );
 
-  return <LocaleProvider>{inner}</LocaleProvider>;
+  return (
+    <TenantProvider tenant={tenant}>
+      <LocaleProvider brand={tenant.name}>{inner}</LocaleProvider>
+    </TenantProvider>
+  );
 }

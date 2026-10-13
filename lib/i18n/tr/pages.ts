@@ -1,25 +1,25 @@
 import type { enPages } from "../en/pages";
 
 export const trPages: Record<keyof typeof enPages, string> = {
-  page_title_root: "Canopy Ajan Platformu",
+  page_title_root: "{brand} Ajan Platformu",
   page_desc_root:
     "Bir stratejiyi kendi ajanınız olarak devreye alın. Varlıklar sizde kalır. Her limiti siz belirlersiniz.",
 
-  page_title_settings: "Ayarlar · Canopy",
-  page_title_earnings: "Üretici kazançları · Canopy",
-  page_title_wallet_audit: "Cüzdan denetimi · Canopy",
-  page_title_activity: "Hareketler · Canopy",
-  page_title_portfolio: "Portföy · Canopy",
-  page_title_notifications: "Bildirimler · Canopy",
-  page_title_agents: "Ajanlar · Canopy",
-  page_title_atlas: "Atlas · Canopy",
-  page_title_workspace: "Ajanlarım · Canopy",
+  page_title_settings: "Ayarlar · {brand}",
+  page_title_earnings: "Üretici kazançları · {brand}",
+  page_title_wallet_audit: "Cüzdan denetimi · {brand}",
+  page_title_activity: "Hareketler · {brand}",
+  page_title_portfolio: "Portföy · {brand}",
+  page_title_notifications: "Bildirimler · {brand}",
+  page_title_agents: "Ajanlar · {brand}",
+  page_title_atlas: "Atlas · {brand}",
+  page_title_workspace: "Ajanlarım · {brand}",
 
   page_eyebrow_portfolio: "Portföy",
   page_eyebrow_account: "Hesap",
 
   settings_title: "Ayarlar",
-  settings_body: "Ajanlarınız ve Canopy'nin size nasıl ulaşacağı.",
+  settings_body: "Ajanlarınız ve {brand}'nin size nasıl ulaşacağı.",
 
   activity_page_title: "Hareketler",
   activity_page_body:

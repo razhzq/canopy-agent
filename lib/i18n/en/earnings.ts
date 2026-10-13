@@ -8,12 +8,12 @@
 export const enEarnings = {
   ce_title: "Creator earnings",
   ce_intro:
-    "When a Canopy agent copies a wallet's liquidity positions and closes one in profit, a share of that profit is set aside for the wallet it copied. If that wallet is yours, this is where you collect it.",
+    "When a {brand} agent copies a wallet's liquidity positions and closes one in profit, a share of that profit is set aside for the wallet it copied. If that wallet is yours, this is where you collect it.",
   ce_loading: "Loading your earnings",
 
   ce_empty_title: "No earnings yet",
   ce_empty_body:
-    "Connect a Solana wallet to check whether anything has been set aside for it. Nothing is shared with Canopy by connecting.",
+    "Connect a Solana wallet to check whether anything has been set aside for it. Nothing is shared with {brand} by connecting.",
 
   ce_verified: "Verified",
   ce_available: "Available",
@@ -24,7 +24,7 @@ export const enEarnings = {
   // question anyone will have, and the honest answer is that pending money is
   // not yet Canopy's to pay.
   ce_pending_note:
-    "Available is held by Canopy and can be paid out now. Pending has been charged but is still in the copying agent's wallet, so it is not claimable until Canopy collects it.",
+    "Available is held by {brand} and can be paid out now. Pending has been charged but is still in the copying agent's wallet, so it is not claimable until {brand} collects it.",
 
   ce_claim: "Request payout",
   ce_claiming: "Requesting…",
@@ -45,7 +45,7 @@ export const enEarnings = {
 
   ce_connect: "Another wallet",
   ce_connect_body:
-    "Earnings belong to the wallet that was copied, which is usually one you hold in Phantom or Backpack rather than a Canopy wallet.",
+    "Earnings belong to the wallet that was copied, which is usually one you hold in Phantom or Backpack rather than a {brand} wallet.",
   ce_connect_action: "Connect a wallet",
 
   ce_err_no_wallet: "That wallet is no longer connected. Connect it again and retry.",

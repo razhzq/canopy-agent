@@ -26,6 +26,7 @@ import {
 } from "./footprint";
 import "@/components/landing/landing.css";
 import "./research.css";
+import { useTenant } from "@/lib/tenant/context";
 
 type View = "market" | "analyst" | "mm";
 type T = ReturnType<typeof useT>;
@@ -37,10 +38,18 @@ const C = {
   organic: "rgba(255,255,255,.2)",
   p99: "rgba(255,255,255,.32)",
   naive: "#E8ECEA",
-  canopy: "#5ED3B3",
+  // The tenant's accent. A CSS variable: canvas strokes resolve it through
+  // `paint()`, DOM styles use it as is.
+  canopy: "var(--color-accent)",
   loss: "#E5484D",
   cursor: "rgba(255,255,255,.25)",
 };
+/** A colour a canvas can use: CSS variables resolved against the document. */
+function paint(c: string): string {
+  const m = /^var\((--[\w-]+)\)$/.exec(c);
+  if (!m || typeof document === "undefined") return c;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || "#5ED3B3";
+}
 const usd = (v: number) => "$" + Math.round(v).toLocaleString("en-US");
 const pct = (bps: number) => (bps / 100).toFixed(bps < 10 ? 3 : 2) + "%";
 // Inline widths are rounded so the server and the browser serialise the same string.
@@ -208,7 +217,7 @@ function Lane({ lane, name, sub, prog, view, yMax, t }: LaneProps) {
       if (j) ctx.lineTo(x, y);
       else ctx.moveTo(x, y);
     }
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = paint(color);
     ctx.lineWidth = 1.8;
     ctx.lineJoin = "round";
     ctx.stroke();
@@ -217,7 +226,7 @@ function Lane({ lane, name, sub, prog, view, yMax, t }: LaneProps) {
       ctx.lineTo(left, pTop + pH);
       ctx.closePath();
       ctx.globalAlpha = 0.08;
-      ctx.fillStyle = color;
+      ctx.fillStyle = paint(color);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -251,7 +260,7 @@ function Lane({ lane, name, sub, prog, view, yMax, t }: LaneProps) {
       const y = ySize(f.s);
       ctx.beginPath();
       ctx.arc(x, y, hide ? (lane.kind === "canopy" ? 1.05 : fr * 0.6 + 1) : fr, 0, Math.PI * 2);
-      ctx.fillStyle = hide ? C.organic : lane.kind === "canopy" ? walletColor(f.w, "dark") : color;
+      ctx.fillStyle = hide ? C.organic : lane.kind === "canopy" ? walletColor(f.w, "dark") : paint(color);
       ctx.globalAlpha = hide && lane.kind === "canopy" ? 0.75 : 1;
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -429,6 +438,7 @@ const LANE_COPY: Record<LaneKind, [TranslationKey, TranslationKey]> = {
 };
 
 export function ResearchPage() {
+  const tenant = useTenant();
   const t = useT();
   const lanes = useMemo(() => ({ big: buildLane("big"), diy: buildLane("diy"), canopy: buildLane("canopy") }), []);
   const [mode, setMode] = useState<"big" | "diy">("big");
@@ -481,8 +491,8 @@ export function ResearchPage() {
     <main className="lp rs">
       <div className="wrap">
         <nav className="rs-nav">
-          <Link href="/" aria-label="Canopy">
-            <Wordmark height={24} className="text-[#0B1410]" />
+          <Link href="/" aria-label={tenant.name}>
+            <Wordmark height={24} className="text-[#0B1410]" onLight />
           </Link>
           <div className="rs-nav-right">
             <LanguageSwitcher />

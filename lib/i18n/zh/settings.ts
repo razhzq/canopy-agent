@@ -45,7 +45,7 @@ export const zhSettings: Record<keyof typeof enSettings, string> = {
   tg_will_send_1: "每一笔交易及其结果。",
   tg_will_send_2: "任何等待您决定的事项。",
   tg_will_send_3: "止损与冻结，以及解除。",
-  tg_wont_line: "不推送安静的周期。审批只在 Canopy 内完成。",
+  tg_wont_line: "不推送安静的周期。审批只在 {brand} 内完成。",
   tg_kind_fill: "成交",
   tg_kind_fill_note: "每笔成交，卖出附带结果。",
   tg_kind_proposal: "待决定",

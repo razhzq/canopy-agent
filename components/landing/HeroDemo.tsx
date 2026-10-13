@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, ArrowLeftRight, Check, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 /**
  * Three prompts, one flow: prompt → agent thread → market card. Cycles on a
@@ -67,6 +68,7 @@ const HOLD_MS = 7000;
 const TABS: TranslationKey[] = ["lp_demo_tab_price", "lp_demo_tab_volume", "lp_demo_tab_funding"];
 
 export function HeroDemo() {
+  const tenant = useTenant();
   const t = useT();
   const [i, setI] = useState(0);
   const [pinned, setPinned] = useState(false);
@@ -91,7 +93,7 @@ export function HeroDemo() {
   const stroke = s.up ? "#5ED3B3" : "#E5484D";
 
   return (
-    <div className="demo" aria-label="How a Canopy agent runs">
+    <div className="demo" aria-label={`How a ${tenant.name} agent runs`}>
       <div className="tabs" role="tablist">
         <ArrowLeftRight aria-hidden />
         <span>{t("lp_demo_prompts")}</span>

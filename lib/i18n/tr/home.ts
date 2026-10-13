@@ -27,7 +27,7 @@ export const trHome: Record<keyof typeof enHome, string> = {
   capability_set_up_under: "{key} altından ayarlayın.",
   capability_dismiss: "Kapat",
 
-  model_badge_title: "{label} ile akıl yürütüyor — Canopy'de barındırılan Qwen3",
+  model_badge_title: "{label} ile akıl yürütüyor — {brand}'de barındırılan Qwen3",
   model_badge_title_pod: "{label} ile akıl yürütüyor — Pod üzerinden satın alındı",
   model_badge_credit: "{amount} $ ön ödemeli bakiye kaldı",
 };

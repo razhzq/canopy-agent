@@ -39,6 +39,7 @@ import { SectionHead, Callout, InfoIcon } from "./ui";
 import { ErrorState, SignedOutState } from "./states";
 import { SkeletonPanel } from "./skeleton";
 import { useT, type Translate } from "@/lib/i18n";
+import { useFeature } from "@/lib/tenant/context";
 
 const BTN =
   "inline-flex h-9 items-center justify-center gap-2 rounded-full border px-4 font-ui text-[13px] font-medium transition-colors disabled:opacity-40";
@@ -61,7 +62,12 @@ function money(n: number | null): string {
   return n === null ? "—" : `$${n}`;
 }
 
+/** Nothing where the tenant has no billing (Canopy's checkout is Canopy's). */
 export function BillingSettings() {
+  return useFeature("billing") ? <BillingSettingsBody /> : null;
+}
+
+function BillingSettingsBody() {
   const { getAccessToken } = usePrivy();
   const t = useT();
   const state = useApi(loadBilling, []);

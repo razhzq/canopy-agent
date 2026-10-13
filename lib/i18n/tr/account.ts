@@ -4,10 +4,10 @@ export const trAccount: Record<keyof typeof enAccount, string> = {
   gate_eyebrow: "Kapalı erişim",
   gate_unreachable_title: "Erişim doğrulanamıyor",
   gate_unreachable_body:
-    "Erişiminizi kontrol etmek için Canopy'ye ulaşamadık. Bu, hesabınızla ilgili bir karar değil — kontrol yalnızca tamamlanamadı.",
+    "Erişiminizi kontrol etmek için {brand}'ye ulaşamadık. Bu, hesabınızla ilgili bir karar değil — kontrol yalnızca tamamlanamadı.",
   gate_locked_title: "Davet kodu gerekiyor",
   gate_locked_body:
-    "Canopy Agent kapalı erişimde. Hesabınız oturum açtı — yalnızca henüz listede değil. Platformu açmak için size gönderilen kodu girin.",
+    "{brand} Agent kapalı erişimde. Hesabınız oturum açtı — yalnızca henüz listede değil. Platformu açmak için size gönderilen kodu girin.",
   gate_code_label: "Davet kodu",
   gate_code_placeholder: "CANOPY-XXXX-XXXX",
   gate_checking: "Kontrol ediliyor…",
@@ -20,7 +20,7 @@ export const trAccount: Record<keyof typeof enAccount, string> = {
   username_welcome_title: "Hoş geldin. Adını seç.",
   username_welcome_body: "Ajanlarında ve herkese açık kayıtlarında görünür; başkaları seni böyle bulur.",
   username_body:
-    "Canopy'nin her yerinde e-postanızın yerini alır ve başkalarının sizi bulma yoludur.",
+    "{brand}'nin her yerinde e-postanızın yerini alır ve başkalarının sizi bulma yoludur.",
   username_placeholder: "adiniz",
   username_available: "@{name} uygun.",
   username_checking: "Kontrol ediliyor…",
@@ -30,5 +30,6 @@ export const trAccount: Record<keyof typeof enAccount, string> = {
   username_later: "Sonra",
   username_claim: "Al",
   username_saving: "Kaydediliyor…",
-  username_note: "Kullanıcı adları Canopy genelinde benzersizdir ve borsayla paylaşılır.",
+  username_note_tenant: "Kullanıcı adları {brand} genelinde benzersizdir.",
+  username_note: "Kullanıcı adları {brand} genelinde benzersizdir ve borsayla paylaşılır.",
 };

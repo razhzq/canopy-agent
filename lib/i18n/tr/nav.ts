@@ -5,7 +5,7 @@ export const trNav: Record<keyof typeof enNav, string> = {
   nav_explore: "Keşfet",
   nav_atlas: "Atlas",
   nav_create_agent: "Ajan oluştur",
-  nav_home_aria: "Canopy — ana sayfa",
+  nav_home_aria: "{brand} — ana sayfa",
   nav_primary_aria: "Ana menü",
   nav_sign_in: "Giriş yap",
 
@@ -23,7 +23,7 @@ export const trNav: Record<keyof typeof enNav, string> = {
   account_method_wallet: "Cüzdan",
   account_set_username: "+ Kullanıcı adı belirle",
   account_address_copied: "Adres panoya kopyalandı",
-  account_wallet_canopy: "Canopy cüzdanı",
+  account_wallet_canopy: "{brand} cüzdanı",
   account_your_wallet: "Cüzdanınız",
   account_your_wallets: "Cüzdanlarınız",
   account_copy_wallet_aria: "{label} adresini kopyala: {address}",

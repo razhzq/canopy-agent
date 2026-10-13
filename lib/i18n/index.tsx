@@ -29,6 +29,7 @@ import { tr } from "./tr";
 export type Locale = "en" | "zh" | "tr";
 export type { TranslationKey };
 export type { Translate } from "./translate";
+import { fill } from "./translate";
 
 // Partial by type, because a locale can be in progress. `t` resolves a missing
 // key against English below, so a half-translated locale shows English for what
@@ -69,7 +70,18 @@ export function dateLocale(l: Locale): string {
   return l === "zh" ? "zh-CN" : l === "tr" ? "tr-TR" : "en-GB";
 }
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
+export function LocaleProvider({
+  brand = "Canopy",
+  children,
+}: {
+  /**
+   * The tenant's name, filled into `{brand}` in every string (CANOPY_143).
+   * The dictionaries say `{brand}` wherever they used to say "Canopy", so one
+   * set of translations serves every tenant.
+   */
+  brand?: string;
+  children: ReactNode;
+}) {
   // Always start English. The persisted choice is resolved in an effect, so
   // the server HTML and the first client paint agree — the alternative reads
   // localStorage during render and hydration-mismatches every string on the
@@ -117,12 +129,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       // Fall back through English rather than rendering a raw key: a missing
       // Chinese string should read as English, not as `portfolio_empty_title`.
       const raw = dict[key] ?? en[key] ?? key;
-      if (!vars) return raw;
-      return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
-        vars[name] != null ? String(vars[name]) : `{${name}}`,
-      );
+      return fill(raw, vars, brand);
     },
-    [locale],
+    [locale, brand],
   );
 
   return <Ctx.Provider value={{ locale, setLocale, t }}>{children}</Ctx.Provider>;
@@ -138,10 +147,7 @@ export function useLocale(): LocaleCtx {
       setLocale: () => undefined,
       t: (key, vars) => {
         const raw = en[key] ?? key;
-        if (!vars) return raw;
-        return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
-          vars[name] != null ? String(vars[name]) : `{${name}}`,
-        );
+        return fill(raw, vars, "Canopy");
       },
     };
   }

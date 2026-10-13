@@ -50,7 +50,7 @@ export const enSettings = {
   tg_will_send_1: "Every trade, with the result.",
   tg_will_send_2: "Anything waiting on your decision.",
   tg_will_send_3: "Stops and freezes, and when they lift.",
-  tg_wont_line: "Not quiet cycles. Approvals stay in Canopy.",
+  tg_wont_line: "Not quiet cycles. Approvals stay in {brand}.",
   tg_kind_fill: "Trades",
   tg_kind_fill_note: "Every fill, with the result on a sale.",
   tg_kind_proposal: "Decisions",

@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FOCUS } from "@/components/kit";
 import { MIN_PAPER_BOOK_USD } from "@/components/setLimits";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 /**
  * What an agent does. Asked before anything else, because everything after it
@@ -70,6 +71,14 @@ export function PickType({
   onCapitalChange: (next: number | null) => void;
 }) {
   const t = useT();
+  const tenant = useTenant();
+  // Only the kinds this tenant offers (CANOPY_143): perps where it may trade
+  // them live, copy LP where it has the feature. Spot is always there.
+  const kinds = KINDS.filter(
+    (k) =>
+      (k.kind !== "perp" || tenant.instruments.includes("perp")) &&
+      (k.kind !== "copyLp" || tenant.features.copyLp),
+  );
   return (
     <div className="space-y-7">
       <header>
@@ -77,8 +86,8 @@ export function PickType({
         <p className="mt-1.5 font-ui text-[13.5px] text-text-muted">{t("bt_lede")}</p>
       </header>
 
-      <div role="radiogroup" aria-label={t("bt_title")} className="grid gap-4 md:grid-cols-3">
-        {KINDS.map((k) => {
+      <div role="radiogroup" aria-label={t("bt_title")} className={`grid gap-4 ${kinds.length === 3 ? "md:grid-cols-3" : kinds.length === 2 ? "md:grid-cols-2" : "md:max-w-sm"}`}>
+        {kinds.map((k) => {
           const on = k.kind === kind;
           return (
             <button

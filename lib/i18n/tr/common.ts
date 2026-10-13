@@ -3,7 +3,8 @@ import type { enCommon } from "../en/common";
 export const trCommon: Record<keyof typeof enCommon, string> = {
   state_signed_out_title: "Devam etmek için giriş yapın",
   state_signed_out_body:
-    "Ajanlarınız Canopy hesabınıza bağlıdır. Buradaki giriş, borsayla aynı hesabı kullanır.",
+    "Ajanlarınız {brand} hesabınıza bağlıdır. Buradaki giriş, borsayla aynı hesabı kullanır.",
+  state_signed_out_body_tenant: "Ajanlarınız {brand} hesabınıza bağlıdır.",
   state_sign_in: "Giriş yap",
   state_error_title: "Yüklenemedi",
   state_try_again: "Tekrar dene",

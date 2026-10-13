@@ -3,6 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { useT } from "@/lib/i18n";
+import { useTenant } from "@/lib/tenant/context";
 
 interface Props {
   onLogin: () => void;
@@ -15,6 +16,7 @@ interface Props {
  * nav links, then the fine print and the rights line in muted type.
  */
 export function Footer({ onLogin }: Props) {
+  const tenant = useTenant();
   const t = useT();
   const year = String(new Date().getFullYear());
   return (
@@ -22,7 +24,7 @@ export function Footer({ onLogin }: Props) {
       <section className="end">
         <div className="wrap">
           <div className="mark">
-            <Wordmark height={44} className="text-[#201e1d]" />
+            <Wordmark height={44} className="text-[#201e1d]" onLight />
           </div>
           <h2 className="h2">
             {t("lp_end_h1")}
@@ -44,8 +46,8 @@ export function Footer({ onLogin }: Props) {
       <footer>
         <div className="wrap">
           <div className="foot-row">
-            <a href="#top" className="logo" aria-label="Canopy">
-              <Wordmark height={20} className="text-[#201e1d]" />
+            <a href="#top" className="logo" aria-label={tenant.name}>
+              <Wordmark height={20} className="text-[#201e1d]" onLight />
             </a>
             <nav className="foot-links" aria-label="Footer">
               <a href="#market">{t("ld_nav_marketplace")}</a>
