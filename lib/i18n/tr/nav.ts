@@ -4,6 +4,8 @@ export const trNav: Record<keyof typeof enNav, string> = {
   nav_portfolio: "Portföy",
   nav_explore: "Keşfet",
   nav_atlas: "Atlas",
+  nav_feed: "Akış",
+  nav_trade: "İşlem",
   nav_create_agent: "Ajan oluştur",
   nav_home_aria: "{brand} — ana sayfa",
   nav_primary_aria: "Ana menü",
@@ -14,6 +16,8 @@ export const trNav: Record<keyof typeof enNav, string> = {
   tabs_activity: "Hareketler",
   tabs_alerts: "Uyarılar",
   tabs_profile: "Profil",
+  tabs_feed: "Akış",
+  tabs_trade: "İşlem",
 
   account_menu_aria: "Hesap",
   account_aria: "Hesap: {name}",

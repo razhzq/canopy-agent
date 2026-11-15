@@ -5,6 +5,8 @@ export const enNav = {
   nav_portfolio: "Portfolio",
   nav_explore: "Explore",
   nav_atlas: "Atlas",
+  nav_feed: "Feed",
+  nav_trade: "Trade",
   nav_create_agent: "Create agent",
   nav_home_aria: "{brand} — home",
   nav_primary_aria: "Primary",
@@ -16,6 +18,8 @@ export const enNav = {
   tabs_activity: "Activity",
   tabs_alerts: "Alerts",
   tabs_profile: "Profile",
+  tabs_feed: "Feed",
+  tabs_trade: "Trade",
 
   // ── Account menu ───────────────────────────────────────────────
   account_menu_aria: "Account",

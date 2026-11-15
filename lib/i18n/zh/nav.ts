@@ -4,6 +4,8 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   nav_portfolio: "投资组合",
   nav_explore: "探索",
   nav_atlas: "Atlas",
+  nav_feed: "动态推荐",
+  nav_trade: "交易",
   nav_create_agent: "创建智能体",
   nav_home_aria: "{brand} — 首页",
   nav_primary_aria: "主导航",
@@ -14,6 +16,8 @@ export const zhNav: Record<keyof typeof enNav, string> = {
   tabs_activity: "动态",
   tabs_alerts: "提醒",
   tabs_profile: "我的",
+  tabs_feed: "推荐",
+  tabs_trade: "交易",
 
   account_menu_aria: "账户",
   account_aria: "账户：{name}",

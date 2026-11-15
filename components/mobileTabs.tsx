@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Bell, GitBranch, House, User } from "lucide-react";
+import { Bell, ChartCandlestick, GitBranch, House, Newspaper, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getNotificationFeed } from "@/lib/api";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -34,6 +34,8 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 const TABS = [
   // Home is EXPLORE — the feed with the performers strip.
   { href: "/agents", key: "tabs_home" as TranslationKey, icon: House, match: ["/agents", "/deploy"] },
+  { href: "/feed", key: "tabs_feed" as TranslationKey, icon: Newspaper, match: ["/feed"] },
+  { href: "/trade", key: "tabs_trade" as TranslationKey, icon: ChartCandlestick, match: ["/trade"] },
   { href: "/activity", key: "tabs_activity" as TranslationKey, icon: GitBranch, match: ["/activity"] },
   // The wireframe's Squads slot has no backend, so notifications take it —
   // real, and otherwise only reachable behind a bell in a top bar a thumb

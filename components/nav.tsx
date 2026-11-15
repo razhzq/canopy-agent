@@ -67,6 +67,16 @@ const NAV = [
     match: ["/agents", "/deploy"],
   },
   {
+    key: "nav_feed" as TranslationKey,
+    href: "/feed",
+    match: ["/feed"],
+  },
+  {
+    key: "nav_trade" as TranslationKey,
+    href: "/trade",
+    match: ["/trade"],
+  },
+  {
     key: "nav_atlas" as TranslationKey,
     href: "/atlas",
     match: ["/atlas"],
