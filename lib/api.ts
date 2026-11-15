@@ -10,6 +10,24 @@
 // is canopy-be's legacy pattern and the agent routes deliberately do not have
 // it. Callers pass the token they already hold from the Privy client.
 
+import type {
+  Candle,
+  CopilotSetup,
+  ExitPlan,
+  ExitPlanKey,
+  FeedCat,
+  FeedResponse,
+  Holder,
+  LiveTrade,
+  Position,
+  Timeframe,
+  TokenDetail,
+  TokenList,
+  TokenRow,
+  TradeAccount,
+  TradeQuote,
+} from "./market";
+
 const BASE = process.env.NEXT_PUBLIC_CANOPY_API_URL ?? "http://localhost:3001";
 
 export class ApiError extends Error {
@@ -78,7 +96,9 @@ async function request<T>(
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Public market routes are called signed-out with an empty token; an
+      // empty Bearer would be a malformed credential, so none is sent.
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       "Content-Type": "application/json",
       ...(init.headers ?? {}),
     },
@@ -4661,3 +4681,109 @@ export const removeTenantAdmin = (token: string, who: { userId?: number; email?:
     method: "DELETE",
     body: JSON.stringify(who),
   });
+
+/* ----------------------------------------------------- feed and trade -- */
+//
+// docs/feed-trade-api.md. The market and feed routes are public: pass "" as
+// the token when signed out and no Authorization header is sent.
+
+
+export const marketStreamUrl = (mint: string) =>
+  `${BASE}/api/market/token/${encodeURIComponent(mint)}/stream`;
+
+export const getMarketTokens = (token: string, list: TokenList, limit = 50) =>
+  request<{ tokens: TokenRow[] }>(`/market/tokens?list=${list}&limit=${limit}`, token);
+
+export const searchMarket = (token: string, q: string) =>
+  request<{ tokens: TokenRow[] }>(`/market/search?q=${encodeURIComponent(q)}`, token);
+
+export const getMarketToken = (token: string, mint: string) =>
+  request<TokenDetail>(`/market/token/${encodeURIComponent(mint)}`, token);
+
+export const getMarketCandles = (token: string, mint: string, tf: Timeframe, bars = 200) =>
+  request<{ candles: Candle[] }>(
+    `/market/token/${encodeURIComponent(mint)}/candles?tf=${tf}&bars=${bars}`,
+    token,
+  );
+
+export const getMarketTrades = (token: string, mint: string, limit = 50) =>
+  request<{ trades: LiveTrade[]; available: boolean }>(
+    `/market/token/${encodeURIComponent(mint)}/trades?limit=${limit}`,
+    token,
+  );
+
+export const getMarketHolders = (token: string, mint: string) =>
+  request<{ holders: Holder[]; available: boolean }>(
+    `/market/token/${encodeURIComponent(mint)}/holders`,
+    token,
+  );
+
+export const getWatchlist = (token: string) =>
+  request<{ mints: string[]; tokens: TokenRow[] }>("/market/watchlist", token);
+
+export const setWatched = (token: string, mint: string, on: boolean) =>
+  request<{ mints: string[] }>(`/market/watchlist/${encodeURIComponent(mint)}`, token, {
+    method: on ? "PUT" : "DELETE",
+  });
+
+export const getTradeAccount = (token: string) =>
+  request<TradeAccount>("/trade/account", token);
+
+/**
+ * Creates (no address) or confirms (with the delegated wallet's address) the
+ * personal trading account.
+ */
+export const setupTradeAccount = (token: string, walletAddress?: string) =>
+  request<TradeAccount>("/trade/account", token, {
+    method: "POST",
+    body: JSON.stringify(walletAddress ? { walletAddress } : {}),
+  });
+
+export const getTradeQuote = (
+  token: string,
+  body: { mint: string; side: "buy" | "sell"; usd?: number; fraction?: number; slippageBps?: number },
+) =>
+  request<TradeQuote>("/trade/quote", token, { method: "POST", body: JSON.stringify(body) });
+
+export const tradeBuy = (
+  token: string,
+  body: { mint: string; usd: number; exitPlan: ExitPlan; source: string; slippageBps?: number },
+) =>
+  request<{ position: Position; signature: string }>("/trade/buy", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const tradeSell = (token: string, body: { mint: string; fraction: number }) =>
+  request<{ soldUsd: number; pnlUsd: number; signature: string }>("/trade/sell", token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const getTradePositions = (token: string, status: "open" | "closed" = "open") =>
+  request<{ positions: Position[] }>(`/trade/positions?status=${status}`, token);
+
+export const updatePositionPlan = (token: string, id: string, exitPlan: ExitPlan) =>
+  request<{ position: Position }>(`/trade/positions/${encodeURIComponent(id)}`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ exitPlan }),
+  });
+
+export const getFeedIdeas = (token: string, cat: FeedCat = "all") =>
+  request<FeedResponse>(`/feed/ideas?cat=${cat}`, token);
+
+export const passIdea = (token: string, id: string) =>
+  request<{ ok: true }>(`/feed/ideas/${encodeURIComponent(id)}/pass`, token, { method: "POST" });
+
+export const getCopilotSetup = (
+  token: string,
+  body: { mint: string; plan?: ExitPlanKey; rerun?: boolean },
+) =>
+  request<CopilotSetup>("/copilot/setup", token, { method: "POST", body: JSON.stringify(body) });
+
+/** The refusal codes `/trade/buy` and `/copilot/setup` send in their body. */
+export function tradeErrorCode(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const code = err.detail?.error;
+  return typeof code === "string" ? code : null;
+}
