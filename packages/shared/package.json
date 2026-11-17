@@ -1,0 +1,24 @@
+{
+  "name": "@canopy-agent/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Code shared by the Canopy Agent app and landing page: translations, tenant lookup, brand, language switcher, theme.",
+  "exports": {
+    "./i18n": "./src/i18n/index.tsx",
+    "./i18n/server": "./src/i18n/server.ts",
+    "./i18n/translate": "./src/i18n/translate.ts",
+    "./tenant/config": "./src/tenant/config.ts",
+    "./tenant/context": "./src/tenant/context.tsx",
+    "./tenant/server": "./src/tenant/server.ts",
+    "./brand": "./src/brand.tsx",
+    "./languageSwitcher": "./src/languageSwitcher.tsx",
+    "./styles.css": "./src/styles.css",
+    "./analytics": "./src/analytics.ts",
+    "./analyticsTag": "./src/analyticsTag.tsx",
+    "./i18n/en": "./src/i18n/en/index.ts"
+  },
+  "peerDependencies": {
+    "next": "16.2.6",
+    "react": "19.2.3"
+  }
+}

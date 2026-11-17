@@ -1,0 +1,3807 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import {
+  type RiskCaps,
+  classFor,
+  composeAgent,
+  type Clause,
+  type DetectionRule,
+  type SetupSpec,
+  type AddPlan,
+  type RankingSpec,
+  type ComplianceProfile,
+  type ExitRules,
+  type UniverseAsset,
+  type DiscoverySpec,
+  type PerpConfig,
+  type PerpMarketInfo,
+  type GridPlan,
+} from "@/lib/api";
+import { gridMinSpacingPct, gridTotalUsd } from "@/lib/grid";
+import { DEVIATION_KEYS, PAIR_KEYS, PERIOD_KEYS, TIMEFRAME_KEYS } from "@/lib/rulePeriods";
+import {
+  AddPlanCard,
+  CADENCES,
+  CADENCE_FOR_TIMEFRAME,
+  DEFAULT_TIMEFRAME,
+  RWA_RULES,
+  TIMEFRAMES,
+  fmt,
+  rescaleRuleValue,
+  rulesForClasses,
+  toPayload,
+  withRuleParams,
+  ruleBasisNote,
+  ruleLabel,
+  ruleSpan,
+  scaleRule,
+  timeframesForClass,
+  type RuleSpec,
+  type Timeframe,
+} from "@/components/buildStrategy";
+import { Pill, PillRow } from "@/components/wizard";
+import { FieldNote, InfoDot, LABEL, MICRO, SEGMENT_ITEM, SEGMENT_OFF, SEGMENT_ON, SEGMENT_TRACK, Spinner, StatusLine } from "@/components/kit";
+import { ModelBadge } from "@/components/modelBadge";
+import { PromptPackPanel, PromptPackPill } from "@/components/promptPack";
+import { ChevronDown } from "lucide-react";
+import { useT, type Translate, type TranslationKey } from "@canopy-agent/shared/i18n";
+
+/**
+ * Step 2 — set the limits. Wireframe 1e.
+ *
+ * WRITE IT, COMPILE IT, THEN EDIT THE CHIPS.
+ *
+ * The important idea in the wireframe, and the answer to the complaint that
+ * started this: a sentence is compiled into rules you can SEE and adjust in
+ * place. The old flow read a description, filled two form pages somewhere else,
+ * and never showed its working — so a complex request and a trivial one looked
+ * identical afterwards.
+ *
+ * Nothing is inferred silently. Every chip below is a rule the specialist
+ * actually evaluates, every value is one the server clamped into range, and
+ * anything asked for that could not be honoured comes back as a note.
+ */
+
+export interface Limits {
+  /**
+   * The paper book this agent starts with, chosen on the type step. Any
+   * amount from MIN_PAPER_BOOK_USD. Absent reads as CAPITAL_USD, the fixed book
+   * every draft saved before the choice existed was sized against.
+   */
+  capitalUsd?: number;
+  /**
+   * Rules or a price grid. Absent reads as rules, which is every strategy
+   * built before the grid existed. A grid is spot only: the ladder buys and
+   * sells one token, and rules, exits and the add plan play no part in it.
+   */
+  strategyType?: "rules" | "grid";
+  grid?: GridLimits;
+  rules: RuleSpec[];
+  exits: ExitRules;
+  /**
+   * Bar size the technical rules are measured on. Absent means daily, matching
+   * every strategy authored before this was a choice.
+   */
+  timeframe?: Timeframe;
+  /** IANA timezone the session rules read in. Absent means UTC. */
+  timezone?: string;
+  /**
+   * Seconds between cycles — how often the agent wakes.
+   *
+   * NOT the same axis as `timeframe`, which is the resolution of what it looks
+   * at. Absent means the author never chose, which defers to the engine default
+   * (hourly) rather than asserting one on their behalf — the same rule
+   * `complianceProfile` follows below.
+   */
+  cadenceSec?: number;
+  /**
+   * How the strategy accumulates. Absent means one entry per asset.
+   *
+   * Setting one changes what the exits above MEASURE: they stop describing a
+   * single entry and start describing the blended position. The card says so.
+   */
+  addPlan?: AddPlan;
+  /** Most the agent may put into one position, in dollars. */
+  positionUsd: number;
+  /** Ceiling on entries per cycle. */
+  tradesPerCycle: number;
+  /**
+   * The account-level guardrails: the drawdown breaker and the three caps
+   * that stop the agent opening positions for a while. Absent means the
+   * author never touched the card, which deploys with the posture defaults.
+   */
+  riskCaps?: RiskCaps;
+  /**
+   * How hard a live swap bids for inclusion. Absent is Jupiter's own estimate,
+   * which is what every strategy did before this was a choice. Rides on the
+   * strategy's safety floor.
+   */
+  priorityFee?: "auto" | "high" | "veryHigh";
+  /**
+   * Which compliance screen the agent runs.
+   *
+   * Absent means the author never chose, which defers to the server default —
+   * NOT "none". The distinction matters: a strategy built before this was a
+   * choice must keep behaving exactly as it did.
+   */
+  complianceProfile?: ComplianceProfile;
+  /**
+   * Keep only the best N of whatever passes the rules.
+   *
+   * Absent means keep all, which is how every strategy behaved before this
+   * existed — and is the right default for a single-market strategy, where
+   * there is nothing to rank against.
+   */
+  ranking?: RankingSpec;
+  /**
+   * Either/or groups, ANDed with {@link rules}. Absent means a plain
+   * conjunction, which is what every strategy built before this is.
+   *
+   * Composer-only, like {@link setup}: there is no control for these, so what
+   * arrives from a sentence is the only way one exists. That is exactly why
+   * they are rendered read-only below rather than left invisible — a condition
+   * that trades and cannot be seen is the thing this step exists to prevent.
+   */
+  anyOf?: DetectionRule[][];
+  /** Two-stage entry. Absent means the rules are the whole test. */
+  setup?: SetupSpec;
+  /**
+   * Leverage, direction and the short side, on a perp market only. The long
+   * side is `rules`; the short side keeps its own rule list here, drawn from
+   * the same catalogue. Absent on a spot draft.
+   */
+  perp?: PerpLimits;
+}
+
+/** The builder's form of the perp block. `perpPayload` turns it into what the API takes. */
+export interface PerpLimits {
+  leverage: number;
+  longEnabled: boolean;
+  shortEnabled: boolean;
+  /** The short side's rules, `enabled` flags and all, like {@link Limits.rules}. */
+  shortRules: RuleSpec[];
+  onOppositeSignal: "hold" | "close" | "flip";
+  /** Absent = no cap. */
+  maxBorrowAprPct?: number;
+  /** Absent = not checked. */
+  liquidationBufferAtr?: number;
+}
+
+/** The grid as the form holds it: the block minus the market, which is the picked one. */
+export type GridLimits = Omit<GridPlan, "market">;
+
+/** A range around the mark when there is one; otherwise empty, to be typed. */
+export function defaultGrid(markUsd?: number | null): GridLimits {
+  const has = typeof markUsd === "number" && markUsd > 0;
+  const round = (n: number) => Number(n.toPrecision(3));
+  return {
+    range: "manual",
+    lowerUsd: has ? round(markUsd * 0.9) : 0,
+    upperUsd: has ? round(markUsd * 1.1) : 0,
+    levels: 10,
+    spacing: "arithmetic",
+    perLevelUsd: 50,
+    allocation: "flat",
+    stopBelowLowerPct: 10,
+  };
+}
+
+export function gridFromPlan(plan: GridPlan): GridLimits {
+  const { market: _market, ...rest } = plan;
+  return rest;
+}
+
+/** The block the API takes: the form plus the market it runs on. */
+export function gridPayload(g: GridLimits, market: { chain?: string; mint: string; symbol: string }): GridPlan {
+  return {
+    market: { chain: market.chain ?? "solana", mint: market.mint, symbol: market.symbol },
+    range: g.range,
+    lowerUsd: g.range === "auto" ? 0 : g.lowerUsd,
+    upperUsd: g.range === "auto" ? 0 : g.upperUsd,
+    levels: g.levels,
+    spacing: g.spacing,
+    perLevelUsd: g.perLevelUsd,
+    allocation: g.allocation,
+    ...(g.takeProfitPct !== undefined ? { takeProfitPct: g.takeProfitPct } : {}),
+    stopBelowLowerPct: g.stopBelowLowerPct,
+    ...(g.stopAboveUpperPct !== undefined ? { stopAboveUpperPct: g.stopAboveUpperPct } : {}),
+  };
+}
+
+/** A grid the builder can submit: a range it can draw, or an auto range. */
+export function gridReady(g: GridLimits | undefined): boolean {
+  if (!g) return false;
+  if (g.range === "auto") return g.levels >= 2 && g.perLevelUsd > 0;
+  return g.lowerUsd > 0 && g.upperUsd > g.lowerUsd && g.levels >= 2 && g.perLevelUsd > 0;
+}
+
+export function describeGrid(g: GridLimits, symbol: string | null, t: Translate): string {
+  const sym = symbol ?? "";
+  const perLevel = `$${g.perLevelUsd.toLocaleString("en-US")}`;
+  return g.range === "auto"
+    ? t("sl_grid_describe_auto", { symbol: sym, levels: g.levels, perLevel })
+    : t("sl_grid_describe", { symbol: sym, lower: g.lowerUsd.toLocaleString("en-US"), upper: g.upperUsd.toLocaleString("en-US"), levels: g.levels, perLevel });
+}
+
+export function defaultPerp(): PerpLimits {
+  return {
+    leverage: 2,
+    longEnabled: true,
+    shortEnabled: false,
+    shortRules: rulesForClasses(["spot", "perp"]).map((r) => ({ ...r, enabled: false })),
+    onOppositeSignal: "close",
+  };
+}
+
+/** The block the API takes. A short side with nothing switched on is no short side. */
+export function perpPayload(p: PerpLimits): PerpConfig {
+  const shortOn = p.shortEnabled ? p.shortRules.filter((r) => r.enabled !== false) : [];
+  return {
+    leverage: p.leverage,
+    longEnabled: p.longEnabled,
+    onOppositeSignal: p.onOppositeSignal,
+    ...(shortOn.length > 0 ? { short: { rules: toPayload(shortOn) } } : {}),
+    ...(p.maxBorrowAprPct !== undefined ? { maxBorrowAprPct: p.maxBorrowAprPct } : {}),
+    ...(p.liquidationBufferAtr !== undefined ? { liquidationBufferAtr: p.liquidationBufferAtr } : {}),
+  };
+}
+
+/**
+ * How far price can move against a fresh position before the venue takes the
+ * collateral, in percent. 1/L less the maintenance margin less the round-trip
+ * fees — the line beside the leverage control. Jupiter's figures when the row
+ * carries none.
+ */
+export function perpLiquidationDistancePct(leverage: number, info?: PerpMarketInfo): number {
+  if (!(leverage > 0)) return 0;
+  const maintenance = (info?.maintenanceMarginPct ?? 0.2) / 100;
+  // Open and close base fees plus one basis point of impact each way.
+  const fees = ((info?.openFeeBps ?? 6) + (info?.closeFeeBps ?? 6) + 2) / 10_000;
+  return Math.max(0, (1 / leverage - maintenance - fees) * 100);
+}
+
+const OPPOSITE_LABEL = { close: "sl_opposite_close", hold: "sl_opposite_hold", flip: "sl_opposite_flip" } as const;
+const OPPOSITE_HELP = { close: "sl_opposite_close_help", hold: "sl_opposite_hold_help", flip: "sl_opposite_flip_help" } as const;
+
+/** Verification capital. The budget is expressed against it. */
+const CAPITAL_USD = 10_000;
+/** The smallest paper book the server accepts; below it the flat network fee is most of every trade. */
+export const MIN_PAPER_BOOK_USD = 100;
+/** The book a set of limits is sized against. */
+export function bookOf(limits: Pick<Limits, "capitalUsd">): number {
+  return limits.capitalUsd !== undefined && limits.capitalUsd >= MIN_PAPER_BOOK_USD ? limits.capitalUsd : CAPITAL_USD;
+}
+
+/**
+ * Smallest position the builder will set, and the step it moves in.
+ *
+ * Not $1: a trade that small is mostly fees on any pool, so offering it would be
+ * offering something that cannot fill well. Not $100 either — that was the old
+ * floor, and it silently multiplied "$10 each trade" by ten.
+ */
+const MIN_POSITION_USD = 10;
+
+/**
+ * Move a whole strategy to a new bar size.
+ *
+ * Three things travel together and always have to: the timeframe itself, the
+ * cadence paired with it, and every percent-of-price threshold in the rule set.
+ * Changing the first alone is what made an intraday strategy look configured
+ * and behave like a broken one — daily-width thresholds nothing intraday ever
+ * reaches, on a chart the agent only glances at once an hour.
+ */
+function retimeframe(limits: Limits, to: Timeframe): Limits {
+  const from = limits.timeframe ?? DEFAULT_TIMEFRAME;
+  if (from === to) return limits;
+  return {
+    ...limits,
+    timeframe: to,
+    // Cadence follows the bar size. The row below stays editable, so this is a
+    // default and not a lock.
+    cadenceSec: CADENCE_FOR_TIMEFRAME[to],
+    rules: limits.rules.map((r) => ({
+      ...r,
+      value: rescaleRuleValue(r, from, to),
+    })),
+  };
+}
+
+export function SetLimits({
+  markets,
+  discovery,
+  value,
+  onChange,
+  onBack,
+}: {
+  /**
+   * Every market the strategy will screen, sharing one class.
+   *
+   * The first is the representative for anything that needs a single example —
+   * the heading, the placeholder. The composer is told about ALL of them,
+   * because a strategy screening three assets and told it trades one will
+   * happily write a rule that only makes sense for the one.
+   */
+  markets: UniverseAsset[];
+  /**
+   * Whether step 1 also handed the agent a screen.
+   *
+   * TWO THINGS DEPEND ON IT HERE. First, `markets` may now be EMPTY — a
+   * strategy can be built entirely from a screen — and everything below that
+   * read `markets[0]` would have thrown on it. Second, a screen makes the
+   * ranking mandatory rather than optional: a filter can match hundreds of
+   * tokens, and the server refuses a strategy that has no way to choose between
+   * them.
+   */
+  discovery?: DiscoverySpec;
+  value: Limits;
+  onChange: (next: Limits) => void;
+  onBack: () => void;
+}) {
+  const t = useT();
+  /**
+   * A screen only ever finds SPL tokens, so a strategy built from one is a
+   * crypto strategy with nothing picked yet.
+   *
+   * Used everywhere the first market used to stand in for the class. `market`
+   * itself stays possibly-undefined below and every read of it is guarded,
+   * because inventing a placeholder asset would put a made-up symbol into the
+   * composer prompt and the headings.
+   */
+  const market: UniverseAsset | undefined = markets[0];
+  const klass = market ? classFor(market) : "spot";
+  // The guardrails as shown: the author's, or the defaults they would get.
+  const caps: RiskCaps = value.riskCaps ?? DEFAULT_RISK_CAPS;
+  const setCaps = (next: RiskCaps) => onChange({ ...value, riskCaps: next });
+  const isCrypto = market ? market.kind === "crypto" : true;
+  // A perp market: leverage, direction and the short side appear, sizing is
+  // read as collateral, and the exits say what they do on that collateral.
+  const isPerp = market?.kind === "perp";
+  // A grid is spot only, on exactly one token. The switch is hidden otherwise.
+  const gridAllowed = !isPerp && isCrypto && markets.length === 1 && !!market?.mint && !discovery;
+  const isGrid = gridAllowed && value.strategyType === "grid";
+  const markUsd = (market as { priceUsd?: number | null } | undefined)?.priceUsd ?? null;
+  const setType = (type: "rules" | "grid") =>
+    onChange({
+      ...value,
+      strategyType: type,
+      ...(type === "grid" && !value.grid ? { grid: defaultGrid(markUsd) } : {}),
+    });
+  const perp: PerpLimits = value.perp ?? defaultPerp();
+  const setPerp = (patch: Partial<PerpLimits>) => onChange({ ...value, perp: { ...perp, ...patch } });
+  const perpInfo = market?.perp;
+  const perpMaxLeverage = perpInfo?.maxLeverage ?? 250;
+  const liqPct = perpLiquidationDistancePct(perp.leverage, perpInfo);
+  const stopPastLiq = isPerp && value.exits.stopLossPct >= liqPct;
+  // Every market in a strategy shares one class, so the first decides which bar
+  // sizes are on offer — the same rule the ATR rule and the compliance screen
+  // already follow.
+  const servedTimeframes = timeframesForClass(klass);
+  const { getAccessToken } = usePrivy();
+  /** The box the sentence is written in; a suggestion lands the caret here. */
+  const composer = useRef<HTMLTextAreaElement | null>(null);
+  /**
+   * Fine-tune opens on the rules that are ON. The rest — usually a dozen
+   * switched Off — sit behind one line, because sixteen rows of sliders is
+   * the wall this step used to be.
+   */
+  const [showOff, setShowOff] = useState(false);
+  const [showOffShort, setShowOffShort] = useState(false);
+  /**
+   * ONE TIMING CONTROL. Bar size and cycle are two axes, but picking 5-minute
+   * bars already sets a 5-minute cycle, so two rows of identical pills read
+   * as the same control twice. The cycle is stated as a consequence under the
+   * timeframe, and opens for editing only when someone asks for a different one.
+   */
+  const [customCycle, setCustomCycle] = useState(false);
+  const [sentence, setSentence] = useState("");
+  /** Whether the prompt pack is open over the transcript. */
+  const [packOpen, setPackOpen] = useState(false);
+  const closePack = useCallback(() => setPackOpen(false), []);
+  /**
+   * The last sentence the pack put in the box, verbatim. Picking another
+   * strategy replaces it only while it is still untouched — once the author
+   * has typed into it, the new sentence joins theirs instead of erasing it.
+   */
+  const packPicked = useRef<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notes, setNotes] = useState<string[]>([]);
+  const [reading, setReading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  /** The exchange so far, oldest first. Rendered above the input. */
+  const [turns, setTurns] = useState<Turn[]>([]);
+  /**
+   * Everything the author has said, in order.
+   *
+   * The compose endpoint is single-shot — it reads a description and returns a
+   * draft, with no memory of what came before. So a follow-up answer is not
+   * sent on its own: the whole spec is re-sent as one description each time,
+   * which is what lets "and stop out at 3%" refine a strategy instead of
+   * replacing it with a strategy that is only a stop.
+   */
+  const [spec, setSpec] = useState<string[]>([]);
+  /**
+   * What the author has settled, per the composer that read their sentence.
+   *
+   * Not accumulated. Every compose call re-sends the WHOLE spec, so each answer
+   * describes everything said so far and replaces its predecessor — merging
+   * them would keep a stop "settled" after a later sentence had reworded it
+   * away.
+   *
+   * An older backend sends no provenance at all, and then this stays empty: the
+   * checklist reports everything as assumed, asks one more question than it
+   * needs to, and never claims something was agreed that was not.
+   */
+  const [settled, setSettled] = useState<Settled>(NOTHING_SETTLED);
+  /**
+   * The sentence, clause by clause, as the composer accounted for it.
+   *
+   * Replaced per turn for the same reason {@link settled} is: the whole spec is
+   * re-sent every time, so the newest ledger describes all of it.
+   */
+  const [clauses, setClauses] = useState<Clause[]>([]);
+
+  const active = value.rules.filter((r) => r.enabled !== false);
+  /**
+   * Whether the rules editor is on the page.
+   *
+   * An active rule means a sentence compiled into something — or that the
+   * reader came back to this step with a strategy already set — so there is a
+   * reading to show. `manualRules` is the escape hatch for someone who would
+   * rather not write a sentence at all: the capability is unchanged, it just is
+   * not what the step opens on.
+   *
+   * Preset always shows it. The two halves of the toggle are not the same kind
+   * of thing: Write it is one sentence to compose, and a wall of Off switches
+   * under it drowns that out — while Preset is picking from known sets of
+   * values, which is a question you cannot answer without seeing them.
+   */
+  const [manualRules, setManualRules] = useState(false);
+  // Preset no longer forces the editor open: a preset is a first sentence, and
+  // what it compiles to arrives as the card like anything typed.
+  const showRules = !isGrid && (active.length > 0 || manualRules);
+  /**
+   * THE RESULT IS A CARD, THE RULES ARE UNDER IT. What a compile produces is
+   * read back as one sentence plus four figures; the eleven rule rows, exits,
+   * ladder and timing that used to land all at once are the fine-tuning of
+   * that, and open on request. Setting rules by hand, or picking a preset,
+   * opens them straight away because there the rows ARE the way in.
+   */
+  const [fineTune, setFineTune] = useState(false);
+  /** Bumped when a compile lands, so the reveal replays for each result. */
+  const [revealKey, setRevealKey] = useState(0);
+  /**
+   * A 5–15s model call with one static line reads as a hang. The compose call
+   * is single-shot, so the stages here are paced, not reported — named for
+   * what the pipeline is doing in that stretch of time.
+   */
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!busy) {
+      setStage(0);
+      return;
+    }
+    const a = setTimeout(() => setStage(1), 2_500);
+    const b = setTimeout(() => setStage(2), 7_000);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+  }, [busy]);
+
+  // Recomputed on every render rather than stored: the author can edit a rule
+  // or a budget field by hand at any time, and a checklist that only refreshed
+  // on a chat turn would go on reporting a gap the sliders had already closed.
+  const reqs = requirements(value, settled, t);
+  const question = nextQuestion(clauses, reqs, t);
+
+  /**
+   * One turn of the exchange: say something, get the strategy back as it now
+   * stands, and get asked for whatever the executor still cannot infer.
+   *
+   * The asking is deliberately NOT the model's job. The compiler returns a
+   * draft; what a trade actually requires — an entry condition, a target, a
+   * stop, a size — is a fixed list this file knows, so the follow-up question
+   * is derived from the draft rather than generated. That means the questions
+   * cannot drift, cannot ask for something the engine does not use, and cannot
+   * claim the strategy is ready when a required field is still a default.
+   */
+  async function send(text: string) {
+    const said = text.trim();
+    if (!said || busy) return;
+
+    const nextSpec = [...spec, said];
+    setSpec(nextSpec);
+    setSentence("");
+    setTurns((prev) => [...prev, { role: "you", text: said }]);
+    setBusy(true);
+    setError(null);
+
+    // Sizing never reaches the compiler — /agents/compose returns rules and
+    // exits, not a budget — so a stated size is read here and applied
+    // directly. Without this, answering "put $1,000 in per trade" would be
+    // silently dropped and the executor's own question would repeat.
+    const sized = readSizing(said, value);
+    let next: Limits = sized ?? value;
+
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error(t("sl_sign_in"));
+      // The prefix is ours, not the author's — so its clauses are dropped
+      // from the ledger below. Read back, "Trading PAXG (XAU), <mint>" is a
+      // line nobody typed, judged against a sentence nobody wrote.
+      const prefix = t("sl_trading_prefix", {
+        markets: markets
+          .map((m) => `${m.symbol}${m.underlying ? ` (${m.underlying})` : ""}`)
+          .join(", "),
+      });
+      const { draft, notes: refused, provenance } = await composeAgent(
+        token,
+        // The market is named for it, so the sentence does not have to be. The
+        // underlying is only named when there is one — a token has none, and
+        // "(undefined)" reads as a bug to the model as much as to a person.
+        // Every market named, not just the first. The rules apply to all of
+        // them, and a composer that believes it is writing for one asset will
+        // reach for facts only that asset has.
+        prefix + nextSpec.join(" "),
+        klass,
+      );
+      const ownClauses = (provenance?.clauses ?? []).filter(
+        (c) => !prefix.includes(c.phrase),
+      );
+      // A bar size this class cannot be screened at is refused HERE, where the
+      // author is still in the sentence that asked for it. Left to travel, it
+      // deploys cleanly and the agent buys nothing — the specialist states the
+      // refusal in a screening trace, which is the last place anyone looks.
+      const unserved =
+        draft?.timeframe && !servedTimeframes.includes(draft.timeframe)
+          ? draft.timeframe
+          : null;
+      /**
+       * What the author asked for that the engine could not take as written.
+       *
+       * Two kinds, and they read differently on purpose. A CLAMP is a number
+       * the author chose being moved to the nearest one that exists — the
+       * clearest case is a 1% target against a 2% floor, which used to be
+       * applied in silence and left someone believing they had set 1%. An
+       * UNATTRIBUTED rule is the reverse: a rule in the strategy that nothing
+       * in the sentence asked for, which is not an error and is the only
+       * warning anyone gets that a phrase may have been read as something else.
+       *
+       * Both are stated, neither blocks. Whether a 1% target was worth having
+       * is the author's call; whether they know it became 2% is ours.
+       */
+      const misfits = [
+        ...(provenance?.adjusted ?? []).map((a) =>
+          t("sl_exit_adjusted", {
+            label: t(EXIT_FIELD_LABEL[a.field] ?? "sl_exit_generic"),
+            asked: a.asked,
+            became: a.became,
+          }),
+        ),
+        ...(provenance?.unattributed ?? [])
+          .map((key) => value.rules.find((r) => r.key === key))
+          .filter((r): r is RuleSpec => !!r)
+          .map((r) =>
+            t("sl_rule_unattributed", {
+              rule: ruleLabel(r, draft?.timeframe ?? DEFAULT_TIMEFRAME, t),
+            }),
+          ),
+      ];
+
+      const notesOut = [
+        // `refused` is the composer's own list of what it could not use,
+        // authored server-side and quoted as it arrives.
+        ...refused,
+        ...misfits,
+        ...(unserved
+          ? [
+              t(
+                klass === "spot"
+                  ? "sl_unserved_bars_spot"
+                  : "sl_unserved_bars_rwa",
+                {
+                  tf: unserved,
+                  kept: value.timeframe ?? DEFAULT_TIMEFRAME,
+                  available: servedTimeframes.join(", "),
+                },
+              ),
+            ]
+          : []),
+      ];
+      setNotes(notesOut);
+
+      const nextSettled: Settled = {
+        stated: provenance?.stated ?? [],
+        // Sticky, unlike the exits. A size the author gave is applied to the
+        // limits and stays there, so it stays settled — the exits are re-read
+        // from the whole spec on every turn and can genuinely change back.
+        sizeStated: settled.sizeStated || sized !== null,
+      };
+      setSettled(nextSettled);
+      setClauses(ownClauses);
+
+      if (!draft) {
+        const why = refused[0] ?? t("sl_not_rules");
+        setError(why);
+        setTurns((prev) => [
+          ...prev,
+          { role: "agent", text: why, tone: "note" },
+          {
+            role: "agent",
+            text: t("sl_measurable"),
+            tone: "ask",
+          },
+        ]);
+        return;
+      }
+
+      setReading(draft.reading || null);
+      // Cadence trails the bar size, but only when the bar size actually MOVED.
+      // "Trade BTC on 5-minute bars" that leaves cadence hourly reads every
+      // 12th bar and steps over the rest, which nobody means — and the reverse
+      // mistake is just as bad: re-running compose to add a stop must not
+      // silently undo a cadence the author set by hand.
+      const prevTf = next.timeframe ?? DEFAULT_TIMEFRAME;
+      // An unserved bar size never becomes the strategy's — `unserved` above
+      // already told the author why.
+      const nextTf = (unserved ? undefined : draft.timeframe) ?? next.timeframe;
+      next = {
+        ...next,
+        timeframe: nextTf,
+        timezone: draft.timezone ?? next.timezone,
+        cadenceSec:
+          nextTf && nextTf !== prevTf
+            ? CADENCE_FOR_TIMEFRAME[nextTf]
+            : next.cadenceSec,
+        // The composer may have read an accumulation plan out of the sentence.
+        // Absent means the sentence did not ask for one — which must CLEAR any
+        // previous plan rather than leave a stale one attached to rules that no
+        // longer mention it.
+        addPlan: draft.addPlan,
+        // The three the composer produces and this step used to discard.
+        //
+        // anyOf and setup take the draft's value outright, absent included:
+        // nothing but a sentence can set them, so clearing on absence loses
+        // nothing a person chose — it is the same rule addPlan follows above.
+        //
+        // ranking does NOT clear, and the difference is deliberate. It has a
+        // control on this very screen, so treating absence as "remove it" would
+        // delete a choice made by hand two fields away the moment another
+        // sentence was sent.
+        anyOf: draft.anyOf,
+        setup: draft.setup,
+        ranking: draft.ranking ?? next.ranking,
+        // Only rules the compiler actually set are switched on. The rest stay
+        // available but off, rather than silently applying a default nobody
+        // asked for.
+        rules: next.rules.map((r) => {
+          const hit = draft.rules.find((d) => d.key === r.key);
+          // A rule the composer set arrives in the units of the bar size it was
+          // composed AT, so it is taken verbatim. A rule it did not mention is
+          // carrying a threshold from the previous bar size, and if the bar
+          // size just moved that number no longer means what it meant — so it
+          // is rescaled, exactly as the pill path does. Off either way until
+          // something asks for it, but off with a number that still reads.
+          if (hit) return { ...withRuleParams(r, hit), value: hit.value, enabled: true };
+          const moved = nextTf && nextTf !== prevTf;
+          return {
+            ...r,
+            value: moved ? rescaleRuleValue(r, prevTf, nextTf) : r.value,
+            enabled: false,
+          };
+        }),
+        exits: draft.exits,
+        // A grid sentence compiles to a ladder. The switch follows the draft
+        // so what came back is what is on screen; the market is the picked one.
+        ...(draft.grid && gridAllowed
+          ? { strategyType: "grid" as const, grid: gridFromPlan(draft.grid) }
+          : {}),
+      };
+      onChange(next);
+      setFineTune(false);
+      setShowOff(false);
+      setRevealKey((k) => k + 1);
+
+      // Read the gaps off what we just built, not off `value` — the parent's
+      // state has not come back down yet, and asking about the previous draft
+      // is how a chat ends up requesting something you just gave it.
+      const reqs = requirements(next, nextSettled, t);
+      const q = nextQuestion(ownClauses, reqs, t);
+
+      setTurns((prev) => [
+        ...prev,
+        ...(draft.reading
+          ? [{ role: "agent" as const, text: draft.reading }]
+          : []),
+        ...notesOut.map((n) => ({
+          role: "agent" as const,
+          text: n,
+          tone: "note" as const,
+        })),
+        q
+          ? { role: "agent" as const, text: q.text, tone: "ask" as const }
+          : {
+              role: "agent" as const,
+              text: t("sl_ready"),
+              tone: "ready" as const,
+            },
+      ]);
+    } catch (err) {
+      const why = err instanceof Error ? err.message : String(err);
+      setError(why);
+      setTurns((prev) => [...prev, { role: "agent", text: why, tone: "note" }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const setRule = (key: string, patch: Partial<RuleSpec>) =>
+    onChange({
+      ...value,
+      rules: value.rules.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    });
+
+  return (
+    <div className="space-y-7">
+      <div className="space-y-2">
+        <p className="font-ui text-[12.5px] text-text-muted">{t("sl_step")}</p>
+        <h2 className="font-ui text-[22px] leading-tight tracking-[-0.01em] text-text-primary">
+          {t("sl_title")}
+        </h2>
+        <p className="flex flex-wrap items-center gap-2 font-ui text-[13px] text-text-secondary">
+          {markets.length === 0
+            ? t("dsc_title")
+            : markets.length === 1 && market
+              ? t("sl_markets_one", { symbol: market.symbol })
+              : t("sl_markets_many", { count: markets.length })}{" "}
+          ·{" "}
+          {t(
+            !market || market.kind === "crypto"
+              ? "sl_class_crypto"
+              : market.assetClass === "commodity"
+                ? "sl_class_commodity"
+                : "sl_class_equity",
+          )}
+          <button
+            type="button"
+            onClick={onBack}
+            className="font-ui text-[12.5px] text-text-dim transition-colors hover:text-text-primary"
+          >
+            {t("sl_change")}
+          </button>
+        </p>
+      </div>
+
+      {/* ------------------------------------------------- strategy type */}
+      {/* Rules or a grid. Sits above the sentence because it changes what the
+          sentence compiles INTO: a grid sentence lands here as a ladder, a
+          rules sentence as rules. Spot only, one token. */}
+      {gridAllowed ? (
+        <section>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p className="font-ui text-[12.5px] text-text-muted">
+              {t("sl_type")}
+              <InfoDot label={t("sl_type")}>{t("sl_type_help")}</InfoDot>
+            </p>
+            <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_type")}>
+              {(["rules", "grid"] as const).map((k) => {
+                const on = (value.strategyType ?? "rules") === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setType(k)}
+                    className={`${SEGMENT_ITEM} ${on ? SEGMENT_ON : SEGMENT_OFF}`}
+                  >
+                    {t(k === "rules" ? "sl_type_rules" : "sl_type_grid")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ------------------------------------------------------- write it */}
+      <section>
+        <div className="flex items-center justify-between pb-3">
+          <h3 className="font-ui text-[12.5px] text-text-muted">
+            {t("sl_strategy_for", {
+              markets:
+                markets.length === 0
+                  ? t("dsc_title")
+                  : markets.length === 1 && market
+                    ? market.symbol
+                    : t("sl_markets_many", { count: markets.length }),
+            })}
+          </h3>
+        </div>
+
+        <>
+          <div>
+            <div
+              className={`overflow-hidden rounded-xl border bg-surface transition-colors ${
+                busy ? "border-grid-strong" : "border-border focus-within:border-grid-strong"
+              }`}
+            >
+              {turns.length > 0 ? (
+                <ol className="max-h-[300px] overflow-y-auto border-b border-grid">
+                  {turns.map((t, i) => (
+                    <TurnRow key={i} turn={t} />
+                  ))}
+                  {busy ? (
+                    // The wait has a shape: the sentence stays as the last
+                    // bubble, and under it the stage the compiler is in.
+                    <li className="px-4 py-3" key={stage}>
+                      <div className="reveal-in">
+                        <StatusLine tone="pending" live>
+                          {t(
+                            stage === 0
+                              ? "sl_stage_reading"
+                              : stage === 1
+                                ? "sl_stage_drafting"
+                                : "sl_stage_checking",
+                          )}
+                        </StatusLine>
+                      </div>
+                    </li>
+                  ) : null}
+                </ol>
+              ) : null}
+
+              <textarea
+                ref={composer}
+                value={sentence}
+                onChange={(e) => setSentence(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void send(sentence);
+                  }
+                }}
+                rows={2}
+                maxLength={2000}
+                placeholder={
+                  turns.length === 0
+                    ? market
+                      ? t("sl_compose_placeholder", { symbol: market.symbol })
+                      : t("sl_compose_placeholder_discovery")
+                    : t("sl_compose_followup")
+                }
+                aria-label={t("sl_compose_aria")}
+                className="w-full resize-none bg-transparent px-4 py-3 font-ui text-[14px] pointer-coarse:text-[16px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
+              />
+              <div className="flex items-center justify-between gap-4 border-t border-grid px-4 py-2.5">
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <PromptPackPill
+                    kind={isPerp ? "perp" : "spot"}
+                    open={packOpen}
+                    onToggle={() => setPackOpen((o) => !o)}
+                  />
+                  <span className="hidden font-ui text-[11.5px] text-text-muted sm:inline">{t("sl_send_hint")}</span>
+                  {/* WHO is reading the sentence, stated where it is read.
+                      Step 3 lets an agent be given a different model to reason
+                      with, and the obvious wrong assumption is that the choice
+                      reaches back here. It cannot: this runs before the agent,
+                      its wallet, or its balance exists. */}
+                  <ModelBadge className="hidden sm:inline-flex" />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void send(sentence)}
+                  disabled={busy || sentence.trim().length === 0}
+                  className="inline-flex h-8 items-center gap-2 rounded-full bg-white px-4 font-ui text-[12.5px] font-medium text-bg transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+                >
+                  {busy ? <Spinner /> : null}
+                  {t(busy ? "sl_compiling" : turns.length === 0 ? "sl_compile" : "sl_send")}
+                </button>
+              </div>
+            </div>
+
+            {/* Starting points, placed INTO the box rather than sent: a
+                sentence to make your own — change the numbers, add a clause —
+                and Compile is still yours to press. A strategy replaces the
+                box only while it holds nothing, or only the last untouched
+                pick; an add-on, or anything after the first turn, appends. */}
+            {packOpen ? (
+              <PromptPackPanel
+                kind={isPerp ? "perp" : "spot"}
+                gridAllowed={gridAllowed}
+                onClose={closePack}
+                onPick={(line, append) => {
+                  setSentence((cur) => {
+                    const c = cur.trim();
+                    const replace = !append && turns.length === 0 && (!c || c === packPicked.current);
+                    return replace || !c ? line : `${c} ${line}`;
+                  });
+                  packPicked.current = line;
+                  setPackOpen(false);
+                  requestAnimationFrame(() => {
+                    const el = composer.current;
+                    if (!el) return;
+                    el.focus();
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  });
+                }}
+              />
+            ) : null}
+          </div>
+
+            {/* One tap for the question just asked. The chips are sentences,
+                not values, because they are sent as the author's own words and
+                compiled the same way anything typed here would be — a chip
+                that set a field directly would be a different mechanism
+                wearing the same clothes. */}
+            {/* Only once something has been said: before the first turn the
+                chips would be answers to a question nobody has seen. */}
+            {turns.length > 0 && question && question.chips.length > 0 && !busy ? (
+              <div key={`q-${revealKey}`} className="flex flex-wrap gap-2 pt-3">
+                {question.chips.map((c, i) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => void send(c)}
+                    style={{ animationDelay: `${520 + i * 50}ms` }}
+                    className="reveal-in h-8 rounded-full border border-border px-3.5 font-ui text-[12.5px] text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
+
+        {error ? (
+          <p className="pt-2.5 font-ui text-[12.5px] leading-relaxed text-negative">
+            {error}
+          </p>
+        ) : null}
+
+        {/* Before a compile there is nothing to read back, so this step is the
+            sentence and nothing else. The eleven rules used to render below
+            regardless — every one switched Off, and identical under both halves
+            of the toggle — which read as a form to fill in by hand and buried
+            the one thing the step actually asks for.
+
+            Setting them by hand is still allowed; it is just no longer what the
+            page opens on. */}
+        {showRules || isGrid ? null : (
+          <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">
+            {t("sl_rules_appear")}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setManualRules(true);
+                setFineTune(true);
+              }}
+              className="text-text-primary underline underline-offset-4 transition-opacity hover:opacity-80"
+            >
+              {t("sl_set_by_hand")}
+            </button>
+            .
+          </p>
+        )}
+      </section>
+
+      {/* ------------------------------------------------------- grid */}
+      {isGrid && value.grid ? (
+        <GridCard
+          grid={value.grid}
+          onChange={(grid) => onChange({ ...value, grid })}
+          symbol={market?.symbol ?? null}
+          markUsd={markUsd}
+          cadenceSec={value.cadenceSec ?? CADENCE_FOR_TIMEFRAME[value.timeframe ?? DEFAULT_TIMEFRAME]}
+          onCadence={(cadenceSec) => onChange({ ...value, cadenceSec })}
+        />
+      ) : null}
+
+      {/* ---------------------------------------------------- read as */}
+      {showRules ? (
+        <section key={`s-${revealKey}`}>
+          <div className="reveal-in">
+            <StrategyCard
+              reading={reading}
+              value={value}
+              active={active.length}
+              symbol={markets.length === 1 && market ? market.symbol : null}
+            />
+          </div>
+
+          <div className="reveal-in" style={{ animationDelay: "140ms" }}>
+            <ClauseLedger clauses={clauses} />
+
+            <ComposedOnly
+              anyOf={value.anyOf}
+              setup={value.setup}
+              catalogue={value.rules}
+              timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+              onClearAnyOf={() => onChange({ ...value, anyOf: undefined })}
+              onClearSetup={() => onChange({ ...value, setup: undefined })}
+            />
+          </div>
+
+          <button
+            type="button"
+            aria-expanded={fineTune}
+            onClick={() => setFineTune((v) => !v)}
+            className="reveal-in mt-1 flex w-full items-center justify-between gap-4 py-2.5 text-left"
+            style={{ animationDelay: "240ms" }}
+          >
+            <span className="font-ui text-[13px] font-medium text-text-primary">{t("sl_fine_tune")}</span>
+            <span className="flex items-center gap-3">
+              <span className="font-ui text-[12px] text-text-muted">
+                {t("sl_rules_on", { on: active.length, total: value.rules.length })}
+              </span>
+              <ChevronDown
+                aria-hidden
+                className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                  fineTune ? "rotate-180" : ""
+                }`}
+              />
+            </span>
+          </button>
+
+          {fineTune ? (
+          <>
+          <div className="space-y-6 pt-2">
+          <div>
+            <SectionLabel title={t("sl_group_rules")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(() => {
+                const on = value.rules.filter((r) => r.enabled !== false);
+                const off = value.rules.filter((r) => r.enabled === false);
+                // The off rules hide only when there are on rules to look at
+                // instead. With nothing on, hiding them leaves "Nothing on
+                // yet" and a second chevron — a wall, not a summary.
+                const foldable = on.length > 0;
+                const shown = !foldable || showOff ? [...on, ...off] : on;
+                return (
+                  <>
+                    {shown.map((r, i) => (
+                      <div key={r.key} className="reveal-in" style={{ animationDelay: `${i * 45}ms` }}>
+                        <RuleChip
+                          rule={r}
+                          timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+                          onChange={(p) => setRule(r.key, p)}
+                        />
+                      </div>
+                    ))}
+                    {foldable && off.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-expanded={showOff}
+                        onClick={() => setShowOff((v) => !v)}
+                        className="flex w-full items-center justify-between gap-4 border-t border-grid px-4 py-2.5 text-left font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        <span>
+                          {t(showOff ? "sl_hide_off_rules" : "sl_show_off_rules", { count: off.length })}
+                        </span>
+                        <ChevronDown
+                          aria-hidden
+                          className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                            showOff ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {isPerp ? (
+          <div>
+            <SectionLabel title={t("sl_group_perp")} note={t("sl_perp_note")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {/* DIRECTION. Two switches, not a three-way: each side is a
+                  thing you turn on, and both on is the "both" the founder
+                  asked for. At least one must stay on. */}
+              <BudgetRow label={t("sl_direction")} info={t("sl_direction_help")}>
+                <div className="flex items-center justify-end gap-2">
+                  {(["long", "short"] as const).map((side) => {
+                    const on = side === "long" ? perp.longEnabled : perp.shortEnabled;
+                    const other = side === "long" ? perp.shortEnabled : perp.longEnabled;
+                    return (
+                      <button
+                        key={side}
+                        type="button"
+                        aria-pressed={on}
+                        disabled={on && !other}
+                        title={on && !other ? t("sl_direction_none") : undefined}
+                        onClick={() =>
+                          setPerp(side === "long" ? { longEnabled: !on } : { shortEnabled: !on })
+                        }
+                        className={`h-8 rounded-full border px-3.5 font-ui text-[12.5px] font-medium transition-colors disabled:cursor-not-allowed ${
+                          on
+                            ? side === "long"
+                              ? "border-accent/40 bg-accent/10 text-accent"
+                              : "border-negative/40 bg-negative/10 text-negative"
+                            : "border-border text-text-secondary hover:border-grid-strong hover:text-text-primary"
+                        }`}
+                      >
+                        {t(side === "long" ? "sl_direction_long" : "sl_direction_short")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </BudgetRow>
+              {/* LEVERAGE. The user's number, not a cap of ours; the venue's
+                  maximum is the only ceiling. The line beside it is the
+                  warning: past 5× it turns amber, past 20× red, and above 20×
+                  the presets end and the number has to be typed. */}
+              <BudgetRow
+                label={t("sl_leverage")}
+                info={t("sl_leverage_liq_help")}
+                help={`${t("sl_leverage_liq", { pct: liqPct.toFixed(1) })} · ${t("sl_leverage_max", { max: perpMaxLeverage })}`}
+              >
+                <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                  <div className="flex items-center gap-1">
+                    {LEVERAGE_PRESETS.filter((n) => n <= perpMaxLeverage).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        aria-pressed={perp.leverage === n}
+                        onClick={() => setPerp({ leverage: n })}
+                        className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                          perp.leverage === n
+                            ? "bg-surface-2 text-text-primary"
+                            : "text-text-dim hover:text-text-primary"
+                        }`}
+                      >
+                        {n}×
+                      </button>
+                    ))}
+                  </div>
+                  <NumberEntry
+                    value={perp.leverage}
+                    min={1.1}
+                    max={perpMaxLeverage}
+                    step={0.1}
+                    unit="×"
+                    label={t("sl_leverage")}
+                    onChange={(n) => setPerp({ leverage: Math.round(n * 10) / 10 })}
+                  />
+                </div>
+              </BudgetRow>
+              {/* OPPOSITE SIGNAL. What the other side's rules do while a
+                  position is open. Only meaningful with both sides on. */}
+              {perp.longEnabled && perp.shortEnabled ? (
+                <BudgetRow label={t("sl_opposite")} info={t("sl_opposite_help")}>
+                  <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_opposite")}>
+                    {(["close", "hold", "flip"] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        role="radio"
+                        aria-checked={perp.onOppositeSignal === k}
+                        title={t(OPPOSITE_HELP[k])}
+                        onClick={() => setPerp({ onOppositeSignal: k })}
+                        className={`${SEGMENT_ITEM} ${perp.onOppositeSignal === k ? SEGMENT_ON : SEGMENT_OFF}`}
+                      >
+                        {t(OPPOSITE_LABEL[k])}
+                      </button>
+                    ))}
+                  </div>
+                </BudgetRow>
+              ) : null}
+              {/* THE TWO PERP CAPS. Both optional; absent means not checked. */}
+              <BudgetRow label={t("sl_borrow_cap")} info={t("sl_borrow_cap_help")}>
+                <div className="flex items-center justify-end gap-3">
+                  <Dimmed on={perp.maxBorrowAprPct !== undefined}>
+                    <NumberEntry
+                      value={perp.maxBorrowAprPct ?? 40}
+                      min={0}
+                      max={500}
+                      step={5}
+                      unit="%"
+                      label={t("sl_borrow_cap")}
+                      onChange={(n) => setPerp({ maxBorrowAprPct: n })}
+                    />
+                  </Dimmed>
+                  <CapToggle
+                    on={perp.maxBorrowAprPct !== undefined}
+                    onToggle={(on) => setPerp({ maxBorrowAprPct: on ? 40 : undefined })}
+                  />
+                </div>
+              </BudgetRow>
+              <BudgetRow label={t("sl_liq_buffer")} info={t("sl_liq_buffer_help")}>
+                <div className="flex items-center justify-end gap-3">
+                  <Dimmed on={perp.liquidationBufferAtr !== undefined}>
+                    <NumberEntry
+                      value={perp.liquidationBufferAtr ?? 1.5}
+                      min={0.5}
+                      max={10}
+                      step={0.5}
+                      unit={t("sl_liq_buffer_unit")}
+                      label={t("sl_liq_buffer")}
+                      onChange={(n) => setPerp({ liquidationBufferAtr: n })}
+                    />
+                  </Dimmed>
+                  <CapToggle
+                    on={perp.liquidationBufferAtr !== undefined}
+                    onToggle={(on) => setPerp({ liquidationBufferAtr: on ? 1.5 : undefined })}
+                  />
+                </div>
+              </BudgetRow>
+            </div>
+          </div>
+          ) : null}
+          {/* GO SHORT WHEN. The short side's own rule list, same catalogue,
+              same chips as the long side above. A rule switched on here is a
+              condition for a short; the long side's list is untouched. */}
+          {isPerp && perp.shortEnabled ? (
+          <div>
+            <SectionLabel title={t("sl_short_rules")} note={t("sl_short_rules_help")} />
+            <div className="overflow-hidden rounded-xl border border-border">
+              {(() => {
+                const on = perp.shortRules.filter((r) => r.enabled !== false);
+                const off = perp.shortRules.filter((r) => r.enabled === false);
+                const shown = on.length === 0 || showOffShort ? [...on, ...off] : on;
+                return (
+                  <>
+                    {on.length === 0 ? (
+                      <p className="border-b border-grid px-4 py-2.5 font-ui text-[12.5px] text-text-muted">
+                        {t("sl_short_rules_none")}
+                      </p>
+                    ) : null}
+                    {shown.map((r) => (
+                      <RuleChip
+                        key={r.key}
+                        rule={r}
+                        timeframe={value.timeframe ?? DEFAULT_TIMEFRAME}
+                        onChange={(p) =>
+                          setPerp({
+                            shortRules: perp.shortRules.map((x) => (x.key === r.key ? { ...x, ...p } : x)),
+                          })
+                        }
+                      />
+                    ))}
+                    {on.length > 0 && off.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-expanded={showOffShort}
+                        onClick={() => setShowOffShort((v) => !v)}
+                        className="flex w-full items-center justify-between gap-4 border-t border-grid px-4 py-2.5 text-left font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        <span>{t(showOffShort ? "sl_hide_off_rules" : "sl_show_off_rules", { count: off.length })}</span>
+                        <ChevronDown
+                          aria-hidden
+                          className={`size-4 text-text-muted transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                            showOffShort ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+          ) : null}
+          <div>
+            <SectionLabel
+              title={t("sl_group_exits")}
+              note={
+                isPerp
+                  ? `${t("sl_exit_effect", { pct: `−${value.exits.stopLossPct}`, effect: `−${Math.round(value.exits.stopLossPct * perp.leverage)}`, lev: perp.leverage })} · ${t("sl_exit_effect", { pct: `+${value.exits.takeProfitPct}`, effect: `+${Math.round(value.exits.takeProfitPct * perp.leverage)}`, lev: perp.leverage })}`
+                  : undefined
+              }
+            />
+            {stopPastLiq ? (
+              <p className="mb-2 font-ui text-[12.5px] text-negative">
+                {t("sl_stop_inside_liq", { lev: perp.leverage })}
+              </p>
+            ) : null}
+            <div className="overflow-hidden rounded-xl border border-border">
+            {/* The ceiling is the strategy route's, not the composer's.
+                /agents/compose clamps a target to 200% (compose.ts's
+                takeProfitPct range), but that is a bound on what a SENTENCE may
+                be read as — the endpoint that stores a strategy asks only for
+                takeProfitPct > 0. Copying the composer's ceiling onto the field
+                meant a target typed by hand was refused for a reason that
+                applied to a different path.
+
+                One consequence to know: a target above 200% has to be typed.
+                Ask for it in the sentence and the composer will still hand back
+                200, because that clamp lives in canopy-be. */}
+            <ExitChip
+              labelKey="sl_take_profit"
+              value={value.exits.takeProfitPct}
+              min={2}
+              max={1000}
+              suffix="%"
+              resumeAt={45}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, takeProfitPct: n },
+                })
+              }
+            />
+            <ExitChip
+              labelKey="sl_stop_loss"
+              value={value.exits.stopLossPct}
+              min={1}
+              max={90}
+              suffix="%"
+              resumeAt={20}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, stopLossPct: n },
+                })
+              }
+            />
+            {/* Both default to OFF, unlike the two above. A trailing stop nobody
+                asked for closes positions its author meant to keep, so these
+                are opt-in rather than a level to adjust. */}
+            <ExitChip
+              labelKey="sl_trailing_stop"
+              value={value.exits.trailingStopPct ?? 0}
+              min={1}
+              max={90}
+              suffix="%"
+              resumeAt={12}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, trailingStopPct: n },
+                })
+              }
+            />
+            <ExitChip
+              labelKey="sl_breakeven"
+              value={value.exits.breakevenAfterPct ?? 0}
+              min={1}
+              max={200}
+              suffix="%"
+              resumeAt={5}
+              onChange={(n) =>
+                onChange({
+                  ...value,
+                  exits: { ...value.exits, breakevenAfterPct: n },
+                })
+              }
+            />
+            <ScaleOutLadder
+              rungs={value.exits.scaleOut ?? []}
+              onChange={(next) =>
+                onChange({
+                  ...value,
+                  exits: {
+                    ...value.exits,
+                    scaleOut: next.length > 0 ? next : undefined,
+                  },
+                })
+              }
+            />
+            <SellSignal
+              conditions={(value.exits.exitWhen ?? []) as SellCondition[]}
+              onChange={(next) =>
+                onChange({
+                  ...value,
+                  exits: {
+                    ...value.exits,
+                    // Undefined, never [], when the last one is removed: an
+                    // absent key IS the off state on the wire, and the column
+                    // is replaced rather than merged.
+                    exitWhen: next.length > 0 ? next : undefined,
+                  },
+                })
+              }
+            />
+            </div>
+          </div>
+          </div>
+
+          {notes.length > 0 ? (
+            <ul className="space-y-0.5 pt-2.5">
+              {notes.map((n) => (
+                <li
+                  key={n}
+                  className="font-ui text-[12px] leading-relaxed text-warning"
+                >
+                  {n}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          </>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* --------------------------------------------------- accumulation */}
+      {/* Held back for the same reason: how a position accumulates is a
+          refinement of an entry, and it changes what the exits MEASURE. Both
+          are meaningless beside a strategy that has not been written yet. */}
+      {showRules && fineTune ? (
+        <AddPlanCard
+          plan={value.addPlan}
+          exits={value.exits}
+          onChange={(addPlan) => onChange({ ...value, addPlan })}
+          // Every market in a strategy shares one class, so the first speaks
+          // for all of them. It decides whether ATR spacing is offered at all:
+          // ATR needs a high and a low per bar, which the tokenized-stock feed
+          // does not carry.
+          strategyClass={klass}
+        />
+      ) : null}
+
+      {/* ------------------------------------------------------- timing */}
+      {/*
+        Two axes, deliberately separate controls: the bar size the rules above
+        are MEASURED on, and how often the agent wakes to evaluate them. They
+        were modelled from the start and reachable from nowhere — the only way
+        to get 15-minute bars was to say so in the sentence, and cadence never
+        left the engine default at all, so a 5-minute strategy woke hourly and
+        stepped over eleven bars in twelve.
+
+        Held behind `showRules` like accumulation: a bar size is a property of
+        rules, and there is nothing to measure before one exists.
+      */}
+      {showRules && fineTune ? (
+        <section>
+          {(() => {
+            const tf = value.timeframe ?? DEFAULT_TIMEFRAME;
+            const tfHit = TIMEFRAMES.find((x) => x.tf === tf);
+            const paired = CADENCE_FOR_TIMEFRAME[tf];
+            const sec = value.cadenceSec ?? paired;
+            const cad = CADENCES.find((c) => c.sec === sec);
+            const editing = customCycle || sec !== paired;
+            return (
+              <>
+                <SectionLabel
+                  title={t("sl_timeframe")}
+                  info={
+                    <>
+                      {tfHit ? t(tfHit.detailKey) : null}
+                      <span className="block pt-1.5 text-text-dim">{t("sl_timeframe_help")}</span>
+                    </>
+                  }
+                />
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <div className="px-4 py-3">
+                    <PillRow>
+                      {/* `x`, not `t` — the translator owns that name in this file. */}
+                      {TIMEFRAMES.map((x) => {
+                        // Served for THIS class, not in general. A crypto
+                        // strategy on 30m deploys, wakes and buys nothing — the
+                        // venue cannot build the bar — so the pill is disabled
+                        // rather than offered and refused later.
+                        const served = servedTimeframes.includes(x.tf);
+                        return (
+                          <Pill
+                            key={x.tf}
+                            active={tf === x.tf}
+                            disabled={!served}
+                            suffix={served ? undefined : t("sl_not_served")}
+                            onClick={() => {
+                              onChange(retimeframe(value, x.tf));
+                              setCustomCycle(false);
+                            }}
+                          >
+                            {t(x.labelKey)}
+                          </Pill>
+                        );
+                      })}
+                    </PillRow>
+                  </div>
+                  {/* The cycle, as a consequence of the bar: "Wakes every 5m".
+                      Editable on request, and then it stays open while it
+                      differs from the bar. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-grid px-4 py-2.5">
+                    <p className="flex items-center gap-1.5 font-ui text-[12.5px] text-text-secondary">
+                      <span key={sec} className="reveal-in">
+                        {t("sl_wakes_every", { cadence: cad ? t(cad.labelKey) : `${sec}s` })}
+                      </span>
+                      <InfoDot label={t("sl_cycle")}>
+                        {cad ? t(cad.detailKey) : null}
+                        <span className="block pt-1.5 text-text-dim">
+                          {t(
+                            sec === paired
+                              ? "bs_cadence_matched"
+                              : sec < paired
+                                ? "bs_cadence_faster"
+                                : "bs_cadence_slower",
+                          )}
+                        </span>
+                      </InfoDot>
+                    </p>
+                    {editing ? (
+                      <div className="reveal-in flex flex-wrap items-center gap-2">
+                        <Segmented
+                          ariaLabel={t("sl_cycle")}
+                          options={CADENCES.map((c) => ({ id: String(c.sec), label: t(c.labelKey) }))}
+                          value={String(sec)}
+                          onChange={(id) => onChange({ ...value, cadenceSec: Number(id) })}
+                        />
+                        {sec !== paired ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onChange({ ...value, cadenceSec: paired });
+                              setCustomCycle(false);
+                            }}
+                            className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                          >
+                            {t("sl_cycle_match")}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCustomCycle(true)}
+                        className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        {t("sl_cycle_change")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </section>
+      ) : null}
+
+      {/* ------------------------------------------------------- budget */}
+      {/* Two numbers in one card, each with its consequence stated live
+          beside it: a size is only meaningful as a share of the book and a
+          count of positions, and a trade cap only as what it lets one cycle
+          do. Entries commit on blur or Enter — clamping every keystroke made
+          typing "1" on the way to "1000" snap to the floor. */}
+      <section>
+        <SectionLabel title={t("sl_budget")} note={t("sl_budget_note", { book: money(bookOf(value)) })} />
+        <div className="overflow-hidden rounded-xl border border-border">
+          <BudgetRow
+            label={t(isPerp ? "sl_collateral" : "sl_position_limit")}
+            info={t(isPerp ? "sl_collateral_help" : "sl_position_info")}
+            help={
+              isPerp
+                ? t("sl_notional", { notional: money(value.positionUsd * perp.leverage), lev: perp.leverage })
+                : t("sl_position_consequence", {
+                    pct: ((value.positionUsd / bookOf(value)) * 100).toFixed(0),
+                    positions: Math.max(1, Math.floor(bookOf(value) / value.positionUsd)),
+                  })
+            }
+          >
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              <div className="flex items-center gap-1">
+                {QUICK_SIZES.filter((n) => n <= bookOf(value)).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={value.positionUsd === n}
+                    onClick={() => onChange({ ...value, positionUsd: n })}
+                    className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                      value.positionUsd === n
+                        ? "bg-surface-2 text-text-primary"
+                        : "text-text-dim hover:text-text-primary"
+                    }`}
+                  >
+                    {money(n)}
+                  </button>
+                ))}
+              </div>
+              <NumberEntry
+                value={value.positionUsd}
+                min={MIN_POSITION_USD}
+                max={bookOf(value)}
+                step={MIN_POSITION_USD}
+                unit="$"
+                label={t("sl_position_limit")}
+                onChange={(n) => onChange({ ...value, positionUsd: n })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
+            label={t("sl_trades_per_cycle")}
+            // Deliberately not "per day": the ceiling the engine enforces is
+            // per cycle, and relabelling it would misstate what it does.
+            info={t("sl_trades_help")}
+          >
+            <Stepper
+              value={value.tradesPerCycle}
+              min={1}
+              max={10}
+              label={t("sl_trades_per_cycle")}
+              unit={t(value.tradesPerCycle === 1 ? "sl_unit_trade" : "sl_unit_trades")}
+              onChange={(n) => onChange({ ...value, tradesPerCycle: n })}
+            />
+          </BudgetRow>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------- guardrails */}
+      {/* The account-level caps. Every one of these is about the ACCOUNT over
+          time rather than one trade, and every one blocks entries only — the
+          note says so, because "stops for the day" reads as "cannot sell".
+          Three of the four can be switched off; the breaker cannot. */}
+      <section>
+        <SectionLabel title={t("sl_caps")} note={t("sl_caps_note")} info={t("sl_caps_info")} />
+        <div className="overflow-hidden rounded-xl border border-border">
+          {/* THE LOSS LIMIT, AND IT CAN BE SWITCHED OFF.
+              It could not before, and the help text measured it against a
+              rolling high-water mark. Both changed: it is a percent of the
+              CAPITAL the owner put in — "deposit 10, stop at 8", a promise
+              they can check — and an agent has one only if someone set it.
+              A breaker nobody chose is protection nobody can predict, and it
+              closes a real book when it fires. */}
+          <BudgetRow
+            label={t("sl_cap_breaker")}
+            info={t("sl_cap_breaker_info")}
+            help={
+              caps.maxDrawdownPct !== null && caps.maxDrawdownPct !== undefined
+                ? t("sl_cap_breaker_help", {
+                    usd: money((bookOf(value) * (100 - caps.maxDrawdownPct)) / 100),
+                  })
+                : t("sl_cap_breaker_off")
+            }
+          >
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.maxDrawdownPct ?? 20}
+                min={5}
+                max={60}
+                step={1}
+                unit="%"
+                label={t("sl_cap_breaker")}
+                disabled={caps.maxDrawdownPct === null || caps.maxDrawdownPct === undefined}
+                onChange={(n) => setCaps({ ...caps, maxDrawdownPct: n })}
+              />
+              <CapToggle
+                on={caps.maxDrawdownPct !== null && caps.maxDrawdownPct !== undefined}
+                onToggle={(on) => setCaps({ ...caps, maxDrawdownPct: on ? 20 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow label={t("sl_cap_positions")} info={t("sl_cap_positions_info")}>
+            <div className="flex items-center justify-end gap-3">
+              <Dimmed on={caps.maxOpenPositions !== null}>
+                <Stepper
+                  value={caps.maxOpenPositions ?? 8}
+                  min={1}
+                  max={50}
+                  label={t("sl_cap_positions")}
+                  unit={t("sl_cap_unit_positions")}
+                  onChange={(n) => setCaps({ ...caps, maxOpenPositions: n })}
+                />
+              </Dimmed>
+              <CapToggle
+                on={caps.maxOpenPositions !== null}
+                onToggle={(on) => setCaps({ ...caps, maxOpenPositions: on ? 8 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
+            label={t("sl_cap_daily")}
+            info={t("sl_cap_daily_info")}
+            help={
+              caps.dailyLossLimitPct !== null
+                ? t("sl_cap_daily_help", { usd: money((bookOf(value) * (caps.dailyLossLimitPct ?? 5)) / 100) })
+                : undefined
+            }
+          >
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.dailyLossLimitPct ?? 5}
+                min={0.5}
+                max={50}
+                step={0.5}
+                unit="%"
+                label={t("sl_cap_daily")}
+                disabled={caps.dailyLossLimitPct === null}
+                onChange={(n) => setCaps({ ...caps, dailyLossLimitPct: n })}
+              />
+              <CapToggle
+                on={caps.dailyLossLimitPct !== null}
+                onToggle={(on) => setCaps({ ...caps, dailyLossLimitPct: on ? 5 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow
+            label={t("sl_cap_cooldown")}
+            info={t("sl_cap_cooldown_info")}
+            help={
+              caps.cooldownAfterLosses !== null
+                ? t("sl_cap_cooldown_help", {
+                    losses: caps.cooldownAfterLosses?.losses ?? 3,
+                    minutes: caps.cooldownAfterLosses?.minutes ?? 120,
+                  })
+                : undefined
+            }
+          >
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              <Dimmed on={caps.cooldownAfterLosses !== null}>
+                <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                  <Stepper
+                    value={caps.cooldownAfterLosses?.losses ?? 3}
+                    min={2}
+                    max={20}
+                    label={t("sl_cap_cooldown")}
+                    unit={t("sl_cap_unit_losses")}
+                    onChange={(n) =>
+                      setCaps({
+                        ...caps,
+                        cooldownAfterLosses: { losses: n, minutes: caps.cooldownAfterLosses?.minutes ?? 120 },
+                      })
+                    }
+                  />
+                  <div className="flex items-center gap-1">
+                    {COOLDOWN_MINUTES.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={(caps.cooldownAfterLosses?.minutes ?? 120) === m}
+                        onClick={() =>
+                          setCaps({
+                            ...caps,
+                            cooldownAfterLosses: { losses: caps.cooldownAfterLosses?.losses ?? 3, minutes: m },
+                          })
+                        }
+                        className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                          (caps.cooldownAfterLosses?.minutes ?? 120) === m
+                            ? "bg-surface-2 text-text-primary"
+                            : "text-text-dim hover:text-text-primary"
+                        }`}
+                      >
+                        {m >= 60 ? t("sl_cap_hours", { n: m / 60 }) : t("sl_cap_minutes", { n: m })}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Dimmed>
+              <CapToggle
+                on={caps.cooldownAfterLosses !== null}
+                onToggle={(on) =>
+                  setCaps({ ...caps, cooldownAfterLosses: on ? { losses: 3, minutes: 120 } : null })
+                }
+              />
+            </div>
+          </BudgetRow>
+        </div>
+        <div className="mt-3 overflow-hidden rounded-xl border border-border">
+          <BudgetRow
+            label={t("sl_cap_pool_tier")}
+            info={t("sl_cap_pool_tier_info")}
+            help={
+              caps.maxPoolTierPositionUsd != null
+                ? t("sl_cap_pool_tier_help", { usd: money(caps.maxPoolTierPositionUsd) })
+                : undefined
+            }
+          >
+            <div className="flex items-center justify-end gap-3">
+              <NumberEntry
+                value={caps.maxPoolTierPositionUsd ?? 100}
+                min={5}
+                max={100_000}
+                step={5}
+                unit="$"
+                label={t("sl_cap_pool_tier")}
+                disabled={caps.maxPoolTierPositionUsd == null}
+                onChange={(n) => setCaps({ ...caps, maxPoolTierPositionUsd: n })}
+              />
+              <CapToggle
+                on={caps.maxPoolTierPositionUsd != null}
+                onToggle={(on) => setCaps({ ...caps, maxPoolTierPositionUsd: on ? 100 : null })}
+              />
+            </div>
+          </BudgetRow>
+          <BudgetRow label={t("sl_priority_fee")} info={t("sl_priority_fee_info")}>
+            <div className="flex items-center gap-1">
+              {(["auto", "high", "veryHigh"] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  aria-pressed={(value.priorityFee ?? "auto") === level}
+                  onClick={() => onChange({ ...value, priorityFee: level === "auto" ? undefined : level })}
+                  className={`h-7 rounded-full px-2.5 font-ui text-[11.5px] font-medium transition-colors ${
+                    (value.priorityFee ?? "auto") === level
+                      ? "bg-surface-2 text-text-primary"
+                      : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {t(level === "auto" ? "sl_priority_auto" : level === "high" ? "sl_priority_high" : "sl_priority_very_high")}
+                </button>
+              ))}
+            </div>
+          </BudgetRow>
+        </div>
+        <p className={`pt-2 ${LABEL}`}>{t("sl_caps_tail")}</p>
+      </section>
+
+      {/* ------------------------------------------------------ ranking */}
+      {/*
+        Only when there is something to rank. A top-3 of one market is that
+        market, so offering the control on a single-asset strategy would be
+        offering a setting that cannot do anything — the same reason ATR is
+        hidden for tokenized stocks.
+
+        A screen counts as something to rank even with few markets pinned: it
+        can match hundreds, and the count is not known until the agent runs.
+        Optional even there, same as everywhere else — the per-cycle trade
+        cap, the mandate's capital ceiling, and per-asset position sizing
+        (see RiskAgent) already bound what an unranked screen can do in a
+        cycle. Ranking is what makes the pick deliberate rather than
+        reasoning-window order; it is not what stands between the agent and
+        its capital.
+      */}
+      {markets.length > 1 || discovery ? (
+        <section>
+          <SectionLabel title={t("sl_how_many")} info={t("sl_ranking_note")} />
+          <RankingControl
+            // With a screen the universe is whatever it matches, which is not a
+            // number this step knows. The cap is the honest ceiling on how many
+            // the agent will even look at in a cycle.
+            markets={discovery ? discovery.maxCandidates : markets.length}
+            value={value.ranking}
+            onChange={(ranking) => onChange({ ...value, ranking })}
+          />
+          {discovery && !value.ranking ? (
+            <FieldNote>{t("dsc_needs_ranking")}</FieldNote>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* --------------------------------------------------- compliance */}
+      {/*
+        Only for tokenized real-world assets. The screen reads a filer's balance
+        sheet and its revenue mix, and an SPL token has neither — offering the
+        choice on a crypto strategy would be offering a setting that cannot do
+        anything.
+      */}
+      {!isCrypto ? (
+        <section>
+          <SectionLabel title={t("sl_compliance")} info={t("sl_compliance_note")} />
+          {(() => {
+            const current = value.complianceProfile ?? "none";
+            const choice = COMPLIANCE_CHOICES.find((c) => c.id === current) ?? COMPLIANCE_CHOICES[0];
+            return (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+                  <Segmented
+                    ariaLabel={t("sl_compliance")}
+                    options={COMPLIANCE_CHOICES.map((c) => ({ id: c.id, label: t(c.labelKey) }))}
+                    value={current}
+                    onChange={(id) =>
+                      onChange({ ...value, complianceProfile: id as ComplianceProfile })
+                    }
+                  />
+                  {/* The chosen screen's meaning, swapping with the choice. */}
+                  <p
+                    key={choice.id}
+                    className="reveal-in min-w-0 flex-1 font-ui text-[12.5px] leading-relaxed text-text-secondary sm:text-right"
+                  >
+                    {t(choice.helpKey)}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Keep only the best N of whatever passed the rules.
+ *
+ * Off by default and deliberately so. Ranking narrows what the agent may buy,
+ * and a narrowing nobody asked for is the kind of setting people discover months
+ * later while wondering why two of their markets never trade.
+ */
+function RankingControl({
+  markets,
+  value,
+  onChange,
+}: {
+  markets: number;
+  value?: RankingSpec;
+  onChange: (next: RankingSpec | undefined) => void;
+}) {
+  const on = !!value;
+  const t = useT();
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+        <Segmented
+          ariaLabel={t("sl_how_many_aria")}
+          options={[
+            { id: "all", label: t("sl_all_of_them") },
+            { id: "best", label: t("sl_only_best") },
+          ]}
+          value={on ? "best" : "all"}
+          onChange={(id) =>
+            onChange(
+              id === "all"
+                ? undefined
+                : (value ?? { by: "momentum20dPct", take: Math.min(3, markets), prefer: "highest" }),
+            )
+          }
+        />
+        <p
+          key={on ? "best" : "all"}
+          className="reveal-in min-w-0 flex-1 font-ui text-[12.5px] leading-relaxed text-text-secondary sm:text-right"
+        >
+          {t(on ? "sl_only_best_help" : "sl_all_of_them_help")}
+        </p>
+      </div>
+
+      {value ? (
+        // The choice as a sentence: "Hold the best [3] of 5, by [deepest pool]".
+        // Arrives when the segment flips, under the control that asked for it.
+        <div className="reveal-in flex flex-wrap items-center gap-x-2.5 gap-y-2 border-t border-grid px-4 py-3 font-ui text-[13px] text-text-secondary">
+          <span>{t("sl_hold_best")}</span>
+          <Stepper
+            value={value.take}
+            min={1}
+            max={Math.max(1, markets)}
+            label={t("sl_how_many_aria")}
+            onChange={(take) => onChange({ ...value, take })}
+          />
+          <span>{t("sl_of_by", { count: markets })}</span>
+          <select
+            value={`${value.by}:${value.prefer}`}
+            onChange={(e) => {
+              const [by, prefer] = e.target.value.split(":");
+              onChange({
+                ...value,
+                by,
+                prefer: prefer as "highest" | "lowest",
+              });
+            }}
+            className="h-8 rounded-full border border-border bg-transparent pr-7 pl-3 font-ui text-[12.5px] text-text-primary outline-none transition-colors hover:border-grid-strong focus-visible:border-grid-strong"
+            aria-label={t("sl_rank_by_aria")}
+          >
+            {/* Each option names the DIRECTION as well as the measure, because
+                both ends are wanted and neither is a sensible default. */}
+            <option value="momentum20dPct:highest">
+              {t("rank_momentum_high")}
+            </option>
+            <option value="momentum20dPct:lowest">
+              {t("rank_momentum_low")}
+            </option>
+            <option value="rsi14:lowest">{t("rank_rsi_low")}</option>
+            <option value="liquidityUsd:highest">
+              {t("rank_liquidity_high")}
+            </option>
+            <option value="dailyVolPct:lowest">{t("rank_vol_low")}</option>
+          </select>
+        </div>
+      ) : null}
+
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------- primitives -- */
+
+/** Amounts people actually type. The entry beside them takes anything else. */
+const QUICK_SIZES = [250, 500, 1_000, 2_500];
+/** Presets end at 20×; past that the number has to be typed. That is the only friction. */
+const LEVERAGE_PRESETS = [1.5, 2, 3, 5, 10, 20];
+
+/** A section's name in the running register: a title, and a quiet fact beside it. */
+function SectionLabel({
+  title,
+  note,
+  info,
+}: {
+  title: string;
+  note?: string;
+  /** The explanation, behind a dot. Never a paragraph under the title. */
+  info?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3">
+      <h3 className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-text-primary">
+        {title}
+        {info ? <InfoDot label={title}>{info}</InfoDot> : null}
+      </h3>
+      {note ? <span className="font-ui text-[12px] text-text-muted">{note}</span> : null}
+    </div>
+  );
+}
+
+/** One row of the budget card: the name and its consequence left, the control right. */
+/** The cool-down lengths offered. Minutes, so the engine's unit is the UI's. */
+const COOLDOWN_MINUTES = [30, 60, 120, 240, 1440] as const;
+
+/**
+ * What the limits step shows before the author touches the guardrails card:
+ * the moderate posture's defaults, which is what the lifecycle would apply
+ * anyway. Shown rather than hidden, because a cap that applies and cannot be
+ * seen is the thing this step exists to prevent.
+ */
+export const DEFAULT_RISK_CAPS: Required<RiskCaps> = {
+  /*
+   * OFF UNLESS ASKED FOR.
+   *
+   * This was 20, and it was the one cap that could not be switched off — so
+   * every agent ever built carried a breaker nobody chose. When it fires it
+   * flattens a real book, which is not a default anyone should inherit by not
+   * noticing a control.
+   *
+   * An EXISTING agent keeps whatever it stored: the builder spreads its saved
+   * caps over these defaults, so a stored 20 survives and only a genuinely
+   * unset limit lands here.
+   */
+  maxDrawdownPct: null,
+  maxOpenPositions: 8,
+  dailyLossLimitPct: 5,
+  cooldownAfterLosses: { losses: 3, minutes: 120 },
+  // Off: there is no posture default for this one. It is a choice about how
+  // much to trust a token nobody has vouched for.
+  maxPoolTierPositionUsd: null,
+};
+
+/**
+ * Switching a cap off, as quiet text beside its control.
+ *
+ * Not a bordered pill: the card is already the group's one bordered object
+ * and the row's control is the one to press (kit rule 3). A utility that
+ * merely disables something is small, dim and last (rule 6). The control it
+ * governs stays drawn, dimmed, when off — the reader still sees what the cap
+ * would be (rule 12).
+ */
+function CapToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => void }) {
+  const t = useT();
+  return (
+    <button type="button" onClick={() => onToggle(!on)} aria-pressed={on} className={MICRO}>
+      {t(on ? "sl_cap_turn_off" : "sl_cap_turn_on")}
+    </button>
+  );
+}
+
+/** Dims a control whose cap is off, without removing it. */
+function Dimmed({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return on ? <>{children}</> : <div className="pointer-events-none opacity-40">{children}</div>;
+}
+
+/**
+ * The grid, as a card of its own numbers. Every figure states its consequence
+ * beside it — what the narrowest level earns a cycle, and what the ladder
+ * holds when every level is filled — because those two numbers are the whole
+ * judgement of a grid and nobody can do the arithmetic in their head.
+ */
+export function GridCard({
+  grid,
+  onChange,
+  symbol,
+  markUsd,
+  cadenceSec,
+  onCadence,
+}: {
+  grid: GridLimits;
+  onChange: (next: GridLimits) => void;
+  symbol: string | null;
+  markUsd: number | null;
+  cadenceSec?: number;
+  onCadence?: (sec: number) => void;
+}) {
+  const t = useT();
+  const set = (patch: Partial<GridLimits>) => onChange({ ...grid, ...patch });
+  const manual = grid.range !== "auto";
+  const rangeOk = !manual || (grid.lowerUsd > 0 && grid.upperUsd > grid.lowerUsd);
+  const spacingPct = manual && rangeOk ? gridMinSpacingPct(grid) : null;
+  const totalUsd = gridTotalUsd(grid);
+  const priceMax = Math.max(1_000_000, (markUsd ?? 0) * 10, grid.upperUsd * 2);
+  const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return (
+    <section>
+      <SectionLabel title={t("sl_grid_title", { symbol: symbol ?? "" })} note={t("sl_grid_note")} />
+      <div className="overflow-hidden rounded-xl border border-border">
+        <BudgetRow label={t("sl_grid_range")} info={t("sl_grid_range_help")} help={manual ? undefined : t("sl_grid_auto_note")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_range")}>
+            {(["manual", "auto"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.range === k}
+                onClick={() => set({ range: k })}
+                className={`${SEGMENT_ITEM} ${grid.range === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "manual" ? "sl_grid_range_manual" : "sl_grid_range_auto")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        {manual ? (
+          <BudgetRow
+            label={t("sl_grid_prices")}
+            help={rangeOk ? (markUsd ? t("sl_grid_mark", { price: markUsd.toLocaleString("en-US", { maximumFractionDigits: 4 }) }) : undefined) : t("sl_grid_range_invalid")}
+          >
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <NumberEntry value={grid.lowerUsd} min={0} max={priceMax} step={0.0001} unit="$" label={t("sl_grid_lower")} onChange={(n) => set({ lowerUsd: n })} />
+              <span className="font-ui text-[12px] text-text-dim">{t("sl_grid_to")}</span>
+              <NumberEntry value={grid.upperUsd} min={0} max={priceMax} step={0.0001} unit="$" label={t("sl_grid_upper")} onChange={(n) => set({ upperUsd: n })} />
+            </div>
+          </BudgetRow>
+        ) : null}
+        <BudgetRow
+          label={t("sl_grid_levels")}
+          info={t("sl_grid_levels_help")}
+          help={
+            spacingPct !== null
+              ? t("sl_grid_spacing_fact", { pct: spacingPct.toFixed(2) })
+              : undefined
+          }
+        >
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <div className="flex items-center gap-1">
+              {[5, 10, 20, 50].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={grid.levels === n}
+                  onClick={() => set({ levels: n })}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    grid.levels === n ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <NumberEntry value={grid.levels} min={2} max={200} step={1} unit="" label={t("sl_grid_levels")} onChange={(n) => set({ levels: Math.round(n) })} />
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_spacing")} info={t("sl_grid_spacing_help")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_spacing")}>
+            {(["arithmetic", "geometric"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.spacing === k}
+                onClick={() => set({ spacing: k })}
+                className={`${SEGMENT_ITEM} ${grid.spacing === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "arithmetic" ? "sl_grid_spacing_arith" : "sl_grid_spacing_geo")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        <BudgetRow
+          label={t("sl_grid_per_level")}
+          info={t("sl_grid_per_level_help")}
+          help={t("sl_grid_total", { total: fmtUsd(totalUsd), levels: Math.max(2, grid.levels) - 1 })}
+        >
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <div className="flex items-center gap-1">
+              {[25, 50, 100, 250].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={grid.perLevelUsd === n}
+                  onClick={() => set({ perLevelUsd: n })}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    grid.perLevelUsd === n ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {fmtUsd(n)}
+                </button>
+              ))}
+            </div>
+            <NumberEntry value={grid.perLevelUsd} min={5} max={1_000_000} step={1} unit="$" label={t("sl_grid_per_level")} onChange={(n) => set({ perLevelUsd: n })} />
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_allocation")} info={t("sl_grid_allocation_help")}>
+          <div className={`${SEGMENT_TRACK} w-fit`} role="radiogroup" aria-label={t("sl_grid_allocation")}>
+            {(["flat", "scalesWithSpacing"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={grid.allocation === k}
+                onClick={() => set({ allocation: k })}
+                className={`${SEGMENT_ITEM} ${grid.allocation === k ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {t(k === "flat" ? "sl_grid_alloc_flat" : "sl_grid_alloc_scales")}
+              </button>
+            ))}
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_take_profit")} info={t("sl_grid_take_profit_help")}>
+          <div className="flex items-center justify-end gap-3">
+            <Dimmed on={grid.takeProfitPct !== undefined}>
+              <NumberEntry
+                value={grid.takeProfitPct ?? 10}
+                min={1}
+                max={500}
+                step={0.5}
+                unit="%"
+                sign="+"
+                label={t("sl_grid_take_profit")}
+                disabled={grid.takeProfitPct === undefined}
+                onChange={(n) => set({ takeProfitPct: n })}
+              />
+            </Dimmed>
+            <button
+              type="button"
+              aria-pressed={grid.takeProfitPct !== undefined}
+              onClick={() => set({ takeProfitPct: grid.takeProfitPct === undefined ? 10 : undefined })}
+              className="font-ui text-[12px] text-text-dim underline underline-offset-4 transition-colors hover:text-text-primary"
+            >
+              {t(grid.takeProfitPct === undefined ? "sl_grid_turn_on" : "sl_grid_turn_off")}
+            </button>
+          </div>
+        </BudgetRow>
+        <BudgetRow label={t("sl_grid_stop_below")} info={t("sl_grid_stop_below_help")}>
+          <NumberEntry value={grid.stopBelowLowerPct} min={0} max={90} step={0.5} unit="%" sign="−" label={t("sl_grid_stop_below")} onChange={(n) => set({ stopBelowLowerPct: n })} />
+        </BudgetRow>
+        {onCadence ? (
+          <BudgetRow label={t("sl_grid_cycle")} info={t("sl_grid_cycle_help")}>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {CADENCES.filter((c) => c.sec >= 300).map((c) => (
+                <button
+                  key={c.sec}
+                  type="button"
+                  aria-pressed={cadenceSec === c.sec}
+                  onClick={() => onCadence(c.sec)}
+                  className={`tnum h-7 rounded-full px-2.5 font-mono text-[11.5px] transition-colors ${
+                    cadenceSec === c.sec ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+                  }`}
+                >
+                  {t(c.labelKey)}
+                </button>
+              ))}
+            </div>
+          </BudgetRow>
+        ) : null}
+      </div>
+      {spacingPct !== null && spacingPct < 0.6 ? (
+        <div className="pt-2">
+          <FieldNote tone="warn">{t("sl_grid_fee_warning", { pct: spacingPct.toFixed(2) })}</FieldNote>
+        </div>
+      ) : null}
+      <p className="max-w-[70ch] pt-3 font-ui text-[12.5px] leading-relaxed text-text-secondary">{t("sl_grid_how")}</p>
+    </section>
+  );
+}
+
+function BudgetRow({
+  label,
+  help,
+  info,
+  children,
+}: {
+  label: string;
+  /** A live consequence of the current value — a fact, not an explanation. */
+  help?: string;
+  /** The explanation, behind a dot. */
+  info?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 font-ui text-[13px] font-medium text-text-primary">
+          {label}
+          {info ? <InfoDot label={label}>{info}</InfoDot> : null}
+        </p>
+        {help ? (
+          // Re-keyed on the text so a changed consequence fades in rather than
+          // flickering: the number the reader just typed, said back.
+          <p key={help} className="reveal-in pt-0.5 font-ui text-[12px] leading-relaxed text-text-dim">
+            {help}
+          </p>
+        ) : null}
+      </div>
+      <div className="sm:justify-self-end">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Two halves and a surface fill. Selecting is not committing, so the active
+ * half is a surface, not green — the same control the mode toggle and the
+ * step pill use.
+ */
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="flex shrink-0 items-center gap-0.5 rounded-full border border-grid p-1">
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => (active ? undefined : onChange(o.id))}
+            className={`h-7 rounded-full px-3.5 font-ui text-[12.5px] font-medium transition-colors ${
+              active ? "bg-surface-2 text-text-primary" : "text-text-dim hover:text-text-primary"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A small integer, stepped. The number ticks when it changes. */
+function Stepper({
+  value,
+  min,
+  max,
+  label,
+  unit,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  label: string;
+  unit?: string;
+  onChange: (n: number) => void;
+}) {
+  const t = useT();
+  const btn =
+    "flex size-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent";
+  return (
+    <div className="inline-flex items-center gap-1 rounded-full border border-border p-0.5">
+      <button
+        type="button"
+        aria-label={t("sl_step_down", { label })}
+        disabled={value <= min}
+        onClick={() => onChange(Math.max(min, value - 1))}
+        className={btn}
+      >
+        −
+      </button>
+      <span
+        key={value}
+        className="tnum reveal-in min-w-[2ch] text-center font-mono text-[13.5px] text-text-primary"
+        aria-live="polite"
+      >
+        {value}
+        {unit ? <span className="pl-1 font-ui text-[12px] text-text-dim">{unit}</span> : null}
+      </span>
+      <button
+        type="button"
+        aria-label={t("sl_step_up", { label })}
+        disabled={value >= max}
+        onClick={() => onChange(Math.min(max, value + 1))}
+        className={btn}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The compliance screens on offer.
+ *
+ * "None" is first and is the default. Shariah screening removes conventional
+ * financials and over-leveraged balance sheets from the universe outright, so
+ * it is a decision the author makes deliberately rather than a box they find
+ * already ticked.
+ */
+/**
+ * The partial-profit ladder.
+ *
+ * NOT AN ExitChip, because a ladder is a list rather than a level. Each rung is
+ * a pair — how much, and at what gain — and they fire in order, once each. The
+ * chips above are single numbers and squeezing a sequence into one would hide
+ * the thing that makes it a ladder.
+ *
+ * The remainder is shown as its own row and cannot be edited. It is not a
+ * setting; it is whatever the rungs leave behind, and showing it as a
+ * consequence rather than a field is what makes "and let the rest ride" legible.
+ */
+export function ScaleOutLadder({
+  rungs,
+  onChange,
+}: {
+  rungs: { atPct: number; fraction: number }[];
+  onChange: (next: { atPct: number; fraction: number }[]) => void;
+}) {
+  const sold = rungs.reduce((sum, r) => sum + r.fraction, 0);
+  const left = Math.max(0, 1 - sold);
+  const t = useT();
+
+  const setRung = (
+    i: number,
+    patch: Partial<{ atPct: number; fraction: number }>,
+  ) => onChange(rungs.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+
+  const add = () => {
+    // Above the last rung, because they fire in ascending order — a new step
+    // below an existing one would never be reached.
+    const last = rungs[rungs.length - 1];
+    const atPct = last ? last.atPct + 15 : 15;
+    // Never propose a ladder that leaves nothing: the engine refuses it, and a
+    // control that can build a refused state is a control that lies.
+    const fraction = Math.min(0.25, Math.max(0.05, left - 0.05));
+    if (fraction <= 0) return;
+    onChange([...rungs, { atPct, fraction }]);
+  };
+
+  return (
+    <div className="border-b border-grid px-4 py-3 last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
+            {t("sl_steps_title")}
+          </p>
+          <InfoDot label={t("sl_steps_title")}>
+            {t(rungs.length === 0 ? "sl_steps_off" : "sl_steps_on")}
+          </InfoDot>
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          disabled={left <= 0.05}
+          className="font-ui text-[12.5px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-30"
+        >
+          {t("sl_add_step")}
+        </button>
+      </div>
+
+      {rungs.length > 0 ? (
+        <ul className="space-y-2 pt-3">
+          {rungs.map((r, i) => (
+            <li
+              key={i}
+              className="flex flex-wrap items-center gap-2 font-ui text-[12.5px]"
+            >
+              <span className="text-text-dim">{t("sl_sell")}</span>
+              <input
+                type="number"
+                min={1}
+                max={95}
+                value={Math.round(r.fraction * 100)}
+                onChange={(e) =>
+                  setRung(i, {
+                    fraction: Math.min(
+                      0.95,
+                      Math.max(0.01, Number(e.target.value) / 100),
+                    ),
+                  })
+                }
+                className="tnum w-16 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
+                aria-label={t("sl_step_size_aria", { n: i + 1 })}
+              />
+              <span className="text-text-dim">{t("sl_pct_at")}</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={r.atPct}
+                onChange={(e) =>
+                  setRung(i, { atPct: Math.max(1, Number(e.target.value)) })
+                }
+                className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
+                aria-label={t("sl_step_gain_aria", { n: i + 1 })}
+              />
+              <span className="text-text-dim">{t("sl_pct_gain")}</span>
+              <button
+                type="button"
+                onClick={() => onChange(rungs.filter((_, n) => n !== i))}
+                className="ml-auto font-ui text-[11.5px] text-text-dim transition-colors hover:text-negative"
+              >
+                {t("common_remove")}
+              </button>
+            </li>
+          ))}
+          <li className="flex items-center gap-2 pt-1 font-ui text-[11.5px] text-text-dim">
+            {/* The consequence, not a field. */}
+            {t("sl_leaves_running", { pct: Math.round(left * 100) })}
+          </li>
+          {sold >= 1 ? (
+            <li className="font-ui text-[11.5px] text-warning">
+              {t("sl_sells_everything")}
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One condition on which the agent SELLS.
+ *
+ * `op` is not editable and never reaches the wire from a control: each entry in
+ * the catalogue below carries the direction its key was defined with, and the
+ * backend refuses a condition asking a key for the direction it does not have.
+ * A control that could build that state would be a control that lies.
+ */
+export interface SellCondition {
+  key: string;
+  op: "gte" | "lte";
+  value: number;
+}
+
+/**
+ * The sell signals worth offering, which is FEWER than the engine can express.
+ *
+ * Every rule key is available to a sentence — the composer reads the whole
+ * vocabulary — but a picker listing thirty-three readings is not a choice, it
+ * is a lookup. These five are the exits people actually describe, each with the
+ * direction that makes it an exit rather than an entry:
+ *
+ *   the band, upward     the second half of every mean-reversion strategy
+ *   the band, downward   the setup breaking instead of completing
+ *   RSI collapsing       momentum gone, whatever the price has done
+ *   MACD crossing down   the trend rolling over
+ *   Supertrend flipping  the same, for a trend follower
+ *
+ * A condition set in conversation may name a key that is not here. It is kept
+ * and shown rather than dropped — see the row rendering — because the exits
+ * column is REPLACED on save, so a control that quietly forgot a condition
+ * would delete it the next time anyone touched this dialog.
+ *
+ * Ranges mirror COMPOSABLE_RULES exactly. The backend validates against those,
+ * so a bound invented here would be a control that can build a refused state.
+ */
+const SELL_SIGNALS: {
+  key: string;
+  op: "gte" | "lte";
+  labelKey: TranslationKey;
+  helpKey: TranslationKey;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}[] = [
+  {
+    key: "bollingerPctBMin",
+    op: "gte",
+    labelKey: "sell_band_up",
+    helpKey: "sell_band_up_help",
+    value: 50,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "bollingerPctB",
+    op: "lte",
+    labelKey: "sell_band_down",
+    helpKey: "sell_band_down_help",
+    value: 0,
+    min: -20,
+    max: 120,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "rsi14",
+    op: "lte",
+    labelKey: "sell_rsi",
+    helpKey: "sell_rsi_help",
+    value: 30,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  // THE DIRECTION AN EXIT ACTUALLY WANTS, and the reason `rsi14Min` exists at
+  // all: "sell once RSI is back over 70" was inexpressible while the key had
+  // only its at-most form, because writing it that way composes "sell while
+  // RSI is under 70" — true of nearly every bar.
+  {
+    key: "rsi14Min",
+    op: "gte",
+    labelKey: "sell_rsi_high",
+    helpKey: "sell_rsi_high_help",
+    value: 70,
+    min: 10,
+    max: 90,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "stochasticKMin",
+    op: "gte",
+    labelKey: "sell_stoch_high",
+    helpKey: "sell_stoch_high_help",
+    value: 80,
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: "",
+  },
+  {
+    key: "macdCrossDownBars",
+    op: "lte",
+    labelKey: "sell_macd",
+    helpKey: "sell_macd_help",
+    value: 0,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: "",
+  },
+  {
+    key: "supertrendFlipDownBars",
+    op: "lte",
+    labelKey: "sell_supertrend",
+    helpKey: "sell_supertrend_help",
+    value: 0,
+    min: 0,
+    max: 20,
+    step: 1,
+    unit: "",
+  },
+];
+
+/**
+ * A sell signal, read back in one line.
+ *
+ * Exported because three surfaces show the same thing and a second phrasing of
+ * it would eventually disagree with this one: the builder's summary card, the
+ * agent page's rail, and the edit dialog's confirmation.
+ *
+ * Named conditions rather than a count. "Sell signal: 2 conditions" tells an
+ * owner nothing about what their agent will do, which is the whole question
+ * this line exists to answer.
+ */
+export function sellSignalText(
+  conditions: readonly SellCondition[],
+  t: Translate,
+): string | null {
+  if (conditions.length === 0) return null;
+  return conditions
+    .map((c) => {
+      const spec = SELL_SIGNALS.find((s) => s.key === c.key);
+      // The raw key when the condition came from a sentence naming a reading
+      // the picker does not offer. Ugly, and better than silence: it is a
+      // condition on which real money is sold.
+      const label = spec ? t(spec.labelKey) : c.key;
+      return `${label} ${c.op === "gte" ? "≥" : "≤"} ${c.value}`;
+    })
+    .join(t("sl_sell_join"));
+}
+
+/**
+ * The sell signal: indicator conditions that close a position.
+ *
+ * THE ONLY EXIT HERE THAT ASKS ABOUT THE MARKET. Every chip above it is a
+ * percentage from cost or a clock — is this position up enough, down enough,
+ * old enough. "Sell at the middle Bollinger band" is none of those: the band
+ * moves with every bar, so no fixed target is the same instruction.
+ *
+ * AND, NOT OR, and the note says so once a second condition exists. Two
+ * conditions make the exit fire LESS often, which is the safe direction and the
+ * opposite of what a list usually implies — the stop loss is still underneath.
+ */
+export function SellSignal({
+  conditions,
+  onChange,
+}: {
+  conditions: SellCondition[];
+  onChange: (next: SellCondition[]) => void;
+}) {
+  const t = useT();
+  const used = new Set(conditions.map((c) => c.key));
+  const available = SELL_SIGNALS.filter((s) => !used.has(s.key));
+
+  const setAt = (i: number, value: number) =>
+    onChange(conditions.map((c, n) => (n === i ? { ...c, value } : c)));
+
+  return (
+    <div className="border-b border-grid px-4 py-3 last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
+            {t("sl_sell_signal")}
+          </p>
+          <InfoDot label={t("sl_sell_signal")}>
+            {t(conditions.length === 0 ? "sl_sell_signal_off" : "sl_sell_signal_on")}
+          </InfoDot>
+        </div>
+        {available.length > 0 ? (
+          // A select rather than a button, because the choice IS the control:
+          // which condition, not whether to have one.
+          <select
+            value=""
+            onChange={(e) => {
+              const spec = SELL_SIGNALS.find((s) => s.key === e.target.value);
+              if (!spec) return;
+              onChange([...conditions, { key: spec.key, op: spec.op, value: spec.value }]);
+            }}
+            aria-label={t("sl_add_condition")}
+            className="rounded-md border border-border bg-bg px-2 py-1 font-ui text-[12.5px] pointer-coarse:text-[16px] text-text-secondary outline-none transition-colors hover:text-text-primary focus:border-accent/40"
+          >
+            <option value="">{t("sl_add_condition")}</option>
+            {available.map((s) => (
+              <option key={s.key} value={s.key}>
+                {t(s.labelKey)}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+
+      {conditions.length > 0 ? (
+        <ul className="space-y-2 pt-3">
+          {conditions.map((c, i) => {
+            const spec = SELL_SIGNALS.find((s) => s.key === c.key);
+            return (
+              <li
+                key={c.key}
+                className="flex flex-wrap items-center gap-2 font-ui text-[12.5px]"
+              >
+                <span className="text-text-primary">
+                  {spec ? t(spec.labelKey) : c.key}
+                </span>
+                {spec ? (
+                  <InfoDot label={t(spec.labelKey)}>{t(spec.helpKey)}</InfoDot>
+                ) : null}
+                <span className="text-text-dim">
+                  {t(c.op === "gte" ? "rule_at_least" : "rule_at_most")}
+                </span>
+                {spec ? (
+                  <input
+                    type="number"
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step}
+                    value={c.value}
+                    onChange={(e) =>
+                      setAt(
+                        i,
+                        Math.min(spec.max, Math.max(spec.min, Number(e.target.value))),
+                      )
+                    }
+                    className="tnum w-20 rounded-md border border-border bg-bg px-2 py-1 text-right font-mono text-[12.5px] pointer-coarse:text-[16px] text-text-primary outline-none focus:border-accent/40"
+                    aria-label={t(spec.labelKey)}
+                  />
+                ) : (
+                  // A condition set in conversation, naming a reading this
+                  // picker does not offer. Shown rather than dropped: the exits
+                  // object is REPLACED on save, so forgetting it here would
+                  // delete it from the strategy.
+                  <span className="tnum font-mono text-[12.5px] text-text-primary">
+                    {c.value}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onChange(conditions.filter((_, n) => n !== i))}
+                  className="ml-auto font-ui text-[11.5px] text-text-dim transition-colors hover:text-negative"
+                >
+                  {t("common_remove")}
+                </button>
+              </li>
+            );
+          })}
+          {conditions.length > 1 ? (
+            <li className="font-ui text-[11.5px] text-text-dim">{t("sl_sell_all_hold")}</li>
+          ) : null}
+          {/* The caveat that changes what the level MEANS, and the one thing
+              nobody would work out from the control. */}
+          <li className="font-ui text-[11.5px] text-text-dim">{t("sl_sell_on_close")}</li>
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * What each exit does, in the two states it can be in.
+ *
+ * A table because the chips are no longer two-of-a-kind: a trailing stop and a
+ * fixed stop are both "stops" and behave differently enough that one branching
+ * sentence was already misleading before the other two arrived.
+ */
+// Keyed by the exit's own label key rather than by its English words, so the
+// lookup cannot break when the label is translated.
+const EXIT_COPY: Record<string, { on: TranslationKey; off: TranslationKey }> = {
+  sl_take_profit: { on: "exit_tp_on", off: "exit_tp_off" },
+  sl_stop_loss: { on: "exit_sl_on", off: "exit_sl_off" },
+  sl_trailing_stop: { on: "exit_trail_on", off: "exit_trail_off" },
+  sl_breakeven: { on: "exit_be_on", off: "exit_be_off" },
+};
+
+const COMPLIANCE_CHOICES: {
+  id: ComplianceProfile;
+  labelKey: TranslationKey;
+  helpKey: TranslationKey;
+}[] = [
+  { id: "none", labelKey: "compliance_none", helpKey: "compliance_none_help" },
+  {
+    id: "shariah",
+    labelKey: "compliance_shariah",
+    helpKey: "compliance_shariah_help",
+  },
+];
+
+/* ------------------------------------------------------------ what it needs -- */
+
+interface Turn {
+  role: "you" | "agent";
+  text: string;
+  /** `note` is something refused, `ask` a question, `ready` the all-clear. */
+  tone?: "note" | "ask" | "ready";
+}
+
+/**
+ * `met` — stated and applied. `assumed` — running on a default the author never
+ * chose, which is a real value that will really trade, so it is neither a
+ * failure nor a fact. `missing` — the executor cannot act at all.
+ */
+type ReqState = "met" | "assumed" | "missing";
+
+interface Requirement {
+  key: string;
+  /** Already translated — `requirements` takes the translator. */
+  label: string;
+  state: ReqState;
+  /** Where the figure stands now, in the author's terms. */
+  detail: string;
+  /** What to ask if this is the first gap. Absent means nothing to ask. */
+  ask?: string;
+  /** Answers worth one tap. Sent verbatim, so they read as things a person says. */
+  chips?: string[];
+}
+
+/**
+ * What the author actually settled, as the composer reports it.
+ *
+ * This used to be read out of the raw sentence with a regex, because every exit
+ * comes back from the compiler populated — it clamps and defaults — so the
+ * draft alone cannot distinguish "take profit at 25% because I said so" from
+ * "take profit at 25% because nobody said otherwise". The regex was crude on
+ * purpose and the cost was capped at one unasked question.
+ *
+ * The cost turned out not to be capped. A sentence reading "stop loss when it
+ * reaches 50% drawdown" contains the word "stop", so the checklist marked the
+ * stop settled and asked nothing — while the stop that compiled measured from
+ * a different reference point than the one described. The word was present; the
+ * agreement was not, and searching text cannot tell those apart.
+ *
+ * The model reading the sentence knew all along. It is asked now, and this
+ * reads its answer.
+ *
+ * `sizeStated` is not in the server's list because sizing never reaches the
+ * compiler at all — {@link readSizing} parses it here. The flag is the fact of
+ * that parse having succeeded, which is the same claim, evidenced instead of
+ * guessed at a second time.
+ */
+export interface Settled {
+  /** Exit field names the author named. @see ComposeProvenance.stated */
+  stated: string[];
+  /** Whether a per-trade size was read out of something the author wrote. */
+  sizeStated: boolean;
+}
+
+/** Nothing settled yet — what an author who has not spoken has agreed to. */
+export const NOTHING_SETTLED: Settled = { stated: [], sizeStated: false };
+
+/**
+ * Engine field names, in the words the author sees them under.
+ *
+ * The server reports which exit it adjusted by its own field name, and telling
+ * someone "takeProfitPct was adjusted" names a variable rather than the control
+ * sitting on their screen.
+ */
+const EXIT_FIELD_LABEL: Record<string, TranslationKey> = {
+  takeProfitPct: "sl_take_profit",
+  stopLossPct: "sl_stop_loss",
+  trailingStopPct: "sl_trailing_stop",
+  breakevenAfterPct: "sl_breakeven",
+  maxHoldDays: "sl_time_limit",
+};
+
+/**
+ * The minimum a trade executor needs before it can act, in the order it needs
+ * them: what makes it buy, where it gets out on the way up, where it gets out
+ * on the way down, and how much it may commit.
+ *
+ * Cadence and bar size are NOT in this list. Both have engine-wide defaults
+ * that are correct for the overwhelming majority of strategies (daily bars,
+ * hourly wake-ups), and neither can make a position unsafe on its own.
+ */
+function requirements(
+  limits: Limits,
+  settled: Settled,
+  t: Translate,
+): Requirement[] {
+  const active = limits.rules.filter((r) => r.enabled !== false);
+  const { takeProfitPct, stopLossPct } = limits.exits;
+
+  return [
+    {
+      key: "entry",
+      label: t("req_entry"),
+      state: active.length > 0 ? "met" : "missing",
+      detail:
+        active.length === 0
+          ? t("req_entry_none")
+          : active.length === 1
+            ? t("req_entry_one")
+            : t("req_entry_many", { count: active.length }),
+      ask: t("req_entry_ask"),
+      // Sent verbatim as the author's own words, so they are written in the
+      // reader's language — the composer answers in whatever it is given.
+      chips: [
+        t("req_entry_chip_1"),
+        t("req_entry_chip_2"),
+        t("req_entry_chip_3"),
+      ],
+    },
+    {
+      key: "profit",
+      label: t("req_profit"),
+      // Switching an exit off is a decision, so the checklist reports it as met
+      // rather than going on asking for a value the author has deliberately
+      // removed. "+0%" would also read as a target of zero, which is the one
+      // thing it does not mean.
+      state:
+        takeProfitPct <= 0 || settled.stated.includes("takeProfitPct")
+          ? "met"
+          : "assumed",
+      detail: takeProfitPct > 0 ? `+${takeProfitPct}%` : t("req_off"),
+      ask: t("req_profit_ask", { pct: takeProfitPct }),
+      chips: [
+        t("req_profit_chip_1"),
+        t("req_profit_chip_2"),
+        t("req_profit_chip_3"),
+      ],
+    },
+    {
+      key: "stop",
+      label: t("req_stop"),
+      state:
+        stopLossPct <= 0 || settled.stated.includes("stopLossPct")
+          ? "met"
+          : "assumed",
+      detail: stopLossPct > 0 ? `−${stopLossPct}%` : t("req_off"),
+      ask: t("req_stop_ask", { pct: stopLossPct }),
+      chips: [t("req_stop_chip_1"), t("req_stop_chip_2"), t("req_stop_chip_3")],
+    },
+    {
+      key: "size",
+      label: t("req_size"),
+      state: settled.sizeStated ? "met" : "assumed",
+      detail: t("req_size_detail", {
+        amount: money(limits.positionUsd),
+        count: limits.tradesPerCycle,
+      }),
+      ask: t("req_size_ask", {
+        amount: money(limits.positionUsd),
+        book: money(bookOf(limits)),
+      }),
+      chips: [t("req_size_chip_1"), t("req_size_chip_2"), t("req_size_chip_3")],
+    },
+  ];
+}
+
+/**
+ * Reads a stated position size out of a message.
+ *
+ * The compiler does not return sizing — /agents/compose answers with rules and
+ * exits — so a sentence about money would otherwise be dropped on the floor
+ * while the checklist went on asking for it.
+ *
+ * Only matches a figure with a unit that means "per trade", so "down 4% on the
+ * day, and I have $10,000 in the account" cannot be mistaken for an order size.
+ * Returns null when there is nothing to read, and clamps into the same range
+ * the field below allows.
+ */
+function readSizing(text: string, limits: Limits): Limits | null {
+  const m =
+    /\$\s?([\d,]+(?:\.\d+)?)\s*(?:k\b)?[^.]{0,24}?(?:per trade|a trade|each trade|per position|per entry)/i.exec(
+      text,
+    );
+  if (!m) return null;
+  const raw = Number(m[1].replace(/,/g, ""));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  const usd = /k\b/i.test(m[0]) ? raw * 1000 : raw;
+  // Floor and step of 10, not 100.
+  //
+  // "$10 each trade" is a real request — it is how a grid or a wide ladder is
+  // sized — and a $100 floor silently turned it into ten times the intended
+  // size while the checklist reported the instruction as honoured. Rounding to
+  // the nearest $100 did the same thing more quietly to $150.
+  //
+  // Matches what the server accepts, which is the point: a client floor above
+  // the server's makes a capability unreachable, and the two disagreeing is the
+  // same class of gap that let the budget be dropped entirely.
+  const clamped = Math.min(
+    Math.max(
+      Math.round(usd / MIN_POSITION_USD) * MIN_POSITION_USD,
+      MIN_POSITION_USD,
+    ),
+    bookOf(limits),
+  );
+  return { ...limits, positionUsd: clamped };
+}
+
+/** One line of the exchange. */
+/**
+ * The strategy, read back as one sentence and four figures.
+ *
+ * This is the object the step produces. The composer's own reading is the
+ * sentence — it is already the plain-language account of the rules it set —
+ * and beneath it the numbers a trade cannot happen without. When there is no
+ * reading (rules set by hand), the figures stand alone.
+ */
+function StrategyCard({
+  reading,
+  value,
+  active,
+  symbol,
+}: {
+  reading: string | null;
+  value: Limits;
+  active: number;
+  symbol: string | null;
+}) {
+  const t = useT();
+  const tf = TIMEFRAMES.find((x) => x.tf === (value.timeframe ?? DEFAULT_TIMEFRAME));
+  const facts: { label: string; value: string }[] = [
+    { label: t("sl_card_position"), value: money(value.positionUsd) },
+    // Zero is OFF, and "+0%" reads as a target of nothing rather than as no
+    // target — which matters more now that a strategy can sell on a signal
+    // with no percentage target at all.
+    {
+      label: t("sl_take_profit"),
+      value: value.exits.takeProfitPct > 0 ? `+${value.exits.takeProfitPct}%` : t("req_off"),
+    },
+    { label: t("sl_stop_loss"), value: `−${value.exits.stopLossPct}%` },
+    { label: t("sl_card_bars"), value: tf ? t(tf.labelKey) : "—" },
+  ];
+
+  const sells = sellSignalText((value.exits.exitWhen ?? []) as SellCondition[], t);
+  if (sells) facts.push({ label: t("sl_sell_signal"), value: sells });
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="px-5 pt-5 pb-4">
+        <p className="font-ui text-[12.5px] text-text-muted">
+          {symbol ? t("sl_card_eyebrow", { symbol }) : t("sl_card_eyebrow_plain")}
+        </p>
+        <p className="mt-1.5 max-w-[60ch] font-ui text-[16px] leading-relaxed text-text-primary">
+          {reading ??
+            (active === 0
+              ? t("sl_card_hand_none")
+              : active === 1
+                ? t("sl_card_hand_one")
+                : t("sl_card_hand_many", { count: active }))}
+        </p>
+      </div>
+      <dl className="grid grid-cols-2 divide-x divide-grid border-t border-grid sm:grid-cols-4">
+        {facts.map((f) => (
+          <div key={f.label} className="px-5 py-3">
+            <dt className="font-ui text-[11.5px] text-text-muted">{f.label}</dt>
+            <dd className="tnum mt-0.5 font-mono text-[14px] text-text-primary">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function TurnRow({ turn }: { turn: Turn }) {
+  const you = turn.role === "you";
+  const t = useT();
+  return (
+    <li
+      className={`reveal-in border-b border-grid px-4 py-2.5 last:border-b-0 ${
+        turn.tone === "ask" ? "bg-surface-2/60" : ""
+      }`}
+    >
+      <p className={`pb-0.5 font-ui text-[11px] ${you ? "text-text-muted" : "text-text-secondary"}`}>
+        {t(you ? "sl_you" : "sl_desk")}
+      </p>
+      <p
+        className={`font-ui text-[13px] leading-relaxed ${
+          turn.tone === "note"
+            ? "text-warning"
+            : turn.tone === "ready"
+              ? "text-accent"
+              : you
+                ? "text-text-secondary"
+                : "text-text-primary"
+        }`}
+      >
+        {turn.text}
+      </p>
+    </li>
+  );
+}
+
+/**
+ * The two entry shapes only a sentence can build.
+ *
+ * READ-ONLY, AND THAT IS THE COMPROMISE. Either/or groups and two-stage entries
+ * have no editor — building one would be a screen of its own — so for a while
+ * the builder simply dropped them, which made the composer's best work
+ * unreachable from the flow that produces it. Carrying them without showing
+ * them would have been worse: a condition that decides trades and cannot be
+ * seen is the exact failure the rest of this step exists to prevent.
+ *
+ * So they are shown, and they can be REMOVED. Remove is the one edit that
+ * needs no editor and cannot produce something incoherent, and it means nobody
+ * is stuck with a group they did not want. Changing one is a sentence away.
+ */
+export function ComposedOnly({
+  anyOf,
+  setup,
+  catalogue,
+  timeframe,
+  onClearAnyOf,
+  onClearSetup,
+}: {
+  anyOf?: DetectionRule[][];
+  setup?: SetupSpec;
+  /** The rule specs, for labels — a DetectionRule carries a key, not a name. */
+  catalogue: RuleSpec[];
+  timeframe: Timeframe;
+  onClearAnyOf: () => void;
+  onClearSetup: () => void;
+}) {
+  const t = useT();
+  const groups = (anyOf ?? []).filter((g) => g.length > 0);
+  if (groups.length === 0 && !setup) return null;
+
+  // A rule the catalogue does not carry still has to render. It cannot be
+  // labelled, so it prints its key — ugly, and better than a row that silently
+  // disappears from a condition that will still be evaluated.
+  const label = (r: DetectionRule) => {
+    const spec = catalogue.find((c) => c.key === r.key);
+    return spec
+      ? `${ruleLabel(withRuleParams(spec, r), timeframe, t)} ${r.op === "lte" ? "≤" : "≥"} ${r.value}${spec.unit}`
+      : `${r.key} ${r.op === "lte" ? "≤" : "≥"} ${r.value}`;
+  };
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-xl border border-border bg-bg">
+      {groups.length > 0 ? (
+        <div className="border-b border-grid px-4 py-3 last:border-b-0">
+          <div className="flex items-baseline justify-between gap-4">
+            <h4 className="font-ui text-[11.5px] text-text-muted">
+              {t("sl_anyof_title")}
+            </h4>
+            <button
+              type="button"
+              onClick={onClearAnyOf}
+              className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t("sl_composed_remove")}
+            </button>
+          </div>
+          {groups.map((g, i) => (
+            <p
+              key={i}
+              className="pt-1.5 font-ui text-[12.5px] leading-relaxed text-text-primary"
+            >
+              {g.map(label).join(t("sl_anyof_or"))}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      {setup ? (
+        <div className="px-4 py-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <h4 className="font-ui text-[11.5px] text-text-muted">
+              {t("sl_setup_title")}
+            </h4>
+            <button
+              type="button"
+              onClick={onClearSetup}
+              className="font-ui text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t("sl_composed_remove")}
+            </button>
+          </div>
+          <p className="pt-1.5 font-ui text-[12.5px] leading-relaxed text-text-primary">
+            {setup.arm.map(label).join(", ")}
+          </p>
+          <p className="pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+            {t("sl_setup_expires", { bars: setup.expiresAfterBars })}
+            {setup.invalidateIf?.length
+              ? ` ${t("sl_setup_invalidate", { rules: setup.invalidateIf.map(label).join(", ") })}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A question worth one turn, with answers worth one tap. */
+interface Ask {
+  text: string;
+  chips: string[];
+}
+
+/**
+ * What to ask next, if anything.
+ *
+ * THE LEDGER OUTRANKS THE CHECKLIST, and the order is the whole point. The
+ * checklist asks about fields nobody filled in — a size, a target — and those
+ * questions were the only ones this step could ask. A misread clause is a
+ * different kind of gap: the author DID say something, it was heard, and it
+ * produced a rule answering a different question. Asking about a default while
+ * a stated instruction sits misread is answering the easier question first.
+ *
+ * The gate is the checklist's own: a question earns its turn only if two
+ * different answers compile to two different strategies. `unsupported` is the
+ * one that had to be argued about. No reply makes the engine able to measure an
+ * Ichimoku cloud, so asking looks like theatre — but the author can put
+ * SOMETHING ELSE in its place, and that substitution is a different strategy,
+ * which clears the gate. The wording carries the weight: it offers a
+ * replacement rather than inviting a reword, because rewording will not work
+ * and implying otherwise sends someone in circles.
+ *
+ * The frequency argues for it too. Asked for a change against a vocabulary of
+ * levels, the model does not quietly reach for the nearest rule — it says it
+ * cannot, every time it was probed. So `unsupported` is where a dropped
+ * instruction actually lands, and a state that never asks is a state where the
+ * author's own words go quiet.
+ *
+ * Still one question per turn, still derived rather than generated, and it
+ * never blocks: the draft is on screen either way.
+ */
+function nextQuestion(clauses: Clause[], reqs: Requirement[], t: Translate): Ask | null {
+  const misread = clauses.find((c) => c.status === "reinterpreted");
+  if (misread) {
+    return {
+      text: t("sl_ask_reinterpreted", { phrase: misread.phrase }),
+      // Sent verbatim as the author's own words, like every other chip here.
+      chips: [
+        t("sl_ask_reint_chip_1"),
+        t("sl_ask_reint_chip_2"),
+        t("sl_ask_reint_chip_3"),
+      ],
+    };
+  }
+
+  const dropped = clauses.find((c) => c.status === "unsupported");
+  if (dropped) {
+    return {
+      text: t("sl_ask_unsupported", { phrase: dropped.phrase }),
+      chips: [t("sl_ask_unsup_chip_1"), t("sl_ask_unsup_chip_2")],
+    };
+  }
+
+  const lost = clauses.find((c) => c.status === "unclear");
+  // Two chips, not three guesses: the one rule people usually mean by a
+  // phrase like "when the pool is deep" (a liquidity floor), and the exit.
+  // Both are sent as the author's own words and compiled like anything typed.
+  if (lost) {
+    return {
+      text: t("sl_ask_unclear", { phrase: lost.phrase }),
+      chips: [t("sl_ask_unclear_chip_1"), t("sl_ask_unclear_chip_2")],
+    };
+  }
+
+  const gap = reqs.find((r) => r.state !== "met");
+  return gap?.ask ? { text: gap.ask, chips: gap.chips ?? [] } : null;
+}
+
+/**
+ * The sentence back, clause by clause.
+ *
+ * WHY EVERY CLAUSE AND NOT JUST THE PROBLEMS. A list of only the trouble reads
+ * as a list of errors, and most of these are not errors — a clamped target and
+ * a reinterpreted phrase are things the author may well want, once they know.
+ * Showing the honoured clauses beside them is what makes the flagged ones
+ * legible as "here is what happened to each thing you said" instead of "here is
+ * what you got wrong", and it is the only way to see an omission: a clause you
+ * wrote that produced nothing is visible only against the ones that did.
+ *
+ * Nothing here blocks. The strategy on screen is the strategy either way.
+ */
+function ClauseLedger({ clauses }: { clauses: Clause[] }) {
+  const t = useT();
+  if (clauses.length === 0) return null;
+
+  // Order follows the SENTENCE, not severity. Someone reads this against what
+  // they typed, and resorting it by badness breaks that correspondence for the
+  // sake of a ranking they did not ask for.
+  return (
+    <ul className="mb-3 overflow-hidden rounded-xl border border-border bg-bg">
+      {clauses.map((c, i) => (
+        <li
+          key={`${i}-${c.phrase}`}
+          className="flex items-baseline gap-2.5 border-b border-grid px-4 py-2 last:border-b-0"
+        >
+          <span
+            aria-hidden
+            className={`mt-1.5 inline-block size-1.5 shrink-0 rounded-full ${CLAUSE_DOT[c.status]}`}
+          />
+          <span className="min-w-0">
+            <span className="font-ui text-[12.5px] text-text-primary">{c.phrase}</span>
+            <span className="pl-2 font-ui text-[11px] text-text-muted">
+              {t(CLAUSE_LABEL[c.status])}
+            </span>
+            {c.detail ? (
+              <span className="block pt-0.5 font-ui text-[11.5px] leading-relaxed text-text-dim">
+                {c.detail}
+              </span>
+            ) : null}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Colour carries the same meaning it does in the checklist above: accent for
+ * settled, warning for live-but-unchosen, negative for cannot.
+ *
+ * `reinterpreted` takes the warning colour rather than the negative one on
+ * purpose. Nothing failed — a rule was set and it will trade. What is wrong is
+ * only that it may not be the one described, and painting that as an error
+ * would train people to dismiss it.
+ */
+const CLAUSE_DOT: Record<Clause["status"], string> = {
+  honoured: "bg-accent",
+  adjusted: "bg-warning",
+  reinterpreted: "bg-warning",
+  unsupported: "bg-negative",
+  unclear: "bg-text-muted",
+};
+
+const CLAUSE_LABEL: Record<Clause["status"], TranslationKey> = {
+  honoured: "sl_clause_honoured",
+  adjusted: "sl_clause_adjusted",
+  reinterpreted: "sl_clause_reinterpreted",
+  unsupported: "sl_clause_unsupported",
+  unclear: "sl_clause_unclear",
+};
+
+/* -------------------------------------------------------------------- bits -- */
+
+/** A small number box for a period: the reading's window, not its threshold. */
+function PeriodEntry({
+  value,
+  min,
+  max,
+  step = 1,
+  suffix,
+  label,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  label: string;
+  onChange: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const n = Number(draft);
+    setDraft(null);
+    if (!Number.isFinite(n)) return;
+    const snapped = Math.round(Math.min(Math.max(n, min), max) / step) * step;
+    onChange(Number(snapped.toFixed(2)));
+  };
+  return (
+    <label className="inline-flex items-center gap-1 rounded-full border border-grid px-2 py-0.5 font-ui text-[11px] text-text-dim" title={label}>
+      <span>{label}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft ?? String(value)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        aria-label={label}
+        className="tnum w-9 bg-transparent text-center font-mono text-[11.5px] text-text-primary outline-none"
+      />
+      {suffix ? <span>{suffix}</span> : null}
+    </label>
+  );
+}
+
+export function RuleChip({
+  rule: r,
+  timeframe = DEFAULT_TIMEFRAME,
+  onChange,
+}: {
+  rule: RuleSpec;
+  timeframe?: Timeframe;
+  onChange: (patch: Partial<RuleSpec>) => void;
+}) {
+  const on = r.enabled !== false;
+  const t = useT();
+  // Never `t(r.labelKey)` directly: at any non-daily timeframe the bare label
+  // omits the one thing that decides what the number means.
+  const label = ruleLabel(r, timeframe, t);
+  const basisNote = ruleBasisNote(r, timeframe, t);
+  // Bounds as they apply at THIS bar size. The spec's own min/max/step are
+  // written in daily terms and stay the base; a percent-of-price rule on
+  // 15-minute bars gets a range a fifteen-minute move can actually reach.
+  //
+  // Widened to hold whatever value is already set, never narrowed onto it. The
+  // composer clamps to the DAILY table whatever bar size it composed at, so it
+  // can hand back a 3% trend floor on 15-minute bars — outside the scaled range
+  // and still what the author asked for. A slider whose max sits under its own
+  // value reports a number nobody chose, so the range gives way, not the value.
+  const scaled = scaleRule(r, timeframe);
+  const bounds = {
+    ...scaled,
+    min: Math.min(scaled.min, r.value),
+    max: Math.max(scaled.max, r.value),
+  };
+  // What the window is in wall-clock time. The label says "14 × 15m"; this says
+  // what nobody should have to work out from it.
+  const span = ruleSpan(r, timeframe, t);
+  const pk = PERIOD_KEYS[r.key];
+  const pair = PAIR_KEYS[r.key];
+  const dev = DEVIATION_KEYS.has(r.key);
+  const chartable = TIMEFRAME_KEYS.has(r.key) && r.basis === "bars";
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <p
+          className={`min-w-0 font-ui text-[13px] font-medium ${on ? "text-text-primary" : "text-text-muted"}`}
+        >
+          {label}{" "}
+          <span className="text-text-dim">
+            {t(r.op === "gte" ? "rule_at_least" : "rule_at_most")}
+          </span>
+        </p>
+        {/* BEHIND A MARK, NOT UNDER THE LABEL.
+            Eleven rules each carrying two lines of prose is a wall: the reader
+            passes every paragraph to reach the one number they came to set, and
+            the sentence that matters most — the basis note below — arrives as
+            the third line of the fourth block and reads as boilerplate. A list
+            of names is scannable; the explanation is one hover, tap or Tab away
+            for the visit where it is wanted. */}
+        <InfoDot label={label}>
+          {t(r.helpKey)}
+          {span ? (
+            <span className="text-text-muted">{t("sl_window", { span })}</span>
+          ) : null}
+          {/* Its own line rather than run on. It is the one sentence in here
+              that changes what the NUMBER means — a daily-basis rule on a
+              15-minute strategy is the most misreadable row on the list. */}
+          {basisNote ? (
+            <span className="block pt-1.5 text-text-dim">{basisNote}</span>
+          ) : null}
+        </InfoDot>
+        {/* THE PERIOD, WHERE THE KEY HONOURS ONE. A compact entry beside the
+            name: "RSI 7" is a different reading from RSI 14, and the label
+            above restates whichever is set. Absent on keys with a fixed
+            window, so nothing is offered that does nothing. */}
+        {on && pk ? (
+          <PeriodEntry
+            value={r.period ?? pk.default}
+            min={pk.min}
+            max={pk.max}
+            label={t("rule_period")}
+            onChange={(n) => onChange({ period: n === pk.default ? undefined : n })}
+          />
+        ) : null}
+        {on && pair ? (
+          <span className="flex items-center gap-1">
+            <PeriodEntry value={(r.pair ?? pair.default)[0]} min={pair.min} max={pair.max} label={t("rule_period_fast")} onChange={(n) => onChange({ pair: [n, (r.pair ?? pair.default)[1]] })} />
+            <span className="font-ui text-[11px] text-text-dim">{t("rule_period_vs")}</span>
+            <PeriodEntry value={(r.pair ?? pair.default)[1]} min={pair.min} max={pair.max} label={t("rule_period_slow")} onChange={(n) => onChange({ pair: [(r.pair ?? pair.default)[0], n] })} />
+          </span>
+        ) : null}
+        {/* THE CHART, for bar-based keys: "the 1h RSI" on a 15m strategy.
+            Blank is the strategy's own chart. */}
+        {on && chartable ? (
+          <label className="inline-flex items-center gap-1 rounded-full border border-grid px-2 py-0.5 font-ui text-[11px] text-text-dim">
+            <span>{t("rule_chart")}</span>
+            <select
+              value={r.chart ?? ""}
+              onChange={(e) => onChange({ chart: (e.target.value || undefined) as Timeframe | undefined })}
+              aria-label={t("rule_chart")}
+              className="bg-transparent font-mono text-[11.5px] text-text-primary outline-none"
+            >
+              <option value="">{t("rule_chart_own")}</option>
+              {(["1m", "5m", "15m", "30m", "1h", "1d"] as const).map((tf) => (
+                <option key={tf} value={tf}>
+                  {tf}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {on && dev ? (
+          <PeriodEntry
+            value={r.deviations ?? 2}
+            min={0.5}
+            max={5}
+            step={0.5}
+            suffix="σ"
+            label={t("rule_deviations")}
+            onChange={(n) => onChange({ deviations: n === 2 ? undefined : n })}
+          />
+        ) : null}
+      </div>
+      <input
+        type="range"
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
+        value={r.value}
+        disabled={!on}
+        onChange={(e) => onChange({ value: Number(e.target.value) })}
+        aria-label={label}
+        className="accent-accent disabled:opacity-40"
+      />
+      <NumberEntry
+        value={r.value}
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
+        unit={r.unit}
+        disabled={!on}
+        label={label}
+        onChange={(n) => onChange({ value: n })}
+      />
+      <button
+        type="button"
+        onClick={() => onChange({ enabled: !on })}
+        aria-pressed={on}
+        className={`h-7 min-w-[52px] justify-self-start rounded-full border px-2.5 text-center font-ui text-[11.5px] font-medium transition-colors sm:justify-self-end ${
+          on
+            ? "border-border bg-surface-2 text-text-primary"
+            : "border-grid text-text-muted hover:text-text-primary"
+        }`}
+      >
+        {t(on ? "sl_on" : "sl_off")}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A take profit or a stop loss: draggable, and typeable.
+ *
+ * The figure used to be a read-only span, so the ONLY way to reach a number was
+ * to drag a slider across a 200-wide range — which cannot land on 37% reliably
+ * and cannot express "exactly 3%" at all. Anyone with a level in mind was stuck
+ * with whatever the drag happened to hit.
+ *
+ * The typed value is held as a draft string while it is being edited, because a
+ * field that reformats every keystroke fights the person using it: clearing it
+ * to type "45" would otherwise become 0 the moment the box empties, and the
+ * slider would jump to its floor mid-edit. It commits on blur or Enter, and
+ * Escape puts the previous number back.
+ */
+/**
+ * One exit, which the author may switch off entirely.
+ *
+ * ZERO IS THE OFF STATE, matching what the engine reads: it skips the
+ * comparison rather than treating 0 as a threshold. Both exits are optional —
+ * running without a target lets a winner run, and running without a stop is the
+ * owner's call to make. The portfolio drawdown breaker still applies either way
+ * and is not reachable from here.
+ *
+ * `resumeAt` is where the value comes back when it is switched on again. The
+ * slider cannot express "off", so without somewhere to return to, turning it
+ * back on would land wherever the track happened to be.
+ */
+export function ExitChip({
+  labelKey,
+  value,
+  min,
+  max,
+  suffix,
+  resumeAt,
+  onChange,
+}: {
+  // The KEY rather than the label: EXIT_COPY is looked up on it, and a lookup
+  // keyed on translated words would miss in every language but English.
+  labelKey: TranslationKey;
+  value: number;
+  min: number;
+  max: number;
+  suffix: string;
+  resumeAt: number;
+  onChange: (n: number) => void;
+}) {
+  const off = value <= 0;
+  const t = useT();
+  const label = t(labelKey);
+  // The copy differs by state: what a stop DOES against what its absence means.
+  const copy = t(
+    EXIT_COPY[labelKey]?.[off ? "off" : "on"] ??
+      (off ? "exit_generic_off" : "exit_generic_on"),
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-grid px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_200px_92px_auto] sm:items-center sm:gap-5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <p className="min-w-0 font-ui text-[13px] font-medium text-text-primary">
+          {label}
+        </p>
+        <InfoDot label={label}>{copy}</InfoDot>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={off ? min : value}
+        disabled={off}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={t("sl_slider_aria", { label })}
+        className="accent-accent disabled:opacity-30"
+      />
+      {off ? (
+        <span className="text-right font-ui text-[12.5px] text-text-muted">
+          {t("sl_off")}
+        </span>
+      ) : (
+        <NumberEntry
+          value={value}
+          min={min}
+          max={max}
+          step={1}
+          unit={suffix}
+          // The sign belongs to the direction, not the figure: a stop is entered
+          // as 12 and shown as −12%, because "−" is a fact about a stop rather
+          // than something the author should have to type or be able to omit.
+          sign={labelKey === "sl_stop_loss" ? "−" : "+"}
+          label={label}
+          onChange={onChange}
+        />
+      )}
+      <button
+        type="button"
+        aria-pressed={!off}
+        onClick={() => onChange(off ? resumeAt : 0)}
+        className={`h-7 min-w-[52px] justify-self-start rounded-full border px-2.5 text-center font-ui text-[11.5px] font-medium transition-colors sm:justify-self-end ${
+          off
+            ? "border-grid text-text-muted hover:text-text-primary"
+            : "border-border bg-surface-2 text-text-primary"
+        }`}
+      >
+        {t(off ? "sl_on" : "sl_off")}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A number you can drag to or type in.
+ *
+ * Every figure in this step used to be a read-only span beside a slider, so the
+ * ONLY way to reach a value was to drag across its whole range — which cannot
+ * land on 37% reliably and cannot express "exactly 3%" at all. Anyone with a
+ * level in mind was stuck with whatever the drag happened to hit.
+ *
+ * The typed value is held as a draft string while it is being edited, because a
+ * field that reformats every keystroke fights the person using it: clearing the
+ * box to type "45" would otherwise read as 0 the moment it empties, and the
+ * slider would jump to its floor mid-edit. It commits on blur or Enter; Escape
+ * restores the previous number.
+ *
+ * Out-of-range entries are clamped to what the engine accepts and SAY so. A
+ * silent clamp is how someone ends up believing they set a 300% target and
+ * finding a 200% one in the record.
+ */
+function NumberEntry({
+  value,
+  min,
+  max,
+  step,
+  unit,
+  sign,
+  label,
+  disabled = false,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  /** "$" renders ahead of the number; anything else follows it. */
+  unit: string;
+  /** Direction marker for exits. Display only — never part of the entry. */
+  sign?: "+" | "−";
+  label: string;
+  disabled?: boolean;
+  onChange: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [clamped, setClamped] = useState<number | null>(null);
+  const t = useT();
+
+  function commit() {
+    if (draft === null) return;
+    const cleaned = draft.replace(/[^\d.]/g, "");
+    const parsed = Number(cleaned);
+    setDraft(null);
+    // An unreadable entry keeps the previous number rather than becoming zero:
+    // a stop of 0% is a position that closes the instant it opens.
+    if (cleaned === "" || !Number.isFinite(parsed)) return;
+    // To the nearest step the slider itself uses, so dragging and typing cannot
+    // produce values of different precision for the same rule.
+    const snapped = Math.round(parsed / step) * step;
+    const next = Math.min(Math.max(snapped, min), max);
+    setClamped(next === snapped ? null : next);
+    onChange(next);
+  }
+
+  const isMoney = unit === "$";
+
+  return (
+    <div
+      className={`text-right ${disabled ? "text-text-muted" : "text-text-primary"}`}
+    >
+      <div className="flex items-baseline justify-end gap-px font-mono text-[13.5px]">
+        {sign ? <span aria-hidden>{sign}</span> : null}
+        {isMoney ? <span aria-hidden>$</span> : null}
+        <input
+          type="text"
+          inputMode="decimal"
+          value={draft ?? String(value)}
+          disabled={disabled}
+          onChange={(e) => {
+            setClamped(null);
+            setDraft(e.target.value);
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              setDraft(null);
+              e.currentTarget.blur();
+            }
+          }}
+          aria-label={t("sl_value_aria", { label })}
+          size={1}
+          // As wide as its digits, so a leading "$" sits against the number
+          // rather than across a gap of unused width.
+          style={{ width: `${Math.max(2, (draft ?? String(value)).length) + 0.5}ch` }}
+          className="tnum border-b border-transparent bg-transparent text-right outline-none transition-colors hover:border-grid-strong focus:border-accent disabled:cursor-not-allowed"
+        />
+        {isMoney ? null : <span aria-hidden>{unit}</span>}
+      </div>
+      {clamped === null ? null : (
+        <p className="pt-0.5 font-ui text-[11px] text-warning">
+          {clamped === max
+            ? t("sl_max_clamp", { value: fmt(max, unit) })
+            : t("sl_min_clamp", { value: fmt(min, unit) })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function money(n: number): string {
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+export { CAPITAL_USD, RWA_RULES };

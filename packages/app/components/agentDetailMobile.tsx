@@ -1,0 +1,846 @@
+"use client";
+
+import { LpPositions } from "@/components/lpPositions";
+import { GridLadder } from "@/components/gridLadder";
+import type { CopyLpInput, GridPlan } from "@/lib/api";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, Gavel, Pause, Pencil, Play, Plus } from "lucide-react";
+
+import { AddMarketModal } from "@/components/addMarket";
+import { BookSwitch } from "@/components/agentDetail";
+import {
+  Avatar,
+  BODY,
+  FOCUS,
+  LABEL,
+  PRIMARY,
+  SECONDARY,
+  SEGMENT_ITEM,
+  SEGMENT_OFF,
+  SEGMENT_ON,
+  SEGMENT_TRACK,
+  SectionLabel,
+} from "@/components/kit";
+import { WalletBar } from "@/components/walletBar";
+import { CopySuggestionBanner } from "@/components/copySuggestion";
+import { CopyTerms } from "@/components/copyTerms";
+import { RouteBadge, routeOfMint } from "@/components/routeBadge";
+import { AssetLogo } from "@/components/ui";
+import { usePrivy } from "@privy-io/react-auth";
+
+import { EquityCurve } from "@/components/charts";
+import { headline, STATUS_LABEL_KEY } from "@/components/activity";
+import {
+  getActivity,
+  num,
+  selectionLabel,
+  pauseAgent,
+  resumeAgent,
+  type ActivityCycle,
+  type AgentDetail,
+  type AgentRow,
+  type DiscoverySpec,
+  type EquitySeries,
+  type UniverseAsset,
+  type UniverseSelection,
+} from "@/lib/api";
+import { AgentFacts } from "@/components/agentFacts";
+import { LpEquityMobile, type LiveWorth } from "@/components/lpEquity";
+import { isLpBook } from "@/lib/perf";
+import { AssetCategory } from "@/components/tokenCategory";
+import { ScreenChips } from "@/components/discoveryFilters";
+import { markAgent } from "@/lib/perf";
+import { ModelBadge } from "@/components/modelBadge";
+import { ModelPanel } from "@/components/modelPanel";
+import { usePersonalWallet } from "@/lib/usePersonalWallet";
+import { relativeTime } from "@/lib/format";
+import { useT, type TranslationKey } from "@canopy-agent/shared/i18n";
+
+/**
+ * One agent, on a phone — wireframe M03.
+ *
+ * The desktop page is a two-column workspace with eight sections. This is the
+ * five the wireframe keeps: who it is, what it is worth, what it is doing right
+ * now, what it holds, and the two things you might do about it.
+ *
+ * THE PHASE BAR IS DERIVED, NOT DECORATIVE. Scan / Council / Execute / Settle
+ * are read off which SEATS have spoken in the newest cycle — the analyst screens
+ * the universe, risk and the portfolio manager deliberate, the trader fills,
+ * and the cycle closing is the settle. That is the one thing on this screen
+ * that needed a request the desktop layout has no use for, which is why this
+ * component is mounted by viewport rather than hidden by CSS.
+ */
+
+// Keys, not words: the table is module-level and outlives any one language.
+const PHASES: TranslationKey[] = [
+  "agent_phase_scan",
+  "agent_phase_council",
+  "agent_phase_execute",
+  "agent_phase_settle",
+];
+
+export function AgentDetailMobile({
+  agent,
+  detail,
+  equity,
+  positions,
+  assets,
+  assetsPending,
+  universe,
+  onChanged,
+  fundOnMount,
+  onOpenChat,
+  walletAddress,
+  onBook,
+  onGoLive,
+  paperDisabledReason,
+  liveDisabledReason,
+  onEdit,
+  grid = null,
+  screen,
+  cadenceSec,
+  positionCap,
+  copyLp = null,
+  live = null,
+  liveCashUsd = null,
+}: {
+  /** What a live SOL book is worth now; see `useLiveWorth`. */
+  live?: LiveWorth | null;
+  /** A live USD book's wallet USDC now; see `useLiveCashUsd`. */
+  liveCashUsd?: number | null;
+  /** The copy block, on a copy LP agent — for the deposit-matched copy % suggestion. */
+  copyLp?: CopyLpInput | null;
+  agent: AgentRow;
+  detail: AgentDetail;
+  /** The ladder, when the strategy is a grid. */
+  grid?: GridPlan | null;
+  equity: EquitySeries | null;
+  positions: AgentDetail["positions"];
+  assets: UniverseAsset[];
+  assetsPending: boolean;
+  /** What the strategy is allowed to trade, not what it currently holds. */
+  universe: UniverseSelection[];
+  onChanged: () => void;
+  /**
+   * The parent read `?fund=model` and wants the model panel open.
+   *
+   * A PROP RATHER THAN THIS COMPONENT READING THE URL, because the parent has
+   * already consumed it. AgentDetailView declares that effect above its own
+   * `if (mobile) return <AgentDetailMobile/>` — so on a phone it still ran,
+   * still stripped `fund` from the URL, and set a `modelOpen` that belongs to a
+   * branch which never renders. The hand-off did not merely fail here, it ate
+   * its own trigger: the param was gone, so a reload could not retry either.
+   */
+  fundOnMount?: boolean;
+  /**
+   * Opens the thread.
+   *
+   * The panel is owned by `workspace.tsx` at both widths, so this reports the
+   * intent upward rather than mounting a second sheet. It used to mount its own,
+   * which meant two components could each believe they owned the conversation.
+   */
+  onOpenChat?: () => void;
+  /** The agent's own wallet. Null until provisioned; paper agents have none. */
+  walletAddress: string | null;
+  /**
+   * The book switch, with the same contract as the desktop head: `onBook`
+   * filters, `onGoLive` promotes, and a null reason means the half is live.
+   */
+  onBook: (book: "paper" | "live") => void;
+  onGoLive: (() => void) | null;
+  paperDisabledReason: string | null;
+  liveDisabledReason: string | null;
+  /** Opens the strategy editor. Null while the strategy is still loading. */
+  onEdit: (() => void) | null;
+  /** The screen, when this agent finds its own markets rather than being pinned to some. */
+  screen?: DiscoverySpec;
+  /** Seconds between cycles — the strategy's, or the mandate's snapshot of it. */
+  cadenceSec: number | null;
+  /** The mandate's position cap in dollars, or null when it cannot be resolved. */
+  positionCap: number | null;
+}) {
+  const { getAccessToken } = usePrivy();
+  const t = useT();
+  const [range, setRange] = useState<"7D" | "30D" | "ALL">("ALL");
+  const [busy, setBusy] = useState(false);
+  const [cycle, setCycle] = useState<ActivityCycle | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  // Mirrors the parent's decision. Effect rather than an initial value because
+  // the parent resolves the URL in an effect of its own, which lands after this
+  // component has already mounted with its state initialised.
+  useEffect(() => {
+    if (fundOnMount) setModelOpen(true);
+  }, [fundOnMount]);
+  const personalWallet = usePersonalWallet();
+
+  // The newest cycle, for the phase bar. One request, one cycle deep.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const { cycles } = await getActivity(token, agent.id, 1);
+        if (!cancelled) setCycle(cycles[0] ?? null);
+      } catch {
+        // The bar simply does not render. It is a status display, not a fact
+        // anyone acts on, and an error box above the equity would be louder
+        // than what it is reporting.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.id, getAccessToken]);
+
+  /** Whether this book is liquidity rather than lots at a price. */
+  const isLp = isLpBook(agent, positions);
+  const mark = useMemo(
+    () => markAgent(equity, positions, assets, liveCashUsd),
+    [equity, positions, assets, liveCashUsd],
+  );
+
+  const points = mark?.points ?? [];
+  const shown = useMemo(() => {
+    if (range === "ALL") return points;
+    const ms = range === "7D" ? 7 * 86_400_000 : 30 * 86_400_000;
+    const w = points.filter((p) => Date.now() - new Date(p.at).getTime() <= ms);
+    return w.length > 1 ? w : points;
+  }, [points, range]);
+
+  const reached = phaseIndex(cycle);
+  const running = cycle?.status === "running";
+  const [whole, cents] = splitMoney(
+    mark?.equityUsd ?? num(agent.capital_usd) ?? 0,
+  );
+  const paused = agent.status === "paused" || agent.status === "stopped";
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      await (paused
+        ? resumeAgent(token, agent.id)
+        : pauseAgent(token, agent.id));
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pb-2">
+      {/* ---------------------------------------------------------- nav -- */}
+      <div className="flex items-center justify-between px-[18px] py-2">
+        <Link href="/portfolio" aria-label={t("agent_back_aria")}>
+          <ChevronLeft className="size-6 text-text-primary" aria-hidden />
+        </Link>
+        {/* One real control where two decorative icons sat. Star and Share
+            had no handler behind them — a favourite list and a share sheet
+            that do not exist — and an icon that does nothing is a promise
+            the page cannot keep. */}
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={t("profile_agent_edit")}
+            className={`flex h-9 items-center gap-1.5 rounded-full px-2.5 text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary ${FOCUS}`}
+          >
+            <Pencil className="size-[15px]" aria-hidden />
+            <span className="font-ui text-[12.5px]">{t("profile_agent_edit")}</span>
+          </button>
+        ) : null}
+      </div>
+
+      {/* --------------------------------------------------------- hero -- */}
+      <div className="flex items-center gap-[13px] px-[18px] pt-1.5 pb-4">
+        <Avatar label={agent.strategy_name} size={48} />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex items-center gap-[7px]">
+            <h1 className="truncate font-ui text-[22px] font-light tracking-[-0.02em] text-text-primary">
+              {agent.strategy_name}
+            </h1>
+            {/* Beside the name here too, so the phone and the desktop agree
+                about where this fact lives. The name truncates before the pill
+                does, which is the right order: the name has a second copy in
+                the header bar above, the model has none. */}
+            <button
+              type="button"
+              onClick={() => setModelOpen(true)}
+              aria-label={`Model: ${agent.model?.label ?? "cQWEN3"} — open model settings`}
+              className="shrink-0 transition-opacity active:opacity-70"
+            >
+              <ModelBadge model={agent.model} />
+            </button>
+            {agent.status === "active" ? (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-[3px]">
+                <span className="size-1.5 rounded-full bg-accent" aria-hidden />
+                <span className="font-mono text-[9px] tracking-[0.08em] text-text-secondary uppercase">
+                  {t("agent_live_pill")}
+                </span>
+              </span>
+            ) : null}
+          </div>
+          <p className="truncate font-mono text-[11.5px] text-text-muted">
+            {points.length
+              ? t("agent_subtitle_cycle", {
+                  mode: t(
+                    agent.is_paper ? "agent_mode_paper" : "agent_mode_live",
+                  ),
+                  class: agent.strategy_class.toUpperCase(),
+                  cycle: points[points.length - 1].tickSeq,
+                })
+              : t("agent_subtitle", {
+                  mode: t(
+                    agent.is_paper ? "agent_mode_paper" : "agent_mode_live",
+                  ),
+                  class: agent.strategy_class.toUpperCase(),
+                })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenChat?.()}
+          aria-label={t("agent_chat_aria")}
+          className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="size-[18px] text-text-primary"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          {Number(agent.needs_you ?? 0) > 0 ? (
+            <span className="absolute -top-1.5 -right-1.5 flex size-[22px] items-center justify-center rounded-full border-2 border-bg bg-warning font-mono text-[11px] font-bold text-bg">
+              {Number(agent.needs_you) > 9 ? "9+" : agent.needs_you}
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {/* ------------------------------------------------- book + wallet -- */}
+      {/* The same two facts the desktop head carries beside the name: which
+          book you are reading, and what the agent's wallet holds. Neither had a
+          phone counterpart, so a phone could not promote an agent to live, see
+          its balance, or top it up with capital. */}
+      <div className="space-y-4 border-t border-grid px-[18px] pt-4 pb-5">
+        <BookSwitch
+          book={detail.book}
+          onChange={onBook}
+          onGoLive={onGoLive}
+          paperDisabledReason={paperDisabledReason}
+          liveDisabledReason={liveDisabledReason}
+          note={null}
+        />
+        {!agent.is_paper || walletAddress ? (
+          <div className="space-y-2.5">
+            <SectionLabel>{t("profile_agent_wallet")}</SectionLabel>
+            <WalletBar
+              agentId={agent.id}
+              address={walletAddress}
+              isPaper={agent.is_paper}
+              perps={positions.some((p) => !!p.perp)}
+              unit={detail.unit ?? "USD"}
+              full
+            />
+          </div>
+        ) : null}
+        {!agent.is_paper && copyLp ? <CopySuggestionBanner agentId={agent.id} copyLp={copyLp} onApplied={onChanged} /> : null}
+      </div>
+
+      {/* An agent waiting for its first deposit is mid-SETUP, not broken, so it
+          gets an action rather than a red sentence — the same call the desktop
+          layout makes. This had no mobile counterpart at all: the note and its
+          button lived only in the desktop branch, so a phone showed nothing and
+          the only route to funding was the model pill beside the name, which
+          says what the model IS and not that it needs paying for. */}
+      {detail.lastRun?.skip_reason === "model_unfunded" ? (
+        // No button here either — the model pill beside the name is the way in,
+        // and on a phone a second control competing with it is worse.
+        <div className="border-y border-warning/30 bg-warning/10 px-[18px] py-3">
+          <p className="font-ui text-[12px] leading-snug text-warning">
+            Waiting for its model balance. {agent.model?.label ?? "The model"}{" "}
+            is prepaid — fund it and this agent starts on its own, no restart
+            needed.
+          </p>
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------------- NAV --- */}
+      <div className="border-y border-grid bg-panel">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5 px-[18px] pt-4 pb-2.5">
+          <div className="space-y-1.5">
+            <SectionLabel>
+              {points.length
+                ? t("agent_nav_label_cycle", {
+                    cycle: points[points.length - 1].tickSeq,
+                  })
+                : t("agent_nav_label")}
+            </SectionLabel>
+            <p className="tnum flex items-end font-mono text-[30px] leading-none tracking-[-0.02em]">
+              <span className="text-text-primary">{whole}</span>
+              <span className="text-text-muted">{cents}</span>
+            </p>
+            {mark ? (
+              <p className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`tnum font-mono text-[13px] ${mark.pnlUsd >= 0 ? "text-accent" : "text-negative"}`}
+                >
+                  {signed(mark.pnlUsd)}
+                </span>
+                <span
+                  className={`tnum font-mono text-[13px] ${mark.returnPct >= 0 ? "text-accent" : "text-negative"}`}
+                >
+                  {signedPct(mark.returnPct)}
+                </span>
+                <span className="font-mono text-[10px] tracking-[0.08em] text-text-dim uppercase">
+                  {t("agent_since_deploy")}
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <div
+            role="group"
+            aria-label={t("profile_range_aria")}
+            className={`shrink-0 ${SEGMENT_TRACK}`}
+          >
+            {(["7D", "30D", "ALL"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                aria-pressed={range === r}
+                className={`${SEGMENT_ITEM} h-7 px-2.5 font-mono text-[11px] ${
+                  range === r ? SEGMENT_ON : SEGMENT_OFF
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* A LIQUIDITY BOOK IS A DIFFERENT PANEL. The four cells below are a
+            trading agent's — return, win rate, drawdown, realised — and three
+            of them describe a distribution of entries and exits that an LP
+            book does not have. See components/lpEquity.tsx. */}
+        {isLp ? (
+          <LpEquityMobile
+            series={equity}
+            positions={positions}
+            universe={assets}
+            unit={detail.unit ?? "USD"}
+            solUsd={detail.solUsd ?? null}
+            live={live}
+          />
+        ) : (
+          <>
+        <div className="h-[168px]">
+          {shown.length > 1 ? (
+            <EquityCurve
+              values={shown.map((p) => p.equityUsd)}
+              baseline={mark?.deployedCapitalUsd}
+              height={168}
+            />
+          ) : (
+            <p className="px-[18px] py-14 text-center font-ui text-[12.5px] text-text-dim">
+              {t("agent_curve_pending")}
+            </p>
+          )}
+        </div>
+
+        {/* Four figures. SHARPE in the wireframe has nothing behind it — no
+            risk-free rate and no return series to annualise — so the slot
+            carries realised P&L, which the equity payload does report. */}
+        <div className="flex border-t border-grid">
+          <Cell
+            label={t("agent_cell_return")}
+            value={mark ? signedPct(mark.returnPct) : "—"}
+            tone={mark && mark.returnPct < 0 ? "negative" : "accent"}
+            first
+          />
+          <Cell
+            label={t("agent_cell_win_rate")}
+            value={
+              mark?.hitRatePct === null || !mark
+                ? "—"
+                : `${mark.hitRatePct.toFixed(0)}%`
+            }
+          />
+          <Cell
+            label={t("agent_cell_max_dd")}
+            value={
+              mark && mark.maxDrawdownPct > 0
+                ? `−${mark.maxDrawdownPct.toFixed(1)}%`
+                : "—"
+            }
+            tone={mark && mark.maxDrawdownPct > 0 ? "negative" : "neutral"}
+          />
+          <Cell
+            label={t("agent_cell_realised")}
+            value={mark ? signed(mark.realizedPnlUsd) : "—"}
+            tone={mark && mark.realizedPnlUsd < 0 ? "negative" : "accent"}
+          />
+        </div>
+          </>
+        )}
+      </div>
+
+      {/* -------------------------------------------------- live cycle -- */}
+      {cycle ? (
+        <div className="space-y-[13px] border-b border-grid px-[18px] pt-[18px] pb-5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] tracking-[0.08em] text-text-secondary uppercase">
+              {t("agent_cycle_label", {
+                seq: cycle.tick_seq,
+                status: running
+                  ? t("agent_cycle_running")
+                  : t(STATUS_LABEL_KEY[cycle.status]),
+              })}
+            </span>
+            <span className="font-mono text-[10px] text-text-dim">
+              {running
+                ? t("agent_cycle_in_progress")
+                : relativeTime(cycle.started_at, t)}
+            </span>
+          </div>
+
+          <div className="flex gap-1.5">
+            {PHASES.map((phaseKey, i) => (
+              <div key={phaseKey} className="flex-1 space-y-2">
+                <div
+                  className={`h-[3px] rounded-sm ${
+                    i < reached
+                      ? "bg-accent/60"
+                      : i === reached
+                        ? "bg-accent"
+                        : "bg-grid-strong"
+                  }`}
+                />
+                <p
+                  className={`font-ui text-[11.5px] ${
+                    i === reached
+                      ? "text-text-primary"
+                      : i < reached
+                        ? "text-text-secondary"
+                        : "text-text-muted"
+                  }`}
+                >
+                  {t(phaseKey)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
+            <Gavel
+              className="mt-0.5 size-3.5 shrink-0 text-warning"
+              aria-hidden
+            />
+            <p className={BODY}>{headline(cycle, t)}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------------- grid -- */}
+      {grid ? (
+        <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+          <p className="pb-3 font-ui text-[16px] tracking-[-0.01em] text-text-primary">{t("ad_sec_grid")}</p>
+          <GridLadder
+            grid={grid}
+            positions={positions}
+            markUsd={assets.find((a) => a.mint === grid.market.mint)?.priceUsd ?? null}
+          />
+        </div>
+      ) : null}
+
+      {/* ---------------------------------------------------- positions -- */}
+      <div className="border-b border-grid pt-[18px]">
+        <div className="flex items-center justify-between px-[18px] pb-3">
+          <p className="font-ui text-[16px] tracking-[-0.01em] text-text-primary">
+            {t("agent_open_positions")}
+          </p>
+          <span className="tnum font-mono text-[13px] text-text-muted">
+            {positions.length}
+          </span>
+        </div>
+        {/* A liquidity book is ranges and fees, not quantities at a price. */}
+        {isLp ? (
+          <div className="px-[18px] pb-4">
+            <LpPositions
+              agentId={agent.id}
+              positions={positions}
+              universe={assets}
+              book={detail.book}
+              unit={detail.unit ?? "USD"}
+              solUsd={detail.solUsd ?? null}
+              onChanged={onChanged}
+            />
+          </div>
+        ) : positions.length === 0 ? (
+          <p className="px-[18px] pb-4 font-ui text-[12.5px] text-text-dim">
+            {t("agent_nothing_open")}
+          </p>
+        ) : (
+          <ul className="px-[18px] pb-4">
+            {positions.map((p, i) => {
+              const price = assets.find((a) => a.symbol === p.symbol)?.priceUsd;
+              const qty = num(p.qty);
+              const cost = num(p.cost_basis_usd) ?? 0;
+              const value =
+                num(price) !== null && qty !== null ? num(price)! * qty : cost;
+              const pnl = value - cost;
+              return (
+                <li
+                  key={p.symbol}
+                  className={`flex items-center gap-2.5 py-3 ${i ? "border-t border-grid" : ""}`}
+                >
+                  <span className="min-w-0 flex-1 space-y-1">
+                    <span className="block truncate font-mono text-[14px] text-text-primary">
+                      {p.symbol}
+                    </span>
+                    <span className="block font-mono text-[11px] text-text-dim">
+                      {t("agent_cost", { amount: money(cost) })}
+                    </span>
+                  </span>
+                  <span className="shrink-0 space-y-1 text-right">
+                    <span
+                      className={`tnum block font-mono text-[14px] ${pnl >= 0 ? "text-accent" : "text-negative"}`}
+                    >
+                      {signed(pnl)}
+                    </span>
+                    <span className="block font-mono text-[11.5px] text-text-dim">
+                      {money(value)}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------ markets -- */}
+      {/* A copy agent has no markets — it follows a wallet — so its place is
+          taken by who it copies and on what terms, as on the desktop rail. */}
+      {copyLp ? (
+        <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+          <CopyTerms plan={copyLp} onEdit={onEdit ?? (() => {})} editable={!!onEdit} />
+        </div>
+      ) : (
+      <div className="border-b border-grid pt-[18px]">
+        <div className="flex items-center justify-between px-[18px] pb-3">
+          <p className="font-ui text-[16px] tracking-[-0.01em] text-text-primary">
+            {t("agent_markets_title")}
+          </p>
+          <span className="tnum font-mono text-[13px] text-text-muted">
+            {universe.length}
+          </span>
+        </div>
+
+        {/* THE SCREEN, ABOVE THE MARKETS IT PRODUCED. For a discovery agent
+            the list below is a RESULT — what matched this hour — rather than a
+            configuration, so what chose it belongs above it. Without this the
+            phone answered "what may it trade" and silently dropped "and why
+            those", which on a screened agent is the whole answer. */}
+        {screen ? (
+          <div className="px-[18px] pb-3">
+            <SectionLabel>{t("ad_group_screen")}</SectionLabel>
+            <div className="pt-2">
+              <ScreenChips spec={screen} />
+            </div>
+          </div>
+        ) : null}
+
+        {/* The mandate, not the book. A market can sit here with nothing open
+            against it — that is the agent having looked and declined, which is
+            a different fact from not being allowed to look. */}
+        <ul className="px-[18px]">
+          {universe.map((sel, i) => (
+            <li
+              key={selectionLabel(sel)}
+              className={`flex items-center gap-2.5 py-2.5 ${i ? "border-t border-grid" : ""}`}
+            >
+              <AssetLogo symbol={selectionLabel(sel)} size={22} />
+              <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-text-primary">
+                {selectionLabel(sel)}
+              </span>
+              {/* Same tag as the desktop rail and the pickers. A phone is
+                  where a ticker is least likely to be recognised. */}
+              <AssetCategory
+                asset={assets.find((a) =>
+                  sel.kind === "crypto" ? a.mint === sel.mint : a.symbol === selectionLabel(sel),
+                )}
+              />
+              {/* Same pair as the pickers — where this one settles and fills.
+                  Derived from the selection's own mint rather than hardcoded:
+                  a saved KalqiX pick carries a "kalqix:" identity, and showing
+                  it as Solana/Jupiter would name the wrong venue on a row the
+                  owner chose deliberately. */}
+              <RouteBadge
+                {...routeOfMint(sel.kind === "crypto" ? sel.mint : undefined)}
+                size={15}
+              />
+            </li>
+          ))}
+        </ul>
+
+        {/* Attached to the list rather than spaced off it: adding a market is
+            the same act as the rows above, not a separate section. */}
+        <div className="px-[18px] pt-2 pb-4">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-grid-strong py-3 text-text-secondary transition-colors hover:border-grid-strong hover:text-text-primary ${FOCUS}`}
+          >
+            <Plus className="size-4" aria-hidden />
+            <span className="font-ui text-[13px]">{t("agent_add_market")}</span>
+          </button>
+        </div>
+      </div>
+      )}
+
+      {/* ------------------------------------------------ how it runs -- */}
+      {/* LAST, AND QUIET. These are the facts that do not change between
+          cycles, none of them actionable, so they sit under everything that
+          reports behaviour and above the CTA — which belongs to the page, not
+          to a section (rule 6). The phone had none of them: cadence, autonomy,
+          the position cap and the deploy date were desktop-only. */}
+      <div className="border-b border-grid px-[18px] pt-[18px] pb-4">
+        <SectionLabel>{t("ad_sec_setup")}</SectionLabel>
+        <div className="pt-1">
+          <AgentFacts agent={agent} cadenceSec={cadenceSec} positionCap={positionCap} />
+        </div>
+      </div>
+
+      {/* --------------------------------------------------------- CTA -- */}
+      {/* Ink on light, white on dark — never green. The primary here is the
+          model top-up, the one action an idle agent most often needs. */}
+      <div className="flex gap-2 px-[18px] pt-[18px] pb-4">
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          disabled={busy}
+          className={`h-11 shrink-0 gap-2 px-4 ${SECONDARY}`}
+        >
+          {paused ? (
+            <Play className="size-4" aria-hidden />
+          ) : (
+            <Pause className="size-4" aria-hidden />
+          )}
+          {busy ? t("agent_busy") : t(paused ? "agent_resume" : "agent_pause")}
+        </button>
+        <Link
+          href={`/workspace/${agent.id}?tab=overview&fund=model`}
+          className={`h-11 flex-1 gap-2 ${PRIMARY}`}
+        >
+          <Plus className="size-4" aria-hidden />
+          {t("agent_add_funds")}
+        </Link>
+      </div>
+
+      {modelOpen ? (
+        <ModelPanel
+          agentId={agent.id}
+          agentWallet={detail.wallet?.address ?? null}
+          personalWallet={personalWallet}
+          expiresAt={agent.expires_at ?? null}
+          onChanged={onChanged}
+          onClose={() => setModelOpen(false)}
+        />
+      ) : null}
+
+      {adding ? (
+        <AddMarketModal
+          agentId={agent.id}
+          agentName={agent.strategy_name}
+          assets={assets}
+          loading={assetsPending}
+          existing={universe}
+          // Reloads behind the open dialog, so the list and the modal agree the
+          // moment a change lands rather than only after closing.
+          onChanged={onChanged}
+          onClose={() => setAdding(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * How far the newest cycle has got, from which seats have spoken.
+ *
+ * The seats ARE the phases: the analyst screens, risk and the portfolio manager
+ * deliberate, the trader fills. A settled cycle is past all of them. Returns an
+ * index into PHASES — the furthest reached, not the count.
+ */
+function phaseIndex(c: ActivityCycle | null): number {
+  if (!c) return 0;
+  if (c.status !== "running") return 3;
+  const roles = new Set(c.decisions.map((d) => d.role));
+  if (roles.has("trader")) return 2;
+  if (roles.has("risk") || roles.has("pm")) return 1;
+  return 0;
+}
+
+function Cell({
+  label,
+  value,
+  tone = "neutral",
+  first,
+}: {
+  label: string;
+  value: string;
+  tone?: "accent" | "negative" | "neutral";
+  first?: boolean;
+}) {
+  return (
+    <div
+      className={`flex-1 space-y-1.5 px-3 pt-[13px] pb-3.5 ${first ? "" : "border-l border-grid"}`}
+    >
+      <p className={LABEL}>{label}</p>
+      <p
+        className={`tnum font-mono text-[14px] ${
+          tone === "accent"
+            ? "text-accent"
+            : tone === "negative"
+              ? "text-negative"
+              : "text-text-primary"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- format -- */
+
+function splitMoney(n: number): [string, string] {
+  if (!Number.isFinite(n)) return ["—", ""];
+  const s = Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const [w, f] = s.split(".");
+  return [`${n < 0 ? "−" : ""}$${w}`, `.${f}`];
+}
+function money(n: number): string {
+  return Number.isFinite(n) ? `$${Math.round(n).toLocaleString("en-US")}` : "—";
+}
+function signed(n: number): string {
+  const s = `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return n < 0 ? `−${s}` : `+${s}`;
+}
+function signedPct(n: number): string {
+  return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(1)}%`;
+}
+// `ago` moved to lib/format as `relativeTime`.

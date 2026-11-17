@@ -1,0 +1,27 @@
+{
+  "name": "@canopy-agent/landing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canopy Agent landing page — agent.canopy.finance",
+  "scripts": {
+    "dev": "next dev -p 3005 --webpack",
+    "build": "next build",
+    "start": "next start -p 3005",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@canopy-agent/shared": "*",
+    "lucide-react": "^1.32.0",
+    "next": "16.2.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

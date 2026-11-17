@@ -1,0 +1,36 @@
+{
+  "name": "@canopy-agent/app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canopy Agent app — app.canopy.finance",
+  "scripts": {
+    "dev": "next dev -p 3004 --webpack",
+    "dev:turbo": "next dev -p 3004",
+    "build": "next build",
+    "start": "next start -p 3004",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "^3.36.1",
+    "@solana-program/memo": "^0.10.0",
+    "@solana-program/system": "^0.10.0",
+    "@solana-program/token": "^0.9.0",
+    "@solana/kit": "^5.5.1",
+    "lightweight-charts": "5.2.1",
+    "lucide-react": "^1.32.0",
+    "next": "16.2.6",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "use-stick-to-bottom": "^1.1.6",
+    "@canopy-agent/shared": "*"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

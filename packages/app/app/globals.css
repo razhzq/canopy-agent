@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "../../shared/src/styles.css";
+
+/* Register sources explicitly rather than relying on automatic detection, which
+   skips gitignored paths. This repo's .gitignore is careful not to ignore
+   `build` (app/build/ is a route), but the explicit @source lines mean a stray
+   ignore rule can never again silently swallow a directory's utility classes. */
+@source "../app";
+@source "../components";
+@source "../../shared/src";
+@source "../lib";

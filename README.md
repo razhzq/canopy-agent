@@ -1,28 +1,54 @@
-# Canopy Agent Stack — agent.canopy.finance
+# Canopy Agent — monorepo
 
-The agent marketplace, deploy wizard, monitoring and creator tooling, built from
-`~/Desktop/canopy-agent-stack.pen`.
+Two deployable Next.js apps and the code they share (npm workspaces):
+
+| Package | Deploys to | What |
+|---|---|---|
+| `packages/app` | app.canopy.finance (+ every white-label tenant host) | The product: Feed, Trade, agents, portfolio, build, settings. Privy sign-in lives here. |
+| `packages/landing` | agent.canopy.finance | The landing page and `/research`. No Privy. Every other path 308-redirects to the same path on the app. |
+| `packages/shared` | (not deployed) | Translations, tenant lookup, wordmark, language switcher, analytics, theme CSS. |
 
 ```bash
-npm install
-npm run dev       # localhost:3004
-npm run build
-npm run start
+npm install            # once, at the repo root
+npm run dev:app        # localhost:3004
+npm run dev:landing    # localhost:3005
+npm run build:app
+npm run build:landing
+npm run typecheck      # both
 ```
+
+## Deploying (Vercel)
+
+One Vercel project per package, both pointing at this repo:
+
+| Vercel project | Root Directory | Domain |
+|---|---|---|
+| app | `packages/app` | app.canopy.finance |
+| landing | `packages/landing` | agent.canopy.finance |
+
+Leave the install command on the default; Vercel installs the workspace from the repo root.
+
+- **app** env: as before (`NEXT_PUBLIC_CANOPY_API_URL`, `NEXT_PUBLIC_PRIVY_*`, `SOLANA_RPC_URL`, …). `app.canopy.finance` is a Canopy host out of the box; add any other (e.g. a staging domain) to `AGENT_PLATFORM_HOSTS`.
+- **landing** env: `NEXT_PUBLIC_CANOPY_API_URL` (brand + GA id), `NEXT_PUBLIC_APP_URL` (default `https://app.canopy.finance`), optional `NEXT_PUBLIC_LANDING_URL`, `NEXT_PUBLIC_GA_ID`.
+- Privy allowed origins need the **app** domain only.
+
+Login and sign-up buttons on the landing page link to `<APP_URL>/agents`, carrying `?ref=` so referrals are still recorded by the app. The app has no page at `/`: it redirects to `/agents`, query string kept.
+
+---
 
 Next.js 16 (App Router) + React 19 + Tailwind v4. Standalone repo — extracted
 from `canopy-fe-mono/packages/canopy-agent` on 2026-08-04.
 
 ## Tenants: one deployment, many brands
 
-This app serves Canopy **and every hosted white-label tenant** (canopy-be
+The app package serves Canopy **and every hosted white-label tenant** (canopy-be
 `CANOPY_143`). The root layout reads the request host and asks canopy-be
 `GET /api/agent-tenant/config?host=…` which tenant lives there; its name,
 logos, accent colour, Privy app, quorum/policy ids, features and instruments
-arrive with the page (`lib/tenant/*`, `useTenant()`). Nothing tenant-specific
+arrive with the page (`packages/shared/src/tenant/*`, `useTenant()`). Nothing tenant-specific
 is a build-time constant.
 
-- `agent.canopy.finance`, `localhost` and `*.vercel.app` → Canopy.
+- `app.canopy.finance`, `agent.canopy.finance`, `localhost` and `*.vercel.app` → Canopy.
 - `<slug>.agent.canopy.finance` → that tenant; a tenant's custom domain → it.
 - Unknown host → a plain "no app at this address" page.
 - Translations say `{brand}` where they used to say "Canopy"; `t()` fills it.
