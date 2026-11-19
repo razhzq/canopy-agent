@@ -103,7 +103,7 @@ export function TradeScreen({ mint }: { mint: string }) {
   );
 
   return (
-    <main className="px-4 py-4 lg:h-[calc(100vh-64px)] lg:px-6">
+    <main className="px-4 py-4 lg:h-[calc(100vh-72px)] lg:px-4">
       <div className="flex flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)_340px]">
         <aside aria-label="Tokens" className="hidden min-h-0 rounded-2xl border border-border bg-panel lg:block">
           <TokenList current={mint} watchVersion={watch.version} />

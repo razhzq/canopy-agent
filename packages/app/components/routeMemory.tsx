@@ -19,7 +19,7 @@ import { useEffect } from "react";
 const KEY = "canopy:last-route";
 
 /** Where to land when there is no memory at all — a direct link, a fresh tab. */
-export const DEFAULT_ROUTE = "/agents";
+export const DEFAULT_ROUTE = "/ask";
 
 /**
  * Routes that are not somewhere to return TO.

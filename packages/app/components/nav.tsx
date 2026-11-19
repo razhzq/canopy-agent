@@ -379,7 +379,11 @@ function MenuRow({
 
 /* ------------------------------------------------------------- dropdown -- */
 
-function AccountMenu() {
+/**
+ * The account button and its menu. `compact` is the v2 shell's form: shown at
+ * every width (phones have no Profile tab any more) and avatar-only.
+ */
+export function AccountMenu({ compact = false }: { compact?: boolean } = {}) {
   const tenant = useTenant();
   const { ready, authenticated, user, login, logout, getAccessToken } =
     usePrivy();
@@ -752,7 +756,7 @@ function AccountMenu() {
     // this below lg. The signed-out branches above deliberately stay visible on
     // every width: hiding those would leave a phone with no way to sign in at
     // all, since the tab bar itself renders nothing without a session.
-    <div ref={ref} className="relative max-lg:hidden">
+    <div ref={ref} className={`relative ${compact ? "" : "max-lg:hidden"}`}>
       <button
         ref={trigger}
         type="button"
@@ -777,7 +781,7 @@ function AccountMenu() {
           // The avatar and the chevron alone say "your account" on a phone;
           // the address or email is the first thing that can go when the bar
           // runs out of room.
-          className={`hidden max-w-[92px] truncate text-[13px] text-text-primary sm:inline sm:max-w-[180px] ${
+          className={`${compact ? "hidden" : "hidden sm:inline"} max-w-[92px] truncate text-[13px] text-text-primary sm:max-w-[180px] ${
             primaryIsAddress ? "font-mono" : "font-ui"
           }`}
         >

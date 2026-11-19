@@ -6,7 +6,7 @@
 export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.canopy.finance").replace(/\/+$/, "");
 
 /** The app page a "Log in" / "Sign up" button opens. */
-export const APP_ENTRY = "/agents";
+export const APP_ENTRY = "/ask";
 
 /** `path` on the app host, carrying `?ref=` through so the app can attribute the sign-up. */
 export function appHref(path: string, ref: string | null): string {

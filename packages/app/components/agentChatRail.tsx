@@ -134,7 +134,7 @@ export function AgentChatRail({
       // The column animates its WIDTH from zero; the panel inside keeps a fixed
       // width so its contents never squash mid-slide. Sticky under the nav, so
       // the thread stays put while the page behind it scrolls.
-      className="sticky top-16 z-30 h-[calc(100vh-64px)] shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none data-[state=closed]:w-0 data-[state=open]:w-[400px]"
+      className="sticky top-[72px] z-20 h-[calc(100vh-80px)] shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none data-[state=closed]:w-0 data-[state=open]:w-[400px]"
     >
       <div
         className="flex h-full w-[400px] flex-col border-l border-border bg-bg data-[state=closed]:animate-[rail-exit_200ms_cubic-bezier(0.2,0.8,0.2,1)_forwards] data-[state=open]:animate-[rail-enter_260ms_cubic-bezier(0.2,0.8,0.2,1)]"

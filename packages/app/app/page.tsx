@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 // Mirrors DEFAULT_ROUTE in components/routeMemory.tsx, which is a client module
 // and cannot be read from a server component.
-const DEFAULT_ROUTE = "/agents";
+const DEFAULT_ROUTE = "/ask";
 
 /**
  * The app has no page at `/`: the landing page is its own deployment
