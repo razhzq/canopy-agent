@@ -6,7 +6,8 @@ import type { AgentRow, EquitySeries, UniverseAsset } from "@/lib/api";
 
 // A fixed clock, so the server and client render the same fixture and React
 // does not report a hydration mismatch over a timestamp.
-const NOW = Date.parse("2026-09-05T00:00:00Z");
+// The start of today, so the fixture curves always fall inside recent ranges.
+const NOW = Math.floor(Date.now() / 86_400_000) * 86_400_000;
 
 /** Fixture only: a settled-per-cycle equity series from a seed. */
 function series(seed: number, capital: number, up: boolean, n = 30): EquitySeries {
@@ -79,7 +80,7 @@ const pos = (id: number, symbol: string, mint: string, qty: number, cost: number
   opened_at: new Date(NOW - 2 * 86_400_000).toISOString(),
 });
 
-const HOLDINGS: Holding[] = [
+export const HOLDINGS: Holding[] = [
   holding(agent(1, "SOL dip buyer", "Dip buy", "active", 10_000), true, [pos(1, "SOL", "So1", 12.4, 2480)]),
   holding(agent(2, "AAPLx Dip Catcher", "Dip buy", "active", 8_000), true, [pos(2, "AAPLx", "AAPLx", 9, 2000)]),
   holding(agent(3, "JitoSOL Trend", "Trend", "active", 6_000), true, [pos(3, "JitoSOL", "Jito", 7.1, 1500), pos(4, "SOL", "So1", 3.2, 660)]),

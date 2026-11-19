@@ -87,7 +87,7 @@ export function Segmented<K extends string>({
           type="button"
           aria-pressed={o.key === value}
           onClick={() => onChange(o.key)}
-          className={`${SEGMENT_ITEM} flex-1 ${FOCUS} ${o.key === value ? SEGMENT_ON : SEGMENT_OFF}`}
+          className={`${SEGMENT_ITEM} flex-1 whitespace-nowrap ${FOCUS} ${o.key === value ? SEGMENT_ON : SEGMENT_OFF}`}
         >
           {o.label}
         </button>
