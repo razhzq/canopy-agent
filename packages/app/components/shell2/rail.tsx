@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTenant } from "@canopy-agent/shared/tenant/context";
 import { FOCUS } from "@/components/kit";
+import { HOME_ROUTE } from "@/lib/enabledSections";
 import { SECTIONS, sectionFor } from "./sections";
 
 /** The left rail on desktop: the mark, then the six sections. */
@@ -17,7 +18,7 @@ export function Rail() {
       aria-label="Main"
       className="sticky top-2 hidden h-[calc(100dvh-16px)] w-[76px] shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-border bg-panel py-3.5 lg:flex"
     >
-      <Link href="/ask" aria-label={tenant.name} className={`mb-3 flex h-8 items-center rounded-md ${FOCUS}`}>
+      <Link href={HOME_ROUTE} aria-label={tenant.name} className={`mb-3 flex h-8 items-center rounded-md ${FOCUS}`}>
         {mark ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={mark} alt="" className="h-7 w-auto" />

@@ -1,3 +1,4 @@
+import { sectionOn, type SectionKey } from "@/lib/enabledSections";
 import { ChartCandlestick, ChartColumn, ClipboardList, Copy, MessageSquare, Zap, type LucideIcon } from "lucide-react";
 
 /**
@@ -7,7 +8,7 @@ import { ChartCandlestick, ChartColumn, ClipboardList, Copy, MessageSquare, Zap,
  * Studio and Copy point at the v1 builder and marketplace until their v2
  * screens land; the routes stay the same.
  */
-export const SECTIONS: { key: string; label: string; href: string; icon: LucideIcon; match: string[] }[] = [
+const ALL_SECTIONS: { key: SectionKey; label: string; href: string; icon: LucideIcon; match: string[] }[] = [
   { key: "ask", label: "Ask", href: "/ask", icon: MessageSquare, match: ["/ask"] },
   { key: "feed", label: "Feed", href: "/feed", icon: Zap, match: ["/feed"] },
   { key: "studio", label: "Studio", href: "/studio", icon: ClipboardList, match: ["/build", "/studio"] },
@@ -15,6 +16,9 @@ export const SECTIONS: { key: string; label: string; href: string; icon: LucideI
   { key: "copy", label: "Copy", href: "/agents", icon: Copy, match: ["/agents", "/deploy", "/copy"] },
   { key: "portfolio", label: "Portfolio", href: "/portfolio", icon: ChartColumn, match: ["/portfolio", "/workspace"] },
 ];
+
+/** The sections that are switched on (lib/enabledSections), in rail order. */
+export const SECTIONS = ALL_SECTIONS.filter((s) => sectionOn(s.key));
 
 export function sectionFor(pathname: string) {
   return SECTIONS.find((s) => s.match.some((m) => pathname === m || pathname.startsWith(`${m}/`))) ?? null;

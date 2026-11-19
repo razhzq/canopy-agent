@@ -1,5 +1,7 @@
 "use client";
 
+import { sectionOn } from "@/lib/enabledSections";
+
 import { Avatar, FOCUS, POPOVER } from "@/components/kit";
 import { DepositModal, WithdrawModal } from "@/components/walletModals";
 import { UsernameModal } from "@/components/usernameModal";
@@ -1116,6 +1118,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean } = {}) {
                 onNavigate={() => close(false)}
               />
             ))}
+            {sectionOn("portfolio") ? (
             <MenuRow
               href="/portfolio"
               icon={<PortfolioIcon className="size-3.5" />}
@@ -1136,6 +1139,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean } = {}) {
               active={isActive(pathname, ["/portfolio", "/workspace"])}
               onNavigate={() => close(false)}
             />
+            ) : null}
           </div>
 
           <div className="border-b border-grid pb-1.5">
@@ -1186,7 +1190,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean } = {}) {
                 gated on having a balance: the whole point is that most people
                 who are owed something do not know it yet, and a row that only
                 appears once you already know to look for it would be useless. */}
-            {tenant.features.earnings ? (
+            {tenant.features.earnings && sectionOn("portfolio") ? (
             <MenuRow
               href="/earnings"
               icon={<SettingsIcon className="size-3.5" />}

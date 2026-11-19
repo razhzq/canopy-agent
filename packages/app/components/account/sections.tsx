@@ -18,6 +18,7 @@ import { bookTotals } from "@/lib/portfolioMath";
 import { useHoldings } from "@/lib/useHoldings";
 import { useTradeAccount } from "@/lib/useMarket";
 import { useUsername } from "@/lib/useUsername";
+import { sectionOn } from "@/lib/enabledSections";
 import { AccountHeading, Card, START_CREDITS } from "./accountShell";
 
 /* ------------------------------------------------------------------ wallet -- */
@@ -54,11 +55,15 @@ export function WalletSection() {
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Card label="Free to use">{usd(free)}</Card>
-        <Link href="/portfolio" className={`rounded-2xl ${FOCUS}`}>
-          <Card label="Invested ›" className="h-full hover:border-grid-strong">
-            {usd(totals?.investedUsd ?? 0)}
-          </Card>
-        </Link>
+        {sectionOn("portfolio") ? (
+          <Link href="/portfolio" className={`rounded-2xl ${FOCUS}`}>
+            <Card label="Invested ›" className="h-full hover:border-grid-strong">
+              {usd(totals?.investedUsd ?? 0)}
+            </Card>
+          </Link>
+        ) : (
+          <Card label="Invested">{usd(totals?.investedUsd ?? 0)}</Card>
+        )}
         <Card label="P&L, 30 days">
           <Signed usd={totals?.d30Usd ?? null} />
         </Card>
@@ -209,6 +214,7 @@ export function ProfileSection() {
             Link a wallet
           </button>
         </div>
+        {sectionOn("portfolio") && (
         <div className={row}>
           <div>
             <p className="text-[12px] text-text-muted">Creator</p>
@@ -218,6 +224,7 @@ export function ProfileSection() {
             Open earnings
           </Link>
         </div>
+        )}
       </div>
       {editing && <UsernameModal onClose={() => setEditing(false)} />}
     </>

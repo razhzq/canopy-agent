@@ -16,6 +16,7 @@ import { searchMarket } from "@/lib/api";
 import { usd } from "@/lib/format";
 import type { TokenRow } from "@/lib/market";
 import { useTradeAccount } from "@/lib/useMarket";
+import { HOME_ROUTE, sectionOn } from "@/lib/enabledSections";
 import { OTHER_PAGES, sectionFor } from "./sections";
 
 function crumbFor(pathname: string): string {
@@ -36,7 +37,7 @@ export function TopBar() {
     <header className="sticky top-0 z-30 bg-bg pt-2 lg:top-2 lg:pt-0">
       <div className="relative flex h-14 items-center gap-2 rounded-2xl border border-border bg-panel pr-2 pl-4 sm:gap-2.5 lg:pl-5">
         <span className="hidden font-ui text-[14px] font-medium text-text-primary sm:block lg:w-28">{crumbFor(pathname)}</span>
-        <Link href="/ask" className="font-ui text-[14px] font-medium text-text-primary sm:hidden">
+        <Link href={HOME_ROUTE} className="font-ui text-[14px] font-medium text-text-primary sm:hidden">
           {crumbFor(pathname) || "Canopy"}
         </Link>
 
@@ -55,7 +56,7 @@ export function TopBar() {
         {authenticated && <NotificationCentre />}
         {authenticated && account?.ready && (
           <Link
-            href="/portfolio"
+            href={sectionOn("portfolio") ? "/portfolio" : "/account/wallet"}
             title="Free in your trading wallet"
             className={`hidden h-9 items-center rounded-full border border-border px-3 font-mono text-[12.5px] text-text-primary tnum hover:border-grid-strong sm:flex ${FOCUS}`}
           >

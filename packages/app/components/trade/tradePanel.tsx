@@ -1,5 +1,6 @@
 "use client";
 
+import { sectionOn } from "@/lib/enabledSections";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -503,14 +504,17 @@ export function TradePanel({
 
   return (
     <div className="space-y-4">
-      <div role="tablist" aria-label="How you trade" className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-surface p-1">
+      <div role="tablist" aria-label="How you trade" className={`grid ${sectionOn("copy") ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-2xl border border-border bg-surface p-1`}>
         {(
           [
             ["copy", "Copy", "It trades"],
             ["copilot", "Copilot", "It suggests"],
             ["manual", "Manual", "You trade"],
           ] as const
-        ).map(([k, t, sub]) => (
+        )
+          // Copy is its own section; while it is switched off, so is this tab.
+          .filter(([k]) => k !== "copy" || sectionOn("copy"))
+          .map(([k, t, sub]) => (
           <button
             key={k}
             type="button"
