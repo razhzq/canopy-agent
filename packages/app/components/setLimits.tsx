@@ -314,7 +314,10 @@ export function SetLimits({
   value,
   onChange,
   onBack,
+  initialSentence,
 }: {
+  /** A sentence handed over from Studio or Ask: sent once as the first turn. */
+  initialSentence?: string;
   /**
    * Every market the strategy will screen, sharing one class.
    *
@@ -507,6 +510,15 @@ export function SetLimits({
    * cannot drift, cannot ask for something the engine does not use, and cannot
    * claim the strategy is ready when a required field is still a default.
    */
+  // The handed-over sentence goes in as the first turn, once.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !initialSentence || spec.length > 0) return;
+    seeded.current = true;
+    void send(initialSentence);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSentence]);
+
   async function send(text: string) {
     const said = text.trim();
     if (!said || busy) return;

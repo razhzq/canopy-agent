@@ -10,7 +10,7 @@ import { ChartCandlestick, ChartColumn, ClipboardList, Copy, MessageSquare, Zap,
 export const SECTIONS: { key: string; label: string; href: string; icon: LucideIcon; match: string[] }[] = [
   { key: "ask", label: "Ask", href: "/ask", icon: MessageSquare, match: ["/ask"] },
   { key: "feed", label: "Feed", href: "/feed", icon: Zap, match: ["/feed"] },
-  { key: "studio", label: "Studio", href: "/build/new", icon: ClipboardList, match: ["/build", "/studio"] },
+  { key: "studio", label: "Studio", href: "/studio", icon: ClipboardList, match: ["/build", "/studio"] },
   { key: "trade", label: "Trade", href: "/trade", icon: ChartCandlestick, match: ["/trade"] },
   { key: "copy", label: "Copy", href: "/agents", icon: Copy, match: ["/agents", "/deploy", "/copy"] },
   { key: "portfolio", label: "Portfolio", href: "/portfolio", icon: ChartColumn, match: ["/portfolio", "/workspace"] },

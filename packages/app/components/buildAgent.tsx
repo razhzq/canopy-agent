@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { takeSeed } from "@/lib/studioSeed";
 import { usePrivy } from "@privy-io/react-auth";
 import { Callout, CheckIcon, Columns, WarnIcon } from "@/components/ui";
 import { PRIMARY, QUIET, Spinner } from "@/components/kit";
@@ -521,7 +522,24 @@ export function BuildAgent() {
   const hydrated = useRef(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // A handoff from Studio or Ask wins over a saved draft: the reader just
+  // asked for this agent. Markets known → straight to the rules step.
+  const [seedSentence, setSeedSentence] = useState<string | undefined>(undefined);
   useEffect(() => {
+    const seed = takeSeed();
+    if (!seed) return;
+    hydrated.current = true;
+    setKind("spot");
+    setInstrument("spot");
+    setPhase("build");
+    setMarkets(seed.markets);
+    setStep(seed.markets.length > 0 ? 1 : 0);
+    setNaming("done");
+    setSeedSentence(seed.sentence);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated.current) return;
     try {
       const d = readDraft(localStorage.getItem(DRAFT_KEY));
       if (d) {
@@ -1411,6 +1429,7 @@ export function BuildAgent() {
               value={limits}
               onChange={setLimits}
               onBack={() => setStep(0)}
+              initialSentence={seedSentence}
             />
           ) : (
             <PickModel
@@ -1565,6 +1584,7 @@ export function BuildAgent() {
                 value={limits}
                 onChange={setLimits}
                 onBack={() => goTo(0)}
+                initialSentence={seedSentence}
               />
             ) : (
               // `isPaper` is unconditionally true: this wizard only ever ends in

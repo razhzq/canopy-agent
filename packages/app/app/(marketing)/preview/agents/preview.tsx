@@ -49,7 +49,7 @@ function row(
   } as StrategyRow;
 }
 
-const ROWS: StrategyRow[] = [
+export const ROWS: StrategyRow[] = [
   row(1, "AAPLx Dip Catcher", "Dip buy", "published", 94, { deployments: "41", aum_usd: "182000", trades_30d: "928", open_positions: "3", volume_30d_usd: "1240000" }),
   row(2, "COINx Volatility", "Breakout", "published", 8, { deployments: "12", aum_usd: "44000", trades_30d: "1884", open_positions: "5", volume_30d_usd: "880000" }),
   row(3, "SOL Momentum", "Momentum", "published", 12, { deployments: "9", aum_usd: "97000", trades_30d: "1612", open_positions: "2", volume_30d_usd: "2100000", model: { id: "deepseek-v3", label: "DeepSeek-V3", provider: "pod" } }),

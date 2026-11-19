@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { ArrowUp, X } from "lucide-react";
@@ -9,7 +10,9 @@ import { Modal } from "@/components/modal";
 import { DepositBody } from "@/components/portfolio2/deposit";
 import { Delta, Price, TokenMark } from "@/components/trade/bits";
 import {
+  assetMatchesSelection,
   composeAgent,
+  getAllMarkets,
   getMarketTokens,
   getTelegramStatus,
   getTradePositions,
@@ -19,7 +22,9 @@ import {
   realizedReturnPct,
   type ComposedDraft,
   type StrategyRow,
+  type UniverseAsset,
 } from "@/lib/api";
+import { writeSeed } from "@/lib/studioSeed";
 import { SOL_MINT, type TokenRow } from "@/lib/market";
 import { useTradeAccount } from "@/lib/useMarket";
 
@@ -188,15 +193,37 @@ function ReplyCard({ reply, onClose }: { reply: Reply; onClose: () => void }) {
             I turned that into rules: <b className="font-medium text-text-primary">{reply.draft.reading}</b>
             {reply.notes.length > 0 && <span className="mt-1 block text-[12.5px] text-text-muted">{reply.notes.join(" ")}</span>}
           </p>
-          <Link href={`/build/new?prompt=${encodeURIComponent(reply.q)}`} className={`${PRIMARY} h-8 px-3.5 text-[12.5px]`}>
-            Review rules
-          </Link>
+          <ReviewRules q={reply.q} draft={reply.draft} />
           <Link href={`/trade/${firstMint(reply.draft) ?? SOL_MINT}`} className={`${SECONDARY} h-8 px-3.5 text-[12.5px]`}>
             Just suggest one trade
           </Link>
         </div>
       )}
     </section>
+  );
+}
+
+/** Hands the sentence and the markets it named to the builder's rules step. */
+function ReviewRules({ q, draft }: { q: string; draft: ComposedDraft }) {
+  const router = useRouter();
+  const { getAccessToken } = usePrivy();
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    let markets: UniverseAsset[] = [];
+    try {
+      const tk = await getAccessToken();
+      if (tk) markets = (await getAllMarkets(tk)).filter((a) => draft.universe.some((u) => assetMatchesSelection(a, u)));
+    } catch {
+      /* the builder asks for the market instead */
+    }
+    writeSeed({ sentence: q, markets });
+    router.push("/build/new");
+  }
+  return (
+    <button type="button" disabled={busy} onClick={() => void go()} className={`${PRIMARY} h-8 px-3.5 text-[12.5px]`}>
+      Review rules
+    </button>
   );
 }
 
@@ -405,7 +432,7 @@ function Doors() {
           <small className="font-ui text-[12px] text-text-muted">For newer traders</small>
         </Link>
 
-        <Link href="/build/new" className={door}>
+        <Link href="/studio" className={door}>
           <div className={mini} aria-hidden>
             <p className="font-mono text-[11px] leading-[1.7] text-text-secondary">
               IF SOL drop_1h ≥ 5%
