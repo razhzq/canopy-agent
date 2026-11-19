@@ -1098,6 +1098,24 @@ export function AccountMenu({ compact = false }: { compact?: boolean } = {}) {
               rows made them read as a single list. */}
           <div className="border-b border-grid pb-1.5">
             <MenuGroupLabel>{t("account_group_account")}</MenuGroupLabel>
+            {(
+              [
+                ["/account/wallet", "Wallet"],
+                ["/account/referral", "Referral"],
+                ["/account/profile", "Profile"],
+                ["/account/notifications", "Notifications"],
+                ["/account/credits", "Credits"],
+              ] as const
+            ).map(([href, label]) => (
+              <MenuRow
+                key={href}
+                href={href}
+                icon={<SettingsIcon className="size-3.5" />}
+                label={label}
+                active={pathname === href}
+                onNavigate={() => close(false)}
+              />
+            ))}
             <MenuRow
               href="/portfolio"
               icon={<PortfolioIcon className="size-3.5" />}

@@ -29,4 +29,5 @@ export const OTHER_PAGES: [string, string][] = [
   ["/atlas", "Atlas"],
   ["/admin", "Admin"],
   ["/wallet-audit", "Wallet"],
+  ["/account", "Account"],
 ];

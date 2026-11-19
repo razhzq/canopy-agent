@@ -2,6 +2,7 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { InfoIcon, WarnIcon } from "./ui";
+import { PRIMARY, SECONDARY } from "./kit";
 import { useT } from "@canopy-agent/shared/i18n";
 import { useTenant } from "@canopy-agent/shared/tenant/context";
 
@@ -25,7 +26,7 @@ import { useTenant } from "@canopy-agent/shared/tenant/context";
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[280px] items-center justify-center border border-grid px-8 py-16">
+    <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-panel px-8 py-16">
       <div className="max-w-[420px] space-y-4 text-center">{children}</div>
     </div>
   );
@@ -37,7 +38,7 @@ export function SignedOutState({ note }: { note?: string }) {
   const t = useT();
   return (
     <Frame>
-      <p className="font-mono text-[13px] tracking-[0.06em] text-text-primary uppercase">
+      <p className="font-ui text-[16px] text-text-primary">
         {t("state_signed_out_title")}
       </p>
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">
@@ -49,7 +50,7 @@ export function SignedOutState({ note }: { note?: string }) {
         type="button"
         disabled={!ready}
         onClick={() => login()}
-        className="mt-2 border border-accent px-5 py-2.5 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent-wash disabled:opacity-40"
+        className={`mt-2 ${PRIMARY}`}
       >
         {t("state_sign_in")}
       </button>
@@ -68,7 +69,7 @@ export function ErrorState({
   return (
     <Frame>
       <WarnIcon className="mx-auto text-warning" />
-      <p className="font-mono text-[13px] tracking-[0.06em] text-text-primary uppercase">
+      <p className="font-ui text-[16px] text-text-primary">
         {t("state_error_title")}
       </p>
       {/* The real message, not a sanitised one — a user reporting a bug should
@@ -80,7 +81,7 @@ export function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 border border-border px-5 py-2.5 font-mono text-[11px] tracking-[0.1em] text-text-secondary uppercase transition-colors hover:text-text-primary"
+          className={`mt-2 ${SECONDARY}`}
         >
           {t("state_try_again")}
         </button>
@@ -101,14 +102,14 @@ export function EmptyState({
   return (
     <Frame>
       <InfoIcon className="mx-auto text-text-dim" />
-      <p className="font-mono text-[13px] tracking-[0.06em] text-text-primary uppercase">
+      <p className="font-ui text-[16px] text-text-primary">
         {title}
       </p>
       <p className="font-ui text-[13px] leading-relaxed text-text-secondary">{body}</p>
       {action ? (
         <a
           href={action.href}
-          className="mt-2 inline-block border border-accent px-5 py-2.5 font-mono text-[11px] tracking-[0.1em] text-accent uppercase transition-colors hover:bg-accent-wash"
+          className={`mt-2 ${PRIMARY}`}
         >
           {action.label}
         </a>
